@@ -2,6 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
+<meta name="app-version" content="1.2.0">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -236,6 +237,22 @@ textarea.ck-c{min-height:70px !important}
 .logo-pill img{height:30px;width:auto;display:block;max-width:170px;object-fit:contain}
 @media (max-width:360px){.logo-pill img{height:24px}}
 .logo-prev{background:#fff;border:1px solid var(--line2)}
+/* works inspection */
+.seg.pf button.on[data-v=Pass]{background:var(--good);border-color:var(--good);box-shadow:none}
+.seg.pf button.on[data-v=Fail]{background:var(--crit);border-color:var(--crit);box-shadow:none}
+.seg.pf button.on[data-v="N/A"]{background:#64748b;border-color:#64748b;box-shadow:none}
+.ck.fail{border-color:var(--crit);background:#fff5f5}
+.ck-ph{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.ck-ph img{width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.ck-row{display:flex;gap:8px;align-items:flex-end}.ck-row .ck-c{flex:1}
+.ck-cam{width:48px;height:46px;flex:none;border:2px dashed var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--navy2);cursor:pointer}
+.ck-cam svg{width:24px;height:24px}
+.tagseg{gap:4px}.tagseg button{min-height:40px;min-width:0;font-size:13px;padding:2px}
+.tag.type-survey{background:#e0ecff;color:#1e3a8a}.tag.type-works{background:var(--orange);color:var(--on-orange)}
+.tag.rag-t-Green{background:var(--good);color:#fff}.tag.rag-t-Amber{background:#d97706;color:#fff}.tag.rag-t-Red{background:var(--crit);color:#fff}
+.rag{width:92px;height:92px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:16px;flex:none;box-shadow:inset 0 -6px 0 rgba(0,0,0,.18)}
+.rag-Green{background:var(--good)}.rag-Amber{background:#d97706}.rag-Red{background:var(--crit)}
+.filters+.filters{margin-top:-4px}
 
 </style>
 </head>
@@ -656,7 +673,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.2.0';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -746,7 +763,7 @@ const DEFAULT_SETTINGS = {
   company: 'Absolute Roofing Solutions Ltd', tagline: 'Industrial & commercial roofing specialists, nationwide coverage',
   address: 'Jubilee Estate, Gorsey Lane, Coleshill, West Midlands B46 1JU', phone: '0121 268 3213', email: 'info@absoluteroofingsolutions.co.uk', website: 'www.absoluteroofingsolutions.co.uk',
   legal: 'Registered office: C/O MCA Group, Suite 16d, The McLaren Building, 46 The Priory Queensway, Birmingham B4 7LR. Company Reg: 8487521. VAT No: 160 783 111',
-  accreditation: '', surveyor: 'Matt Ross', refPrefix: 'ARS', templates: null, logo: DEFAULT_LOGO.data, logoW: DEFAULT_LOGO.w, logoH: DEFAULT_LOGO.h, disclaimer: DEFAULT_DISCLAIMER,
+  accreditation: '', surveyor: 'Matt Ross', refPrefix: 'ARS', templates: null, logo: DEFAULT_LOGO.data, logoW: DEFAULT_LOGO.w, logoH: DEFAULT_LOGO.h, disclaimer: DEFAULT_DISCLAIMER, worksDisclaimer: '',
 };
 
 /* ---------- Storage (IndexedDB) ---------- */
@@ -819,9 +836,9 @@ const DEFAULT_TEMPLATES = {
   ],
 };
 function sectionFromTemplate(t) {
-  return { id: uid(), key: t.key, title: t.title, rating: '', items: (t.items || []).map(i => ({ id: uid(), text: i.text, type: i.type || 'yn', answer: '', comment: '' })), photos: [], notes: '' };
+  return { id: uid(), key: t.key, title: t.title, rating: '', items: (t.items || []).map(i => ({ id: uid(), text: i.text, type: i.type || 'yn', answer: '', comment: '', photos: [] })), photos: [], notes: '' };
 }
-const tpls = scope => (S.settings.templates || DEFAULT_TEMPLATES)[scope] || [];
+const tpls = scope => (S.settings.templates && S.settings.templates[scope]) || DEFAULT_TEMPLATES[scope] || [];
 
 /* ---------- Model ---------- */
 function newJob() {
@@ -957,7 +974,7 @@ function header({ title, sub = '', back = null, right = '' }) {
   return `<header class="hdr">${back !== null ? `<a class="ibtn" href="${back}" aria-label="Back">${I.back}</a>` : BRANDMARK}<div class="ttl"><h1>${esc(title)}</h1>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div><span id="saved" class="saved">✓ Saved</span>${right}</header>`;
 }
 const TABS = [['details', 'Details', I.details], ['safety', 'Safety', I.shield], ['roofs', 'Roofs', I.roof], ['general', 'General', I.camera], ['summary', 'Summary', I.chart], ['report', 'Report', I.pdf]];
-function bnav(job, cur) { return `<nav class="bnav">${TABS.map(([k, l, ic]) => `<a href="#/job/${job.id}/${k}" class="${cur === k ? 'on' : ''}" data-tab="${k}">${ic}<span>${l}</span></a>`).join('')}</nav>`; }
+function bnav(job, cur) { return `<nav class="bnav">${(isWorks(job) ? TABS_W : TABS).map(([k, l, ic]) => `<a href="#/job/${job.id}/${k}" class="${cur === k ? 'on' : ''}" data-tab="${k}">${ic}<span>${l}</span></a>`).join('')}</nav>`; }
 function hsStrip(job) {
   const f = hsFlags(job); if (!f.length) return '';
   return `<div class="hs-strip">${f.map(x => `<a href="#/job/${job.id}/safety" class="tag ${x.sev}" style="text-decoration:none">⚠ ${x.label}</a>`).join('')}</div>`;
@@ -977,21 +994,29 @@ function answerOpts(type) {
   return [['Yes', 'Yes'], ['No', 'No'], ['N/A', 'N/A']];
 }
 function checklistHTML(base, sec, f) {
+  const job = S.ctx && S.ctx.job;
   const items = sec.items.map(it => {
     const p = `${base}.items#${it.id}`;
     let ctl = '';
     if (it.type === 'rate') ctl = `<div class="seg rate" data-b="${p}.answer">${[...RATINGS, 'NA'].map(x => `<button type="button" data-v="${x}" class="${it.answer === x ? 'on' : ''}">${x === 'NA' ? 'N/A' : x}</button>`).join('')}</div>`;
     else if (it.type === 'yn') ctl = `<div class="seg yn3" data-b="${p}.answer">${answerOpts().map(([v, l]) => `<button type="button" data-v="${v}" class="${it.answer === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    else if (it.type === 'pf') ctl = `<div class="seg pf" data-b="${p}.answer">${['Pass', 'Fail', 'N/A'].map(v => `<button type="button" data-v="${v}" class="${it.answer === v ? 'on' : ''}">${v}</button>`).join('')}</div>`;
+    else if (it.type === 'num') { const st = numStats(it.answer); ctl = `<input type="text" inputmode="decimal" data-b="${p}.answer" value="${esc(it.answer)}" placeholder="Readings, e.g. 250, 262, 245"><div class="small" id="ns_${it.id}" style="margin-top:4px">${st ? `${st.n} reading${st.n > 1 ? 's' : ''} · min ${st.min} · avg ${st.avg} · max ${st.max}` : 'Enter one or more numbers separated by commas'}</div>`; }
     const cm = it.type === 'text'
       ? `<textarea class="ck-c" data-b="${p}.comment" placeholder="Answer…">${esc(it.comment)}</textarea>`
       : `<input type="text" class="ck-c" data-b="${p}.comment" value="${esc(it.comment)}" placeholder="Comment (optional)">`;
-    return `<div class="ck ${it.answer || it.comment ? 'done' : ''}" data-item="${it.id}"><div class="ck-h"><div class="ck-t">${esc(it.text)}</div><button type="button" class="ck-x" title="Remove item" aria-label="Remove item" data-act="delitem" data-base="${base}" data-id="${it.id}">×</button></div>${ctl}${cm}</div>`;
+    const ph = (it.photos || []);
+    const snag = job && job.snags && it.snagId && job.snags.find(s => s.id === it.snagId);
+    const cam = `<label class="ck-cam" title="Add photo to this item" aria-label="Add photo to this item">${I.camera}<input type="file" accept="image/*" capture="environment" data-photo="${p}.photos" hidden></label>`;
+    const thumbs = (ph.length || snag) ? `<div class="ck-ph">${ph.map(x => `<img src="${x.data}" alt="" data-act="viewphoto" data-key="${p}.photos" data-id="${x.id}">`).join('')}${snag ? `<a class="tag ${snag.status === 'Closed' ? 'green' : 'red'}" style="text-decoration:none;margin-left:auto;font-size:13px;padding:8px 12px" href="#/job/${job.id}/snag/${snag.id}">Snag ${esc(snag.ref)} · ${snag.status} ›</a>` : ''}</div>` : '';
+    return `<div class="ck ${it.answer || it.comment ? 'done' : ''} ${it.answer === 'Fail' ? 'fail' : ''}" data-item="${it.id}"><div class="ck-h"><div class="ck-t">${esc(it.text)}</div><button type="button" class="ck-x" title="Remove item" aria-label="Remove item" data-act="delitem" data-base="${base}" data-id="${it.id}">×</button></div>${ctl}<div class="ck-row">${cm}${cam}</div>${thumbs}</div>`;
   }).join('');
+  const pfOpt = job && isWorks(job) ? '<option value="pf">Pass / Fail / N/A</option>' : '';
   return `${items || '<p class="hint">No checklist items yet.</p>'}
-  <div class="addit"><input type="text" id="ni_${sec.id}" placeholder="Add a custom checklist item…"><select id="nt_${sec.id}"><option value="yn">Yes / No / N/A</option><option value="rate">Good / Fair / Poor / Critical</option><option value="text">Text answer</option></select><button type="button" class="btn navy" data-act="additem" data-base="${base}" data-sid="${sec.id}">${I.plus}Add</button></div>`;
+  <div class="addit"><input type="text" id="ni_${sec.id}" placeholder="Add a custom checklist item…"><select id="nt_${sec.id}">${pfOpt}<option value="yn">Yes / No / N/A</option><option value="rate">Good / Fair / Poor / Critical</option><option value="num">Numeric readings</option><option value="text">Text answer</option></select><button type="button" class="btn navy" data-act="additem" data-base="${base}" data-sid="${sec.id}">${I.plus}Add</button></div>`;
 }
 function photoGrid(key, photos, opts = {}) {
-  return `<div class="pgrid">${(photos || []).map((p, i) => `<div class="ph"><img src="${p.data}" alt="Photo ${i + 1}" data-act="viewphoto" data-key="${key}" data-id="${p.id}" loading="lazy"><div class="pc"><textarea data-b="${key}#${p.id}.caption" placeholder="Caption / notes…">${esc(p.caption)}</textarea><button type="button" class="del" data-act="delphoto" data-key="${key}" data-id="${p.id}">Remove</button></div></div>`).join('')}</div>${(photos || []).length ? '' : `<p class="hint">${opts.empty || 'No photos yet.'}</p>`}${addPhotoButtons(key)}`;
+  return `<div class="pgrid">${(photos || []).map((p, i) => `<div class="ph"><img src="${p.data}" alt="Photo ${i + 1}" data-act="viewphoto" data-key="${key}" data-id="${p.id}" loading="lazy"><div class="pc">${opts.tags ? `<div class="seg tagseg" data-b="${key}#${p.id}.tag">${['Before', 'During', 'After'].map(t => `<button type="button" data-v="${t}" class="${p.tag === t ? 'on' : ''}">${t}</button>`).join('')}</div>` : ''}<textarea data-b="${key}#${p.id}.caption" placeholder="Caption / notes…">${esc(p.caption)}</textarea><button type="button" class="del" data-act="delphoto" data-key="${key}" data-id="${p.id}">Remove</button></div></div>`).join('')}</div>${(photos || []).length ? '' : `<p class="hint">${opts.empty || 'No photos yet.'}</p>`}${addPhotoButtons(key)}`;
 }
 function sectionCards(base, sec, f, { checklistTitle = 'Checklist', notesLabel = 'Section notes' } = {}) {
   const pr = secProgress(sec);
@@ -1003,13 +1028,13 @@ function sectionCards(base, sec, f, { checklistTitle = 'Checklist', notesLabel =
 /* ---------- Views ---------- */
 function viewList() {
   const q = S.q.toLowerCase();
-  const jobs = S.jobs.filter(j => S.filter === 'all' || j.status === S.filter)
-    .filter(j => !q || [j.ref, j.client.name, j.site.name, j.site.address, j.site.postcode, j.surveyor].join(' ').toLowerCase().includes(q))
+  const jobs = S.jobs.filter(j => S.filter === 'all' || j.status === S.filter).filter(j => !S.tfilter || S.tfilter === 'all' || j.type === S.tfilter)
+    .filter(j => !q || [j.ref, j.client.name, j.site.name, j.site.address, j.site.postcode, j.surveyor, isWorks(j) ? j.works.contractRef : ''].join(' ').toLowerCase().includes(q))
     .sort((a, b) => b.updated - a.updated);
   const cards = jobs.map(j => {
     const c = priCounts(j); const fl = hsFlags(j);
     return `<div class="job ${j.status}"><a class="main" href="#/job/${j.id}/details"><div class="ref">${esc(j.ref)} · ${fmtDate(j.date)}</div><div class="nm">${esc(j.client.name || j.site.name || 'Untitled audit')}</div><div class="ad">${esc([j.site.name, j.site.address, j.site.postcode].filter(Boolean).join(', ') || 'No site address')}</div>
-    <div class="meta"><span class="tag ${j.status === 'Complete' ? 'green' : 'navy'}">${j.status}</span><span class="tag">${j.areas.length} area${j.areas.length === 1 ? '' : 's'}</span>${c.P1 ? `<span class="tag P1">${c.P1} × P1</span>` : ''}${c.P2 ? `<span class="tag P2">${c.P2} × P2</span>` : ''}${fl.filter(x => x.sev === 'red').map(x => `<span class="tag red">⚠ ${x.label}</span>`).join('')}</div></a>
+    <div class="meta"><span class="tag ${isWorks(j) ? 'type-works' : 'type-survey'}">${isWorks(j) ? 'Works insp. ' + esc(j.works.inspNo || '') : 'Survey'}</span><span class="tag ${j.status === 'Complete' ? 'green' : 'navy'}">${j.status}</span>${isWorks(j) ? `${worksPct(j) != null ? `<span class="tag">${worksPct(j)}% complete</span>` : ''}<span class="tag rag-t-${ragOf(j)}">${ragOf(j)}</span>${openSnags(j).length ? `<span class="tag red">${openSnags(j).length} open snag${openSnags(j).length > 1 ? 's' : ''}</span>` : ''}` : `<span class="tag">${j.areas.length} area${j.areas.length === 1 ? '' : 's'}</span>${c.P1 ? `<span class="tag P1">${c.P1} × P1</span>` : ''}${c.P2 ? `<span class="tag P2">${c.P2} × P2</span>` : ''}`}${fl.filter(x => x.sev === 'red').map(x => `<span class="tag red">⚠ ${x.label}</span>`).join('')}</div></a>
     <button class="more" data-act="jobmenu" data-id="${j.id}" aria-label="Job options">${I.dots}</button></div>`;
   }).join('');
   return {
@@ -1017,6 +1042,7 @@ function viewList() {
       : header({ title: S.settings.company || 'Site Audit', sub: 'Roof site audits', right: `<a class="ibtn" href="#/settings" aria-label="Settings">${I.gear}</a>` }),
     body: `<div class="search">${I.search}<input type="search" id="q" placeholder="Search client, site, postcode, ref…" value="${esc(S.q)}"></div>
     <div class="filters">${[['all', 'All'], ['Draft', 'Draft'], ['Complete', 'Complete']].map(([k, l]) => `<button data-act="filter" data-v="${k}" class="${S.filter === k ? 'on' : ''}">${l} (${k === 'all' ? S.jobs.length : S.jobs.filter(j => j.status === k).length})</button>`).join('')}</div>
+    <div class="filters">${[['all', 'All types'], ['survey', 'Surveys'], ['works', 'Works']].map(([k, l]) => `<button data-act="tfilter" data-v="${k}" class="${(S.tfilter || 'all') === k ? 'on' : ''}">${l} (${k === 'all' ? S.jobs.length : S.jobs.filter(j => j.type === k).length})</button>`).join('')}</div>
     <div id="joblist">${cards || `<div class="empty">${I.roof}<p><b>No audits yet</b><br>Tap <b>New audit</b> to start a site audit.</p></div>`}</div>
     <button class="fab" data-act="newjob">${I.plus} New audit</button>`,
   };
@@ -1071,6 +1097,7 @@ function viewSafety(job) {
   ${sec ? sectionCards(`sections#${sec.id}`, sec, f, { checklistTitle: 'H&S checklist', notesLabel: 'H&S notes' }) : ''}`;
 }
 function areaItem(job, a) {
+  if (isWorks(job)) { const os = job.snags.filter(s => s.areaId === a.id && s.status !== 'Closed').length; const first = a.progress.slice(-1)[0] || a.sections.flatMap(s => s.photos)[0]; return `<a class="item" href="#/job/${job.id}/area/${a.id}">${first ? `<img class="th" src="${first.data}" alt="">` : `<div class="th">${I.roof.replace('<svg', '<svg width="30" height="30"')}</div>`}<div class="bd"><div class="t1">${esc(a.name || 'Unnamed area')}</div><div class="t2">${esc(a.sections.map(s => s.title).join(', ') || 'No packages selected')}</div><div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${a.pct !== '' && a.pct != null ? `<span class="tag navy">${a.pct}% complete</span>` : ''}<span class="tag ${os ? 'red' : ''}">${os} open snag${os === 1 ? '' : 's'}</span></div></div>${I.chev}</a>`; }
   const b = areaBand(a); const ph = a.sections.reduce((n, s) => n + s.photos.length, 0) + a.defects.reduce((n, d) => n + d.photos.length, 0);
   const first = a.sections.flatMap(s => s.photos)[0] || a.defects.flatMap(d => d.photos)[0];
   return `<a class="item" href="#/job/${job.id}/area/${a.id}">${first ? `<img class="th" src="${first.data}" alt="">` : `<div class="th">${I.roof.replace('<svg', '<svg width="30" height="30"')}</div>`}<div class="bd"><div class="t1">${esc(a.name || 'Unnamed area')}</div><div class="t2">${esc([a.type, a.profile, areaM2(a) ? areaM2(a) + ' m²' : ''].filter(Boolean).join(' · ') || 'Tap to survey')}</div><div class="meta" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${b ? `<span class="tag ${b}">${b}</span>` : ''}<span class="tag">${a.defects.length} defect${a.defects.length === 1 ? '' : 's'}</span><span class="tag">${ph} photo${ph === 1 ? '' : 's'}</span></div></div>${I.chev}</a>`;
@@ -1172,7 +1199,7 @@ function viewReport(job) {
   const tog = (k, l) => `<div class="f"><span class="lbl">${l}</span><div class="seg" data-ro="${k}"><button type="button" data-v="1" class="${o[k] ? 'on' : ''}">Yes</button><button type="button" data-v="0" class="${!o[k] ? 'on' : ''}">No</button></div></div>`;
   const ready = S.pdf && S.pdf.jobId === job.id;
   return `${hsStrip(job)}<div class="card"><h2>${I.pdf.replace('<svg', '<svg width="22" height="22"')} PDF report</h2>
-  <p class="hint" style="margin-bottom:14px">Branded report with cover page, job & site details, H&S findings, every section's checklist, notes & photos, defects schedule with thumbnails, summary, recommendations and disclaimer.</p>
+  <p class="hint" style="margin-bottom:14px">${isWorks(job) ? 'Works Inspection Report: cover, inspection summary with RAG status, site H&S, work-package checklists with pass/fail counts, snag schedule with before/after photos, progress photos, actions for next visit and signatures.' : ''}</p><p class="hint" style="margin-bottom:14px;${isWorks(job) ? 'display:none' : ''}">Branded report with cover page, job & site details, H&S findings, every section's checklist, notes & photos, defects schedule with thumbnails, summary, recommendations and disclaimer.</p>
   ${tog('photos', 'Include photos')}${tog('hideBlank', 'Hide unanswered checklist items')}${tog('defectPhotos', 'Include large defect photos appendix')}
   <button class="btn primary block" data-act="genpdf" id="genpdf">${I.pdf} Generate PDF report</button>
   <div id="pdfout" style="margin-top:12px">${ready ? pdfButtons() : ''}</div></div>
@@ -1194,29 +1221,33 @@ function viewSettings() {
   </div>
   <div class="card"><h2>Audit defaults</h2><div class="row">${f.text('Default surveyor', 'surveyor')}${f.text('Job ref prefix', 'refPrefix')}</div>
     <a class="item" href="#/settings/templates"><div class="th">${I.shield.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">Checklist templates</div><div class="t2">Edit sections and checklist items used for new audits</div></div>${I.chev}</a>
-    ${f.area('Report disclaimer / limitations', 'disclaimer', { rows: 8 })}<button class="btn" data-act="resetdisc">Reset disclaimer to default</button></div>
+    ${f.area('Report disclaimer / limitations', 'disclaimer', { rows: 8 })}<button class="btn" data-act="resetdisc">Reset disclaimer to default</button>
+    ${f.area('Works inspection report disclaimer', 'worksDisclaimer', { rows: 6 })}</div>
   <div class="card"><h2>Data & backup</h2><p class="hint" style="margin-bottom:12px">Audits are stored on this device only. Export a backup regularly, and to move audits between phone, tablet and PC.</p>
     <div class="btns"><button class="btn navy" data-act="exportall">${I.dl} Export all (JSON)</button><label class="btn">${I.share} Import backup<input type="file" accept=".json,application/json" id="importin" hidden></label></div>
     <p class="hint" id="storage" style="margin-top:12px"></p>
-    <div class="divider"></div><button class="btn block" data-act="demo">${I.wand} Load demo audit</button></div>
+    <div class="divider"></div><div class="btns"><button class="btn" data-act="demo">${I.wand} Load demo survey</button><button class="btn" data-act="demoworks">${I.wand} Load demo works inspection</button></div></div>
   <p class="small" style="text-align:center">Site Audit v${APP_VERSION} · works offline · data stays on this device</p>`;
 }
 function viewTemplates() {
   if (!S.settings.templates) S.settings.templates = clone(DEFAULT_TEMPLATES);
+  Object.keys(DEFAULT_TEMPLATES).forEach(k => { if (!S.settings.templates[k]) S.settings.templates[k] = clone(DEFAULT_TEMPLATES[k]); });
   const f = mk(S.settings);
-  const grp = (scope, title, hint) => `<h2 class="sec-h" style="margin:18px 4px 8px">${title}</h2><p class="hint" style="margin:0 4px 10px">${hint}</p>` + S.settings.templates[scope].map((t, ti) => {
+  const grp = (scope, title, hint) => `<h2 class="sec-h" style="margin:18px 4px 8px;font-size:16px">${title}</h2><p class="hint" style="margin:0 4px 10px">${hint}</p>` + S.settings.templates[scope].map((t, ti) => {
     const p = `templates.${scope}.${ti}`;
     return `<details class="sec"><summary>${esc(t.title)} <span class="prog">${t.items.length} items</span>${t.auto === false ? '<span class="tag">optional</span>' : ''}${I.chv}</summary><div class="bd">
     ${f.text('Section title', p + '.title')}
-    <div class="f"><span class="lbl">Add to new ${scope === 'job' ? 'audits' : 'roof areas'} automatically</span><div class="seg" data-tauto="${p}"><button type="button" data-v="1" class="${t.auto !== false ? 'on' : ''}">Yes</button><button type="button" data-v="0" class="${t.auto === false ? 'on' : ''}">No (optional)</button></div></div>
+    ${scope === 'packages' ? '' : `<div class="f"><span class="lbl">Add to new ${scope === 'area' ? 'roof areas' : 'audits'} automatically</span><div class="seg" data-tauto="${p}"><button type="button" data-v="1" class="${t.auto !== false ? 'on' : ''}">Yes</button><button type="button" data-v="0" class="${t.auto === false ? 'on' : ''}">No (optional)</button></div></div>`}
     <span class="lbl">Checklist items</span>
-    ${t.items.map((it, ii) => `<div class="ck"><input type="text" data-b="${p}.items.${ii}.text" value="${esc(it.text)}"><div style="display:flex;gap:8px;margin-top:8px"><select data-b="${p}.items.${ii}.type" style="flex:1">${[['yn', 'Yes / No / N/A'], ['rate', 'Good / Fair / Poor / Critical'], ['text', 'Text answer']].map(([v, l]) => `<option value="${v}" ${it.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select><button class="btn" style="padding:0 14px" data-act="tmove" data-p="${p}" data-i="${ii}" data-d="-1" aria-label="Move up">↑</button><button class="btn" style="padding:0 14px" data-act="tmove" data-p="${p}" data-i="${ii}" data-d="1" aria-label="Move down">↓</button><button class="btn danger" style="padding:0 14px" data-act="titemdel" data-p="${p}" data-i="${ii}" aria-label="Delete">×</button></div></div>`).join('')}
+    ${t.items.map((it, ii) => `<div class="ck"><input type="text" data-b="${p}.items.${ii}.text" value="${esc(it.text)}"><div style="display:flex;gap:8px;margin-top:8px"><select data-b="${p}.items.${ii}.type" style="flex:1">${[['yn', 'Yes / No / N/A'], ['pf', 'Pass / Fail / N/A'], ['rate', 'Good / Fair / Poor / Critical'], ['num', 'Numeric readings'], ['text', 'Text answer']].map(([v, l]) => `<option value="${v}" ${it.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select><button class="btn" style="padding:0 14px" data-act="tmove" data-p="${p}" data-i="${ii}" data-d="-1" aria-label="Move up">↑</button><button class="btn" style="padding:0 14px" data-act="tmove" data-p="${p}" data-i="${ii}" data-d="1" aria-label="Move down">↓</button><button class="btn danger" style="padding:0 14px" data-act="titemdel" data-p="${p}" data-i="${ii}" aria-label="Delete">×</button></div></div>`).join('')}
     <button class="btn block" data-act="titemadd" data-p="${p}">${I.plus} Add item</button>
     <div class="divider"></div><button class="btn danger block" data-act="tdel" data-scope="${scope}" data-i="${ti}">Delete this section template</button>
     </div></details>`;
-  }).join('') + `<button class="btn block" data-act="tadd" data-scope="${scope}">${I.plus} New ${scope === 'job' ? 'audit' : 'roof area'} section</button>`;
-  return grp('job', 'Audit-level sections', 'Job details, Health & safety and General are shown on their own tabs. Extra sections appear under General.') +
-    grp('area', 'Roof area sections', 'Added to every new roof area.') +
+  }).join('') + `<button class="btn block" data-act="tadd" data-scope="${scope}">${I.plus} New ${({ job: 'survey', area: 'roof area', worksJob: 'works inspection', packages: 'work package' })[scope]} ${scope === 'packages' ? 'template' : 'section'}</button>`;
+  return `<h2 class="sec-h" style="margin:8px 4px 0">PRE-WORKS SURVEY</h2>` + grp('job', 'Survey: audit-level sections', 'Job details, Health & safety and General are shown on their own tabs. Extra sections appear under General.') +
+    grp('area', 'Survey: roof area sections', 'Added to every new roof area.') +
+    `<div class="divider"></div><h2 class="sec-h" style="margin:8px 4px 0">WORKS INSPECTION</h2>` + grp('worksJob', 'Works: inspection-level sections', 'Inspection checklist (Details tab), Site H&S during works (Safety tab) and General observations.') +
+    grp('packages', 'Works: work packages', 'Chosen per roof area on a works inspection (overclad, strip & re-sheet, coatings, rooflights, gutter lining, remedial). Pass/Fail items that FAIL create a snag automatically.') +
     `<div class="divider"></div><p class="hint">Template changes apply to new audits and roof areas. Existing audits keep their own checklist.</p><button class="btn danger block" data-act="treset">Reset all templates to defaults</button>`;
 }
 
@@ -1272,21 +1303,25 @@ function render(keepScroll) {
   } else if (r[0] === 'job') {
     const job = getJob(r[1]); if (!job) { go('#/'); return; }
     S.ctx = { obj: job, save: () => markDirty(job), job };
-    const t = r[2] || 'details'; const sub = `${job.ref}${job.client.name ? ' · ' + job.client.name : ''}`;
-    let tab = t, title = (TABS.find(x => x[0] === t) || [, ''])[1], back = '#/';
-    if (t === 'details') body = viewDetails(job);
+    const t = r[2] || 'details'; const W_ = isWorks(job); const sub = `${job.ref}${W_ ? ' · Insp ' + (job.works.inspNo || '') : ''}${job.client.name ? ' · ' + job.client.name : ''}`;
+    let tab = t, title = ((W_ ? TABS_W : TABS).find(x => x[0] === t) || [, ''])[1], back = '#/';
+    if (W_ && t === 'details') { body = viewWorksDetails(job); title = 'Inspection details'; }
+    else if (W_ && t === 'summary') { body = viewWorksSummary(job); title = 'Status & sign-off'; }
+    else if (W_ && t === 'snags') body = viewSnags(job);
+    else if (W_ && t === 'snag') { const sn = job.snags.find(x => x.id === r[3]); if (!sn) return go(`#/job/${job.id}/snags`); body = viewSnag(job, sn); title = `Snag ${sn.ref}`; tab = 'snags'; back = `#/job/${job.id}/snags`; }
+    else if (t === 'details') body = viewDetails(job);
     else if (t === 'safety') body = viewSafety(job);
     else if (t === 'roofs') body = viewRoofs(job);
-    else if (t === 'general') { body = viewGeneral(job); title = 'General'; }
+    else if (t === 'general') { body = viewGeneral(job); title = 'General'; if (W_) { tab = 'details'; back = `#/job/${job.id}/details`; } }
     else if (t === 'summary') body = viewSummary(job);
     else if (t === 'report') body = viewReport(job);
-    else if (t === 'sec') { const s = job.sections.find(x => x.id === r[3]); if (!s) return go(`#/job/${job.id}/general`); body = viewJobSection(job, s); title = s.title; tab = 'general'; back = `#/job/${job.id}/general`; }
-    else if (t === 'sketch') { const sk = job.sketches.find(x => x.id === r[3]); if (!sk) return go(`#/job/${job.id}/general`); body = viewSketch(job, sk); title = 'Roof sketch'; tab = 'general'; back = `#/job/${job.id}/general`; after = () => initSketch(job, sk); }
+    else if (t === 'sec') { const s = job.sections.find(x => x.id === r[3]); if (!s) return go(`#/job/${job.id}/general`); body = viewJobSection(job, s); title = s.title; tab = W_ ? 'details' : 'general'; back = `#/job/${job.id}/general`; }
+    else if (t === 'sketch') { const sk = job.sketches.find(x => x.id === r[3]); if (!sk) return go(`#/job/${job.id}/general`); body = viewSketch(job, sk); title = 'Roof sketch'; tab = W_ ? 'details' : 'general'; back = `#/job/${job.id}/general`; after = () => initSketch(job, sk); }
     else if (t === 'area') {
       const a = job.areas.find(x => x.id === r[3]); if (!a) return go(`#/job/${job.id}/roofs`); tab = 'roofs';
       if (r[4] === 'sec') { const s = a.sections.find(x => x.id === r[5]); if (!s) return go(`#/job/${job.id}/area/${a.id}`); body = viewAreaSection(job, a, s); title = s.title; back = `#/job/${job.id}/area/${a.id}`; }
       else if (r[4] === 'defect') { const d = a.defects.find(x => x.id === r[5]); if (!d) return go(`#/job/${job.id}/area/${a.id}`); body = viewDefect(job, a, d); title = `Defect ${d.ref}`; back = `#/job/${job.id}/area/${a.id}`; }
-      else { body = viewArea(job, a); title = a.name || 'Roof area'; back = `#/job/${job.id}/roofs`; }
+      else { body = W_ ? viewWorksArea(job, a) : viewArea(job, a); title = a.name || 'Roof area'; back = `#/job/${job.id}/roofs`; }
     }
     head = header({ title, sub, back, right: `<button class="ibtn" data-act="jobmenu" data-id="${job.id}" aria-label="Audit options">${I.dots}</button>` });
     nav = bnav(job, tab);
@@ -1323,6 +1358,8 @@ function derive(path, el) {
     const box = el && el.closest('.ck'); if (box && it) box.classList.toggle('done', !!(it.answer || it.comment));
     const pr = sec && $('#prog_' + sec.id); if (pr) { const p = secProgress(sec); pr.textContent = `${p.a}/${p.n}`; pr.classList.toggle('full', p.a === p.n && p.n > 0); }
   }
+  if (/\.items#[^.]+\.answer$/.test(path) && el && el.tagName === 'INPUT') { const it = getPath(job, path.replace(/\.answer$/, '')); const ns = $('#ns_' + it.id); if (ns) { const st = numStats(it.answer); ns.textContent = st ? `${st.n} reading${st.n > 1 ? 's' : ''} · min ${st.min} · avg ${st.avg} · max ${st.max}` : 'Enter one or more numbers separated by commas'; } }
+  if (/^snags#[^.]+\.status$/.test(path)) { const sn = getPath(job, path.replace(/\.status$/, '')); if (sn.status === 'Closed' && !sn.closedDate) { sn.closedDate = todayISO(); rerender(); toast('Snag closed - add an "after" photo'); setTimeout(() => { const c = $('#closeout'); c && c.scrollIntoView({ behavior: 'smooth' }); }, 50); } }
   if (/^areas#[^.]+\.(length|width|pitch|measured|areaOverride)$/.test(path)) { const a = getPath(job, path.split('.')[0]); const c = $('#calc'); if (c) c.firstElementChild.textContent = areaM2(a) + ' m²'; }
   if (path.startsWith('hs.') || /\.type$/.test(path)) { const h = $('#hsb'); if (h) h.innerHTML = hsBanners(job); }
   if (/^areas#[^.]+\.name$/.test(path) && /\/area\/[^/]+$/.test(location.hash)) { const h1 = $('.hdr h1'); if (h1) h1.textContent = el.value || 'Roof area'; }
@@ -1360,7 +1397,7 @@ async function onImport(el) {
   const existing = jobs.filter(j => getJob(j.id)).length;
   const r = await modal(`<h3>Import ${jobs.length} audit${jobs.length === 1 ? '' : 's'}?</h3><p>${existing ? `${existing} already exist on this device and will be replaced with the imported copy. ` : ''}Other audits on this device are not affected.</p>${data.settings ? '<button class="btn navy" data-r="both">Import audits + settings</button>' : ''}<button class="btn primary" data-r="jobs">Import audits</button><button class="btn" data-r="">Cancel</button>`);
   if (!r) return;
-  for (const j of jobs) { if (!j.id || !j.sections || !j.areas) continue; const i = S.jobs.findIndex(x => x.id === j.id); if (i >= 0) S.jobs[i] = j; else S.jobs.push(j); await DB.put(j); }
+  for (const j of jobs) { if (!j.id || !j.sections || !j.areas) continue; const i = S.jobs.findIndex(x => x.id === j.id); migrateJob(j); if (i >= 0) S.jobs[i] = j; else S.jobs.push(j); await DB.put(j); }
   if (r === 'both' && data.settings) { S.settings = Object.assign(clone(DEFAULT_SETTINGS), data.settings); await DB.setKV('settings', S.settings); }
   toast('Import complete'); go('#/'); render();
 }
@@ -1368,7 +1405,7 @@ function reId(o) { if (Array.isArray(o)) o.forEach(reId); else if (o && typeof o
 function resetSec(s) { s.rating = ''; s.notes = ''; s.photos = []; s.items.forEach(i => { i.answer = ''; i.comment = ''; }); }
 async function duplicateJob(job, asTemplate) {
   const n = reId(clone(job)); const fresh = newJob();
-  Object.assign(n, { ref: fresh.ref, status: 'Draft', created: Date.now(), updated: Date.now(), date: todayISO(), time: nowTime() });
+  Object.assign(n, { ref: isWorks(job) ? worksRef(fresh.ref, n.id) : fresh.ref, status: 'Draft', created: Date.now(), updated: Date.now(), date: todayISO(), time: nowTime() });
   if (asTemplate) { n.sections.forEach(resetSec); n.areas.forEach(a => { a.sections.forEach(resetSec); a.defects = []; a.overall = ''; }); n.summary = fresh.summary; n.weather = []; n.hs = Object.assign({}, n.hs, { rams: '', permit: '' }); }
   S.jobs.push(n); await DB.put(n); toast(asTemplate ? 'Re-inspection copy created' : 'Audit duplicated'); return n;
 }
@@ -1407,7 +1444,11 @@ document.addEventListener('click', async e => {
   if (sb && S.ctx) {
     const seg = sb.parentElement; const p = seg.dataset.b; const cur = getPath(S.ctx.obj, p); const v = cur === sb.dataset.v ? '' : sb.dataset.v;
     setPath(S.ctx.obj, p, v); $$('button', seg).forEach(b => { const on = b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
-    S.ctx.save(); derive(p, sb); return;
+    S.ctx.save(); derive(p, sb);
+    const job = S.ctx.job;
+    if (job && isWorks(job) && v === 'Fail' && /\.items#[^.]+\.answer$/.test(p)) { snagFromItem(job, p); markDirty(job); rerender(); }
+    else if (/\.items#[^.]+\.answer$/.test(p)) { const box = sb.closest('.ck'); if (box) box.classList.toggle('fail', v === 'Fail'); }
+    return;
   }
   const cb = t.closest('.chips[data-bm] button');
   if (cb && S.ctx) {
@@ -1422,21 +1463,27 @@ document.addEventListener('click', async e => {
   const A = ACTIONS[act]; if (A) { e.preventDefault(); try { await A(a, job); } catch (err) { console.error(err); toast('Error: ' + (err.message || err)); } }
 });
 const ACTIONS = {
-  async newjob() { const j = newJob(); S.jobs.push(j); await DB.put(j); go(`#/job/${j.id}/details`); },
+  async newjob() {
+    const r = await modal(`<h3>New audit</h3><p>What type of audit is this?</p><button class="btn primary" data-r="survey" style="height:auto;padding:12px 16px;flex-direction:column;align-items:flex-start"><b>Pre-works survey (quote)</b><span style="font-weight:600;font-size:14px">Roof condition, defects & recommendations</span></button><button class="btn navy" data-r="works" style="height:auto;padding:12px 16px;flex-direction:column;align-items:flex-start"><b>Works inspection (in progress)</b><span style="font-weight:600;font-size:14px">Progress, quality checklists, snags & sign-off</span></button><button class="btn" data-r="">Cancel</button>`);
+    if (!r) return; const j = r === 'works' ? initWorks(newJob()) : newJob(); S.jobs.push(j); await DB.put(j); go(`#/job/${j.id}/details`);
+  },
+  tfilter(a) { S.tfilter = a.dataset.v; render(true); },
   filter(a) { S.filter = a.dataset.v; render(true); },
   async jobmenu(a) {
     const job = getJob(a.dataset.id);
     const r = await modal(`<h3>${esc(job.ref)}</h3><p>${esc(job.client.name || job.site.name || 'Untitled audit')}</p>
-      <button class="btn" data-r="dup">Duplicate (full copy)</button><button class="btn" data-r="tpl">New re-inspection from this audit</button>
+      ${isWorks(job) ? '<button class="btn primary" data-r="follow">New follow-up inspection (carry open snags)</button>' : '<button class="btn primary" data-r="startworks">Start works inspection from this survey</button>'}
+      <button class="btn" data-r="dup">Duplicate (full copy)</button>${isWorks(job) ? '' : '<button class="btn" data-r="tpl">New re-inspection from this audit</button>'}
       <button class="btn" data-r="status">Mark as ${job.status === 'Complete' ? 'Draft' : 'Complete'}</button><button class="btn" data-r="export">Export audit (JSON)</button>
       <button class="btn" data-r="report">Go to PDF report</button><button class="btn danger" data-r="del">Delete audit</button><button class="btn" data-r="">Cancel</button>`);
+    if (r === 'startworks' || r === 'follow') { const n = r === 'follow' ? followUpInspection(job) : startWorksFromSurvey(job); S.jobs.push(n); await DB.put(n); toast(r === 'follow' ? `Inspection ${n.works.inspNo} created` : 'Works inspection created from survey'); go(`#/job/${n.id}/details`); return; }
     if (r === 'dup' || r === 'tpl') { const n = await duplicateJob(job, r === 'tpl'); go(`#/job/${n.id}/details`); }
     else if (r === 'status') { job.status = job.status === 'Complete' ? 'Draft' : 'Complete'; markDirty(job); rerender(); }
     else if (r === 'export') ACTIONS.exportjob({ dataset: { id: job.id } });
     else if (r === 'report') go(`#/job/${job.id}/report`);
     else if (r === 'del' && await confirmBox('Delete audit?', `${job.ref} and all its photos will be permanently deleted from this device.`)) { S.jobs = S.jobs.filter(x => x.id !== job.id); await DB.del(job.id); toast('Audit deleted'); location.hash === '#/' ? render() : go('#/'); }
   },
-  async addarea(a, job) { const ar = newArea(job); job.areas.push(ar); markDirty(job); go(`#/job/${job.id}/area/${ar.id}`); },
+  async addarea(a, job) { const ar = isWorks(job) ? newWorksArea(job) : newArea(job); job.areas.push(ar); markDirty(job); go(`#/job/${job.id}/area/${ar.id}`); },
   async delarea(a, job) { const ar = job.areas.find(x => x.id === a.dataset.aid); if (await confirmBox('Delete roof area?', `"${ar.name}" with its checklists, defects and photos will be deleted.`)) { job.areas = job.areas.filter(x => x !== ar); markDirty(job); go(`#/job/${job.id}/roofs`); } },
   adddefect(a, job) { const ar = job.areas.find(x => x.id === a.dataset.aid); const d = newDefect(job); ar.defects.push(d); markDirty(job); go(`#/job/${job.id}/area/${ar.id}/defect/${d.id}`); },
   async deldefect(a, job) { const ar = job.areas.find(x => x.id === a.dataset.aid); if (await confirmBox('Delete defect?', 'The defect and its photos will be deleted.')) { ar.defects = ar.defects.filter(x => x.id !== a.dataset.did); markDirty(job); go(`#/job/${job.id}/area/${ar.id}`); } },
@@ -1446,16 +1493,16 @@ const ACTIONS = {
   },
   async delitem(a, job) { const sec = getPath(job, a.dataset.base); const it = sec.items.find(x => x.id === a.dataset.id); if (await confirmBox('Remove checklist item?', `"${it.text}" will be removed from this audit only.`, 'Remove')) { sec.items = sec.items.filter(x => x !== it); markDirty(job); rerender(); } },
   async delphoto(a) { if (!await confirmBox('Remove photo?', 'This photo will be deleted from the audit.', 'Remove')) return; const arr = getPath(S.ctx.obj, a.dataset.key); const i = arr.findIndex(p => p.id === a.dataset.id); if (i >= 0) arr.splice(i, 1); S.ctx.save(); rerender(); },
-  viewphoto(a) { const p = getPath(S.ctx.obj, a.dataset.key).find(x => x.id === a.dataset.id); modal(`<div class="viewer"><img src="${p.data}" alt=""><p>${esc(p.caption || 'No caption')}</p><button class="btn" data-r="">Close</button></div>`); },
+  async viewphoto(a) { const arr = getPath(S.ctx.obj, a.dataset.key); const p = arr.find(x => x.id === a.dataset.id); const r = await modal(`<div class="viewer"><img src="${p.data}" alt=""><p>${esc(p.caption || '')}</p><button class="btn" data-r="">Close</button><button class="btn danger" data-r="del">Remove photo</button></div>`); if (r === 'del') { arr.splice(arr.indexOf(p), 1); S.ctx.save(); rerender(); } },
   async addsec(a, job) {
-    const scope = a.dataset.scope; const owner = scope === 'area' ? job.areas.find(x => x.id === a.dataset.aid) : job;
+    const scope = a.dataset.scope; const owner = a.dataset.aid ? job.areas.find(x => x.id === a.dataset.aid) : job;
     const have = new Set(owner.sections.map(s => s.key)); const avail = tpls(scope).filter(t => !have.has(t.key));
     let inp; const r = await modal(`<h3>Add section</h3>${avail.length ? '<p>From your templates:</p>' + avail.map((t, i) => `<button class="btn" data-r="t${i}">${esc(t.title)}</button>`).join('') : ''}<p style="margin-top:8px">Or a blank custom section:</p><input type="text" id="secname" placeholder="Section name, e.g. Cladding"><div style="height:10px"></div><button class="btn primary" data-r="new">Add custom section</button><button class="btn" data-r="">Cancel</button>`, bg => { inp = $('#secname', bg); });
     if (!r) return; let s;
     if (r === 'new') { const nm = inp.value.trim() || 'Custom section'; s = { id: uid(), key: 'c_' + uid(), title: nm, rating: '', items: [], photos: [], notes: '' }; }
     else s = sectionFromTemplate(avail[+r.slice(1)]);
     owner.sections.push(s); markDirty(job);
-    go(scope === 'area' ? `#/job/${job.id}/area/${owner.id}/sec/${s.id}` : `#/job/${job.id}/sec/${s.id}`);
+    go(a.dataset.aid ? `#/job/${job.id}/area/${owner.id}/sec/${s.id}` : `#/job/${job.id}/sec/${s.id}`);
   },
   async rensec(a, job) { const s = getPath(job, a.dataset.base); let inp; const r = await modal(`<h3>Rename section</h3><input type="text" id="rn" value="${esc(s.title)}"><div style="height:10px"></div><button class="btn primary" data-r="ok">Save</button><button class="btn" data-r="">Cancel</button>`, bg => { inp = $('#rn', bg); }); if (r === 'ok' && inp.value.trim()) { s.title = inp.value.trim(); markDirty(job); rerender(); } },
   async delsec(a, job) {
@@ -1536,18 +1583,23 @@ async function buildPDF(job, opts) {
     }
     y += 2;
   };
-  const ansCol = a => RC[a] || null;
+  const ansCol = a => RC[a] || (a === 'Pass' ? RC.Good : a === 'Fail' ? RC.Critical : null);
   const sectionBlock = (sec, title, showRating = true) => {
-    h3(title || sec.title, showRating ? sec.rating : '');
-    const items = opts.hideBlank ? sec.items.filter(i => i.answer || i.comment) : sec.items;
+    const pc = pfCounts(sec); const hasPF = sec.items.some(i => i.type === 'pf');
+    h3((title || sec.title) + (hasPF ? `   (Pass ${pc.Pass}  /  Fail ${pc.Fail}  /  N/A ${pc.NA})` : ''), showRating ? sec.rating : '');
+    const items = opts.hideBlank ? sec.items.filter(i => i.answer || i.comment || (i.photos || []).length) : sec.items;
+    const ansTxt = i => { if (i.type === 'text') return ''; if (i.type === 'num') { const st = numStats(i.answer); return st ? (st.n > 1 ? `avg ${st.avg}` : String(st.avg)) : '-'; } return i.answer === 'NA' ? 'N/A' : i.answer || '-'; };
+    const cmTxt = i => { if (i.type !== 'num') return tx(i.comment); const st = numStats(i.answer); return tx([st && st.n > 1 ? `Readings: ${i.answer} (min ${st.min}, max ${st.max}, n=${st.n})` : '', i.comment].filter(Boolean).join('. ')); };
     if (items.length) table({
       head: [['Checklist item', 'Answer', 'Comment']],
-      body: items.map(i => [tx(i.text), i.type === 'text' ? '' : (i.answer === 'NA' ? 'N/A' : i.answer || '-'), tx(i.comment)]),
+      body: items.map(i => [tx(i.text), ansTxt(i), cmTxt(i)]),
       columnStyles: { 0: { cellWidth: 72 }, 1: { cellWidth: 22, halign: 'center', fontStyle: 'bold' } },
       didParseCell: d => { if (d.section === 'body' && d.column.index === 1) { const c = ansCol(d.cell.raw); if (c) { d.cell.styles.fillColor = c; d.cell.styles.textColor = 255; } else if (d.cell.raw === 'N/A' || d.cell.raw === '-') d.cell.styles.textColor = GREY; else d.cell.styles.textColor = NAVY; } },
     });
     if (sec.notes) { label('Notes'); para(sec.notes); }
     photoGrid(sec.photos);
+    const iph = items.flatMap(i => (i.photos || []).map(p => Object.assign({}, p, { caption: p.caption || i.text })));
+    if (iph.length && opts.photos) { label('Checklist item photos'); photoGrid(iph); }
     if (!items.length && !sec.notes && !sec.photos.length && !sec.rating) { para('No observations recorded.', 8.5, 'italic', GREY); }
     y += 1;
   };
@@ -1559,8 +1611,98 @@ async function buildPDF(job, opts) {
   const siteLine = [job.site.name, job.site.address].filter(Boolean).join(', ').replace(/\n/g, ', ');
   const allPhotos = [...job.sections.flatMap(s => s.photos), ...job.areas.flatMap(a => a.sections.flatMap(s => s.photos)), ...job.areas.flatMap(a => a.defects.flatMap(d => d.photos))];
 
+
+  /* ===== Works inspection report body ===== */
+  function worksBody() {
+    const w = job.works, pct = worksPct(job), rag = ragOf(job), os = openSnags(job), closed = job.snags.filter(x => x.status === 'Closed'), hf = hsFails(job);
+    const prog = w.programme ? w.programme + (num(w.programmeDays) ? ` (${w.programmeDays} day${num(w.programmeDays) === 1 ? '' : 's'})` : '') : 'Not recorded';
+    const hsStatus = hf ? `${hf} item${hf === 1 ? '' : 's'} failed - see Section 2` : 'Satisfactory';
+    const progPh = job.areas.flatMap(a => a.progress || []);
+    const hero = progPh.filter(p => p.tag === 'After').slice(-1)[0] || progPh.slice(-1)[0] || allPhotos[0];
+    drawCover('WORKS INSPECTION REPORT', 'SITE PROGRESS & QUALITY INSPECTION', hero, [['Client', job.client.name], ['Site', siteLine], ['Contract / PO ref', w.contractRef], ['Inspection no.', `${w.inspNo || '-'}${w.visitNo ? '  (visit ' + w.visitNo + ')' : ''}`], ['Date of inspection', fmtDate(job.date) + (job.time ? ' at ' + job.time : '')], ['Inspector', job.surveyor], ['Works stage', w.stage || '-'], ['% complete', pct != null ? pct + '%' : '-'], ['Overall status (RAG)', rag.toUpperCase()]], 8, RAGC[rag], fragile ? 'FRAGILE ROOF - collective protection required during works (see Section 2)' : '');
+    newPage(); let sn = 0;
+    h1(++sn, 'Inspection Summary');
+    need(34);
+    color(RAGC[rag], 'fill'); doc.circle(M + 15, y + 15, 15, 'F'); font(10, 'bold', [255, 255, 255]); doc.text(rag.toUpperCase(), M + 15, y + 16.5, { align: 'center' }); font(6.5, 'bold', [255, 255, 255]); doc.text('STATUS', M + 15, y + 21, { align: 'center' });
+    const tiles = [[pct != null ? pct + '%' : '-', 'Complete', NAVY], [w.programme ? (w.programme === 'On programme' ? 'On' : w.programme) : '-', num(w.programmeDays) ? `${w.programmeDays} days` : 'Programme', w.programme === 'Behind' ? RAGC.Amber : RAGC.Green], [hf ? String(hf) : 'OK', 'H&S status', hf ? RAGC.Red : RAGC.Green], [String(os.length), 'Open snags', os.length ? RAGC.Red : RAGC.Green], [String(closed.length), 'Closed snags', GREY]];
+    const tw = (CW - 36 - 4 * 3) / 5;
+    tiles.forEach((t, i) => { const x = M + 36 + i * (tw + 3); color(t[2], 'fill'); doc.roundedRect(x, y, tw, 30, 2, 2, 'F'); font(t[0].length > 4 ? 12 : 17, 'bold', [255, 255, 255]); doc.text(tx(t[0]), x + tw / 2, y + 14, { align: 'center' }); font(7.5, 'bold', [255, 255, 255]); doc.text(tx(t[1]), x + tw / 2, y + 22, { align: 'center' }); });
+    y += 37;
+    kv([['Works stage', w.stage], ['% complete (overall)', pct != null ? pct + '%' : ''], ['Programme status', prog], ['H&S status', hsStatus], ['Snags', `${os.length} open, ${closed.length} closed`], ['Contract / PO ref', w.contractRef], ['Site manager / supervisor', w.siteManager], ['Subcontractor / gang on site', w.subcontractor], ['Operatives on site', w.operatives], ['Weather', [job.weather.join(', '), job.temp].filter(Boolean).join(' - ')], ['Access', job.access.join(', ')], ['Next inspection', fmtDate(w.nextDate)], ['Linked survey', w.linkedRef]]);
+    if (job.areas.length) table({ head: [['Roof area', 'Work packages', 'Stage', '% complete', 'Pass', 'Fail']], body: job.areas.map(a => { const c = a.sections.reduce((t, s) => { const p = pfCounts(s); t.P += p.Pass; t.F += p.Fail; return t; }, { P: 0, F: 0 }); return [tx(a.name), tx(a.sections.map(s => s.title).join(', ') || '-'), tx(a.stage || '-'), a.pct !== '' && a.pct != null ? a.pct + '%' : '-', String(c.P), String(c.F)]; }), columnStyles: { 3: { halign: 'center', cellWidth: 20 }, 4: { halign: 'center', cellWidth: 13 }, 5: { halign: 'center', cellWidth: 13, fontStyle: 'bold' } }, didParseCell: d => { if (d.section === 'body' && d.column.index === 5 && +d.cell.raw > 0) { d.cell.styles.fillColor = RC.Critical; d.cell.styles.textColor = 255; } } });
+    if (job.summary.exec) { label('Inspector comments'); para(job.summary.exec, 10); }
+    const dsec = secByKey(job, 'details'); if (dsec) sectionBlock(dsec, dsec.title, false);
+
+    h1(++sn, 'Site Health & Safety During Works');
+    if (fragile) { font(9, 'normal'); const lines = doc.splitTextToSize('The roof is fragile (or of unconfirmed fragility). Collective protection (netting, edge protection, rooflight covers) must be maintained at all times during the works (HSE HSG33).', CW - 10); const hh = 10 + lines.length * 4; need(hh + 3); color(RC.Critical, 'fill'); doc.roundedRect(M, y, CW, hh, 2, 2, 'F'); font(11, 'bold', [255, 255, 255]); doc.text('!  FRAGILE ROOF', M + 5, y + 6.5); font(9, 'normal', [255, 255, 255]); doc.text(lines, M + 5, y + 11.5); y += hh + 4; }
+    kv([['H&S status', hsStatus], ['RAMS reference', h.rams], ['Permit to work', h.permit], ['Live services', (h.liveServices || []).join(', ')], ['Other hazards', (h.otherHazards || []).join(', ')]]);
+    const ssec = secByKey(job, 'safety'); if (ssec) sectionBlock(ssec, ssec.title, false);
+
+    h1(++sn, 'Work Packages by Roof Area');
+    if (!job.areas.length) para('No roof areas recorded.', 9.5, 'italic', GREY);
+    job.areas.forEach((a, ai) => {
+      if (ai > 0) need(60);
+      h2(`${sn}.${ai + 1}  ${a.name}${a.pct !== '' && a.pct != null ? '   -   ' + a.pct + '% complete' : ''}`, '');
+      kv([['Work packages', a.sections.map(s => s.title).join(', ')], ['Stage', a.stage], ['Roof type / system', [a.type, a.profile].filter(Boolean).join(' - ')], ['Approx. area', areaM2(a) ? areaM2(a) + ' m²' : '']]);
+      if (a.notes) { label('Area notes'); para(a.notes); }
+      a.sections.forEach(s => sectionBlock(s, s.title, false));
+      if ((a.progress || []).length && opts.photos) { h3('Progress photos'); photoGrid(a.progress, p => `${p.tag ? p.tag.toUpperCase() + ' - ' : ''}Photo ${photoNo}`); }
+    });
+
+    h1(++sn, 'Snag Schedule');
+    if (!job.snags.length) para('No snags recorded.', 9.5, 'italic', GREY);
+    else {
+      const order = { Open: 0, 'In progress': 1, Closed: 2 }; const sn_ = [...job.snags].sort((x, z) => order[x.status] - order[z.status] || x.ref.localeCompare(z.ref));
+      const SC = { Open: RC.Critical, 'In progress': RAGC.Amber, Closed: RC.Good };
+      table({
+        head: [['Ref', 'Photo', 'Area / location', 'Description', 'Assigned / due', 'Status']],
+        body: sn_.map(x => { const ar = job.areas.find(q => q.id === x.areaId); return [x.ref + (x.priority ? '\n' + x.priority : ''), '', tx([ar ? ar.name : 'Site-wide', ar && x.location ? x.location.replace(ar.name, '').replace(/^\s*-\s*/, '') : x.location].filter(Boolean).join('\n')), tx(x.description + (x.closeNote ? '\nClose-out: ' + x.closeNote : '')), tx([x.assignedTo, x.due ? 'Due ' + fmtDate(x.due) : ''].filter(Boolean).join('\n')), x.status + (x.status === 'Closed' && x.closedDate ? '\n' + fmtDate(x.closedDate) : '')]; }),
+        styles: { fontSize: 8, valign: 'middle' },
+        columnStyles: { 0: { cellWidth: 12, fontStyle: 'bold' }, 1: { cellWidth: 27, minCellHeight: 21 }, 2: { cellWidth: 32 }, 4: { cellWidth: 30 }, 5: { cellWidth: 22, halign: 'center', fontStyle: 'bold' } },
+        didParseCell: d => { if (d.section === 'body' && d.column.index === 5) { const st = String(d.cell.raw).split('\n')[0]; d.cell.styles.fillColor = SC[st]; d.cell.styles.textColor = 255; } },
+        didDrawCell: d => { if (opts.photos && d.section === 'body' && d.column.index === 1) { const ref = String((d.row.raw || [])[0] || '').split('\n')[0]; const r = sn_.find(x => x.ref === ref); const p = r && r.photos[0]; if (p) try { fit(p, d.cell.x + 1, d.cell.y + 1, d.cell.width - 2, d.cell.height - 2); } catch (e) { } } },
+      });
+      const ba = closed.filter(x => x.photos.length || x.closePhotos.length);
+      if (ba.length && opts.photos) {
+        h3('Closed snags - before & after');
+        const bw = (CW - 6) / 2, bh = bw * 0.75;
+        ba.forEach(x => {
+          need(bh + 22); font(9.5, 'bold', NAVY); doc.text(tx(`${x.ref} - ${x.description}`).slice(0, 110), M, y); y += 2.5;
+          [['BEFORE', x.photos[0], RC.Critical], ['AFTER', x.closePhotos[0], RC.Good]].forEach(([lb, p, c], k) => { const xx = M + k * (bw + 6); color(LIGHT, 'fill'); color(LINE, 'draw'); doc.rect(xx, y, bw, bh, 'FD'); if (p) { try { fit(p, xx + 0.6, y + 0.6, bw - 1.2, bh - 1.2); } catch (e) { } } else { font(9, 'italic', GREY); doc.text('No photo', xx + bw / 2, y + bh / 2, { align: 'center' }); } badge(lb, xx + 2, y + 6, c); });
+          y += bh + 4; font(8, 'normal', GREY); doc.text(tx(`Closed ${fmtDate(x.closedDate)}${x.closeNote ? ' - ' + x.closeNote : ''}`).slice(0, 140), M, y); y += 7;
+        });
+      }
+    }
+
+    const gsec = secByKey(job, 'general'); const others = job.sections.filter(q => !['details', 'safety', 'general'].includes(q.key)); const sks = job.sketches.filter(q => q.data);
+    const gUsed = gsec && (gsec.items.some(i => i.answer || i.comment) || gsec.photos.length || gsec.notes);
+    if (gUsed || others.length || sks.length) {
+      h1(++sn, 'General Observations');
+      if (gUsed) sectionBlock(gsec, gsec.title, false); others.forEach(q => sectionBlock(q));
+      sks.forEach(q => { const r = Math.min(CW / 1200, 110 / 900); need(900 * r + 10); color(LINE, 'draw'); doc.rect(M, y, 1200 * r, 900 * r); doc.addImage(q.data, 'PNG', M, y, 1200 * r, 900 * r, q.id, 'FAST'); y += 900 * r + 4; font(8.5, 'bold', NAVY); doc.text(tx(q.name), M, y); y += 7; });
+    }
+
+    h1(++sn, 'Actions for Next Visit');
+    if (w.actions) para(w.actions, 9.5); else para('No actions recorded.', 9.5, 'italic', GREY);
+    if (w.nextDate) para(`Next inspection: ${fmtDate(w.nextDate)}`, 9.5, 'bold', NAVY);
+
+    h1(++sn, 'Sign-off');
+    const so = job.signoff || {}; const bw2 = (CW - 8) / 2; need(58);
+    [['Inspector', so.inspectorName || job.surveyor, so.inspectorDate, so.inspectorSig, st.company], ['Site manager / client', so.clientName, so.clientDate, so.clientSig, so.clientRole]].forEach(([lb, nm, dt, sig, role], k) => {
+      const xx = M + k * (bw2 + 8); color(LINE, 'draw'); doc.setLineWidth(0.3); doc.rect(xx, y, bw2, 50);
+      font(8.5, 'bold', GREY); doc.text(lb.toUpperCase(), xx + 3, y + 5.5);
+      if (sig) doc.addImage(sig, 'PNG', xx + 3, y + 8, bw2 - 6, (bw2 - 6) * 320 / 900 > 24 ? 24 : (bw2 - 6) * 320 / 900, 'sig' + k, 'FAST'); else { font(8.5, 'italic', GREY); doc.text('Not signed', xx + 3, y + 20); }
+      doc.line(xx + 3, y + 34, xx + bw2 - 3, y + 34);
+      font(9, 'bold', NAVY); doc.text(tx(nm || '-'), xx + 3, y + 39.5); font(8, 'normal', GREY); doc.text(tx([role, dt ? fmtDate(dt) : ''].filter(Boolean).join('  |  ')).slice(0, 60), xx + 3, y + 45);
+    });
+    y += 56;
+    label('Notes & limitations'); para(st.worksDisclaimer || DEFAULT_WORKS_DISCLAIMER, 8.3);
+    if (st.legal) { need(10); y += 2; color(LINE, 'draw'); doc.line(M, y - 4, W - M, y - 4); font(7, 'normal', GREY); doc.splitTextToSize(tx(`${st.company}. ${st.legal}`), CW).forEach(l => { doc.text(l, M, y); y += 3.2; }); }
+  }
+
   /* ----- Cover ----- */
   const hasLogo = !!(st.logo && st.logoW);
+  const drawCover = (title, subtitle, hero, rows, hiRow, hiCol, warnLine) => {
   const contact = [st.address, st.phone ? 'Tel: ' + st.phone : '', st.email, st.website].filter(Boolean);
   if (hasLogo) { const lw = Math.min(66, st.logoW * 25.4 / 150), lh = lw * st.logoH / st.logoW; doc.addImage(st.logo, fmtImg(st.logo), M, 12, lw, lh, 'logo', 'FAST'); if (st.tagline) { font(8.5, 'italic', GREY); doc.text(tx(st.tagline), M, 12 + lh + 6); } }
   else { drawMark(M, 12, 18); font(16, 'bold', NAVY); doc.text(tx(st.company), M + 23, 20); font(8.5, 'italic', GREY); doc.text(tx(st.tagline), M + 23, 26); }
@@ -1568,25 +1710,29 @@ async function buildPDF(job, opts) {
   font(8, 'normal', GREY); contact.flatMap(l => doc.splitTextToSize(tx(l), 84)).forEach((l, i) => doc.text(l, W - M, 19.5 + i * 4.2, { align: 'right' }));
   color(OR, 'fill'); doc.rect(0, 42, W, 1.6, 'F');
   color(NAVY, 'fill'); doc.rect(0, 43.6, W, 62, 'F'); color(OR, 'fill'); doc.rect(0, 105.6, W, 2.4, 'F');
-  font(28, 'bold', [255, 255, 255]); doc.text('ROOF CONDITION SURVEY', M, 64);
-  font(13, 'bold', OR); doc.text('SITE AUDIT REPORT', M, 73);
+  font(28, 'bold', [255, 255, 255]); doc.text(title, M, 64);
+  font(13, 'bold', OR); doc.text(subtitle, M, 73);
   font(13, 'bold', [255, 255, 255]); doc.text(doc.splitTextToSize(tx(job.site.name || job.client.name || ''), CW)[0] || '', M, 87);
   font(10, 'normal', [200, 212, 230]); doc.splitTextToSize(tx([job.site.address.replace(/\n/g, ', '), job.site.postcode].filter(Boolean).join(', ')), CW).slice(0, 2).forEach((l, i) => doc.text(l, M, 94 + i * 5));
-  const hero = allPhotos[0];
-  color(LIGHT, 'fill'); doc.rect(M, 114, CW, 76, 'F');
-  if (hero) { try { fit(hero, M, 114, CW, 76); } catch (e) { } }
-  else { font(11, 'normal', GREY); doc.text('No photograph', W / 2, 154, { align: 'center' }); }
-  y = 196;
+  const heroH = rows.length + (warnLine ? 1.5 : 0) > 8 ? 62 : 76;
+  color(LIGHT, 'fill'); doc.rect(M, 114, CW, heroH, 'F');
+  if (hero) { try { fit(hero, M, 114, CW, heroH); } catch (e) { } }
+  else { font(11, 'normal', GREY); doc.text('No photograph', W / 2, 114 + heroH / 2, { align: 'center' }); }
+  y = 114 + heroH + 6;
   doc.autoTable(Object.assign({}, tableBase, {
-    startY: y, theme: 'plain', body: [['Client', tx(job.client.name)], ['Site', tx(siteLine)], ['Postcode', tx(job.site.postcode.toUpperCase())], ['Job reference', tx(job.ref)], ['Date of survey', fmtDate(job.date) + (job.time ? ' at ' + job.time : '')], ['Surveyor', tx(job.surveyor)], ['Overall condition', bd ? `${bd.toUpperCase()}  (${sc}/100)` : 'Not rated']],
+    startY: y, theme: 'plain', body: rows.map(r => [tx(r[0]), tx(r[1])]),
     styles: { fontSize: 10, cellPadding: 1.8, textColor: TXT }, columnStyles: { 0: { cellWidth: 45, fontStyle: 'bold', textColor: NAVY } },
-    didParseCell: d => { if (d.row.index === 6 && d.column.index === 1 && bd) { d.cell.styles.textColor = RC[bd]; d.cell.styles.fontStyle = 'bold'; } d.cell.styles.lineColor = LINE; d.cell.styles.lineWidth = { bottom: 0.2 }; },
+    didParseCell: d => { if (d.row.index === hiRow && d.column.index === 1 && hiCol) { d.cell.styles.textColor = hiCol; d.cell.styles.fontStyle = 'bold'; } d.cell.styles.lineColor = LINE; d.cell.styles.lineWidth = { bottom: 0.2 }; },
   }));
-  if (fragile || acSusp) { const yy = doc.lastAutoTable.finalY + 3; color(RC.Critical, 'fill'); doc.roundedRect(M, yy, CW, 9, 1.5, 1.5, 'F'); font(9.5, 'bold', [255, 255, 255]); doc.text(tx(['WARNING:', fragile ? 'FRAGILE ROOF' : '', acSusp ? 'SUSPECTED ASBESTOS CEMENT' : ''].filter(Boolean).join('  ') + '  - see Section 3'), M + 4, yy + 6); }
+  if (warnLine) { const yy = doc.lastAutoTable.finalY + 3; color(RC.Critical, 'fill'); doc.roundedRect(M, yy, CW, 9, 1.5, 1.5, 'F'); font(9.5, 'bold', [255, 255, 255]); doc.text(tx(warnLine), M + 4, yy + 6); }
   if (st.legal) { font(6.6, 'normal', GREY); doc.splitTextToSize(tx(st.legal), CW).forEach((l, i, arr) => doc.text(l, W / 2, H - 21 - (arr.length - 1 - i) * 2.9, { align: 'center' })); }
   color(NAVY, 'fill'); doc.rect(0, H - 16, W, 16, 'F'); color(OR, 'fill'); doc.rect(0, H - 16, W, 0.9, 'F');
   font(8.5, 'bold', [255, 255, 255]); doc.text(tx(st.company), M, H - 9.5);
   font(7.8, 'normal', [200, 212, 230]); doc.text(tx([st.phone ? 'Tel: ' + st.phone : '', st.email, st.website].filter(Boolean).join('   |   ')), M, H - 5);
+  };
+  const isW = isWorks(job);
+  if (isW) worksBody(); else {
+  drawCover('ROOF CONDITION SURVEY', 'SITE AUDIT REPORT', allPhotos[0], [['Client', job.client.name], ['Site', siteLine], ['Postcode', job.site.postcode.toUpperCase()], ['Job reference', job.ref], ['Date of survey', fmtDate(job.date) + (job.time ? ' at ' + job.time : '')], ['Surveyor', job.surveyor], ['Overall condition', bd ? `${bd.toUpperCase()}  (${sc}/100)` : 'Not rated']], 6, bd ? RC[bd] : null, (fragile || acSusp) ? ['WARNING:', fragile ? 'FRAGILE ROOF' : '', acSusp ? 'SUSPECTED ASBESTOS CEMENT' : ''].filter(Boolean).join('  ') + '  - see Section 3' : '');
 
   /* ----- 1. Job & site ----- */
   newPage(); let sn = 0;
@@ -1640,7 +1786,7 @@ async function buildPDF(job, opts) {
       styles: { fontSize: 8, valign: 'middle' },
       columnStyles: withPh ? { 0: { cellWidth: 11, fontStyle: 'bold' }, 1: { cellWidth: 27, minCellHeight: 21 }, 2: { cellWidth: 30 }, 4: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }, 5: { cellWidth: 42 }, 6: { cellWidth: 14, halign: 'right' } } : { 0: { cellWidth: 11, fontStyle: 'bold' }, 1: { cellWidth: 34 }, 3: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }, 4: { cellWidth: 50 }, 5: { cellWidth: 15, halign: 'right' } },
       didParseCell: d => { const pc = withPh ? 4 : 3; if (d.section === 'body' && d.column.index === pc && RC[d.cell.raw]) { d.cell.styles.fillColor = RC[d.cell.raw]; d.cell.styles.textColor = 255; } },
-      didDrawCell: d => { if (withPh && d.section === 'body' && d.column.index === 1) { const p = ds[d.row.index].photos[0]; if (p) try { fit(p, d.cell.x + 1, d.cell.y + 1, d.cell.width - 2, d.cell.height - 2); } catch (e) { } } },
+      didDrawCell: d => { if (withPh && d.section === 'body' && d.column.index === 1) { const rf = String((d.row.raw || [])[0] || ''); const dd = ds.find(x => x.ref === rf); const p = dd && dd.photos[0]; if (p) try { fit(p, d.cell.x + 1, d.cell.y + 1, d.cell.width - 2, d.cell.height - 2); } catch (e) { } } },
     });
   }
 
@@ -1675,6 +1821,8 @@ async function buildPDF(job, opts) {
   font(9, 'normal', TXT); doc.text(tx(`${job.surveyor || ''}${job.surveyor ? ', ' : ''}${st.company}`), M, y); doc.text(fmtDate(job.date), M + 95, y);
   if (st.legal) { y += 10; need(10); color(LINE, 'draw'); doc.line(M, y - 4, W - M, y - 4); font(7, 'normal', GREY); doc.splitTextToSize(tx(`${st.company}. ${st.legal}`), CW).forEach(l => { doc.text(l, M, y); y += 3.2; }); }
 
+  } // end survey body
+
   /* ----- headers & footers ----- */
   const n = doc.getNumberOfPages();
   const footLine = tx([st.company, st.phone ? 'Tel: ' + st.phone : '', st.email, st.website].filter(Boolean).join('  |  '));
@@ -1683,14 +1831,279 @@ async function buildPDF(job, opts) {
     if (i === 1) { font(7.8, 'normal', [200, 212, 230]); doc.text(`Page 1 of ${n}`, W - M, H - 5, { align: 'right' }); continue; }
     if (hasLogo) { const lh = 7, lw = lh * st.logoW / st.logoH; doc.addImage(st.logo, fmtImg(st.logo), M, 5, lw, lh, 'logo', 'FAST'); }
     else { font(8.5, 'bold', NAVY); doc.text(tx(st.company), M, 11); }
-    font(7.8, 'bold', NAVY); doc.text(tx(`Roof Condition Survey  |  ${job.ref}`), W - M, 8, { align: 'right' });
+    font(7.8, 'bold', NAVY); doc.text(tx(`${isW ? 'Works Inspection ' + (job.works.inspNo || '') : 'Roof Condition Survey'}  |  ${job.ref}`), W - M, 8, { align: 'right' });
     font(7.5, 'normal', GREY); doc.text(tx(`${job.site.name || job.client.name || ''}${job.date ? '  |  ' + fmtDate(job.date) : ''}`).slice(0, 95), W - M, 11.6, { align: 'right' });
     color(OR, 'draw'); doc.setLineWidth(0.6); doc.line(M, 14, W - M, 14);
     color(LINE, 'draw'); doc.setLineWidth(0.2); doc.line(M, H - 11, W - M, H - 11);
     font(7.2, 'normal', GREY); doc.text(footLine, M, H - 6.5); font(7.2, 'bold', NAVY); doc.text(`Page ${i} of ${n}`, W - M, H - 6.5, { align: 'right' });
   }
-  doc.setProperties({ title: tx(`Roof Condition Survey - ${job.ref}`), author: tx(st.company), subject: tx(siteLine), creator: 'ARS Site Audit' });
-  return { blob: doc.output('blob'), name: `${safeName(job.ref)}_Roof-Survey_${safeName(job.site.name || job.client.name || 'site')}.pdf`, pages: n };
+  doc.setProperties({ title: tx(`${isW ? 'Works Inspection Report' : 'Roof Condition Survey'} - ${job.ref}`), author: tx(st.company), subject: tx(siteLine), creator: 'ARS Site Audit' });
+  return { blob: doc.output('blob'), name: `${safeName(job.ref)}_${isW ? 'Works-Inspection-' + safeName(job.works.inspNo || '') : 'Roof-Survey'}_${safeName(job.site.name || job.client.name || 'site')}.pdf`, pages: n };
+}
+
+/* ===================== WORKS INSPECTION MODULE ===================== */
+const P_ = text => ({ text, type: 'pf' });
+DEFAULT_TEMPLATES.worksJob = [
+  { key: 'details', title: 'Inspection checklist', auto: true, items: [P_('Previous inspection actions / snags reviewed'), P_('Drawings, specification & method statement on site'), P_('Materials delivered match specification'), P_('Programme reviewed with site manager'), P_('Client / occupier liaison in place'), P_('Daily diary / progress records kept')] },
+  { key: 'safety', title: 'Site H&S during works', auto: true, items: [P_('RAMS on site and operatives briefed (signed)'), P_('Permit to work in place'), P_('Edge protection in place'), P_('Safety netting / fall arrest in place'), P_('Rooflights & openings protected'), P_('Exclusion zones below set up & signed'), P_('MEWP inspected / tagged (thorough exam in date)'), P_('Scaffold tagged & inspected within 7 days'), P_('Harness / PPE worn correctly'), P_('Materials stored & secured against wind'), P_('Waste / skips managed, no debris on roof'), P_('AC strip: licensed contractor (HSE licence)'), P_('AC strip: enclosure / controls in place'), P_('AC strip: air monitoring carried out'), P_('AC strip: waste consignment notes'), P_('Hot works permit (if applicable)'), P_('Welfare facilities adequate'), P_('Housekeeping acceptable')] },
+  { key: 'general', title: 'General observations', auto: true, items: [P_('Workmanship generally to standard'), P_('Client property protected from damage'), P_('Building watertight at end of shift'), P_('Site left clean & secure')] },
+];
+DEFAULT_TEMPLATES.packages = [
+  { key: 'pk_overclad', title: 'Overclad', items: [P_('Existing roof prepared & fixings checked'), P_('Spacer / bracket system type & centres as spec'), P_('Bracket fixings into purlins'), P_('Thermal break pads fitted'), P_('Insulation type / thickness as spec'), P_('Insulation fully filled, no gaps'), P_('Vapour control / breather layers lapped & sealed'), P_('Liner / outer sheet fixings at correct centres & pattern'), P_('Side laps sealed (tape / mastic)'), P_('End laps sealed (tape / mastic)'), P_('Stitching at specified centres'), P_('Profile fillers at eaves / ridge'), P_('Flashings & trims fixed and sealed'), P_('Rooflights to match'), P_('Gutters / outlets adapted'), P_('Swarf removed')] },
+  { key: 'pk_resheet', title: 'Strip & re-sheet', items: [P_('Strip method / sequence as agreed'), P_('Exposure limited to what can be covered same day'), P_('Temporary weatherproofing in place'), P_('Purlins inspected & condition noted (corrosion / remedial)'), P_('Liner fixed'), P_('Spacer system as spec'), P_('Insulation as spec'), P_('Vapour control layer'), P_('Outer sheets fixed, aligned & square'), P_('Eaves overhang correct'), P_('Laps & sealants'), P_('Fixings correct type / length / washers'), P_('Fixings seated (not over / under driven)'), P_('Fixings per sheet as spec'), P_('Stitching'), P_('Fillers'), P_('Flashings'), P_('Rooflights in-plane, matching profile, fixed as spec'), P_('Swarf cleaned'), P_('Waste removed'), P_('AC strip: licence & consignment notes')] },
+  { key: 'pk_coatings', title: 'Coatings', items: [P_('Surface prep (wire brush / abrasive, degrease, wash)'), P_('Cut-edge corrosion prepared'), P_('Primer applied'), { text: 'Coating system / manufacturer & batch nos recorded', type: 'text' }, P_('Weather in range (temp / dew point / humidity, no rain forecast)'), { text: 'Wet film thickness readings (microns)', type: 'num' }, { text: 'Dry film thickness readings (microns)', type: 'num' }, { text: 'Number of coats', type: 'num' }, P_('Laps / fixings treated'), P_('Cure time respected'), P_('Overspray protection in place'), P_("Manufacturer's guarantee requirements met")] },
+  { key: 'pk_rooflights', title: 'Rooflight replacement', items: [P_('Correct type / profile / class (e.g. GRP triple-skin, Class B / non-fragile)'), P_('Protection / netting below during works'), P_('Old rooflights removed safely'), P_('Side & end laps sealed (tape)'), P_("Stitching & fixings at manufacturer's centres"), P_('Fillers fitted'), P_('Junction with metal sheets sealed'), P_('No damage to adjacent sheets')] },
+  { key: 'pk_gutter', title: 'Gutter lining', items: [P_('Gutter cleaned & prepared'), P_('Existing condition / corrosion treated'), P_('Outlets checked / upgraded'), { text: 'Lining system & manufacturer (e.g. Fatra PVC / silicone / GRP)', type: 'text' }, P_('Membrane laps welded / sealed'), P_('Laps probe-tested'), P_('Stop ends detailed'), P_('Outlets detailed'), P_('Upstands / turn-downs correct'), P_('Flood / water test carried out (record result)'), P_('Guarantee documentation')] },
+  { key: 'pk_remedial', title: 'General remedial', items: [P_('Replacement fixings'), P_('Laps sealed'), P_('Flashing repairs'), P_('Work area left clean & watertight')] },
+];
+const WORKS_STAGES = ['Mobilisation / set-up', 'Strip-out', 'Temporary weatherproofing', 'Install - liner / spacers', 'Install - insulation', 'Install - outer sheets', 'Flashings & trims', 'Coating application', 'Rooflight replacement', 'Gutter lining', 'Snagging', 'Completion / handover'];
+const SNAG_STATUS = ['Open', 'In progress', 'Closed'];
+const RAGC = { Green: [21, 128, 61], Amber: [217, 119, 6], Red: [185, 28, 28] };
+const DEFAULT_WORKS_DISCLAIMER = 'This report records a visual inspection of the works in progress at the time of the visit and is based on the areas accessible and the information available on the day. It is a quality and progress record only: it does not relieve the installing contractor or any subcontractor of their obligations under the contract, specification, manufacturer requirements or health and safety legislation, and it is not a structural survey or an asbestos survey. Items not inspected or concealed by subsequent work cannot be confirmed. Percentages complete and programme status are the inspector\'s estimate on the day.';
+const TABS_W = [['details', 'Details', I.details], ['safety', 'Safety', I.shield], ['roofs', 'Roofs', I.roof], ['snags', 'Snags', I.warn], ['summary', 'Sign-off', I.pen], ['report', 'Report', I.pdf]];
+function worksRef(ref, selfId) {
+  const r0 = String(ref).replace(/^([A-Z0-9]+)-W?/, '$1-W');
+  const used = new Set(S.jobs.filter(x => x.id !== selfId).map(x => x.ref));
+  const m = /^(.*)-(\d+)$/.exec(r0);
+  if (!m) { let r = r0, k = 2; while (used.has(r)) r = r0 + '-' + k++; return r; }
+  let n = +m[2]; const w = m[2].length; while (used.has(`${m[1]}-${pad(n, w)}`)) n++; return `${m[1]}-${pad(n, w)}`;
+}
+const isWorks = j => j && j.type === 'works';
+const typeLabel = j => isWorks(j) ? 'Works' : 'Survey';
+
+function migrateJob(j) {
+  if (!j.type) j.type = 'survey';
+  j.sections = j.sections || []; j.areas = j.areas || []; j.sketches = j.sketches || []; j.hs = j.hs || {}; j.summary = j.summary || {};
+  j.client = j.client || {}; j.site = j.site || {}; ['weather', 'access'].forEach(k => { if (!Array.isArray(j[k])) j[k] = []; });
+  const fixSec = s => { s.items = s.items || []; s.photos = s.photos || []; s.items.forEach(i => { i.photos = i.photos || []; }); };
+  j.sections.forEach(fixSec); j.areas.forEach(a => { a.sections = a.sections || []; a.defects = a.defects || []; a.sections.forEach(fixSec); a.progress = a.progress || []; });
+  if (j.type === 'works') { j.snags = j.snags || []; j.works = Object.assign({ inspNo: '1', visitNo: '', contractRef: '', siteManager: '', subcontractor: '', operatives: '', stage: '', pct: '', programme: '', programmeDays: '', nextDate: '', actions: '', rag: '', linkedRef: '' }, j.works || {}); j.signoff = j.signoff || {}; }
+  return j;
+}
+function initWorks(j) {
+  j.type = 'works'; j.snags = []; j.signoff = {};
+  j.works = { inspNo: '1', visitNo: '1', contractRef: '', siteManager: '', subcontractor: '', operatives: '', stage: '', pct: '', programme: '', programmeDays: '', nextDate: '', actions: '', rag: '', linkedRef: '' };
+  j.ref = worksRef(j.ref, j.id);
+  j.sections = tpls('worksJob').filter(t => t.auto !== false).map(sectionFromTemplate);
+  return j;
+}
+function newWorksArea(job) { const a = newArea(job); a.sections = []; a.progress = []; a.pct = ''; a.stage = ''; return a; }
+function newSnag(job, areaId) {
+  let n = job.snags.length + 1; const used = new Set(job.snags.map(s => s.ref)); while (used.has('S' + pad(n))) n++;
+  return { id: uid(), ref: 'S' + pad(n), areaId: areaId || '', location: '', description: '', priority: '', assignedTo: '', due: '', status: 'Open', photos: [], closePhotos: [], closedDate: '', closeNote: '', source: null, raised: todayISO() };
+}
+const pfCounts = sec => { const c = { Pass: 0, Fail: 0, NA: 0, n: 0 }; sec.items.forEach(i => { if (i.type === 'pf' || i.type === 'yn') { c.n++; if (i.answer === 'Pass' || i.answer === 'Yes') c.Pass++; else if (i.answer === 'Fail' || i.answer === 'No') c.Fail++; else if (i.answer === 'N/A') c.NA++; } }); return c; };
+function numStats(str) { const v = String(str || '').split(/[,;\s]+/).map(parseFloat).filter(isFinite); if (!v.length) return null; const s = v.reduce((a, b) => a + b, 0); return { n: v.length, min: Math.min(...v), max: Math.max(...v), avg: Math.round(s / v.length * 10) / 10 }; }
+function worksPct(job) {
+  if (job.works.pct !== '' && job.works.pct != null) return Math.max(0, Math.min(100, num(job.works.pct)));
+  const as = job.areas.filter(a => a.pct !== '' && a.pct != null); if (!as.length) return null;
+  const tw = as.reduce((s, a) => s + (areaM2(a) || 1), 0); return Math.round(as.reduce((s, a) => s + num(a.pct) * (areaM2(a) || 1), 0) / tw);
+}
+function hsFails(job) { const s = secByKey(job, 'safety'); return s ? pfCounts(s).Fail : 0; }
+function openSnags(job) { return job.snags.filter(s => s.status !== 'Closed'); }
+function autoRag(job) {
+  const w = job.works; const behind = w.programme === 'Behind' ? num(w.programmeDays) : 0;
+  const openHS = job.snags.some(s => s.status !== 'Closed' && (s.priority === 'P1' || (s.source && s.source.secKey === 'safety')));
+  if (openHS || behind > 5) return 'Red';
+  if (openSnags(job).length || hsFails(job) || behind > 0) return 'Amber';
+  return 'Green';
+}
+const ragOf = job => job.works.rag || autoRag(job);
+function snagSourceText(job, s) {
+  if (!s.source) return '';
+  const owner = s.source.areaId ? job.areas.find(a => a.id === s.source.areaId) : job; const sec = owner && owner.sections.find(x => x.id === s.source.secId); const it = sec && sec.items.find(i => i.id === s.source.itemId);
+  return [s.source.areaId && owner ? owner.name : '', sec ? sec.title : '', it ? it.text : ''].filter(Boolean).join(' › ');
+}
+function snagFromItem(job, path) {
+  const it = getPath(job, path.replace(/\.answer$/, '')); if (!it) return null;
+  const base = path.slice(0, path.indexOf('.items#')); const sec = getPath(job, base);
+  const areaId = base.startsWith('areas#') ? base.split('.')[0].slice(6) : '';
+  const existing = it.snagId && job.snags.find(s => s.id === it.snagId);
+  if (existing) { if (existing.status === 'Closed') { existing.status = 'Open'; existing.closedDate = ''; toast(`Snag ${existing.ref} re-opened`); } else toast(`Linked to snag ${existing.ref}`); return existing; }
+  const area = areaId && job.areas.find(a => a.id === areaId);
+  const s = newSnag(job, areaId);
+  Object.assign(s, { description: `${it.text}${it.comment ? ' - ' + it.comment : ''}`, location: sec.title, photos: (it.photos || []).map(p => Object.assign({}, p, { id: uid() })), source: { areaId, secId: sec.id, itemId: it.id, secKey: sec.key }, priority: sec.key === 'safety' ? 'P1' : '' });
+  job.snags.push(s); it.snagId = s.id; toast(`FAIL recorded - snag ${s.ref} created`, 3200); return s;
+}
+function startWorksFromSurvey(src) {
+  const j = initWorks(newJob());
+  ['client', 'site'].forEach(k => j[k] = clone(src[k])); Object.assign(j, { buildingUse: src.buildingUse, era: src.era, access: clone(src.access || []), accessNotes: src.accessNotes || '' });
+  j.hs = Object.assign({ liveServices: [], otherHazards: [] }, clone(src.hs || {}), { rams: '', permit: '' }); j.works.linkedRef = src.ref;
+  const guess = d => { const r = (d.remedy || '') + ' ' + (d.remedyText || ''); return /over-?clad/i.test(r) ? 'pk_overclad' : /re-?roof|re-?sheet|replace roof sheets|strip/i.test(r) ? 'pk_resheet' : /coating|cut-edge/i.test(r) ? 'pk_coatings' : /rooflight/i.test(r) ? 'pk_rooflights' : /gutter lining/i.test(r) ? 'pk_gutter' : 'pk_remedial'; };
+  src.areas.forEach(a => {
+    const na = newWorksArea(j); ['name', 'type', 'profile', 'colour', 'pitch', 'length', 'width', 'measured', 'areaOverride', 'rlType', 'rlCount', 'gutterTypes', 'gutterMat', 'outletCount', 'flashTypes', 'insType'].forEach(k => { na[k] = clone(a[k] ?? ''); });
+    const keys = [...new Set(a.defects.map(guess))];
+    keys.forEach(k => { const t = tpls('packages').find(x => x.key === k); if (t) na.sections.push(sectionFromTemplate(t)); });
+    j.areas.push(na);
+  });
+  return j;
+}
+function followUpInspection(src) {
+  const n = clone(src);
+  Object.assign(n, { status: 'Draft', created: Date.now(), updated: Date.now(), date: todayISO(), time: nowTime(), weather: [], signoff: {} });
+  const fresh = newJob(); n.ref = src.ref; n.id = uid();
+  n.works = Object.assign({}, src.works, { inspNo: String(num(src.works.inspNo) + 1), visitNo: String(num(src.works.visitNo || src.works.inspNo) + 1), rag: '', actions: '', nextDate: '' });
+  n.sections.forEach(resetSec); n.areas.forEach(a => { a.sections.forEach(resetSec); a.sections.forEach(s => s.items.forEach(i => { i.photos = []; delete i.snagId; })); a.progress = []; });
+  n.sections.forEach(s => s.items.forEach(i => { i.photos = []; delete i.snagId; }));
+  n.snags = n.snags.filter(s => s.status !== 'Closed'); n.snags.forEach(s => { s.source = s.source ? Object.assign(s.source, { carried: true }) : null; });
+  n.summary = fresh.summary; return n;
+}
+
+/* ---------- Works views ---------- */
+function viewWorksDetails(job) {
+  const f = mk(job); const sec = secByKey(job, 'details'); const ap = worksPct(job);
+  return `${hsStrip(job)}
+  <div class="card"><h2><span class="n">1</span> Inspection</h2>
+    <div class="row3">${f.text('Inspection no.', 'works.inspNo', { type: 'number' })}${f.text('Visit no.', 'works.visitNo', { type: 'number' })}${f.text('Contract / PO ref', 'works.contractRef', { cls: 'wide' })}</div>
+    <div class="row">${f.text('Date', 'date', { type: 'date' })}${f.text('Time', 'time', { type: 'time' })}</div>
+    <div class="row">${f.text('Inspector', 'surveyor')}${f.text('Site manager / supervisor', 'works.siteManager')}</div>
+    <div class="row">${f.text('Subcontractor / gang on site', 'works.subcontractor')}${f.text('Operatives on site', 'works.operatives', { type: 'number' })}</div>
+    ${f.text('Job reference', 'ref')}${job.works.linkedRef ? `<p class="hint">Linked survey: <b>${esc(job.works.linkedRef)}</b></p>` : ''}
+  </div>
+  <div class="card"><h2><span class="n">2</span> Progress & programme</h2>
+    ${f.select('Works stage', 'works.stage', WORKS_STAGES)}
+    ${f.text('Overall % complete', 'works.pct', { type: 'number', ph: ap != null ? `Auto from areas: ${ap}%` : '0-100', hint: 'Leave blank to calculate from the roof areas (weighted by m²).' })}
+    ${f.seg('Programme status', 'works.programme', [['On programme', 'On', 'ok'], ['Ahead', 'Ahead', 'ok'], ['Behind', 'Behind', 'bad']], { cls: 'yn' })}
+    <div class="row">${f.text('Days ahead / behind', 'works.programmeDays', { type: 'number' })}${f.text('Next inspection date', 'works.nextDate', { type: 'date' })}</div>
+  </div>
+  <div class="card"><h2><span class="n">3</span> Client & site</h2>
+    ${f.text('Client / company', 'client.name')}<div class="row">${f.text('Contact name', 'client.contact')}${f.text('Contact phone', 'client.phone', { type: 'tel' })}</div>
+    ${f.text('Site / building name', 'site.name')}${f.area('Site address', 'site.address', { rows: 2 })}<div class="row">${f.text('Postcode', 'site.postcode')}${f.text('Building use', 'buildingUse', { list: 'buildingUse' })}</div>
+  </div>
+  <div class="card"><h2><span class="n">4</span> Conditions & access</h2>${f.chips('Weather', 'weather', REF.weather)}${f.text('Temperature / wind', 'temp', { ph: 'e.g. 9°C, gusting 20 mph' })}${f.chips('Access', 'access', REF.access)}</div>
+  ${sec ? sectionCards(`sections#${sec.id}`, sec, f, { checklistTitle: 'Inspection checklist' }) : ''}
+  <a class="item" href="#/job/${job.id}/general"><div class="th">${I.camera.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">General observations, sketches & custom sections</div><div class="t2">Quality notes, site sketches</div></div>${I.chev}</a>`;
+}
+function snagItem(job, s) {
+  const a = job.areas.find(x => x.id === s.areaId); const cl = s.status === 'Closed' ? 'green' : s.status === 'In progress' ? 'amber' : 'red';
+  const th = (s.status === 'Closed' && s.closePhotos[0]) || s.photos[0];
+  return `<a class="item" href="#/job/${job.id}/snag/${s.id}">${th ? `<img class="th" src="${th.data}" alt="">` : `<div class="th">${esc(s.ref)}</div>`}<div class="bd"><div class="t1"><span class="tag ${cl}">${s.status}</span> ${s.priority ? `<span class="tag ${s.priority}">${s.priority}</span> ` : ''}${esc(s.ref)}</div><div class="t2">${esc(s.description || 'No description')}</div><div class="small">${esc([a ? a.name : 'Site-wide', s.assignedTo, s.due ? 'due ' + fmtDate(s.due) : ''].filter(Boolean).join(' · '))}</div></div>${I.chev}</a>`;
+}
+function viewSnags(job) {
+  const f = S.snagFilter || 'open'; const list = job.snags.filter(s => f === 'all' || (f === 'open' ? s.status !== 'Closed' : s.status === 'Closed'));
+  return `${hsStrip(job)}<div class="filters">${[['open', 'Open'], ['closed', 'Closed'], ['all', 'All']].map(([k, l]) => `<button data-act="snagfilter" data-v="${k}" class="${f === k ? 'on' : ''}">${l} (${k === 'all' ? job.snags.length : job.snags.filter(s => k === 'open' ? s.status !== 'Closed' : s.status === 'Closed').length})</button>`).join('')}</div>
+  <div class="card"><h2>Snag list / actions</h2>${list.map(s => snagItem(job, s)).join('') || '<div class="empty"><p>No snags here. Failed checklist items create snags automatically.</p></div>'}
+  <button class="btn primary block" data-act="addsnag">${I.plus} Add snag</button></div>`;
+}
+function viewSnag(job, s) {
+  const f = mk(job); const b = `snags#${s.id}`; const src = snagSourceText(job, s);
+  return `${hsStrip(job)}<div class="card"><h2><span class="n">${esc(s.ref)}</span> Snag</h2>
+    ${src ? `<p class="hint" style="margin:-4px 0 12px">Raised from failed item: <b>${esc(src)}</b>${s.source && s.source.carried ? ' (carried forward)' : ''}</p>` : ''}
+    <div class="row">${f.text('Snag ref', b + '.ref')}${f.select('Roof area', b + '.areaId', [], { blank: 'Site-wide' }).replace('</select>', job.areas.map(a => `<option value="${a.id}" ${s.areaId === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('') + '</select>')}</div>
+    ${f.text('Location', b + '.location', { ph: 'e.g. Gridline 4-5, eaves' })}
+    ${f.area('Description', b + '.description', { rows: 3 })}
+    <div class="row">${f.text('Assigned to', b + '.assignedTo', { ph: 'e.g. Apex Cladding gang' })}${f.text('Due date', b + '.due', { type: 'date' })}</div>
+    <div class="f"><span class="lbl">Priority (optional)</span><div class="seg pri" data-b="${b}.priority">${Object.entries(REF.priorities).map(([k, l]) => `<button type="button" data-v="${k}" class="${s.priority === k ? 'on' : ''}"><b>${k}</b><span>${l}</span></button>`).join('')}</div></div>
+    ${f.seg('Status', b + '.status', [['Open', 'Open', 'bad'], ['In progress', 'In progress', 'warn'], ['Closed', 'Closed', 'ok']], { cls: 'yn' })}
+  </div>
+  <div class="card"><h2>${I.camera.replace('<svg', '<svg width="22" height="22"')} Photos (before) <span class="prog" style="margin-left:auto">${s.photos.length}</span></h2>${photoGrid(b + '.photos', s.photos)}</div>
+  <div class="card" id="closeout"><h2>Close-out</h2>${f.text('Date closed', b + '.closedDate', { type: 'date' })}${f.area('Close-out notes', b + '.closeNote', { rows: 2, ph: 'Work done to resolve…' })}
+    <span class="lbl">Close-out photo (after)</span>${photoGrid(b + '.closePhotos', s.closePhotos, { empty: 'Add an "after" photo when the snag is closed.' })}</div>
+  <div class="btns"><a class="btn primary" href="#/job/${job.id}/snags">Done</a><button class="btn danger" data-act="delsnag" data-id="${s.id}">${I.trash} Delete</button></div>`;
+}
+function viewWorksArea(job, a) {
+  const f = mk(job); const b = `areas#${a.id}`; const pk = tpls('packages'); const have = new Set(a.sections.map(s => s.key));
+  const secs = a.sections.map(s => { const c = pfCounts(s); const pr = secProgress(s); return `<a class="item" href="#/job/${job.id}/area/${a.id}/sec/${s.id}"><div class="th" style="width:48px;height:48px;font-size:14px">${pr.a}/${pr.n}</div><div class="bd"><div class="t1">${esc(s.title)}</div><div class="t2"><span class="tag green">${c.Pass} pass</span> <span class="tag ${c.Fail ? 'red' : ''}">${c.Fail} fail</span> ${s.photos.length} photos</div></div>${I.chev}</a>`; }).join('');
+  const snags = job.snags.filter(s => s.areaId === a.id);
+  return `${hsStrip(job)}<div class="card"><h2>Area & progress</h2>
+    ${f.text('Name / zone', b + '.name')}${f.select('Roof type', b + '.type', REF.roofType)}
+    <div class="row">${f.text('Profile / system', b + '.profile', { list: 'profiles' })}${f.text('Colour', b + '.colour', { list: 'colours' })}</div>
+    <div class="row3">${f.text('Length (m)', b + '.length', { type: 'number' })}${f.text('Width (m)', b + '.width', { type: 'number' })}<div class="f"><span class="lbl">Area</span><div class="calc" id="calc"><span>${areaM2(a)} m²</span></div></div></div>
+    <div class="row">${f.text('% complete (this area)', b + '.pct', { type: 'number' })}${f.select('Stage (this area)', b + '.stage', WORKS_STAGES)}</div>
+  </div>
+  <div class="card"><h2>Work packages</h2><p class="hint" style="margin:-4px 0 10px">Tap to add the packages being carried out on this area.</p>
+    <div class="chips">${pk.map(t => `<button type="button" data-act="togglepkg" data-aid="${a.id}" data-key="${t.key}" class="${have.has(t.key) ? 'on' : ''}">${esc(t.title)}</button>`).join('')}</div>
+    <div style="height:12px"></div>${secs || '<p class="hint">No packages selected yet.</p>'}
+    <button class="btn block" data-act="addsec" data-scope="packages" data-aid="${a.id}">${I.plus} Add custom section</button></div>
+  <div class="card"><h2>${I.camera.replace('<svg', '<svg width="22" height="22"')} Progress photos <span class="prog" style="margin-left:auto">${a.progress.length}</span></h2>${photoGrid(b + '.progress', a.progress, { tags: true, empty: 'Add before / during / after photos.' })}</div>
+  <div class="card"><h2>Snags <span class="prog" style="margin-left:auto">${snags.filter(s => s.status !== 'Closed').length} open</span></h2>${snags.map(s => snagItem(job, s)).join('')}<button class="btn primary block" data-act="addsnag" data-aid="${a.id}">${I.plus} Add snag</button></div>
+  <div class="card">${f.area('Area notes', b + '.notes', { rows: 3 })}<button class="btn danger block" data-act="delarea" data-aid="${a.id}">${I.trash} Delete roof area</button></div>`;
+}
+function sigBlock(job, who, label) {
+  const f = mk(job); const so = job.signoff; const img = so[who + 'Sig'];
+  return `<div class="card"><h2>${label}</h2><div class="row">${f.text('Name', `signoff.${who}Name`)}${f.text('Date', `signoff.${who}Date`, { type: 'date' })}</div>${who === 'client' ? f.text('Role / company', 'signoff.clientRole', { ph: 'e.g. Site manager, Apex Cladding' }) : ''}
+  ${img ? `<img src="${img}" alt="Signature" style="width:100%;max-width:420px;border:2px solid var(--line2);border-radius:12px;background:#fff;display:block;margin-bottom:10px">` : '<p class="hint">Not signed yet.</p>'}
+  <div class="btns"><button class="btn navy" data-act="sign" data-who="${who}">${I.pen} ${img ? 'Re-sign' : 'Sign'}</button>${img ? `<button class="btn danger" data-act="unsign" data-who="${who}">Clear</button>` : ''}</div></div>`;
+}
+function viewWorksSummary(job) {
+  const f = mk(job); const w = job.works; const pct = worksPct(job); const rag = ragOf(job); const os = openSnags(job); const hf = hsFails(job);
+  return `${hsStrip(job)}<div class="card"><h2>Inspection status</h2>
+    <div style="display:flex;gap:14px;align-items:center;margin-bottom:12px"><div class="rag rag-${rag}">${rag.toUpperCase()}</div><div><b style="font-size:20px;color:var(--navy)">${pct == null ? '–' : pct + '%'} complete</b><div class="small">${esc(w.stage || 'Stage not set')} · ${esc(w.programme ? w.programme + (num(w.programmeDays) ? ` (${w.programmeDays} days)` : '') : 'Programme not set')}</div></div></div>
+    <div class="tiles"><div class="tile P1"><b>${os.length}</b><span>Open snags</span></div><div class="tile" style="background:var(--good)"><b>${job.snags.length - os.length}</b><span>Closed</span></div><div class="tile ${hf ? 'P2' : ''}" style="${hf ? '' : 'background:var(--good)'}"><b>${hf}</b><span>H&S fails</span></div><div class="tile P4"><b>${job.areas.reduce((n, a) => n + a.sections.reduce((m, s) => m + pfCounts(s).Fail, 0), 0)}</b><span>Quality fails</span></div></div>
+    <div style="height:12px"></div>${f.select('RAG status', 'works.rag', ['Green', 'Amber', 'Red'], { blank: `Auto (${autoRag(job)})`, hint: 'Auto: Red if an H&S/P1 snag is open or >5 days behind; Amber if any snags open, H&S fails or behind; otherwise Green.' })}
+  </div>
+  <div class="card"><h2>Actions for next visit</h2>${f.area('', 'works.actions', { rows: 6, ph: 'Actions agreed with site team…' })}<button class="btn block" data-act="autoactions">${I.wand} Fill from open snags</button>${f.text('Next inspection date', 'works.nextDate', { type: 'date' })}</div>
+  <div class="card"><h2>Summary comments</h2>${f.area('', 'summary.exec', { rows: 5, ph: 'Overall progress and quality comments…' })}</div>
+  ${sigBlock(job, 'inspector', 'Inspector sign-off')}${sigBlock(job, 'client', 'Site manager / client sign-off (optional)')}
+  <div class="card">${f.seg('Inspection status', 'status', [['Draft', 'Draft'], ['Complete', 'Complete', 'ok']], { cls: 'yn' })}</div>`;
+}
+function signaturePad() {
+  let cv;
+  return modal(`<h3>Sign below</h3><div class="sk-wrap" style="margin-bottom:12px"><canvas id="sigc" width="900" height="320"></canvas></div><button class="btn primary" data-r="ok">Save signature</button><button class="btn" data-r="clear">Clear</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => {
+    cv = $('#sigc', bg); const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.strokeStyle = '#cbd5e1'; g.beginPath(); g.moveTo(40, 260); g.lineTo(860, 260); g.stroke();
+    g.strokeStyle = '#0f172a'; g.lineWidth = 4; g.lineCap = 'round'; g.lineJoin = 'round'; let d = false, l; cv._drawn = false;
+    const pt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+    cv.addEventListener('pointerdown', e => { e.preventDefault(); d = true; l = pt(e); cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', e => { if (!d) return; const p = pt(e); g.beginPath(); g.moveTo(l[0], l[1]); g.lineTo(p[0], p[1]); g.stroke(); l = p; cv._drawn = true; });
+    cv.addEventListener('pointerup', () => { d = false; });
+    bg.querySelector('[data-r=clear]').addEventListener('click', e => { e.stopPropagation(); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); cv._drawn = false; }, true);
+  }).then(r => r === 'ok' && cv._drawn ? cv.toDataURL('image/png') : null);
+}
+Object.assign(ACTIONS, {
+  snagfilter(a) { S.snagFilter = a.dataset.v; rerender(); },
+  addsnag(a, job) { const s = newSnag(job, a.dataset.aid || ''); job.snags.push(s); markDirty(job); go(`#/job/${job.id}/snag/${s.id}`); },
+  async delsnag(a, job) { if (!await confirmBox('Delete snag?', 'The snag and its photos will be deleted.')) return; job.snags = job.snags.filter(s => s.id !== a.dataset.id); job.areas.forEach(ar => ar.sections.forEach(sc => sc.items.forEach(i => { if (i.snagId === a.dataset.id) delete i.snagId; }))); job.sections.forEach(sc => sc.items.forEach(i => { if (i.snagId === a.dataset.id) delete i.snagId; })); markDirty(job); go(`#/job/${job.id}/snags`); },
+  async togglepkg(a, job) {
+    const ar = job.areas.find(x => x.id === a.dataset.aid); const ex = ar.sections.find(s => s.key === a.dataset.key);
+    if (ex) { const used = ex.items.some(i => i.answer || i.comment) || ex.photos.length || ex.notes; if (used && !await confirmBox('Remove package?', `"${ex.title}" has answers or photos which will be removed.`, 'Remove')) return; ar.sections = ar.sections.filter(s => s !== ex); }
+    else { const t = tpls('packages').find(x => x.key === a.dataset.key); ar.sections.push(sectionFromTemplate(t)); }
+    markDirty(job); rerender();
+  },
+  async sign(a, job) { const d = await signaturePad(); if (!d) return; const w = a.dataset.who; job.signoff[w + 'Sig'] = d; if (!job.signoff[w + 'Date']) job.signoff[w + 'Date'] = todayISO(); if (w === 'inspector' && !job.signoff.inspectorName) job.signoff.inspectorName = job.surveyor; markDirty(job); rerender(); toast('Signature saved'); },
+  unsign(a, job) { delete job.signoff[a.dataset.who + 'Sig']; markDirty(job); rerender(); },
+  async autoactions(a, job) { if (job.works.actions && !await confirmBox('Replace actions?', 'Replace the current actions with the open snag list?', 'Replace', false)) return; job.works.actions = openSnags(job).map(s => `• ${s.ref}: ${s.description}${s.assignedTo ? ' - ' + s.assignedTo : ''}${s.due ? ' (due ' + fmtDate(s.due) + ')' : ''}`).join('\n') || 'No open snags.'; markDirty(job); rerender(); },
+  async demoworks() { const j = await makeDemoWorks(); S.jobs.push(j); await DB.put(j); toast('Demo works inspection loaded'); go(`#/job/${j.id}/details`); },
+});
+
+/* ---------- Demo works inspection ---------- */
+function demoSignature(seed) {
+  const c = document.createElement('canvas'); c.width = 900; c.height = 320; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 900, 320); g.strokeStyle = '#0f172a'; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath();
+  for (let x = 80; x < 760; x += 4) { const y = 180 + Math.sin(x / (22 + seed * 3)) * 55 * Math.sin(x / 140) + Math.cos(x / (9 + seed)) * 12; x === 80 ? g.moveTo(x, y) : g.lineTo(x, y); } g.stroke();
+  g.beginPath(); g.moveTo(120, 250); g.quadraticCurveTo(450, 205, 800, 240); g.stroke(); return c.toDataURL('image/png');
+}
+function setAns(sec, text, answer, comment = '') { const it = sec.items.find(i => i.text.toLowerCase().startsWith(text.toLowerCase())); if (it) { it.answer = answer; it.comment = comment; } return it; }
+async function makeDemoWorks() {
+  const j = initWorks(newJob()); j.ref = j.ref.replace(/-\d+$/, '-DEMO');
+  Object.assign(j, { surveyor: S.settings.surveyor || 'Matt Ross', weather: ['Dry / overcast', 'Windy'], temp: '10°C, gusting 18 mph', access: ['MEWP', 'Scaffold'], buildingUse: 'Warehouse / distribution', era: '1990s' });
+  j.client = { name: 'Midland Logistics Ltd', contact: 'Sarah Patel (Facilities Manager)', phone: '0121 000 0000', email: 'facilities@example.co.uk' };
+  j.site = { name: 'Unit 4, Hams Hall Distribution Park', address: 'Faraday Avenue, Coleshill, Birmingham', postcode: 'B46 1AL' };
+  j.hs = { fragility: 'fragile', fragilityNotes: 'Existing GRP rooflights - netting installed below work zone', pre2000: 'yes', acSuspected: 'no', rdSurvey: 'yes', liveServices: ['HVAC plant'], otherHazards: ['Public / staff below', 'High winds'], rams: 'RAMS-ARS-2611-02', permit: 'PTW-0533', loneWorking: 'no' };
+  Object.assign(j.works, { inspNo: '2', visitNo: '2', contractRef: 'PO 45021 / ARS-C-1187', siteManager: 'Dave Collins (ARS contracts manager)', subcontractor: 'Apex Cladding Ltd - gang of 4', operatives: '6', stage: 'Install - outer sheets', pct: '', programme: 'Behind', programmeDays: '3', nextDate: '', linkedRef: 'ARS-2610-DEMO' });
+  const d = new Date(); d.setDate(d.getDate() + 7); j.works.nextDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const det = secByKey(j, 'details'); ['Previous inspection', 'Drawings', 'Materials delivered', 'Programme reviewed', 'Client', 'Daily diary'].forEach(t => setAns(det, t, 'Pass')); setAns(det, 'Programme reviewed', 'Pass', '3 days lost to high winds');
+  const hs = secByKey(j, 'safety'); hs.items.forEach(i => { i.answer = /AC strip|Hot works/.test(i.text) ? 'N/A' : 'Pass'; }); setAns(hs, 'Scaffold tagged', 'Pass', 'Tag dated ' + fmtDate(todayISO()));
+  const A1 = newWorksArea(j); Object.assign(A1, { name: 'Main warehouse - north slope', type: 'Built-up metal', profile: 'Firth N1000R overclad on spacer system', colour: 'Goosewing Grey', length: '84', width: '22.5', pct: '65', stage: 'Install - outer sheets' });
+  const A2 = newWorksArea(j); Object.assign(A2, { name: 'Central valley gutter', type: 'Other', profile: 'Fatra reinforced PVC lining', length: '84', width: '0.9', pct: '40', stage: 'Gutter lining' });
+  const T = k => tpls('packages').find(t => t.key === k);
+  const oc = sectionFromTemplate(T('pk_overclad')); const gl = sectionFromTemplate(T('pk_gutter')); A1.sections.push(oc); A2.sections.push(gl); j.areas.push(A1, A2);
+  oc.items.forEach(i => { i.answer = 'Pass'; }); ['Rooflights to match', 'Gutters / outlets adapted', 'Swarf removed'].forEach(t => setAns(oc, t, ''));
+  setAns(oc, 'Spacer / bracket', 'Pass', 'Brackets @ 1.2 m centres as spec'); setAns(oc, 'Insulation type', 'Pass', '180 mm mineral wool quilt');
+  oc.notes = 'Outer sheets installed bays 1-9 of 14. Liner and insulation complete to bay 11. Good alignment and sheet square to eaves.';
+  oc.photos.push(demoPhoto('overview', 'Outer sheets installed bays 1-9', 31));
+  gl.items.forEach(i => { i.answer = ''; }); setAns(gl, 'Gutter cleaned', 'Pass'); setAns(gl, 'Existing condition', 'Pass', 'Corrosion wire-brushed & primed'); setAns(gl, 'Outlets checked', 'Pass', 'Outlets upgraded to 110 mm'); setAns(gl, 'Lining system', '', 'Fatra Fatrafol 810 reinforced PVC, 1.5 mm'); setAns(gl, 'Membrane laps', 'Pass'); setAns(gl, 'Laps probe-tested', 'Pass', 'Probe tested bays 1-6');
+  gl.photos.push(demoPhoto('gutter', 'Valley lining in progress, bay 4', 32));
+  // fails -> snags
+  const pS = (sec, area, text, comment, ph) => { const it = setAns(sec, text, 'Fail', comment); if (ph) it.photos.push(ph); const base = area ? `areas#${area.id}.sections#${sec.id}` : `sections#${sec.id}`; return snagFromItem(j, `${base}.items#${it.id}.answer`); };
+  const s1 = pS(oc, A1, 'Stitching at specified centres', 'Side lap stitchers at ~700 mm, spec 450 mm, bays 6-7', demoPhoto('lap', 'Stitchers at wide centres, bay 6', 33)); Object.assign(s1, { assignedTo: 'Apex Cladding Ltd', due: j.works.nextDate, priority: 'P2' });
+  const s2 = pS(oc, A1, 'Profile fillers at eaves', 'Eaves fillers missing bays 2-3', demoPhoto('cutedge', 'Eaves fillers missing, bay 2', 34)); Object.assign(s2, { assignedTo: 'Apex Cladding Ltd', due: todayISO(), status: 'Closed', closedDate: todayISO(), closeNote: 'Fillers fitted and sealed; checked on this visit.' }); s2.closePhotos.push(demoPhoto('flashing', 'Eaves fillers fitted and sealed, bay 2', 35)); setAns(oc, 'Profile fillers at eaves', 'Pass', 'Fillers fitted - snag S02 closed');
+  const s3 = pS(hs, null, 'Materials stored & secured', 'Sheet pack on roof not strapped in high wind', demoPhoto('fixings', 'Unsecured sheet pack, bay 12', 36)); Object.assign(s3, { assignedTo: 'Dave Collins', due: todayISO(), status: 'In progress' });
+  const s4 = pS(gl, A2, 'Stop ends detailed', 'Stop end at north gable not welded', null); Object.assign(s4, { assignedTo: 'ARS lining team', due: j.works.nextDate });
+  A1.progress.push(Object.assign(demoPhoto('cutedge', 'Existing roof before overclad', 37), { tag: 'Before' }), Object.assign(demoPhoto('fixings', 'Spacer brackets fixed to purlins', 38), { tag: 'During' }), Object.assign(demoPhoto('overview', 'Outer sheets complete bays 1-9', 39), { tag: 'After' }));
+  A2.progress.push(Object.assign(demoPhoto('gutter', 'Valley gutter before lining', 40), { tag: 'Before' }), Object.assign(demoPhoto('gutter', 'Fatra membrane being welded', 41), { tag: 'During' }));
+  j.summary.exec = 'Overclad progressing well with good workmanship; outer sheets installed to bay 9 of 14. Three days lost to high winds. Stitcher centres to be corrected in bays 6-7 before further sheeting. Gutter lining underway with laps probe-tested to bay 6. Sheet storage on the roof must be strapped down at the end of each shift.';
+  j.works.actions = openSnags(j).map(s => `• ${s.ref}: ${s.description}${s.assignedTo ? ' - ' + s.assignedTo : ''}`).join('\n') + '\n• Flood test valley gutter once lining complete and record result.';
+  j.signoff = { inspectorName: j.surveyor, inspectorDate: todayISO(), inspectorSig: demoSignature(1), clientName: 'Dave Collins', clientRole: 'Contracts manager, ARS', clientDate: todayISO(), clientSig: demoSignature(2) };
+  return j;
 }
 
 /* ---------- Demo audit (illustrative images drawn on canvas) ---------- */
@@ -1767,7 +2180,7 @@ async function makeDemoJob() {
 /* ---------- Init ---------- */
 S.reportOpts = { photos: true, hideBlank: true, defectPhotos: true };
 async function init() {
-  try { await DB.open(); const s = await DB.getKV('settings'); if (s) S.settings = Object.assign(clone(DEFAULT_SETTINGS), s); S.jobs = (await DB.all()) || []; }
+  try { await DB.open(); const s = await DB.getKV('settings'); if (s) S.settings = Object.assign(clone(DEFAULT_SETTINGS), s); S.jobs = ((await DB.all()) || []).map(migrateJob); if (!S.settings.worksDisclaimer) S.settings.worksDisclaimer = DEFAULT_WORKS_DISCLAIMER; }
   catch (e) { console.error(e); toast('Storage unavailable - data will not be saved (private browsing?)', 6000); }
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { }
   window.addEventListener('hashchange', () => render());
