@@ -1679,7 +1679,7 @@ async function buildPDF(job, opts) {
   const matTable = (lines, showArea) => {
     if (!lines.length) return;
     const body = lines.map(l => ['', tx(catTitle(l.m.cat)), tx([l.m.name, [l.m.spec, l.m.colour].filter(Boolean).join(', ')].filter(Boolean).join('\n')), tx(`${fq(l.qty)} ${l.m.unit}${l.m.qtyFrom ? '\n(area link)' : ''}`), num(l.m.waste) ? num(l.m.waste) + '%' : '-', tx(`${fq(l.order)} ${l.m.unit}`), tx(l.m.status || 'Required'), tx([showArea ? l.ownerName : '', l.m.supplier, l.m.notes].filter(Boolean).join('\n'))]).map((r, i) => Object.assign(r, { chk: !!lines[i].m.checked }));
-    table({ head: [['', 'Category', 'Item / spec', 'Qty', 'Waste', 'Order qty', 'Status', showArea ? 'Area / supplier / notes' : 'Supplier / notes']], body, styles: { fontSize: 7.8, valign: 'middle' }, columnStyles: { 0: { cellWidth: 7 }, 1: { cellWidth: 22 }, 2: { cellWidth: 52 }, 3: { cellWidth: 19, halign: 'right' }, 4: { cellWidth: 12, halign: 'center' }, 5: { cellWidth: 19, halign: 'right', fontStyle: 'bold' }, 6: { cellWidth: 18 } },
+    table({ head: [['', 'Category', 'Item / spec', 'Qty', 'Waste', 'Order qty', 'Status', showArea ? 'Area / supplier / notes' : 'Supplier / notes']], body, styles: { fontSize: 7.8, valign: 'middle' }, columnStyles: { 0: { cellWidth: 7 }, 1: { cellWidth: 22 }, 2: { cellWidth: 49 }, 3: { cellWidth: 19, halign: 'right' }, 4: { cellWidth: 15, halign: 'center' }, 5: { cellWidth: 19, halign: 'right', fontStyle: 'bold' }, 6: { cellWidth: 18 } },
       didDrawCell: d => { if (d.section === 'body' && d.column.index === 0) tickBox(d.cell.x + 1.8, d.cell.y + d.cell.height / 2 - 1.7, !!(d.row.raw && d.row.raw.chk)); } });
   };
   const scafBlock = works => {
