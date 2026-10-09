@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.3.0">
+<meta name="app-version" content="1.3.1">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -281,6 +281,38 @@ img[data-pending]{background:#e3e8ef}
 @media (max-width:420px){.hdr.home .logo-pill{padding:5px 8px}.hdr.home .logo-pill img{height:24px;max-width:118px}.hdr.home h1{font-size:18px}}
 input:disabled,select:disabled,textarea:disabled{background:#eef1f5;color:#4b5563;-webkit-text-fill-color:#4b5563;opacity:1}
 .beta-tag{display:inline-block;background:var(--orange);color:var(--on-orange);font-size:11px;font-weight:800;letter-spacing:.5px;border-radius:6px;padding:2px 6px;vertical-align:middle;margin-left:4px}
+/* v1.3.1 materials, measurements, pitch, RFQ */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.g2 .f,.g3 .f{margin-bottom:10px}.g3 input,.g2 input{min-width:0}
+.pit,.mrec{border:2px solid var(--line2);border-radius:12px;padding:10px 12px;margin:0 0 12px;background:#fbfcfe}
+.pit.red{border-color:var(--crit);background:#fff5f5}.pit.amber{border-color:#d97706;background:#fffbeb}.pit.green{border-color:#86c79a}
+.pit-l{flex:1;font-weight:700;color:var(--navy);min-height:44px !important;font-size:16px !important}
+.pit-m{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.pit-m select{flex:1;min-width:160px;min-height:46px}
+.pit-ph{margin-top:10px;min-height:46px}
+.mcalc{color:var(--navy3);font-weight:700;margin-top:4px}
+.pm-live{text-align:center;padding:14px;border:2px solid var(--line2);border-radius:14px;margin:8px 0}
+.pm-live b{display:block;font-size:46px;color:var(--navy);font-variant-numeric:tabular-nums}.pm-live span{color:var(--muted);font-size:14px}
+.mcat{margin:14px 0 6px;font-size:13px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+.mrow{display:flex;align-items:center;gap:10px;border:2px solid var(--line2);border-radius:12px;padding:8px 10px;margin:0 0 8px;background:#fff}
+.mrow.done{background:#f3faf5;border-color:#b7dcc3}.mrow.done .t1{text-decoration:line-through;color:var(--muted)}
+.mrow>svg{width:20px;height:20px;color:#94a3b8;flex:none}
+.mbd{flex:1;min-width:0;color:inherit;text-decoration:none}.mbd .t1{font-weight:800;color:var(--navy)}.mbd .t2{font-size:14px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mbd .meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}.mbd .meta .tag{font-size:12px}
+.mchk{width:44px;height:44px;flex:none;border:2.5px solid var(--line);border-radius:10px;background:#fff;color:transparent;font-size:24px;font-weight:900;display:flex;align-items:center;justify-content:center;line-height:1}
+.mchk.on{background:#15803d;border-color:#15803d;color:#fff}.mchk.big{width:54px;height:54px}
+.mtick{display:flex;align-items:center;gap:12px;font-weight:700}
+.tblwrap{overflow-x:auto;margin:0 -4px}
+.mtbl{width:100%;border-collapse:collapse;font-size:14px}.mtbl th{background:var(--navy);color:#fff;text-align:left;padding:7px 6px;font-size:12.5px}
+.mtbl td{border-bottom:1px solid var(--line2);padding:7px 6px;vertical-align:top}.mtbl td.cb{font-size:20px;color:#15803d}
+.mtbl tr.grp td{background:#e2e9f2;color:var(--navy);font-weight:800;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+.liblist{max-height:52vh;overflow-y:auto;margin-top:8px}
+.libit{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:2px solid var(--line2);border-radius:12px;background:#fff;padding:8px 10px;margin:0 0 6px}
+.libit.on{border-color:#15803d;background:#f3faf5}.libit small{display:block;color:var(--muted);font-weight:500;font-size:13px}.libit .mchk{width:34px;height:34px;font-size:18px}
+.sk-wrap.pad{position:relative}.sk-wrap.pad canvas{position:absolute;inset:0}.sk-wrap.pad #padbg{position:relative}
+#pado{pointer-events:none}.tools .tsep{flex-basis:100%;height:0}
+@media (max-width:400px){.g3{grid-template-columns:1fr 1fr}}
+.pit .g3{grid-template-columns:1fr 1fr 1fr !important}
+.seg.st5{display:grid !important;grid-template-columns:repeat(3,1fr);gap:6px}
 
 </style>
 </head>
@@ -794,7 +826,7 @@ const DEFAULT_SETTINGS = {
   company: 'Absolute Roofing Solutions Ltd', tagline: 'Industrial & commercial roofing specialists, nationwide coverage',
   address: 'Jubilee Estate, Gorsey Lane, Coleshill, West Midlands B46 1JU', phone: '0121 268 3213', email: 'info@absoluteroofingsolutions.co.uk', website: 'www.absoluteroofingsolutions.co.uk',
   legal: 'Registered office: C/O MCA Group, Suite 16d, The McLaren Building, 46 The Priory Queensway, Birmingham B4 7LR. Company Reg: 8487521. VAT No: 160 783 111',
-  accreditation: '', surveyor: 'Matt Ross', refPrefix: 'ARS', templates: null, logo: DEFAULT_LOGO.data, logoW: DEFAULT_LOGO.w, logoH: DEFAULT_LOGO.h, disclaimer: DEFAULT_DISCLAIMER, worksDisclaimer: '',
+  accreditation: '', surveyor: 'Matt Ross', refPrefix: 'ARS', templates: null, logo: DEFAULT_LOGO.data, logoW: DEFAULT_LOGO.w, logoH: DEFAULT_LOGO.h, disclaimer: DEFAULT_DISCLAIMER, worksDisclaimer: '', matLib: null, pitchMins: null, rfqTerms: 'Please quote including delivery to site. Prices excl. VAT. State lead times and validity.',
 };
 
 /* ---------- Storage (IndexedDB) ---------- */
@@ -880,7 +912,7 @@ function newJob() {
     id: uid(), ref: prefix + pad(n, 3), status: 'Draft', created: Date.now(), updated: Date.now(),
     client: { name: '', contact: '', phone: '', email: '' }, site: { name: '', address: '', postcode: '' },
     surveyor: s.surveyor || '', date: todayISO(), time: nowTime(), weather: [], temp: '', access: [], accessNotes: '', limitations: '',
-    buildingUse: '', era: '', hs: { liveServices: [], otherHazards: [] }, areas: [], sketches: [],
+    buildingUse: '', era: '', hs: { liveServices: [], otherHazards: [] }, areas: [], sketches: [], materials: [], measurements: [],
     sections: tpls('job').filter(t => t.auto !== false).map(sectionFromTemplate),
     summary: { exec: '', recs: '', life: '', lifeAfter: '', reinspect: '12 months' },
   };
@@ -889,7 +921,7 @@ function newArea(job) {
   const n = job.areas.length + 1;
   return { id: uid(), name: `Roof area ${n}`, type: '', profile: '', pitch: '', length: '', width: '', measured: 'slope', areaOverride: '', colour: '',
     rlType: '', rlCount: '', gutterTypes: [], gutterMat: '', outletCount: '', flashTypes: [], insType: '', overall: '', notes: '',
-    sections: tpls('area').filter(t => t.auto !== false).map(sectionFromTemplate), defects: [] };
+    sections: tpls('area').filter(t => t.auto !== false).map(sectionFromTemplate), defects: [], materials: [], measurements: [], pitches: [], pitchSys: '' };
 }
 function newDefect(job) {
   const all = job.areas.flatMap(a => a.defects); let n = all.length + 1; const used = new Set(all.map(d => d.ref)); while (used.has('D' + pad(n))) n++;
@@ -1125,6 +1157,7 @@ function viewSafety(job) {
     <div class="row">${f.text('RAMS reference', 'hs.rams', { ph: 'e.g. RAMS-2610-04' })}${f.text('Permit to work ref', 'hs.permit')}</div>
     ${f.seg('Lone working?', 'hs.loneWorking', [['yes', 'Yes', 'warn'], ['no', 'No', 'ok']], { cls: 'yn' })}
   </div>
+  ${scafSummaryCard(job)}
   ${sec ? sectionCards(`sections#${sec.id}`, sec, f, { checklistTitle: 'H&S checklist', notesLabel: 'H&S notes' }) : ''}`;
 }
 function areaItem(job, a) {
@@ -1137,7 +1170,7 @@ function viewRoofs(job) {
   const tot = job.areas.reduce((s, a) => s + areaM2(a), 0);
   return `${hsStrip(job)}<div class="card"><h2>Roof areas <span class="prog" style="margin-left:auto">${job.areas.length} · ${Math.round(tot)} m²</span></h2>
   ${job.areas.map(a => areaItem(job, a)).join('') || `<div class="empty">${I.roof}<p>No roof areas yet. Add one for each roof, zone or elevation.</p></div>`}
-  <button class="btn primary block" data-act="addarea">${I.plus} Add roof area</button></div>`;
+  <button class="btn primary block" data-act="addarea">${I.plus} Add roof area</button></div>${roofsExtrasCard(job)}`;
 }
 function viewArea(job, a) {
   const f = mk(job); const b = `areas#${a.id}`;
@@ -1153,6 +1186,7 @@ function viewArea(job, a) {
     ${f.text('Area override (m²) - optional', b + '.areaOverride', { type: 'number' })}
     ${f.rate('Overall area condition', b + '.overall')}
   </div>
+  ${pitchCard(job, a)}${areaExtrasCard(job, a)}
   <div class="card"><h2>Sections</h2>${secs}<button class="btn block" data-act="addsec" data-scope="area" data-aid="${a.id}">${I.plus} Add section</button></div>
   <div class="card"><h2>Defects <span class="prog" style="margin-left:auto">${a.defects.length}</span></h2>${defectList(job, a)}</div>
   <div class="card">${f.area('General area notes', b + '.notes', { rows: 3 })}<button class="btn danger block" data-act="delarea" data-aid="${a.id}">${I.trash} Delete roof area</button></div>`;
@@ -1234,6 +1268,7 @@ function viewReport(job) {
   ${tog('photos', 'Include photos')}${tog('hideBlank', 'Hide unanswered checklist items')}${tog('defectPhotos', 'Include large defect photos appendix')}
   <button class="btn primary block" data-act="genpdf" id="genpdf">${I.pdf} Generate PDF report</button>
   <div id="pdfout" style="margin-top:12px">${ready ? pdfButtons() : ''}</div></div>
+  ${isWorks(job) ? '' : `<div class="card"><h2>Materials &amp; quote requests</h2><p class="hint" style="margin-bottom:12px">The survey report includes the materials schedule. Export it for ordering, or send quote requests to suppliers.</p><button class="btn block" data-act="matcsv" id="matcsvbtn">${I.dl} Export materials schedule as CSV</button><div style="height:10px"></div><a class="btn block" href="#/job/${job.id}/rfq/all">${I.pdf} Quote request - all materials</a><div style="height:10px"></div><a class="btn block" href="#/job/${job.id}/rfq/scaffold">${I.pdf} Scaffold quote request</a></div>`}
   <div class="card"><h2>Backup</h2><p class="hint" style="margin-bottom:12px">Export this audit (including photos) as a JSON file to back up or move to another device. Import it from Settings.</p><button class="btn block" data-act="exportjob" data-id="${job.id}">${I.dl} Export audit (JSON)</button></div>`;
 }
 function pdfButtons() {
@@ -1252,6 +1287,7 @@ function viewSettings() {
   </div>
   <div class="card"><h2>Audit defaults</h2><div class="row">${f.text('Default surveyor', 'surveyor')}${f.text('Job ref prefix', 'refPrefix')}</div>
     <a class="item" href="#/settings/templates"><div class="th">${I.shield.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">Checklist templates</div><div class="t2">Edit sections and checklist items used for new audits</div></div>${I.chev}</a>
+    <a class="item" href="#/settings/library"><div class="th">${ICX.box.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">Materials library, pitch &amp; RFQ terms</div><div class="t2">Quick-pick materials, minimum pitch guidance, quote request terms</div></div>${I.chev}</a>
     ${f.area('Report disclaimer / limitations', 'disclaimer', { rows: 8 })}<button class="btn" data-act="resetdisc">Reset disclaimer to default</button>
     ${f.area('Works inspection report disclaimer', 'worksDisclaimer', { rows: 6 })}</div>
   <div class="card"><h2>Data & backup</h2><p class="hint" style="margin-bottom:12px">${signedIn() ? 'Audits are saved on this device and synced to your account in the background. You can still export a JSON backup.' : 'Audits are stored on this device only. Export a backup regularly, and to move audits between phone, tablet and PC.'}</p>
@@ -1278,7 +1314,7 @@ function viewTemplates() {
   return `<h2 class="sec-h" style="margin:8px 4px 0">PRE-WORKS SURVEY</h2>` + grp('job', 'Survey: audit-level sections', 'Job details, Health & safety and General are shown on their own tabs. Extra sections appear under General.') +
     grp('area', 'Survey: roof area sections', 'Added to every new roof area.') +
     `<div class="divider"></div><h2 class="sec-h" style="margin:8px 4px 0">WORKS INSPECTION</h2>` + grp('worksJob', 'Works: inspection-level sections', 'Inspection checklist (Details tab), Site H&S during works (Safety tab) and General observations.') +
-    grp('packages', 'Works: work packages', 'Chosen per roof area on a works inspection (overclad, strip & re-sheet, coatings, rooflights, gutter lining, remedial). Pass/Fail items that FAIL create a snag automatically.') +
+    grp('packages', 'Works: work packages', 'Chosen per roof area on a works inspection (overclad, strip & re-sheet, coatings, rooflights, gutter lining, remedial). Pass/Fail items that FAIL create a snag automatically.') + scafTplHTML() +
     `<div class="divider"></div><p class="hint">Template changes apply to new audits and roof areas. Existing audits keep their own checklist.</p><button class="btn danger block" data-act="treset">Reset all templates to defaults</button>`;
 }
 
@@ -1329,14 +1365,18 @@ function render(keepScroll) {
   if (!r.length) { const v = viewList(); head = v.head; body = v.body; }
   else if (r[0] === 'settings') {
     S.ctx = { obj: S.settings, save: saveSettings };
-    if (r[1] === 'templates') { head = header({ title: 'Checklist templates', back: '#/settings' }); body = viewTemplates(); }
+    if (r[1] === 'library') { head = header({ title: 'Materials, pitch & RFQ', back: '#/settings' }); body = viewLibrary(); }
+    else if (r[1] === 'templates') { head = header({ title: 'Checklist templates', back: '#/settings' }); body = viewTemplates(); }
     else { head = header({ title: 'Settings', back: '#/' }); body = viewSettings(); after = showStorage; }
   } else if (r[0] === 'job') {
     const job = getJob(r[1]); if (!job) { go('#/'); return; }
     S.ctx = { obj: job, save: () => markDirty(job), job };
     const t = r[2] || 'details'; const W_ = isWorks(job); const sub = `${job.ref}${W_ ? ' · Insp ' + (job.works.inspNo || '') : ''}${job.client.name ? ' · ' + job.client.name : ''}`;
     let tab = t, title = ((W_ ? TABS_W : TABS).find(x => x[0] === t) || [, ''])[1], back = '#/';
-    if (W_ && t === 'details') { body = viewWorksDetails(job); title = 'Inspection details'; }
+    const ex = viewExtra(job, r);
+    if (ex && ex.redirect) return go(ex.redirect);
+    if (ex) { body = ex.body; title = ex.title; tab = ex.tab; back = ex.back; after = ex.after || null; }
+    else if (W_ && t === 'details') { body = viewWorksDetails(job); title = 'Inspection details'; }
     else if (W_ && t === 'summary') { body = viewWorksSummary(job); title = 'Status & sign-off'; }
     else if (W_ && t === 'snags') body = viewSnags(job);
     else if (W_ && t === 'snag') { const sn = job.snags.find(x => x.id === r[3]); if (!sn) return go(`#/job/${job.id}/snags`); body = viewSnag(job, sn); title = `Snag ${sn.ref}`; tab = 'snags'; back = `#/job/${job.id}/snags`; }
@@ -1507,7 +1547,7 @@ const ACTIONS = {
       <button class="btn" data-r="dup">Duplicate (full copy)</button>${isWorks(job) ? '' : '<button class="btn" data-r="tpl">New re-inspection from this audit</button>'}
       <button class="btn" data-r="status">Mark as ${job.status === 'Complete' ? 'Draft' : 'Complete'}</button><button class="btn" data-r="export">Export audit (JSON)</button>
       ${cloudMenu(job)}<button class="btn" data-r="report">Go to PDF report</button><button class="btn danger" data-r="del">Delete audit</button><button class="btn" data-r="">Cancel</button>`);
-    if (r === 'startworks' || r === 'follow') { const n = r === 'follow' ? followUpInspection(job) : startWorksFromSurvey(job); S.jobs.push(n); await DB.put(n); toast(r === 'follow' ? `Inspection ${n.works.inspNo} created` : 'Works inspection created from survey'); go(`#/job/${n.id}/details`); return; }
+    if (r === 'startworks' || r === 'follow') { const n = r === 'follow' ? followUpInspection(job) : startWorksFromSurvey(job); if (r === 'startworks' && matLines(job).length && await confirmBox('Copy materials list?', `Copy the survey's ${matLines(job).length} material line${matLines(job).length === 1 ? '' : 's'} into the works inspection? Materials required will be switched on for those areas, with statuses reset to Required (or Ordered).`, 'Copy materials', false)) copySurveyMaterials(job, n); S.jobs.push(n); await DB.put(n); toast(r === 'follow' ? `Inspection ${n.works.inspNo} created` : 'Works inspection created from survey'); go(`#/job/${n.id}/details`); return; }
     if (r === 'dup' || r === 'tpl') { const n = await duplicateJob(job, r === 'tpl'); go(`#/job/${n.id}/details`); }
     else if (r === 'status') { job.status = job.status === 'Complete' ? 'Draft' : 'Complete'; markDirty(job); rerender(); }
     else if (r === 'export') ACTIONS.exportjob({ dataset: { id: job.id } });
@@ -1615,6 +1655,48 @@ async function buildPDF(job, opts) {
     }
     y += 2;
   };
+  /* v1.3.1: pitch, measurements, materials */
+  const tickBox = (x, yy, on, sz = 3.4) => { color(on ? [21, 128, 61] : [255, 255, 255], 'fill'); color(on ? [21, 128, 61] : GREY, 'draw'); doc.setLineWidth(0.3); doc.roundedRect(x, yy, sz, sz, 0.5, 0.5, 'FD'); if (on) { color([255, 255, 255], 'draw'); doc.setLineWidth(0.5); doc.setLineCap('round'); doc.lines([[sz * 0.22, sz * 0.24], [sz * 0.4, -sz * 0.5]], x + sz * 0.2, yy + sz * 0.5, [1, 1], 'S', false); doc.setLineCap('butt'); } };
+  const PCOL = { red: RC.Critical, amber: RC.Fair, green: RC.Good };
+  const pitchBlock = a => {
+    const ps = (a.pitches || []).filter(p => String(p.deg ?? '').trim() !== '' || p.rise || p.ratio); if (!ps.length) return;
+    const g = pitchSysOf(a); h3('Roof pitch' + (g ? `   (${g.label}: typical min ${g.min}°${num(g.rec) > num(g.min) ? ', recommended ' + g.rec + '°' : ''})` : ''));
+    const rows = ps.map(p => { const c = pitchCheck(a, p.deg); return [tx(p.label || '-'), tx(p.method || ''), p.deg !== '' ? p.deg + '°' : '-', pitchRatio(p) || '-', p.pct !== '' ? p.pct + '%' : '-', num(p.run) ? `${p.rise} / ${p.run} mm` : '-', c.lvl ? (c.lvl === 'green' ? 'OK' : tx(c.msg)) : '-', tx(p.notes)]; });
+    table({ head: [['Reading', 'Method', 'Degrees', 'Ratio', '%', 'Rise / run', 'Check', 'Notes']], body: rows, styles: { fontSize: 8 }, columnStyles: { 0: { cellWidth: 30, fontStyle: 'bold' }, 1: { cellWidth: 22 }, 2: { cellWidth: 16, halign: 'center', fontStyle: 'bold' }, 3: { cellWidth: 15, halign: 'center' }, 4: { cellWidth: 13, halign: 'center' }, 5: { cellWidth: 22 }, 6: { cellWidth: 30 } },
+      didParseCell: d => { if (d.section === 'body' && d.column.index === 6 && ps[d.row.index]) { const c = pitchCheck(a, ps[d.row.index].deg); if (PCOL[c.lvl]) { d.cell.styles.fillColor = PCOL[c.lvl]; d.cell.styles.textColor = 255; d.cell.styles.fontStyle = 'bold'; } } } });
+    if (g) para('Pitch guidance is typical only - check the manufacturer\'s minimum pitch for the specific product and lap detail.', 7.8, 'italic', GREY);
+  };
+  const measBlock = (owner, title) => {
+    const ms = owner.measurements || []; const tm = ms.filter(m => m.kind === 'text' && (m.label || m.value)); const im = ms.filter(m => m.kind !== 'text' && m.data && !String(m.data).startsWith('sb:'));
+    if (!tm.length && !im.length) return;
+    h3(title || 'Measurements');
+    if (tm.length) table({ head: [['Measurement', 'Value', 'Location / grid ref', 'Notes']], body: tm.map(m => [tx(m.label || '-'), tx(`${m.value || '-'}${m.unit ? ' ' + (m.unit === 'degrees' ? 'deg' : m.unit) : ''}${measCalc(m) ? '  (' + measCalc(m).replace('= ', '') + ')' : ''}`), tx(m.loc), tx(m.notes)]), styles: { fontSize: 8.5 }, columnStyles: { 0: { cellWidth: 48, fontStyle: 'bold' }, 1: { cellWidth: 42 }, 2: { cellWidth: 40 } } });
+    if (im.length) { const cols = 2, gap = 5, cw = (CW - gap) / cols, ih = cw * 0.75;
+      for (let i = 0; i < im.length; i += cols) { const row = im.slice(i, i + cols); need(ih + 10);
+        row.forEach((m, k) => { const x = M + k * (cw + gap); color(LIGHT, 'fill'); color(LINE, 'draw'); doc.setLineWidth(0.2); doc.rect(x, y, cw, ih, 'FD'); try { fit({ data: m.data, w: m.w || 1200, h: m.h || 900, id: m.id }, x + 0.5, y + 0.5, cw - 1, ih - 1); } catch (e) { } font(8, 'bold', NAVY); doc.text(tx(`${m.kind === 'photo' ? 'Photo measurement' : 'Sketch'}: `), x, y + ih + 4); const w = doc.getTextWidth(tx(`${m.kind === 'photo' ? 'Photo measurement' : 'Sketch'}: `)); font(8, 'normal', TXT); doc.text(doc.splitTextToSize(tx(m.caption || ''), cw - w)[0] || '', x + w, y + ih + 4); });
+        y += ih + 8; } }
+  };
+  const matTable = (lines, showArea) => {
+    if (!lines.length) return;
+    const body = lines.map(l => ['', tx(catTitle(l.m.cat)), tx([l.m.name, [l.m.spec, l.m.colour].filter(Boolean).join(', ')].filter(Boolean).join('\n')), tx(`${fq(l.qty)} ${l.m.unit}${l.m.qtyFrom ? '\n(area link)' : ''}`), num(l.m.waste) ? num(l.m.waste) + '%' : '-', tx(`${fq(l.order)} ${l.m.unit}`), tx(l.m.status || 'Required'), tx([showArea ? l.ownerName : '', l.m.supplier, l.m.notes].filter(Boolean).join('\n'))]).map((r, i) => Object.assign(r, { chk: !!lines[i].m.checked }));
+    table({ head: [['', 'Category', 'Item / spec', 'Qty', 'Waste', 'Order qty', 'Status', showArea ? 'Area / supplier / notes' : 'Supplier / notes']], body, styles: { fontSize: 7.8, valign: 'middle' }, columnStyles: { 0: { cellWidth: 7 }, 1: { cellWidth: 22 }, 2: { cellWidth: 52 }, 3: { cellWidth: 19, halign: 'right' }, 4: { cellWidth: 12, halign: 'center' }, 5: { cellWidth: 19, halign: 'right', fontStyle: 'bold' }, 6: { cellWidth: 18 } },
+      didDrawCell: d => { if (d.section === 'body' && d.column.index === 0) tickBox(d.cell.x + 1.8, d.cell.y + d.cell.height / 2 - 1.7, !!(d.row.raw && d.row.raw.chk)); } });
+  };
+  const scafBlock = works => {
+    if (!job.scaffold) return; const its = job.scaffold.items.filter(i => works ? i.wstatus || i.status === 'Required' : i.status && i.status !== 'Not required'); const notReq = works ? [] : job.scaffold.items.filter(i => i.status === 'Not required'); if (!its.length && !notReq.length && !job.scaffold.notes) return;
+    h3(works ? 'Scaffolding & access in place' : 'Scaffolding & access required');
+    const S_ = { Required: RC.P2, TBC: RC.Fair, 'Not required': GREY, 'In place': RC.Good, 'Not in place': RC.Critical, 'Tag OK': RC.Good, 'Tag out of date': RC.Critical, 'No tag': RC.Critical };
+    if (its.length) {
+      const head = works ? [['Item', 'Status', 'Inspection tag', 'Qty', 'Location', 'Notes']] : [['Item', 'Status', 'Qty', 'Location / elevation', 'Notes']];
+      const body = its.map(i => { const it = tx(i.text + (i.mewpType ? ` (${i.mewpType})` : '')); const q = i.qty ? tx(`${i.qty} ${i.unit}`) : ''; return works ? [it, tx(i.wstatus || 'Not checked'), i.kind === 'design' ? tx(i.tagDate) : tx([i.tag, i.tagDate ? fmtDate(i.tagDate) : ''].filter(Boolean).join('\n')), q, tx(i.loc), tx(i.notes)] : [it, tx(i.status), q, tx(i.loc), tx(i.notes)]; });
+      table({ head, body, styles: { fontSize: 7.8, valign: 'middle' }, columnStyles: works ? { 0: { cellWidth: 58, fontStyle: 'bold' }, 1: { cellWidth: 20, halign: 'center' }, 2: { cellWidth: 25 }, 3: { cellWidth: 16 }, 4: { cellWidth: 25 } } : { 0: { cellWidth: 70, fontStyle: 'bold' }, 1: { cellWidth: 22, halign: 'center' }, 2: { cellWidth: 18 }, 3: { cellWidth: 32 } },
+        didParseCell: d => { if (d.section !== 'body') return; const v = String(d.cell.raw || '').split('\n')[0]; if ((d.column.index === 1 || (works && d.column.index === 2)) && S_[v]) { d.cell.styles.fillColor = S_[v]; d.cell.styles.textColor = 255; d.cell.styles.fontStyle = 'bold'; } } });
+    }
+    if (notReq.length) para('Not required: ' + notReq.map(i => i.text.replace(/\s*\(.*?\)\s*/g, ' ').trim()).join('; ') + '.', 8, 'italic', GREY);
+    if (works) kv([['Last 7-day inspection', job.scaffold.lastInsp ? fmtDate(job.scaffold.lastInsp) : ''], ['Inspected after adverse weather', job.scaffold.weatherInsp]]);
+    if (job.scaffold.notes) { label('Scaffolding & access notes'); para(job.scaffold.notes); }
+    const ph = its.flatMap(i => (i.photos || []).map(p => Object.assign({}, p, { caption: p.caption || i.text }))); if (ph.length) photoGrid(ph);
+  };
   const ansCol = a => RC[a] || (a === 'Pass' ? RC.Good : a === 'Fail' ? RC.Critical : null);
   const sectionBlock = (sec, title, showRating = true) => {
     const pc = pfCounts(sec); const hasPF = sec.items.some(i => i.type === 'pf');
@@ -1668,6 +1750,7 @@ async function buildPDF(job, opts) {
     h1(++sn, 'Site Health & Safety During Works');
     if (fragile) { font(9, 'normal'); const lines = doc.splitTextToSize('The roof is fragile (or of unconfirmed fragility). Collective protection (netting, edge protection, rooflight covers) must be maintained at all times during the works (HSE HSG33).', CW - 10); const hh = 10 + lines.length * 4; need(hh + 3); color(RC.Critical, 'fill'); doc.roundedRect(M, y, CW, hh, 2, 2, 'F'); font(11, 'bold', [255, 255, 255]); doc.text('!  FRAGILE ROOF', M + 5, y + 6.5); font(9, 'normal', [255, 255, 255]); doc.text(lines, M + 5, y + 11.5); y += hh + 4; }
     kv([['H&S status', hsStatus], ['RAMS reference', h.rams], ['Permit to work', h.permit], ['Live services', (h.liveServices || []).join(', ')], ['Other hazards', (h.otherHazards || []).join(', ')]]);
+    scafBlock(true);
     const ssec = secByKey(job, 'safety'); if (ssec) sectionBlock(ssec, ssec.title, false);
 
     h1(++sn, 'Work Packages by Roof Area');
@@ -1675,12 +1758,15 @@ async function buildPDF(job, opts) {
     job.areas.forEach((a, ai) => {
       if (ai > 0) need(60);
       h2(`${sn}.${ai + 1}  ${a.name}${a.pct !== '' && a.pct != null ? '   -   ' + a.pct + '% complete' : ''}`, '');
-      kv([['Work packages', a.sections.map(s => s.title).join(', ')], ['Stage', a.stage], ['Roof type / system', [a.type, a.profile].filter(Boolean).join(' - ')], ['Approx. area', areaM2(a) ? areaM2(a) + ' m²' : '']]);
+      kv([['Work packages', a.sections.map(s => s.title).join(', ')], ['Stage', a.stage], ['Roof type / system', [a.type, a.profile].filter(Boolean).join(' - ')], ['Pitch', a.pitch ? a.pitch + '°' + ((a.pitches || []).length > 1 ? ` (${a.pitches.length} readings)` : '') : ''], ['Approx. area', areaM2(a) ? areaM2(a) + ' m²' : '']]);
       if (a.notes) { label('Area notes'); para(a.notes); }
+      pitchBlock(a);
       a.sections.forEach(s => sectionBlock(s, s.title, false));
       if ((a.progress || []).length && opts.photos) { h3('Progress photos'); photoGrid(a.progress, p => `${p.tag ? p.tag.toUpperCase() + ' - ' : ''}Photo ${photoNo}`); }
     });
 
+    const wml = matLines(job);
+    if (wml.length) { h1(++sn, 'Materials Required'); para('Materials tracked on this inspection. Order quantities include the waste allowance shown.', 8.8, 'normal', GREY); job.areas.forEach(a => { const ls = wml.filter(l => l.area === a); if (ls.length) { h3(a.name); matTable(ls); } }); const jl = wml.filter(l => !l.area); if (jl.length) { h3('General / site-wide'); matTable(jl); } }
     h1(++sn, 'Snag Schedule');
     if (!job.snags.length) para('No snags recorded.', 9.5, 'italic', GREY);
     else {
@@ -1790,6 +1876,7 @@ async function buildPDF(job, opts) {
   if (acSusp) warnBox('SUSPECTED ASBESTOS CEMENT', 'Roof sheets and/or associated materials are suspected to contain asbestos (visual identification only). AC sheets are fragile. A refurbishment & demolition asbestos survey must be obtained before any work that may disturb these materials (Control of Asbestos Regulations 2012). Do not drill, cut, break or pressure-wash.');
   const yn = v => ({ yes: 'Yes', no: 'No', unknown: 'Unknown', fragile: 'FRAGILE', 'non-fragile': 'Non-fragile' }[v] || v || '');
   kv([['Fragility status', yn(h.fragility) + (h.fragilityNotes ? ' - ' + h.fragilityNotes : '')], ['Pre-2000 building', yn(h.pre2000)], ['Suspected AC materials', yn(h.acSuspected)], ['R&D asbestos survey available', yn(h.rdSurvey) + (h.asbestosRef ? ' - ref ' + h.asbestosRef : '')], ['Live services', (h.liveServices || []).join(', ')], ['Other hazards', (h.otherHazards || []).join(', ')], ['RAMS reference', h.rams], ['Permit to work', h.permit], ['Lone working', yn(h.loneWorking)]]);
+  scafBlock(false);
   const ssec = secByKey(job, 'safety'); if (ssec) sectionBlock(ssec, 'Health & safety checklist', false);
 
   /* ----- 4. Roof areas ----- */
@@ -1800,7 +1887,9 @@ async function buildPDF(job, opts) {
     h2(`${sn}.${ai + 1}  ${a.name}`, areaBand(a));
     kv([['Roof type', a.type], ['Profile', a.profile], ['Sheet colour', a.colour], ['Pitch', a.pitch ? a.pitch + '°' : ''], ['Dimensions', num(a.length) && num(a.width) ? `${a.length} m x ${a.width} m (${a.measured === 'plan' ? 'on plan' : 'on slope'})` : ''], ['Approx. roof area', areaM2(a) ? areaM2(a) + ' m²' : ''], ['Rooflights', [a.rlType, a.rlCount ? a.rlCount + ' nr' : ''].filter(Boolean).join(' - ')], ['Gutters', [(a.gutterTypes || []).join(', '), a.gutterMat, a.outletCount ? a.outletCount + ' outlets/RWPs' : ''].filter(Boolean).join(' - ')], ['Flashings present', (a.flashTypes || []).join(', ')], ['Insulation', a.insType], ['Overall area condition', a.overall === 'NA' ? 'N/A' : a.overall]]);
     if (a.notes) { label('Area notes'); para(a.notes); }
+    pitchBlock(a);
     a.sections.forEach(s => sectionBlock(s));
+    measBlock(a, 'Measurements');
     y += 3;
   });
 
@@ -1822,10 +1911,25 @@ async function buildPDF(job, opts) {
     });
   }
 
+  /* ----- Materials schedule ----- */
+  const allMat = matLines(job);
+  if (allMat.length && opts.materials !== false) {
+    h1(++sn, 'Materials Schedule');
+    para('Materials identified during the survey. Quantities are approximate, for budgeting and ordering; order quantities include the waste allowance shown. Ticked items have been checked off on site.', 8.8, 'normal', GREY);
+    job.areas.forEach(a => { const ls = allMat.filter(l => l.area === a); if (ls.length) { h3(`${a.name}   (${areaM2(a)} m²)`); matTable(ls); } });
+    const jl = allMat.filter(l => !l.area); if (jl.length) { h3('General / site-wide'); matTable(jl); }
+    const cm = matCombined(job);
+    h3('Combined schedule - all areas');
+    table({ head: [['', 'Item', 'Spec / colour', 'Total qty', 'Order qty', 'Status', 'Areas']], body: cm.map(e => Object.assign(['', tx(e.name), tx([e.spec, e.colour].filter(Boolean).join(', ')), tx(`${fq(e.qty)} ${e.unit}`), tx(`${fq(e.order)} ${e.unit}`), tx(e.status), tx(e.areas.join(', '))], { chk: e.checked })), styles: { fontSize: 7.8, valign: 'middle' }, columnStyles: { 0: { cellWidth: 7 }, 1: { cellWidth: 40, fontStyle: 'bold' }, 2: { cellWidth: 42 }, 3: { cellWidth: 20, halign: 'right' }, 4: { cellWidth: 20, halign: 'right', fontStyle: 'bold' }, 5: { cellWidth: 18 } },
+      didDrawCell: d => { if (d.section === 'body' && d.column.index === 0) tickBox(d.cell.x + 1.8, d.cell.y + d.cell.height / 2 - 1.7, !!(d.row.raw && d.row.raw.chk)); } });
+  }
+
   /* ----- 6. General & other sections ----- */
   const gsec = secByKey(job, 'general'); const others = job.sections.filter(s => !['details', 'safety', 'general'].includes(s.key));
-  if (gsec || others.length || job.sketches.length) {
+  const jmeas = (job.measurements || []).some(m => m.kind === 'text' ? (m.label || m.value) : m.data);
+  if (gsec || others.length || job.sketches.length || jmeas) {
     h1(++sn, 'General Observations');
+    measBlock(job, 'Site-wide measurements');
     if (gsec) sectionBlock(gsec, 'General observations');
     others.forEach(s => sectionBlock(s));
     const sks = job.sketches.filter(s => s.data);
@@ -1910,7 +2014,7 @@ function migrateJob(j) {
   const fixSec = s => { s.items = s.items || []; s.photos = s.photos || []; s.items.forEach(i => { i.photos = i.photos || []; }); };
   j.sections.forEach(fixSec); j.areas.forEach(a => { a.sections = a.sections || []; a.defects = a.defects || []; a.sections.forEach(fixSec); a.progress = a.progress || []; });
   if (j.type === 'works') { j.snags = j.snags || []; j.works = Object.assign({ inspNo: '1', visitNo: '', contractRef: '', siteManager: '', subcontractor: '', operatives: '', stage: '', pct: '', programme: '', programmeDays: '', nextDate: '', actions: '', rag: '', linkedRef: '' }, j.works || {}); j.signoff = j.signoff || {}; }
-  return j;
+  migrateExtras(j); return j;
 }
 function initWorks(j) {
   j.type = 'works'; j.snags = []; j.signoff = {};
@@ -1961,9 +2065,10 @@ function startWorksFromSurvey(src) {
   const j = initWorks(newJob());
   ['client', 'site'].forEach(k => j[k] = clone(src[k])); Object.assign(j, { buildingUse: src.buildingUse, era: src.era, access: clone(src.access || []), accessNotes: src.accessNotes || '' });
   j.hs = Object.assign({ liveServices: [], otherHazards: [] }, clone(src.hs || {}), { rams: '', permit: '' }); j.works.linkedRef = src.ref;
+  if (src.scaffold) { j.scaffold = clone(src.scaffold); j.scaffold.items.forEach(i => { i.id = uid(); i.wstatus = ''; i.tag = ''; i.tagDate = ''; i.photos = []; }); }
   const guess = d => { const r = (d.remedy || '') + ' ' + (d.remedyText || ''); return /over-?clad/i.test(r) ? 'pk_overclad' : /re-?roof|re-?sheet|replace roof sheets|strip/i.test(r) ? 'pk_resheet' : /coating|cut-edge/i.test(r) ? 'pk_coatings' : /rooflight/i.test(r) ? 'pk_rooflights' : /gutter lining/i.test(r) ? 'pk_gutter' : 'pk_remedial'; };
   src.areas.forEach(a => {
-    const na = newWorksArea(j); ['name', 'type', 'profile', 'colour', 'pitch', 'length', 'width', 'measured', 'areaOverride', 'rlType', 'rlCount', 'gutterTypes', 'gutterMat', 'outletCount', 'flashTypes', 'insType'].forEach(k => { na[k] = clone(a[k] ?? ''); });
+    const na = newWorksArea(j); ['name', 'type', 'profile', 'colour', 'pitch', 'length', 'width', 'measured', 'areaOverride', 'rlType', 'rlCount', 'gutterTypes', 'gutterMat', 'outletCount', 'flashTypes', 'insType', 'pitchSys'].forEach(k => { na[k] = clone(a[k] ?? ''); }); na.pitches = clone(a.pitches || []);
     const keys = [...new Set(a.defects.map(guess))];
     keys.forEach(k => { const t = tpls('packages').find(x => x.key === k); if (t) na.sections.push(sectionFromTemplate(t)); });
     j.areas.push(na);
@@ -2004,6 +2109,7 @@ function viewWorksDetails(job) {
   </div>
   <div class="card"><h2><span class="n">4</span> Conditions & access</h2>${f.chips('Weather', 'weather', REF.weather)}${f.text('Temperature / wind', 'temp', { ph: 'e.g. 9°C, gusting 20 mph' })}${f.chips('Access', 'access', REF.access)}</div>
   ${sec ? sectionCards(`sections#${sec.id}`, sec, f, { checklistTitle: 'Inspection checklist' }) : ''}
+  ${worksMatCard(job, null)}
   <a class="item" href="#/job/${job.id}/general"><div class="th">${I.camera.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">General observations, sketches & custom sections</div><div class="t2">Quality notes, site sketches</div></div>${I.chev}</a>`;
 }
 function snagItem(job, s) {
@@ -2043,6 +2149,8 @@ function viewWorksArea(job, a) {
     <div class="row3">${f.text('Length (m)', b + '.length', { type: 'number' })}${f.text('Width (m)', b + '.width', { type: 'number' })}<div class="f"><span class="lbl">Area</span><div class="calc" id="calc"><span>${areaM2(a)} m²</span></div></div></div>
     <div class="row">${f.text('% complete (this area)', b + '.pct', { type: 'number' })}${f.select('Stage (this area)', b + '.stage', WORKS_STAGES)}</div>
   </div>
+  ${pitchCard(job, a)}
+  ${worksMatCard(job, a)}
   <div class="card"><h2>Work packages</h2><p class="hint" style="margin:-4px 0 10px">Tap to add the packages being carried out on this area.</p>
     <div class="chips">${pk.map(t => `<button type="button" data-act="togglepkg" data-aid="${a.id}" data-key="${t.key}" class="${have.has(t.key) ? 'on' : ''}">${esc(t.title)}</button>`).join('')}</div>
     <div style="height:12px"></div>${secs || '<p class="hint">No packages selected yet.</p>'}
@@ -2135,6 +2243,22 @@ async function makeDemoWorks() {
   j.summary.exec = 'Overclad progressing well with good workmanship; outer sheets installed to bay 9 of 14. Three days lost to high winds. Stitcher centres to be corrected in bays 6-7 before further sheeting. Gutter lining underway with laps probe-tested to bay 6. Sheet storage on the roof must be strapped down at the end of each shift.';
   j.works.actions = openSnags(j).map(s => `• ${s.ref}: ${s.description}${s.assignedTo ? ' - ' + s.assignedTo : ''}`).join('\n') + '\n• Flood test valley gutter once lining complete and record result.';
   j.signoff = { inspectorName: j.surveyor, inspectorDate: todayISO(), inspectorSig: demoSignature(1), clientName: 'Dave Collins', clientRole: 'Contracts manager, ARS', clientDate: todayISO(), clientSig: demoSignature(2) };
+  { const sf = scafOf(j); const W = (re, o) => { const it = sf.items.find(x => re.test(x.text)); if (it) Object.assign(it, o); }; const d = n => { const t = new Date(Date.now() - n * 864e5); return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`; };
+    sf.items.forEach(i => { i.wstatus = 'N/A'; });
+    W(/^Edge protection scaffold at eaves/, { status: 'Required', wstatus: 'In place', qty: '84', unit: 'lin m', loc: 'North elevation', tag: 'Tag OK', tagDate: d(3) });
+    W(/^Gable end/, { status: 'Required', wstatus: 'In place', qty: '45', unit: 'lin m', loc: 'East & west gables', tag: 'Tag OK', tagDate: d(3) });
+    W(/^Loading bay/, { status: 'Required', wstatus: 'In place', qty: '1', unit: 'nr', loc: 'North elevation, bay 7', tag: 'Tag out of date', tagDate: d(9), notes: 'Tag last signed 9 days ago - scaffold contractor called to re-inspect before use' });
+    W(/^Stair tower/, { status: 'Required', wstatus: 'In place', qty: '1', unit: 'nr', loc: 'North-west corner', tag: 'Tag OK', tagDate: d(3) });
+    W(/^Crash decks/, { status: 'Required', wstatus: 'In place', qty: '480', unit: 'm²', loc: 'Below rooflight bays', tag: 'Tag OK', tagDate: d(5), notes: 'Netting rigged under bays 9-14' });
+    W(/^Rooflight covers/, { status: 'Required', wstatus: 'In place', qty: '42', unit: 'nr', loc: 'All rooflights' });
+    W(/^MEWP/, { status: 'Required', wstatus: 'In place', qty: '1', unit: 'nr', mewpType: 'Boom - articulated', loc: 'Service yard', notes: 'Thorough examination cert. seen (LOLER)' });
+    W(/TG20 compliance/, { status: 'Required', wstatus: 'In place', tagDate: 'TG20 sheet on site file' }); W(/bespoke design/, { status: 'Required', wstatus: 'In place', tagDate: 'Loading bay design ref SD-2214' }); W(/handover certificate/i, { status: 'Required', wstatus: 'In place', tagDate: d(16) }); W(/7-day/, { status: 'Required', wstatus: 'In place', tagDate: d(3) });
+    sf.lastInsp = d(3); sf.weatherInsp = 'Re-inspected after high winds, ' + fmtDate(d(2)); sf.notes = 'Loading bay tag out of date - not to be used until re-inspected (snag raised).'; }
+  { const A = j.areas[0]; const M = (cat, name, spec, unit, o) => newMat(Object.assign({ cat, name, spec, unit }, o)); A.matOn = true;
+    A.materials.push(M('sheets', 'Outer sheets - Firth N1000R', '0.7 mm Colorcoat HPS200 Ultra', 'm²', { qtyFrom: 'area', waste: '10', colour: 'Goosewing Grey', supplier: 'Tata Steel', status: 'Delivered', checked: true, notes: 'Delivered in 3 drops' }),
+      M('rooflights', 'GRP rooflights - triple skin', 'To suit Firth N1000R, Class B', 'nr', { qty: '42', supplier: 'Brett Martin', status: 'Short', notes: '38 of 42 delivered - 4 to follow' }),
+      M('fixings', 'Primary fixings', '5.5 x 120 mm self-drill c/w washer & cap', 'box', { qty: '18', waste: '5', supplier: 'SFS', status: 'Ordered' }),
+      M('fillers', 'Profiled fillers - eaves', 'To suit profile', 'lin m', { qty: '84', waste: '5', status: 'Returned', notes: 'Wrong profile supplied - returned for exchange' })); }
   return j;
 }
 
@@ -2149,7 +2273,7 @@ const SB_KEY = 'sb_publishable_5A5rruQaEqdXbkvSBsuXng_oCPEPERz';
 const SITE_URL = BUILD.siteUrl;
 const BUCKET = 'audit-photos';
 const SB_PREFIX = 'sb:' + BUCKET + '/';
-const COMPANY_KEYS = ['company', 'tagline', 'address', 'phone', 'email', 'website', 'accreditation', 'legal', 'refPrefix', 'logo', 'logoW', 'logoH', 'disclaimer', 'worksDisclaimer'];
+const COMPANY_KEYS = ['company', 'tagline', 'address', 'phone', 'email', 'website', 'accreditation', 'legal', 'refPrefix', 'logo', 'logoW', 'logoH', 'disclaimer', 'worksDisclaimer', 'matLib', 'pitchMins', 'rfqTerms'];
 const PH_IMG = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 30"><rect width="40" height="30" fill="#e3e8ef"/><path d="M14 10h12v10H14z" fill="none" stroke="#8a97a8" stroke-width="1.5"/><circle cx="20" cy="15" r="3" fill="none" stroke="#8a97a8" stroke-width="1.5"/></svg>');
 
 const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -2694,7 +2818,7 @@ function cloudPostRender() {
   if (!signedIn()) return;
   const rt = route();
   if (cloudRO() && rt[0] === 'settings') {
-    if (rt[1] === 'templates') { $$('main input, main select, main textarea, main button').forEach(el => { el.disabled = true; }); const m = $('main'); if (m) m.insertAdjacentHTML('afterbegin', '<div class="lg-msg warn" style="margin:4px 0 12px">Checklist templates are managed by your manager. They are shown read-only.</div>'); }
+    if (rt[1] === 'templates' || rt[1] === 'library') { $$('main input, main select, main textarea, main button').forEach(el => { el.disabled = true; }); const m = $('main'); if (m) m.insertAdjacentHTML('afterbegin', `<div class="lg-msg warn" style="margin:4px 0 12px">${rt[1] === 'library' ? 'The materials library, pitch guidance and RFQ terms are' : 'Checklist templates are'} managed by your manager. They are shown read-only.</div>`); }
     else { $$('main [data-b]').forEach(el => { if (COMPANY_KEYS.includes(el.dataset.b)) el.disabled = true; }); $$('#logoin, [data-act="dellogo"], [data-act="deflogo"], [data-act="resetdisc"]').forEach(el => { (el.closest('label') || el).style.display = 'none'; }); }
   }
   if (rt[0] === 'job') { const job = getJob(rt[1]); if (job && missingBlobs(job).length && online()) ensureBlobs(job).then(left => { const r2 = route(); if (r2[0] === 'job' && r2[1] === job.id && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) render(true); }); }
@@ -2715,6 +2839,928 @@ const fixImgs = html => html.replace(/src="sb:[^"]*"/g, `src="${PH_IMG}" data-pe
   };
 }
 { const _gen = ACTIONS.genpdf; ACTIONS.genpdf = async function (a, job) { if (job && signedIn() && missingBlobs(job).length) { toast('Downloading photos…'); const left = await ensureBlobs(job); if (left) { toast(`${left} photo${left > 1 ? 's are' : ' is'} not downloaded yet${online() ? '' : ' (offline)'} - try again shortly`, 4000); return; } } return _gen(a, job); }; }
+
+/* ===================== v1.3.1: MATERIALS, MEASUREMENTS & ROOF PITCH ===================== */
+const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
+const fid = p => 'f_' + p.replace(/[^a-z0-9]/gi, '_');
+const ICX = {
+  line: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 20L20 4"/></svg>',
+  arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20L20 4M11 4h9v9"/></svg>',
+  dim: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4M3 6v12M21 6v12"/></svg>',
+  rect: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>',
+  grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18"/></svg>',
+  ruler: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2" stroke-linecap="round"/></svg>',
+  box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>',
+  angle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M3 20L17 6"/><path d="M10 20a7 7 0 0 0-2-5"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2" stroke-linecap="round"/></svg>',
+};
+
+/* ---------- Reference data ---------- */
+const MAT_UNITS = ['m²', 'lin m', 'nr', 'box', 'roll', 'tube', 'kg', 'l', 'pack', 'set', 'item'];
+const MAT_STATUS = ['Required', 'Confirmed', 'Ordered'];
+const MAT_STATUS_W = ['Required', 'Ordered', 'Delivered', 'Short', 'Returned'];
+const MAT_ORDER = ['Required', 'Short', 'Confirmed', 'Ordered', 'Delivered', 'Returned'];
+const matStatuses = job => job && job.type === 'works' ? MAT_STATUS_W : MAT_STATUS;
+const DISCRETE = new Set(['nr', 'box', 'roll', 'tube', 'pack', 'set', 'item']);
+const MI = (name, spec = '', unit = 'nr', waste = 0, colour = '') => ({ name, spec, unit, waste, colour });
+const DEFAULT_MATLIB = [
+  { key: 'sheets', title: 'Sheets', items: [MI('Outer sheets - Firth N1000R', '0.7 mm, Colorcoat HPS200 Ultra', 'm²', 10, 'RAL 7016 Anthracite'), MI('Outer sheets - 32/1000 trapezoidal', '0.7 mm plastisol', 'm²', 10), MI('Outer sheets - box profile', '0.7 mm', 'm²', 10), MI('Liner sheets', '0.4 mm 1000/32 liner', 'm²', 5, 'Bright White'), MI('Composite panels - Kingspan KS1000RW', '80 mm core', 'm²', 5), MI('Composite panels - other', 'Core thickness / U-value', 'm²', 5)] },
+  { key: 'rooflights', title: 'Rooflights', items: [MI('GRP rooflights - triple skin', 'To suit profile, non-fragile Class B (ACR[M]001)', 'nr'), MI('GRP rooflights - double skin', 'To suit profile', 'nr'), MI('GRP rooflights - single skin', 'To suit profile', 'nr'), MI('Rooflight fixing & sealing set', 'Per rooflight', 'set')] },
+  { key: 'insulation', title: 'Insulation', items: [MI('Mineral wool quilt', '180 mm', 'm²', 5), MI('Mineral wool quilt', '200 mm', 'm²', 5), MI('PIR insulation board', '100 mm', 'm²', 5)] },
+  { key: 'membranes', title: 'Membranes', items: [MI('Vapour control layer', 'Polythene VCL, laps taped', 'roll', 10), MI('Breather membrane', 'Vapour permeable', 'roll', 10)] },
+  { key: 'spacers', title: 'Spacer / bracket systems', items: [MI('Rail & bracket spacer system', 'To suit insulation depth', 'm²', 5), MI('Thermal break pads', 'For spacer brackets', 'nr', 5)] },
+  { key: 'fixings', title: 'Fixings', items: [MI('Primary fixings', '5.5 x 120 mm self-drill c/w 16 mm washer', 'box', 5), MI('Primary fixings', '5.5 x 32 mm self-drill to purlin', 'box', 5), MI('Stitcher fixings', '6.3 x 22 mm c/w washer', 'box', 5), MI('Sealed rivets', '4.8 mm', 'box', 5), MI('Fastener caps / washers', 'Colour matched', 'box', 5)] },
+  { key: 'flashings', title: 'Flashings & trims', items: [MI('Ridge flashing', 'Girth ___ mm, ___ bends', 'lin m', 5), MI('Verge / barge flashing', 'Girth ___ mm, ___ bends', 'lin m', 5), MI('Eaves flashing / drip', 'Girth ___ mm, ___ bends', 'lin m', 5), MI('Apron flashing', 'Girth ___ mm, ___ bends', 'lin m', 5), MI('Corner flashing', 'Girth ___ mm, ___ bends', 'lin m', 5), MI('Profile closures', 'To suit profile', 'nr', 5)] },
+  { key: 'fillers', title: 'Fillers', items: [MI('Profiled fillers - eaves', 'To suit profile', 'lin m', 5), MI('Profiled fillers - ridge', 'To suit profile', 'lin m', 5)] },
+  { key: 'sealants', title: 'Sealants & tapes', items: [MI('Butyl strip sealant', '6 x 5 mm', 'roll', 5), MI('Low-modulus silicone / mastic', '310 ml', 'tube', 10), MI('Lap tape', '', 'roll', 5)] },
+  { key: 'gutters', title: 'Gutters & outlets', items: [MI('Trimline gutter', '', 'lin m', 5), MI('Gutter outlets', '', 'nr'), MI('Stop ends', '', 'nr'), MI('Rainwater pipes (RWPs)', '', 'lin m', 5)] },
+  { key: 'lining', title: 'Gutter lining', items: [MI('Fatra PVC gutter lining membrane', '1.5 mm reinforced, girth ___ mm', 'lin m', 10), MI('Liquid silicone gutter coating', '', 'l', 10), MI('GRP gutter lining', '', 'lin m', 10)] },
+  { key: 'coatings', title: 'Coatings', items: [MI('Primer', '', 'l', 10), MI('Topcoat system', '', 'l', 10), MI('Cut-edge corrosion treatment', 'Clean, prime & seal', 'lin m', 5)] },
+  { key: 'safety', title: 'Safety / access', items: [MI('Safety netting', '', 'm²'), MI('Edge protection', '', 'lin m'), MI('Rooflight covers / mesh', '', 'nr'), MI('MEWP hire', '', 'item'), MI('Scaffold', '', 'item')] },
+  { key: 'waste', title: 'Waste / skips & AC disposal', items: [MI('Skip', '8 yd', 'nr'), MI('AC sheet disposal (licensed)', 'Wrapped, consignment note', 'item')] },
+];
+const matLib = () => S.settings.matLib || DEFAULT_MATLIB;
+const MEAS_QUICK = [['Length', 'm'], ['Width', 'm'], ['Eaves height', 'm'], ['Ridge height', 'm'], ['Pitch', 'degrees'], ['Gutter girth', 'mm'], ['Gutter length', 'm'], ['Number of rooflights', 'nr'], ['Rooflight size', 'mm'], ['Purlin centres', 'mm'], ['Overhang', 'mm'], ['Upstand height', 'mm'], ['Sheet lengths', 'm']];
+const MEAS_UNITS = ['mm', 'm', 'm²', 'degrees', 'nr'];
+const PITCH_METHODS = ['Degrees', 'Rise / run', 'Ratio / %', 'Phone (approx.)', 'Inclinometer', 'From drawings'];
+const DEFAULT_PITCHMINS = [
+  { key: 'trap_nolap', label: 'Profiled metal (trapezoidal) - no end laps', min: 4, rec: 4 },
+  { key: 'trap_lap', label: 'Profiled metal (trapezoidal) - sealed end laps', min: 5, rec: 6 },
+  { key: 'built', label: 'Built-up metal sheets (per manufacturer)', min: 4, rec: 6 },
+  { key: 'composite', label: 'Composite panels (per manufacturer)', min: 4, rec: 6 },
+  { key: 'ss', label: 'Standing seam', min: 1.5, rec: 1.5 },
+  { key: 'fc', label: 'Fibre cement sheets', min: 10, rec: 10 },
+  { key: 'flat', label: 'Membrane / flat roof (finished fall)', min: 0.7, rec: 1.1 },
+];
+const PITCH_SYS_FOR = { 'Built-up metal': 'built', 'Composite panel': 'composite', 'Single skin metal': 'trap_lap', 'Fibre cement / AC': 'fc', 'Standing seam': 'ss', 'Membrane / flat': 'flat' };
+const pitchMins = () => S.settings.pitchMins || DEFAULT_PITCHMINS;
+
+/* ---------- Model helpers ---------- */
+function newMat(o = {}) { return Object.assign({ id: uid(), cat: '', name: '', spec: '', colour: '', qty: '', unit: 'nr', waste: '', supplier: '', notes: '', status: 'Required', checked: false, qtyFrom: '', photos: [] }, o); }
+function newMeas(kind, o = {}) { return Object.assign({ id: uid(), kind, label: '', value: '', unit: 'm', loc: '', notes: '', caption: '' }, o); }
+function newPitch(o = {}) { return Object.assign({ id: uid(), label: '', method: 'Degrees', deg: '', rise: '', run: '', ratio: '', pct: '', notes: '', photos: [] }, o); }
+function migrateExtras(j) {
+  j.materials = Array.isArray(j.materials) ? j.materials : []; j.measurements = Array.isArray(j.measurements) ? j.measurements : [];
+  (j.areas || []).forEach(a => { ['materials', 'measurements', 'pitches'].forEach(k => { if (!Array.isArray(a[k])) a[k] = []; }); a.materials.forEach(m => { m.photos = m.photos || []; }); a.pitches.forEach(p => { p.photos = p.photos || []; }); });
+  j.materials.forEach(m => { m.photos = m.photos || []; });
+  (j.areas || []).forEach(a => { if (a.pitch !== undefined && String(a.pitch).trim() !== '' && !a.pitches.length) { const p = newPitch({ id: 'p_' + a.id, label: 'Main slope', deg: String(a.pitch) }); if (syncPitch(p, 'deg')) a.pitches.push(p); } });
+  return j;
+}
+const ownerOf = (job, o) => o === 'job' ? job : job.areas.find(a => a.id === o);
+const ownerBase = (job, o) => o === 'job' ? '' : `areas#${o}.`;
+const ownerName = (job, o) => o === 'job' ? 'General / site-wide' : ((ownerOf(job, o) || {}).name || 'Roof area');
+const totalM2 = job => r1(job.areas.reduce((s, a) => s + areaM2(a), 0));
+function matBaseQty(job, m, owner) {
+  const f = m.qtyFrom || '';
+  if (!f) return num(m.qty);
+  if (f === 'area') return owner && owner !== job ? areaM2(owner) : 0;
+  if (f === 'areas') return totalM2(job);
+  if (f.startsWith('area:')) { const a = job.areas.find(x => x.id === f.slice(5)); return a ? areaM2(a) : 0; }
+  return num(m.qty);
+}
+function linkLabel(job, m, owner) { const f = m.qtyFrom || ''; if (!f) return ''; if (f === 'area') return `${owner && owner.name ? owner.name : 'this area'} (${areaM2(owner)} m²)`; if (f === 'areas') return `all roof areas (${totalM2(job)} m²)`; const a = job.areas.find(x => x.id === f.slice(5)); return a ? `${a.name} (${areaM2(a)} m²)` : 'a deleted area'; }
+function orderQty(q, waste, unit) { const v = q * (1 + num(waste) / 100); if (!v) return 0; return DISCRETE.has(unit) ? Math.ceil(v - 1e-9) : Math.ceil(v * 10 - 1e-9) / 10; }
+const fq = v => String(r2(v));
+const catTitle = k => (matLib().find(c => c.key === k) || {}).title || (k ? k : 'Other / custom');
+function matLines(job, scope) {
+  const out = []; const add = (m, owner, area) => { const q = matBaseQty(job, m, owner); out.push({ m, owner, area, ownerName: area ? area.name : 'General / site-wide', qty: q, order: orderQty(q, m.waste, m.unit) }); };
+  const W = job.type === 'works';
+  job.areas.forEach(a => { if ((!scope && (!W || a.matOn)) || scope === a.id) (a.materials || []).forEach(m => add(m, a, a)); });
+  if ((!scope && (!W || job.matOn)) || scope === 'job') (job.materials || []).forEach(m => add(m, job, null));
+  return out;
+}
+function combineLines(lines) {
+  const map = new Map();
+  lines.forEach(l => {
+    if (!String(l.m.name || '').trim()) return;
+    const k = [l.m.name, l.m.spec, l.m.colour, l.m.unit].map(s => String(s || '').trim().toLowerCase()).join('|');
+    let e = map.get(k); if (!e) { e = { name: l.m.name, spec: l.m.spec, colour: l.m.colour, unit: l.m.unit, cat: l.m.cat, qty: 0, order: 0, wastes: new Set(), areas: [], lines: [], suppliers: new Set(), notes: [] }; map.set(k, e); }
+    e.qty += l.qty; e.order += l.order; e.wastes.add(num(l.m.waste)); if (!e.areas.includes(l.ownerName)) e.areas.push(l.ownerName); e.lines.push(l); if (l.m.supplier) e.suppliers.add(l.m.supplier); if (l.m.notes && !e.notes.includes(l.m.notes)) e.notes.push(l.m.notes);
+  });
+  return [...map.values()].map(e => Object.assign(e, { qty: r2(e.qty), order: r2(e.order), waste: e.wastes.size === 1 ? [...e.wastes][0] : 'mixed', checked: e.lines.every(l => l.m.checked), status: MAT_ORDER[Math.min(...e.lines.map(l => Math.max(0, MAT_ORDER.indexOf(l.m.status || 'Required'))))] }));
+}
+const matCombined = job => combineLines(matLines(job));
+const csvCell = v => { const s = String(v ?? ''); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+const toCSV = rows => '\ufeff' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+function matCSV(job) {
+  const rows = [['ARS Materials Schedule', job.ref, job.client.name || '', job.site.name || '', fmtDate(job.date)], [], ['COMBINED SCHEDULE (all areas)'], ['Item', 'Spec / description', 'Colour / finish', 'Unit', 'Total qty', 'Waste %', 'Order qty', 'Areas', 'Status', 'Checked', 'Supplier']];
+  matCombined(job).forEach(e => rows.push([e.name, e.spec, e.colour, e.unit, fq(e.qty), e.waste, fq(e.order), e.areas.join('; '), e.status, e.checked ? 'Yes' : 'No', [...e.suppliers].join('; ')]));
+  rows.push([], ['DETAIL BY AREA'], ['Area', 'Category', 'Item', 'Spec / description', 'Colour / finish', 'Qty', 'Unit', 'Linked to', 'Waste %', 'Order qty', 'Status', 'Checked', 'Supplier', 'Notes']);
+  matLines(job).forEach(l => rows.push([l.ownerName, catTitle(l.m.cat), l.m.name, l.m.spec, l.m.colour, fq(l.qty), l.m.unit, linkLabel(job, l.m, l.owner), num(l.m.waste) || '', fq(l.order), l.m.status || 'Required', l.m.checked ? 'Yes' : 'No', l.m.supplier, l.m.notes]));
+  return toCSV(rows);
+}
+function measCalc(m) {
+  const mm = /^\s*([\d.]+)\s*(?:x|×|\*)\s*([\d.]+)\s*$/i.exec(m.value || ''); if (!mm) return '';
+  let a = num(mm[1]) * num(mm[2]); if (m.unit === 'mm') a = a / 1e6; else if (m.unit !== 'm') return '';
+  return `= ${r2(a)} m²`;
+}
+function measDims(owner) {
+  const pick = re => { const m = (owner.measurements || []).find(x => x.kind === 'text' && re.test(x.label || '') && num(x.value) > 0 && (x.unit === 'm' || x.unit === 'mm')); return m ? (m.unit === 'mm' ? num(m.value) / 1000 : num(m.value)) : 0; };
+  const pm = (owner.measurements || []).find(x => x.kind === 'text' && /^pitch/i.test(x.label || '') && num(x.value) > 0);
+  return { L: pick(/^(roof\s+)?length/i), W: pick(/^(roof\s+)?width/i), P: pm ? num(pm.value) : 0 };
+}
+
+/* ---------- Roof pitch ---------- */
+function syncPitch(p, src) {
+  let d = null;
+  if (src === 'rise' || src === 'run') { if (num(p.run) > 0 && String(p.rise).trim() !== '') d = Math.atan(num(p.rise) / num(p.run)) * 180 / Math.PI; }
+  else if (src === 'ratio') { if (num(p.ratio) > 0) d = Math.atan(1 / num(p.ratio)) * 180 / Math.PI; }
+  else if (src === 'pct') { if (String(p.pct).trim() !== '') d = Math.atan(num(p.pct) / 100) * 180 / Math.PI; }
+  else if (String(p.deg ?? '').trim() !== '') d = num(p.deg);
+  if (d == null || !isFinite(d) || d < 0 || d >= 90) return false;
+  const t = Math.tan(d * Math.PI / 180);
+  if (src !== 'deg') p.deg = String(r1(d));
+  if (src !== 'ratio') p.ratio = t > 0 ? String(r1(1 / t)) : '';
+  if (src !== 'pct') p.pct = String(r1(t * 100));
+  if (src !== 'rise' && src !== 'run') { const run = num(p.run) > 0 ? num(p.run) : 1000; p.run = String(run); p.rise = String(Math.round(run * t)); }
+  return true;
+}
+const pitchSysOf = a => pitchMins().find(g => g.key === (a.pitchSys || PITCH_SYS_FOR[a.type])) || null;
+function pitchCheck(a, deg) {
+  const g = pitchSysOf(a); if (!g || String(deg ?? '').trim() === '' || !isFinite(num(deg))) return { lvl: '', msg: '' };
+  const d = num(deg);
+  if (d < num(g.min)) return { lvl: 'red', msg: `Below typical min ${g.min}°` };
+  if (d < num(g.rec)) return { lvl: 'amber', msg: `Below recommended ${g.rec}°` };
+  return { lvl: 'green', msg: 'OK for type' };
+}
+const pitchBadge = (a, deg) => { const c = pitchCheck(a, deg); return c.lvl ? `<span class="tag ${c.lvl}">${c.lvl === 'green' ? '✓ ' : '⚠ '}${esc(c.msg)}</span>` : ''; };
+const pitchRatio = p => num(p.ratio) > 0 ? `1:${p.ratio}` : '';
+function pitchWarnHTML(a) {
+  const g = pitchSysOf(a); const c0 = pitchCheck(a, a.pitch);
+  return c0.lvl === 'red' || c0.lvl === 'amber' ? `<div class="warn-banner ${c0.lvl === 'amber' ? 'amber' : ''}">${I.warn}<div><b>LOW PITCH: ${esc(a.pitch)}°</b><p>${esc(c0.msg)} for ${esc(g.label)}. Check laps, sealing and the manufacturer's minimum before specifying. Typical guidance - check manufacturer.</p></div></div>` : '';
+}
+function pitchCard(job, a) {
+  const f = mk(job); const b = `areas#${a.id}`; const g = pitchSysOf(a);
+  const rd = a.pitches.map((p, i) => {
+    const pb = `${b}.pitches#${p.id}`; const c = pitchCheck(a, p.deg);
+    return `<div class="pit ${c.lvl}" data-pid="${p.id}"><div class="ck-h"><input type="text" class="pit-l" data-b="${pb}.label" value="${esc(p.label)}" placeholder="${i === 0 ? 'e.g. Main slope' : 'e.g. Lean-to canopy'}" aria-label="Reading label">${i === 0 ? '<span class="tag navy">Area pitch</span>' : ''}<button type="button" class="ck-x" data-act="pitchdel" data-aid="${a.id}" data-pid="${p.id}" aria-label="Remove reading">×</button></div>
+      <div class="g3">${f.text('Degrees °', pb + '.deg', { type: 'number' })}${f.text('Ratio 1:x', pb + '.ratio', { type: 'number' })}${f.text('Percent %', pb + '.pct', { type: 'number' })}</div>
+      <div class="g2">${f.text('Rise (mm)', pb + '.rise', { type: 'number' })}${f.text('Run (mm)', pb + '.run', { type: 'number' })}</div>
+      <div class="pit-m"><select data-b="${pb}.method" aria-label="Method">${PITCH_METHODS.map(x => `<option ${p.method === x ? 'selected' : ''}>${x}</option>`).join('')}</select><span id="pst_${p.id}">${pitchBadge(a, p.deg)}</span></div>
+      <div class="ck-row"><input type="text" class="ck-c" data-b="${pb}.notes" value="${esc(p.notes)}" placeholder="Notes (optional)"><label class="ck-cam" aria-label="Add photo">${I.camera}<input type="file" accept="image/*" capture="environment" data-photo="${pb}.photos" hidden></label></div>
+      ${p.photos.length ? `<div class="ck-ph">${p.photos.map(x => `<img src="${x.data}" alt="" data-act="viewphoto" data-key="${pb}.photos" data-id="${x.id}">`).join('')}</div>` : ''}
+      <button type="button" class="btn block pit-ph" data-act="pitchphone" data-aid="${a.id}" data-pid="${p.id}">${ICX.phone} Measure with phone</button></div>`;
+  }).join('');
+  return `<div class="card" id="pitchcard"><h2>${ICX.angle.replace('<svg', '<svg width="22" height="22"')} Roof pitch <span class="prog" style="margin-left:auto">${a.pitch !== '' && a.pitch != null ? esc(a.pitch) + '°' : 'not set'}</span></h2>
+    <div class="f"><label for="ps_${a.id}">Sheet / system (for pitch guidance)</label><select id="ps_${a.id}" data-b="${b}.pitchSys"><option value="">${PITCH_SYS_FOR[a.type] ? 'Auto from roof type' : '— Select —'}</option>${pitchMins().map(x => `<option value="${esc(x.key)}" ${a.pitchSys === x.key ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select>
+    <p class="hint" id="pguide">${g ? `Typical minimum <b>${g.min}°</b>${num(g.rec) > num(g.min) ? `, recommended <b>${g.rec}°</b>` : ''} for ${esc(g.label)}. <i>Typical guidance - check manufacturer.</i>` : 'Choose the sheet / system to see the typical minimum pitch.'}</p></div>
+    <div id="pitchwarn">${pitchWarnHTML(a)}</div>
+    <p class="hint" style="margin:0 0 10px">Enter degrees, rise &amp; run, or a ratio / % - the others update automatically. The first reading is the area pitch (used for the plan-to-slope area).</p>
+    ${rd}
+    <div class="btns"><button type="button" class="btn" data-act="pitchadd" data-aid="${a.id}">${I.plus} Add pitch reading</button><button type="button" class="btn" data-act="pitchphone" data-aid="${a.id}">${ICX.phone} Measure with phone</button></div></div>`;
+}
+function pitchDOM(job, a, p) {
+  const pb = `areas#${a.id}.pitches#${p.id}`;
+  ['deg', 'ratio', 'pct', 'rise', 'run'].forEach(k => { const el = document.getElementById(fid(pb + '.' + k)); if (el && document.activeElement !== el) el.value = p[k]; });
+  const st = $('#pst_' + p.id); if (st) st.innerHTML = pitchBadge(a, p.deg);
+  const box = document.querySelector(`.pit[data-pid="${p.id}"]`); if (box) { box.classList.remove('red', 'amber', 'green'); const c = pitchCheck(a, p.deg); if (c.lvl) box.classList.add(c.lvl); }
+}
+function areaPitchDOM(a) {
+  const el = document.getElementById(fid(`areas#${a.id}.pitch`)); if (el && document.activeElement !== el) el.value = a.pitch;
+  const c = $('#calc'); if (c) c.firstElementChild.textContent = areaM2(a) + ' m²';
+  const pc = $('#pitchcard .prog'); if (pc) pc.textContent = a.pitch !== '' && a.pitch != null ? a.pitch + '°' : 'not set';
+  const w = $('#pitchwarn'); if (w) w.innerHTML = pitchWarnHTML(a);
+}
+function setPitchValue(job, a, p, deg, method) { p.deg = String(r1(deg)); if (method) p.method = method; syncPitch(p, 'deg'); if (a.pitches[0] === p) a.pitch = p.deg; }
+function refreshPitchCard(job, a) { const el = $('#pitchcard'); if (el) el.outerHTML = pitchCard(job, a); }
+
+/* phone tilt (DeviceOrientation) - approximate */
+async function measurePitchWithPhone() {
+  if (typeof window.DeviceOrientationEvent === 'undefined') { toast('Motion sensors are not available on this device - enter the pitch manually', 4000); return null; }
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try { const r = await DeviceOrientationEvent.requestPermission(); if (r !== 'granted') { toast('Motion access was not allowed - enter the pitch manually', 4000); return null; } }
+    catch (e) { toast('Could not get motion access - enter the pitch manually', 4000); return null; }
+  }
+  let zero = num(localStorage.getItem('ars-pitch-zero')); let raw = null, samples = null, result = null, got = false, hold = null;
+  const onOri = e => { if (e.beta == null) return; got = true; const b = e.beta * Math.PI / 180, g = (e.gamma || 0) * Math.PI / 180; raw = Math.acos(Math.min(1, Math.abs(Math.cos(b) * Math.cos(g)))) * 180 / Math.PI; const cur = Math.max(0, raw - zero); if (samples) samples.push(cur); const v = document.getElementById('pm-v'); if (v) v.textContent = cur.toFixed(1) + '°'; };
+  window.addEventListener('deviceorientation', onOri);
+  const r = await modal(`<h3>Measure pitch with phone</h3><p>Lay the phone flat on the sheet, pointing up the slope (not across a rib). Keep it still, then tap <b>Hold &amp; average</b>.</p>
+    <div class="pm-live"><b id="pm-v">--</b><span id="pm-s">Waiting for the motion sensor…</span></div>
+    <p class="hint" id="pm-z">Zero offset: ${zero.toFixed(1)}°. For a better reading, calibrate on a known level surface first.</p>
+    <div class="btns"><button type="button" class="btn" id="pm-cal">Calibrate zero</button><button type="button" class="btn navy" id="pm-hold">Hold &amp; average</button></div>
+    <div style="height:10px"></div><button class="btn primary" id="pm-use" data-r="use" disabled>Use reading</button><button class="btn" data-r="">Cancel</button>
+    <p class="small">Approximate reading only (typically ±1°). Confirm critical pitches with an inclinometer or rise &amp; run.</p>`, bg => {
+    const s = bg.querySelector('#pm-s');
+    setTimeout(() => { if (!got && s.isConnected) s.textContent = 'No sensor readings - not available on this device or browser. Cancel and enter the pitch manually.'; }, 2500);
+    bg.querySelector('#pm-cal').addEventListener('click', ev => { ev.stopPropagation(); if (raw == null) return; zero = raw; localStorage.setItem('ars-pitch-zero', String(zero)); bg.querySelector('#pm-z').textContent = `Zero offset set to ${zero.toFixed(1)}°. Now lay the phone on the roof sheet.`; });
+    bg.querySelector('#pm-hold').addEventListener('click', ev => {
+      ev.stopPropagation(); if (!got) return; samples = []; s.textContent = 'Hold still… averaging'; clearTimeout(hold);
+      hold = setTimeout(() => { const n = samples.length; if (n) { result = samples.reduce((x, y) => x + y, 0) / n; s.textContent = `Average ${result.toFixed(1)}° from ${n} readings (approx.)`; bg.querySelector('#pm-use').disabled = false; } else s.textContent = 'No readings while holding - try again.'; samples = null; }, 2000);
+    });
+  });
+  window.removeEventListener('deviceorientation', onOri); clearTimeout(hold);
+  return r === 'use' && result != null ? result : null;
+}
+
+/* ---------- Drawing pad (sketches, sketch & photo measurements) ---------- */
+const PAD_COLS = ['#0f172a', '#dc2626', '#2563eb', '#f18902', '#16a34a', '#ffffff'];
+function arrowHead(g, x1, y1, x2, y2, sz) { const a = Math.atan2(y2 - y1, x2 - x1); g.beginPath(); g.moveTo(x2, y2); g.lineTo(x2 - sz * Math.cos(a - 0.42), y2 - sz * Math.sin(a - 0.42)); g.lineTo(x2 - sz * Math.cos(a + 0.42), y2 - sz * Math.sin(a + 0.42)); g.closePath(); g.fill(); }
+function drawShape(g, s) {
+  g.save(); g.strokeStyle = s.col; g.fillStyle = s.col; g.lineWidth = s.w; g.lineCap = 'round'; g.lineJoin = 'round';
+  if (s.t === 'rect') { g.strokeRect(Math.min(s.x1, s.x2), Math.min(s.y1, s.y2), Math.abs(s.x2 - s.x1), Math.abs(s.y2 - s.y1)); g.restore(); return; }
+  g.beginPath(); g.moveTo(s.x1, s.y1); g.lineTo(s.x2, s.y2); g.stroke();
+  const hs = (14 + s.w * 2.2) * Math.max(1, g.canvas.width / 1200);
+  if (s.t === 'arrow' || s.t === 'dim') arrowHead(g, s.x1, s.y1, s.x2, s.y2, hs);
+  if (s.t === 'dim') {
+    arrowHead(g, s.x2, s.y2, s.x1, s.y1, hs);
+    const a = Math.atan2(s.y2 - s.y1, s.x2 - s.x1), px = -Math.sin(a) * hs * 0.9, py = Math.cos(a) * hs * 0.9;
+    g.lineWidth = Math.max(2, s.w * 0.6); [[s.x1, s.y1], [s.x2, s.y2]].forEach(([x, y]) => { g.beginPath(); g.moveTo(x - px, y - py); g.lineTo(x + px, y + py); g.stroke(); });
+    if (s.label) {
+      const mx = (s.x1 + s.x2) / 2, my = (s.y1 + s.y2) / 2; let r = a; if (r > Math.PI / 2) r -= Math.PI; if (r < -Math.PI / 2) r += Math.PI;
+      const fs = Math.round((30 + s.w * 2) * Math.max(1, g.canvas.width / 1200)); g.translate(mx, my); g.rotate(r); g.font = `bold ${fs}px system-ui, sans-serif`; const tw = g.measureText(s.label).width;
+      g.fillStyle = 'rgba(255,255,255,0.93)'; g.fillRect(-tw / 2 - 10, -fs - 14, tw + 20, fs + 12); g.fillStyle = s.col === '#ffffff' ? '#0f172a' : s.col; g.textAlign = 'center'; g.fillText(s.label, 0, -10);
+    }
+  }
+  g.restore();
+}
+function padText(g, x, y, t, col, w) { g.save(); const fs = 22 + w * 2; g.font = `bold ${fs}px system-ui, sans-serif`; g.lineJoin = 'round'; g.lineWidth = 6; g.strokeStyle = col === '#ffffff' ? '#0f172a' : 'rgba(255,255,255,0.95)'; g.strokeText(t, x, y); g.fillStyle = col; g.fillText(t, x, y); g.restore(); }
+function padHTML(o) {
+  return `<div class="tools" id="tools">${PAD_COLS.map(c => `<button type="button" data-col="${c}" class="${c === o.col ? 'on' : ''}" aria-label="Colour"><span class="sw" style="background:${c};${c === '#ffffff' ? 'box-shadow:inset 0 0 0 2px #cbd5e1' : ''}"></span></button>`).join('')}
+  <button type="button" data-w="3">Thin</button><button type="button" data-w="7" class="on">Med</button><button type="button" data-w="14">Thick</button>
+  <span class="tsep"></span>
+  <button type="button" data-tool="pen" class="${o.tool === 'pen' ? 'on' : ''}" aria-label="Pen">${I.pen}</button><button type="button" data-tool="line" aria-label="Line">${ICX.line}</button><button type="button" data-tool="arrow" aria-label="Arrow">${ICX.arrow}</button><button type="button" data-tool="dim" class="${o.tool === 'dim' ? 'on' : ''}" aria-label="Dimension line">${ICX.dim}</button>${o.photo ? '' : `<button type="button" data-tool="rect" aria-label="Rectangle">${ICX.rect}</button>`}
+  <button type="button" data-tool="text">Aa</button><button type="button" data-tool="eraser" aria-label="Eraser">${I.eraser}</button><button type="button" data-tool="undo" aria-label="Undo">${I.undo}</button>${o.photo ? '' : `<button type="button" data-tool="grid" class="${o.grid ? 'on' : ''}" aria-label="Grid">${ICX.grid}</button>`}</div>
+  <div class="sk-wrap pad"><canvas id="padbg" width="${o.w}" height="${o.h}"></canvas><canvas id="sk" width="${o.w}" height="${o.h}"></canvas><canvas id="pado" width="${o.w}" height="${o.h}"></canvas></div>
+  <p class="hint">Pen draws freehand. <b>Dimension</b> ${ICX.dim.replace('<svg', '<svg width="16" height="16" style="vertical-align:-3px"')}: drag between two points, then type the measurement (e.g. 6.20 m). Line, arrow${o.photo ? '' : ', rectangle'} and Aa (text label) work the same way.${o.photo ? ' The original photo is kept.' : ' # toggles the grid.'} Saves automatically.</p>`;
+}
+const padPending = t => ['data', 'ink', 'orig'].some(k => typeof t[k] === 'string' && t[k].startsWith('sb:'));
+async function askLabel(title, ph) { let inp; const r = await modal(`<h3>${esc(title)}</h3><input type="text" id="sktxt" placeholder="${esc(ph)}"><div style="height:12px"></div><button class="btn primary" data-r="ok">Add</button><button class="btn" data-r="">Skip</button>`, bg => { inp = $('#sktxt', bg); setTimeout(() => inp.focus(), 50); }); return r === 'ok' ? inp.value.trim() : ''; }
+async function initPad(job, tgt, o) {
+  if (padPending(tgt)) { const w = $('.pad'); if (w) w.insertAdjacentHTML('beforebegin', '<div class="lg-msg warn">Downloading this drawing from the cloud…</div>'); return; }
+  const c = $('#sk'), bg = $('#padbg'), ov = $('#pado'); if (!c) return; const W = c.width, H = c.height;
+  const g = c.getContext('2d'), gb = bg.getContext('2d'), gv = ov.getContext('2d');
+  const st = { col: o.col, w: 7, tool: o.tool, undo: [], grid: o.grid };
+  const paintBg = async () => { gb.fillStyle = '#fff'; gb.fillRect(0, 0, W, H); if (o.photo) { try { gb.drawImage(await loadImg(tgt.orig), 0, 0, W, H); } catch (e) { } } else if (st.grid) drawGrid(gb, W, H); };
+  await paintBg();
+  const ink = tgt.ink || (!o.photo && tgt.data) || '';
+  if (ink) { try { g.drawImage(await loadImg(ink), 0, 0, W, H); } catch (e) { } }
+  const save = () => {
+    const out = document.createElement('canvas'); out.width = W; out.height = H; const x = out.getContext('2d'); x.drawImage(bg, 0, 0); x.drawImage(c, 0, 0);
+    tgt.data = o.photo ? out.toDataURL('image/jpeg', 0.82) : out.toDataURL('image/png'); if (!o.photo) tgt.grid = st.grid; tgt.w = W; tgt.h = H;
+    tgt.ink = c.toDataURL('image/png'); markDirty(job);
+  };
+  const pt = e => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; };
+  const pushUndo = () => { st.undo.push(g.getImageData(0, 0, W, H)); if (st.undo.length > 25) st.undo.shift(); };
+  let drawing = false, last, start;
+  const shape = p => ({ t: st.tool, x1: start[0], y1: start[1], x2: p[0], y2: p[1], col: st.col, w: st.w });
+  const freehand = st_ => st_.tool === 'pen' || st_.tool === 'eraser';
+  c.addEventListener('pointerdown', async e => {
+    e.preventDefault(); pushUndo();
+    if (st.tool === 'text') { const p = pt(e); const t = await askLabel('Add label', 'e.g. Valley gutter'); if (t) { padText(g, p[0], p[1], t, st.col, st.w); save(); } else st.undo.pop(); return; }
+    drawing = true; start = last = pt(e); try { c.setPointerCapture(e.pointerId); } catch (x) { }
+    if (freehand(st)) { g.save(); if (st.tool === 'eraser') g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(last[0], last[1], (st.tool === 'eraser' ? st.w * 3 : st.w) / 2, 0, 7); g.fillStyle = st.col; g.fill(); g.restore(); }
+  });
+  c.addEventListener('pointermove', e => {
+    if (!drawing) return; e.preventDefault(); const p = pt(e);
+    if (freehand(st)) { g.save(); if (st.tool === 'eraser') g.globalCompositeOperation = 'destination-out'; g.strokeStyle = st.col; g.lineWidth = st.tool === 'eraser' ? st.w * 3 : st.w; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); g.moveTo(last[0], last[1]); g.lineTo(p[0], p[1]); g.stroke(); g.restore(); }
+    else { gv.clearRect(0, 0, W, H); drawShape(gv, shape(p)); }
+    last = p;
+  });
+  c.addEventListener('pointerup', async e => {
+    if (!drawing) return; drawing = false;
+    if (freehand(st)) { save(); return; }
+    gv.clearRect(0, 0, W, H); const s = shape(e.clientX != null ? pt(e) : last);
+    if (Math.hypot(s.x2 - s.x1, s.y2 - s.y1) < 12) { st.undo.pop(); return; }
+    if (s.t === 'dim') s.label = await askLabel('Dimension', 'e.g. 6.20 m');
+    drawShape(g, s); save();
+  });
+  c.addEventListener('pointercancel', () => { drawing = false; gv.clearRect(0, 0, W, H); });
+  $('#tools').addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.col) { st.col = b.dataset.col; if (st.tool === 'eraser') st.tool = 'pen'; $$('#tools [data-col]').forEach(x => x.classList.toggle('on', x === b)); }
+    if (b.dataset.w) { st.w = +b.dataset.w; $$('#tools [data-w]').forEach(x => x.classList.toggle('on', x === b)); }
+    const t = b.dataset.tool;
+    if (['pen', 'line', 'arrow', 'dim', 'rect', 'text', 'eraser'].includes(t)) st.tool = (st.tool === t && t !== 'pen') ? 'pen' : t;
+    if (t === 'undo' && st.undo.length) { g.putImageData(st.undo.pop(), 0, 0); save(); }
+    if (t === 'grid') { st.grid = !st.grid; b.classList.toggle('on', st.grid); await paintBg(); save(); }
+    $$('#tools [data-tool]').forEach(x => { if (!['undo', 'grid'].includes(x.dataset.tool)) x.classList.toggle('on', x.dataset.tool === st.tool); });
+  });
+  S.skClear = () => { pushUndo(); g.clearRect(0, 0, W, H); save(); };
+}
+
+/* ---------- Views: materials ---------- */
+const STATUS_TAG = { Required: 'amber', Confirmed: 'navy', Ordered: 'green', Delivered: 'green', Short: 'red', Returned: '' };
+function matRow(job, o, m, owner) {
+  const q = matBaseQty(job, m, owner); const oq = orderQty(q, m.waste, m.unit);
+  return `<div class="mrow ${m.checked ? 'done' : ''}"><button type="button" class="mchk ${m.checked ? 'on' : ''}" data-act="matcheck" data-o="${o}" data-id="${m.id}" aria-pressed="${!!m.checked}" aria-label="Tick ${esc(m.name)}">✓</button>
+    <a class="mbd" href="#/job/${job.id}/mat/${o}/${m.id}"><div class="t1">${esc(m.name || 'Unnamed item')}</div><div class="t2">${esc([m.spec, m.colour].filter(Boolean).join(' · ') || 'No spec yet')}</div>
+    <div class="meta"><span class="tag">${q ? fq(q) : '-'} ${esc(m.unit)}${num(m.waste) ? ` +${num(m.waste)}%` : ''}</span>${oq ? `<span class="tag navy">Order ${fq(oq)} ${esc(m.unit)}</span>` : ''}${m.qtyFrom ? '<span class="tag type-survey">Area link</span>' : ''}<span class="tag ${STATUS_TAG[m.status || 'Required']}">${esc(m.status || 'Required')}</span>${m.supplier ? `<span class="tag">${esc(m.supplier)}</span>` : ''}</div></a>${I.chev}</div>`;
+}
+function matListHTML(job, o) {
+  const owner = ownerOf(job, o); const list = owner.materials || [];
+  const cats = matLib(); const byCat = new Map(); list.forEach(m => { const k = cats.some(c => c.key === m.cat) ? m.cat : '_'; if (!byCat.has(k)) byCat.set(k, []); byCat.get(k).push(m); });
+  const order = [...cats.map(c => c.key), '_'].filter(k => byCat.has(k));
+  const ticked = list.filter(m => m.checked).length;
+  return `<div class="card"><h2>${ICX.box.replace('<svg', '<svg width="22" height="22"')} ${o === 'job' ? 'Site-wide materials' : 'Materials required'} <span class="prog ${ticked === list.length && list.length ? 'full' : ''}" style="margin-left:auto">${ticked}/${list.length} ticked</span></h2>
+    ${o !== 'job' ? `<p class="hint" style="margin:-4px 0 10px">Roof area: <b>${areaM2(owner)} m²</b>${owner.measured === 'plan' && num(owner.pitch) ? ` (on plan, corrected for ${esc(owner.pitch)}° pitch)` : ''}. Tap ✓ to tick an item off; tap the item to edit quantity, waste and status.</p>` : '<p class="hint" style="margin:-4px 0 10px">General / site-wide items (skips, access, safety, set-up). Tap ✓ to tick an item off.</p>'}
+    ${order.map(k => `<h3 class="mcat">${esc(k === '_' ? 'Other / custom' : cats.find(c => c.key === k).title)}</h3>${byCat.get(k).map(m => matRow(job, o, m, owner)).join('')}`).join('') || `<div class="empty">${ICX.box}<p>No materials yet. Add from the library or add a custom item.</p></div>`}
+    <div class="btns"><button type="button" class="btn primary" data-act="matlib" data-o="${o}">${I.plus} Add from library</button><button type="button" class="btn" data-act="matadd" data-o="${o}">${I.plus} Custom item</button></div></div>`;
+}
+function combinedHTML(job) {
+  const cm = matCombined(job);
+  return `<div class="card"><h2>Combined schedule <span class="prog" style="margin-left:auto">${cm.length} item${cm.length === 1 ? '' : 's'}</span></h2><p class="hint" style="margin:-4px 0 10px">All roof areas plus site-wide items. Lines with the same item, spec, colour and unit are added together. Order qty includes waste.</p>
+    ${cm.length ? `<div class="tblwrap"><table class="mtbl" id="combined"><thead><tr><th></th><th>Item</th><th>Qty</th><th>Order</th><th>Status</th></tr></thead><tbody>${cm.map(e => `<tr><td class="cb">${e.checked ? '☑' : '☐'}</td><td><b>${esc(e.name)}</b><div class="small">${esc([e.spec, e.colour].filter(Boolean).join(' · '))}</div><div class="small">${esc(e.areas.join(', '))}</div></td><td>${fq(e.qty)} ${esc(e.unit)}</td><td><b>${fq(e.order)}</b> ${esc(e.unit)}${e.waste === 'mixed' ? '<div class="small">mixed waste</div>' : num(e.waste) ? `<div class="small">+${e.waste}%</div>` : ''}</td><td>${esc(e.status)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="hint">No materials added yet.</p>'}
+    <div class="btns" style="margin-top:12px"><a class="btn primary" href="#/job/${job.id}/rfq/all">${I.pdf} Quote request - all materials</a><button type="button" class="btn navy" data-act="matcsv">${I.dl} Export schedule (CSV)</button><a class="btn" href="#/job/${job.id}/rfq/scaffold">${I.pdf} Generate scaffold quote request</a></div></div>`;
+}
+function viewMaterialsPage(job, o) {
+  if (o === 'job') {
+    const areaLinks = `<div class="card"><h2>By roof area</h2>${job.areas.map(a => `<a class="item" href="#/job/${job.id}/area/${a.id}/materials"><div class="th">${ICX.box.replace('<svg', '<svg width="26" height="26"')}</div><div class="bd"><div class="t1">${esc(a.name)}</div><div class="t2">${isWorks(job) && !a.matOn ? 'Not switched on for this area' : `${a.materials.length} item${a.materials.length === 1 ? '' : 's'} · ${a.materials.filter(m => m.checked).length} ticked`}</div></div>${I.chev}</a>`).join('') || '<p class="hint">No roof areas yet.</p>'}</div>`;
+    return `${hsStrip(job)}${combinedHTML(job)}${matListHTML(job, 'job')}${areaLinks}`;
+  }
+  return `${hsStrip(job)}${matListHTML(job, o)}<div class="btns"><a class="btn primary" href="#/job/${job.id}/rfq/${o}">${I.pdf} Quote request - this area</a><a class="btn" href="#/job/${job.id}/materials">Combined schedule ›</a></div>`;
+}
+function viewMat(job, o, m) {
+  const owner = ownerOf(job, o); const f = mk(job); const b = `${ownerBase(job, o)}materials#${m.id}`;
+  const q = matBaseQty(job, m, owner);
+  const links = o === 'job' ? [...job.areas.map(a => [`area:${a.id}`, `${a.name} (${areaM2(a)} m²)`]), ['areas', `All areas (${totalM2(job)} m²)`]] : [['area', `Use area (${areaM2(owner)} m²)`]];
+  return `${hsStrip(job)}<div class="card"><h2>${ICX.box.replace('<svg', '<svg width="22" height="22"')} Material <span class="prog" style="margin-left:auto">${esc(ownerName(job, o))}</span></h2>
+    <div class="f"><span class="lbl">Checklist</span><div class="mtick"><button type="button" class="mchk big ${m.checked ? 'on' : ''}" data-act="matcheck" data-o="${o}" data-id="${m.id}" aria-pressed="${!!m.checked}" aria-label="Tick">✓</button><span>${m.checked ? 'Ticked off' : 'Not ticked yet'}</span></div></div>
+    ${f.seg('Status', b + '.status', matStatuses(job).map(x => [x, x, x === 'Delivered' || (x === 'Ordered' && !isWorks(job)) ? 'ok' : x === 'Short' ? 'bad' : '']), { cls: 'yn' + (isWorks(job) ? ' st5' : '') })}
+    ${f.text('Item', b + '.name', { ph: 'e.g. Outer sheets - Firth N1000R' })}
+    <div class="f"><label for="${fid(b + '.cat')}">Category</label><select id="${fid(b + '.cat')}" data-b="${b}.cat"><option value="">Other / custom</option>${matLib().map(c => `<option value="${esc(c.key)}" ${m.cat === c.key ? 'selected' : ''}>${esc(c.title)}</option>`).join('')}</select></div>
+    ${f.text('Spec / description', b + '.spec', { ph: 'e.g. 0.7 mm, girth 600 mm, 3 bends' })}${f.text('Colour / finish', b + '.colour', { ph: 'e.g. RAL 7016 Anthracite' })}
+    <div class="row3"><div class="f"><label for="${fid(b + '.qty')}">Quantity</label><input id="${fid(b + '.qty')}" type="text" inputmode="decimal" data-b="${b}.qty" value="${esc(m.qtyFrom ? fq(q) : m.qty)}" ${m.qtyFrom ? 'disabled' : ''}></div>
+      ${f.select('Unit', b + '.unit', MAT_UNITS, { blank: '—' })}${f.text('Waste %', b + '.waste', { type: 'number', ph: '0' })}</div>
+    <div class="f"><span class="lbl">Link quantity to roof area</span>${m.qtyFrom ? `<div class="lg-msg ok" style="margin:0 0 8px">Linked to ${esc(linkLabel(job, m, owner))}. Updates when the area or pitch changes.</div><button type="button" class="btn block" data-act="matlink" data-o="${o}" data-id="${m.id}" data-v="">Unlink (enter quantity manually)</button>` : `<div class="btns">${links.map(([v, l]) => `<button type="button" class="btn" data-act="matlink" data-o="${o}" data-id="${m.id}" data-v="${v}">${esc(l)}</button>`).join('')}</div>`}</div>
+    <div class="f"><span class="lbl">Order quantity (incl. waste)</span><div class="calc" id="matorder"><span>${fq(orderQty(q, m.waste, m.unit))} ${esc(m.unit)}</span><small>${DISCRETE.has(m.unit) ? 'rounded up' : 'auto'}</small></div></div>
+    ${f.text('Supplier (optional)', b + '.supplier', { attr: 'list="dl_suppliers"' })}<datalist id="dl_suppliers">${[...new Set(matLines(job).map(l => l.m.supplier).filter(Boolean))].map(s => `<option value="${esc(s)}">`).join('')}</datalist>${f.area('Notes', b + '.notes', { rows: 2 })}</div>
+  <div class="card"><h2>${I.camera.replace('<svg', '<svg width="22" height="22"')} Photos</h2>${photoGrid(b + '.photos', m.photos)}</div>
+  <div class="btns"><a class="btn primary" href="${o === 'job' ? `#/job/${job.id}/materials` : `#/job/${job.id}/area/${o}/materials`}">Done</a><button type="button" class="btn" data-act="matdup" data-o="${o}" data-id="${m.id}">Duplicate</button><button type="button" class="btn danger" data-act="matdel" data-o="${o}" data-id="${m.id}">${I.trash} Delete</button></div>`;
+}
+
+/* ---------- Views: measurements ---------- */
+function viewMeasPage(job, o) {
+  const owner = ownerOf(job, o); const base = ownerBase(job, o); const f = mk(job);
+  const txt = owner.measurements.filter(m => m.kind === 'text'); const im = owner.measurements.filter(m => m.kind !== 'text');
+  const rows = txt.map(m => { const b = `${base}measurements#${m.id}`; return `<div class="mrec"><div class="ck-h"><input type="text" class="pit-l" id="${fid(b + '.label')}" data-b="${b}.label" value="${esc(m.label)}" placeholder="Label, e.g. Gutter run A-B" list="dl_measlabels" aria-label="Label"><button type="button" class="ck-x" data-act="measdel" data-o="${o}" data-id="${m.id}" aria-label="Remove">×</button></div>
+    <div class="g3"><div class="f"><label for="${fid(b + '.value')}">Value</label><input id="${fid(b + '.value')}" type="text" inputmode="decimal" data-b="${b}.value" value="${esc(m.value)}" placeholder="6.2 / 3050 x 1060"></div>${f.select('Unit', b + '.unit', MEAS_UNITS, { blank: '—' })}${f.text('Location', b + '.loc', { ph: 'Grid ref' })}</div>
+    <div class="ck-row"><input type="text" class="ck-c" data-b="${b}.notes" value="${esc(m.notes)}" placeholder="Notes (optional)"></div><div class="small mcalc" id="mc_${m.id}">${esc(measCalc(m))}</div></div>`; }).join('');
+  const d = o !== 'job' ? measDims(owner) : null;
+  return `${hsStrip(job)}<div class="card"><h2>${ICX.ruler.replace('<svg', '<svg width="22" height="22"')} Measurements <span class="prog" style="margin-left:auto">${txt.length}</span></h2>
+    <span class="lbl">Quick add</span><div class="chips" style="margin-bottom:12px">${MEAS_QUICK.map(([l, u]) => `<button type="button" data-act="measquick" data-o="${o}" data-l="${esc(l)}" data-u="${u}">${esc(l)}</button>`).join('')}</div>
+    <datalist id="dl_measlabels">${MEAS_QUICK.map(([l]) => `<option value="${esc(l)}">`).join('')}</datalist>
+    ${rows || '<p class="hint">No measurements yet. Tap a quick-add label above, or add your own.</p>'}
+    <button type="button" class="btn block" data-act="measadd" data-o="${o}">${I.plus} Add measurement</button>
+    <p class="hint" style="margin-top:8px">Tip: enter a size as "length x width" (e.g. 3050 x 1060 mm) and the area is worked out.</p></div>
+  ${d ? `<div class="card"><h2>Auto-calcs</h2><div class="calc" id="measarea"><span>${d.L && d.W ? `${r2(d.L)} × ${r2(d.W)} m = ${r2(d.L * d.W)} m²` : 'Add Length and Width'}</span><small>L × W</small></div>
+    <p class="hint" style="margin:8px 0">Roof area now: <b>${areaM2(owner)} m²</b> (${esc(owner.length || '-')} × ${esc(owner.width || '-')} m, ${owner.measured === 'plan' ? 'on plan' : 'on slope'}, pitch ${esc(owner.pitch || '-')}°). Plan dimensions are corrected for pitch.</p>
+    <button type="button" class="btn block" data-act="measuse" data-aid="${owner.id}" ${d.L && d.W ? '' : 'disabled'}>${I.wand} Use for roof area dimensions</button></div>` : ''}
+  <div class="card"><h2>${I.camera.replace('<svg', '<svg width="22" height="22"')} Photo &amp; sketch measurements <span class="prog" style="margin-left:auto">${im.length}</span></h2>
+    <div class="pgrid">${im.map(m => `<a class="ph" href="#/job/${job.id}/mpad/${o}/${m.id}" style="text-decoration:none;color:inherit">${m.data ? `<img src="${m.data}" alt="">` : `<div style="aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;background:#f3f6fa">${ICX.ruler}</div>`}<div class="pc"><span class="tag ${m.kind === 'photo' ? 'type-survey' : 'navy'}" style="align-self:flex-start">${m.kind === 'photo' ? 'Photo' : 'Sketch'}</span><b>${esc(m.caption || 'No caption')}</b></div></a>`).join('')}</div>
+    ${im.length ? '' : '<p class="hint">Mark up a photo with dimension lines, or draw a dimensioned sketch.</p>'}
+    <div class="addph" style="margin-top:12px"><label class="btn primary">${I.camera} Photo measurement<input type="file" accept="image/*" capture="environment" data-measphoto="${o}"></label><label class="btn">${I.image} From gallery<input type="file" accept="image/*" data-measphoto="${o}"></label></div>
+    <button type="button" class="btn block" style="margin-top:10px" data-act="measketch" data-o="${o}">${I.pen} Sketch measurement</button></div>`;
+}
+function viewMPad(job, o, m) {
+  const f = mk(job); const b = `${ownerBase(job, o)}measurements#${m.id}`; const photo = m.kind === 'photo';
+  return `<div class="card">${f.text('Caption', b + '.caption', { ph: photo ? 'e.g. Valley gutter girth, bay 4' : 'e.g. Roof plan with dimensions' })}${padHTML({ photo, col: photo ? '#f18902' : '#0f172a', tool: photo ? 'dim' : 'pen', grid: photo ? false : m.grid !== false, w: photo ? (m.w || 1200) : 1200, h: photo ? (m.h || 900) : 900 })}</div>
+  <div class="btns"><a class="btn primary" href="${o === 'job' ? `#/job/${job.id}/meas` : `#/job/${job.id}/area/${o}/meas`}">Done</a><button type="button" class="btn" data-act="skclear">Clear markup</button><button type="button" class="btn danger" data-act="measdel" data-o="${o}" data-id="${m.id}" data-back="1">${I.trash} Delete</button></div>`;
+}
+function areaExtrasCard(job, a) {
+  const tm = a.measurements.filter(m => m.kind === 'text').length, im = a.measurements.length - tm, tk = a.materials.filter(m => m.checked).length;
+  return `<div class="card"><h2>Measurements &amp; materials</h2>
+    <a class="item" href="#/job/${job.id}/area/${a.id}/meas"><div class="th">${ICX.ruler.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">Measurements</div><div class="t2">${tm} entr${tm === 1 ? 'y' : 'ies'} · ${im} photo / sketch</div></div>${I.chev}</a>
+    <a class="item" href="#/job/${job.id}/area/${a.id}/materials"><div class="th">${ICX.box.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">Materials required</div><div class="t2">${a.materials.length} item${a.materials.length === 1 ? '' : 's'} · ${tk} ticked</div></div>${I.chev}</a></div>`;
+}
+function roofsExtrasCard(job) {
+  const n = matLines(job).length, jm = job.measurements.length;
+  return `<div class="card"><h2>Site-wide &amp; schedules</h2>
+    <a class="item" href="#/job/${job.id}/materials"><div class="th">${ICX.box.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">Materials schedule</div><div class="t2">${n} line${n === 1 ? '' : 's'} · site-wide list · quote requests · CSV</div></div>${I.chev}</a>
+    <a class="item" href="#/job/${job.id}/meas"><div class="th">${ICX.ruler.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">Site-wide measurements</div><div class="t2">${jm} entr${jm === 1 ? 'y' : 'ies'}</div></div>${I.chev}</a></div>`;
+}
+
+/* ---------- Extra routes: returns {body,title,tab,back,after} | {redirect} | null ---------- */
+function viewExtra(job, r) {
+  const t = r[2];
+  if (t === 'scaffold') return { body: viewScaffold(job), title: 'Scaffolding & access', tab: 'safety', back: `#/job/${job.id}/safety` };
+  if (t === 'rfq' && r[3] === 'scaffold') return { body: viewRFQ(job, 'scaffold'), title: 'Scaffold quote request', tab: 'safety', back: `#/job/${job.id}/scaffold` };
+  if (isWorks(job) && (t === 'meas' || t === 'mpad' || (t === 'area' && r[4] === 'meas'))) return null;
+  if (t === 'materials') return { body: viewMaterialsPage(job, 'job'), title: isWorks(job) ? 'Materials required' : 'Materials schedule', tab: isWorks(job) ? 'details' : 'roofs', back: isWorks(job) ? `#/job/${job.id}/details` : `#/job/${job.id}/roofs` };
+  if (t === 'meas') return { body: viewMeasPage(job, 'job'), title: 'Site-wide measurements', tab: 'roofs', back: `#/job/${job.id}/roofs` };
+  if (t === 'rfq') { const sc = r[3] || 'all'; if (sc !== 'all' && !job.areas.find(a => a.id === sc)) return { redirect: `#/job/${job.id}/materials` }; return { body: viewRFQ(job, sc), title: 'Quote request', tab: 'roofs', back: sc === 'all' ? `#/job/${job.id}/materials` : `#/job/${job.id}/area/${sc}/materials` }; }
+  if (t === 'mat' || t === 'mpad') {
+    const o = r[3], owner = ownerOf(job, o); if (!owner) return { redirect: `#/job/${job.id}/roofs` };
+    const back = o === 'job' ? `#/job/${job.id}/${t === 'mat' ? 'materials' : 'meas'}` : `#/job/${job.id}/area/${o}/${t === 'mat' ? 'materials' : 'meas'}`;
+    if (t === 'mat') { const m = owner.materials.find(x => x.id === r[4]); if (!m) return { redirect: back }; return { body: viewMat(job, o, m), title: m.name || 'Material', tab: 'roofs', back }; }
+    const m = owner.measurements.find(x => x.id === r[4]); if (!m || m.kind === 'text') return { redirect: back };
+    const photo = m.kind === 'photo';
+    return { body: viewMPad(job, o, m), title: photo ? 'Photo measurement' : 'Sketch measurement', tab: 'roofs', back, after: () => initPad(job, m, { photo, col: photo ? '#f18902' : '#0f172a', tool: photo ? 'dim' : 'pen', grid: photo ? false : m.grid !== false }) };
+  }
+  if (t === 'area' && (r[4] === 'materials' || r[4] === 'meas')) {
+    const a = job.areas.find(x => x.id === r[3]); if (!a) return { redirect: `#/job/${job.id}/roofs` };
+    return { body: r[4] === 'materials' ? viewMaterialsPage(job, a.id) : viewMeasPage(job, a.id), title: `${r[4] === 'materials' ? 'Materials' : 'Measurements'} · ${a.name}`, tab: 'roofs', back: `#/job/${job.id}/area/${a.id}` };
+  }
+  return null;
+}
+
+/* ---------- Settings: materials library, pitch guidance, RFQ terms ---------- */
+const DEFAULT_RFQ_TERMS = 'Please quote including delivery to site. Prices excl. VAT. State lead times and validity.';
+function viewLibrary() {
+  if (!S.settings.matLib) S.settings.matLib = clone(DEFAULT_MATLIB);
+  if (!S.settings.pitchMins) S.settings.pitchMins = clone(DEFAULT_PITCHMINS);
+  const f = mk(S.settings);
+  const cats = S.settings.matLib.map((c, ci) => { const p = `matLib.${ci}`; return `<details class="sec"><summary>${esc(c.title)} <span class="prog">${c.items.length} items</span>${I.chv}</summary><div class="bd">
+    ${f.text('Category name', p + '.title')}
+    ${c.items.map((it, ii) => `<div class="ck"><input type="text" data-b="${p}.items.${ii}.name" value="${esc(it.name)}" aria-label="Item name"><input type="text" style="margin-top:8px" data-b="${p}.items.${ii}.spec" value="${esc(it.spec)}" placeholder="Spec / description" aria-label="Spec"><input type="text" style="margin-top:8px" data-b="${p}.items.${ii}.colour" value="${esc(it.colour || '')}" placeholder="Colour / finish (optional)" aria-label="Colour">
+      <div style="display:flex;gap:8px;margin-top:8px"><select data-b="${p}.items.${ii}.unit" style="flex:1" aria-label="Unit">${MAT_UNITS.map(u => `<option ${it.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select><input type="text" inputmode="decimal" data-b="${p}.items.${ii}.waste" value="${esc(it.waste ?? '')}" placeholder="Waste %" style="width:96px" aria-label="Waste %"><button class="btn" style="padding:0 14px" data-act="libmove" data-p="${p}" data-i="${ii}" data-d="-1" aria-label="Move up">↑</button><button class="btn danger" style="padding:0 14px" data-act="libitemdel" data-p="${p}" data-i="${ii}" aria-label="Delete">×</button></div></div>`).join('')}
+    <button class="btn block" data-act="libitemadd" data-p="${p}">${I.plus} Add item</button><div class="divider"></div><button class="btn danger block" data-act="libcatdel" data-i="${ci}">Delete this category</button></div></details>`; }).join('');
+  const pm = S.settings.pitchMins.map((g, i) => `<div class="ck"><input type="text" data-b="pitchMins.${i}.label" value="${esc(g.label)}" aria-label="Sheet / system"><div class="g2" style="margin-top:8px">${f.text('Minimum °', `pitchMins.${i}.min`, { type: 'number' })}${f.text('Recommended °', `pitchMins.${i}.rec`, { type: 'number' })}</div></div>`).join('');
+  return `<h2 class="sec-h" style="margin:8px 4px 0">MATERIALS LIBRARY</h2><p class="hint" style="margin:4px 4px 10px">Quick-pick items offered when adding materials to a survey. Items already added to audits are not changed.</p>${cats}
+    <button class="btn block" data-act="libcatadd">${I.plus} New category</button><button class="btn danger block" style="margin-top:10px" data-act="libreset">Reset library to defaults</button>
+    <div class="divider"></div><h2 class="sec-h" style="margin:8px 4px 0">ROOF PITCH GUIDANCE</h2><p class="hint" style="margin:4px 4px 10px"><b>Typical guidance - check manufacturer.</b> Readings below the minimum are flagged red, below the recommended pitch amber.</p>
+    <div class="card" id="pitchmins">${pm}<button class="btn danger block" data-act="pitchreset">Reset pitch guidance to defaults</button></div>
+    <div class="divider"></div><h2 class="sec-h" style="margin:8px 4px 0">QUOTE REQUESTS (RFQ)</h2>
+    <div class="card">${f.area('Default terms on quote requests', 'rfqTerms', { rows: 3, hint: 'Printed on every materials request for quotation.' })}<button class="btn" data-act="rfqtermsreset">Reset terms to default</button></div>`;
+}
+
+/* ---------- Materials request for quotation (RFQ) ---------- */
+const DELIV_QUICK = ['Offload by Moffett / forklift on site', 'No offloading equipment on site - tail-lift or crane offload', 'Restricted access - max rigid vehicle', 'Timed delivery slot - call 30 min before arrival', 'Deliver to site compound', 'Site induction required for drivers'];
+function rfqOf(job) {
+  if (!job.rfq || typeof job.rfq !== 'object') job.rfq = {};
+  return Object.assign(job.rfq, Object.assign({ quoteBy: '', address: '', postcode: '', town: '', contact: '', contactPhone: '', notes: '', showClient: false, cat: '', supplier: '', skipOrdered: false, replyName: '', replyEmail: '', seq: 0, log: [] }, job.rfq));
+}
+const pc2 = s => /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
+function siteTown(job) {
+  const parts = String(job.site.address || '').split(/[\n,]+/).map(s => s.trim()).filter(Boolean).filter(s => !pc2().test(s));
+  const t = parts.filter(s => !/^\d|unit|estate|park|road|lane|street|way|close|drive|avenue|industrial|business|trading/i.test(s));
+  return (t[t.length - 1] || parts[parts.length - 1] || '').replace(/\s+[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i, '');
+}
+function rfqReply(job) {
+  const r = rfqOf(job); const p = (typeof Cloud !== 'undefined' && Cloud.profile) || {};
+  return { name: r.replyName || p.full_name || S.settings.surveyor || '', email: r.replyEmail || p.email || S.settings.email || 'info@absoluteroofingsolutions.co.uk', phone: S.settings.phone || '' };
+}
+const rfqNextRef = job => `${job.ref}-RFQ-${String((rfqOf(job).seq || 0) + 1).padStart(2, '0')}`;
+function rfqScopeLines(job, sc) { return matLines(job, sc === 'all' ? undefined : sc).filter(l => String(l.m.name || '').trim()); }
+function rfqLines(job, sc, f = {}) {
+  const cats = matLib(); const ck = m => cats.some(c => c.key === m.cat) ? m.cat : '_';
+  let ls = rfqScopeLines(job, sc);
+  if (f.cat) ls = ls.filter(l => ck(l.m) === f.cat);
+  if (f.supplier) ls = ls.filter(l => f.supplier === '_none' ? !String(l.m.supplier || '').trim() : String(l.m.supplier || '').trim().toLowerCase() === f.supplier.toLowerCase());
+  if (f.skipOrdered) ls = ls.filter(l => l.m.status !== 'Ordered');
+  const ord = k => { const i = cats.findIndex(c => c.key === k); return i < 0 ? 999 : i; };
+  return combineLines(ls).map(e => Object.assign(e, { catKey: ck(e.lines[0].m), catName: ck(e.lines[0].m) === '_' ? 'Other / custom' : catTitle(e.cat) })).sort((a, b) => ord(a.catKey) - ord(b.catKey) || 0);
+}
+function rfqFilterText(f) { return [f.cat ? 'Category: ' + (f.cat === '_' ? 'Other / custom' : catTitle(f.cat)) : '', f.supplier ? 'Supplier: ' + (f.supplier === '_none' ? 'items with no supplier' : f.supplier) : '', f.skipOrdered ? 'excluding items already ordered' : ''].filter(Boolean).join(' · '); }
+function rfqLocation(job) {
+  const r = rfqOf(job); const town = r.town || siteTown(job); const pcd = r.postcode || job.site.postcode || '';
+  return { town, postcode: pcd, short: [town, pcd].filter(Boolean).join(', '), address: (r.address || job.site.address || '').replace(/\n/g, ', ') };
+}
+function rfqCSV(job, sc, ref) {
+  if (sc === 'scaffold') {
+    const r = rfqOf(job); const loc = rfqLocation(job);
+    const rows = [['REQUEST FOR QUOTATION - SCAFFOLDING & ACCESS'], ['RFQ ref', ref], ['Date', fmtDate(todayISO())], ['Quote required by', fmtDate(r.quoteBy)], ['Site', r.showClient ? [loc.address, loc.postcode].filter(Boolean).join(', ') : loc.short], ['Building', buildingInfo(job).replace(/\n/g, '; ')], [], ['Line', 'Item', 'Qty', 'Unit', 'Location / elevation', 'Notes', 'Status', 'Price (£)', 'Hire period / weekly hire', 'Lead time']];
+    scafLines(job).forEach((i, n) => rows.push([n + 1, i.text + (i.mewpType ? ' - ' + i.mewpType : ''), i.qty, i.qty ? i.unit : '', i.loc, i.notes, i.status, '', '', '']));
+    return toCSV(rows);
+  }
+  const r = rfqOf(job); const loc = rfqLocation(job); const ls = rfqLines(job, sc, r);
+  const rows = [['REQUEST FOR QUOTATION - MATERIALS'], ['RFQ ref', ref], ['Date', fmtDate(todayISO())], ['Quote required by', fmtDate(r.quoteBy)], ['Delivery', r.showClient ? [loc.address, loc.postcode].filter(Boolean).join(', ') : loc.short], ['Scope', sc === 'all' ? 'All materials' : ownerName(job, sc)]];
+  if (r.showClient && job.client.name) rows.push(['Client', job.client.name]);
+  const ft = rfqFilterText(r); if (ft) rows.push(['Filter', ft]);
+  rows.push([], ['Line', 'Category', 'Item', 'Spec / description', 'Colour / finish', 'Qty (incl. waste)', 'Unit', 'Notes', 'Unit price (£)', 'Total (£)', 'Lead time']);
+  ls.forEach((e, i) => rows.push([i + 1, e.catName, e.name, e.spec, e.colour, (e.order || e.qty) ? fq(e.order || e.qty) : 'TBC', e.unit, e.notes.join('; '), '', '', '']));
+  return toCSV(rows);
+}
+function rfqYN(r, key, label, hint) { return `<div class="f"><span class="lbl">${label}</span><div class="seg yn" data-rfqtog="${key}" role="group" aria-label="${esc(label)}"><button type="button" data-v="0" class="${!r[key] ? 'on' : ''}" aria-pressed="${!r[key]}">No</button><button type="button" data-v="1" class="${r[key] ? 'on' : ''}" aria-pressed="${!!r[key]}">Yes</button></div>${hint ? `<p class="hint">${hint}</p>` : ''}</div>`; }
+function rfqDeliveryHTML(job, sc) {
+  const r = rfqOf(job); const f = mk(job); const rp = rfqReply(job); const yn = (k, l, h) => rfqYN(r, k, l, h);
+  return `  <div class="card"><h2>Delivery</h2>
+    ${yn('showClient', 'Show client name on the RFQ', r.showClient ? 'The client name, site name and full delivery address are shown.' : 'Hidden for confidentiality: only the site town and postcode are shown (full delivery address confirmed on order).')}
+    ${f.area('Delivery address', 'rfq.address', { rows: 2, ph: job.site.address || 'Site address', hint: r.address ? '' : 'Blank = the site address from Details.' })}
+    <div class="g2">${f.text('Town', 'rfq.town', { ph: siteTown(job) || 'Town' })}${f.text('Postcode', 'rfq.postcode', { ph: job.site.postcode || 'Postcode' })}</div>
+    <div class="g2">${f.text('Site contact', 'rfq.contact', { ph: job.client.contact || 'Name' })}${f.text('Contact phone', 'rfq.contactPhone', { type: 'tel', ph: job.client.phone || 'Phone' })}</div>
+    <span class="lbl">Delivery notes - quick add</span><div class="chips" style="margin-bottom:10px">${DELIV_QUICK.map(t => `<button type="button" data-act="rfqnote" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+    ${f.area('Delivery notes', 'rfq.notes', { rows: 3, ph: 'e.g. Offloading by Moffett, restricted access, delivery times' })}</div>
+  <div class="card"><h2>Reply to</h2><div class="g2">${f.text('Name', 'rfq.replyName', { ph: rp.name })}${f.text('Email', 'rfq.replyEmail', { type: 'email', ph: rp.email })}</div><p class="hint">Blank = your name and email. Terms are set in Settings: "${esc(S.settings.rfqTerms || DEFAULT_RFQ_TERMS)}"</p></div>`;
+}
+function viewRFQ(job, sc) {
+  if (sc === 'scaffold') return viewScafRFQ(job);
+  const r = rfqOf(job); const f = mk(job); const loc = rfqLocation(job); const scopeLines = rfqScopeLines(job, sc);
+  const cats = matLib(); const ck = m => cats.some(c => c.key === m.cat) ? m.cat : '_';
+  const catOpts = [...new Set(scopeLines.map(l => ck(l.m)))]; const sups = [...new Set(scopeLines.map(l => String(l.m.supplier || '').trim()).filter(Boolean))];
+  if (r.cat && !catOpts.includes(r.cat)) r.cat = ''; if (r.supplier && r.supplier !== '_none' && !sups.some(s => s.toLowerCase() === r.supplier.toLowerCase())) r.supplier = '';
+  const ls = rfqLines(job, sc, r); const rp = rfqReply(job);
+  const yn = (k, l, h) => rfqYN(r, k, l, h);
+  return `${hsStrip(job)}<div class="card"><h2>${I.pdf.replace('<svg', '<svg width="22" height="22"')} Request for quotation <span class="prog" style="margin-left:auto">${esc(sc === 'all' ? 'All materials' : ownerName(job, sc))}</span></h2>
+    <p class="hint" style="margin:-4px 0 10px">Makes a separate PDF to send to suppliers for prices. It lists the materials only, with order quantities including waste. No client pricing and no survey defects.</p>
+    <div class="calc"><span>${esc(rfqNextRef(job))}</span><small>next ref</small></div>
+    <div style="height:10px"></div>${f.text('Quote required by', 'rfq.quoteBy', { type: 'date' })}</div>
+  <div class="card"><h2>What to include</h2>
+    <div class="g2"><div class="f"><label for="rfq_cat">Category</label><select id="rfq_cat" data-b="rfq.cat" data-rfqf="1"><option value="">All categories</option>${catOpts.map(k => `<option value="${esc(k)}" ${r.cat === k ? 'selected' : ''}>${esc(k === '_' ? 'Other / custom' : catTitle(k))}</option>`).join('')}</select></div>
+    <div class="f"><label for="rfq_sup">Supplier</label><select id="rfq_sup" data-b="rfq.supplier" data-rfqf="1"><option value="">All suppliers</option>${sups.map(s => `<option value="${esc(s)}" ${r.supplier.toLowerCase() === s.toLowerCase() ? 'selected' : ''}>${esc(s)}</option>`).join('')}<option value="_none" ${r.supplier === '_none' ? 'selected' : ''}>No supplier set</option></select></div></div>
+    ${yn('skipOrdered', 'Leave out items already ordered')}
+    <div id="rfqprev">${ls.length ? `<div class="tblwrap"><table class="mtbl" id="rfqtbl"><thead><tr><th>#</th><th>Item</th><th>Qty</th></tr></thead><tbody>${ls.map((e, i) => `${i === 0 || ls[i - 1].catKey !== e.catKey ? `<tr class="grp"><td colspan="3">${esc(e.catName)}</td></tr>` : ''}<tr><td>${i + 1}</td><td><b>${esc(e.name)}</b><div class="small">${esc([e.spec, e.colour].filter(Boolean).join(' · '))}</div></td><td><b>${fq(e.order || e.qty)}</b> ${esc(e.unit)}</td></tr>`).join('')}</tbody></table></div><p class="hint">${ls.length} line${ls.length === 1 ? '' : 's'}. Quantities are order quantities including waste.</p>` : `<div class="lg-msg warn">No materials match${scopeLines.length ? ' this filter' : ' - add materials first'}.</div>`}</div></div>
+${rfqDeliveryHTML(job, sc)}
+  <button class="btn primary block" id="genrfq" data-act="genrfq" data-sc="${sc}" ${ls.length ? '' : 'disabled'}>${I.pdf} Generate quote request PDF</button>
+  <div id="rfqout" style="margin-top:10px">${S.rfq && S.rfq.jobId === job.id && S.rfq.sc === sc ? rfqButtons() : ''}</div>
+  <button class="btn block" style="margin-top:10px" data-act="rfqcsv" data-sc="${sc}" ${ls.length ? '' : 'disabled'}>${I.dl} Export this list (CSV)</button>
+  ${r.log.length ? `<div class="card" style="margin-top:14px"><h2>Previous quote requests</h2>${r.log.slice().reverse().map(x => `<div class="small" style="padding:6px 0;border-bottom:1px solid #e3e9f1"><b>${esc(x.ref)}</b> · ${esc(fmtDate(x.date))} · ${esc(x.scope)}${x.filter ? ' · ' + esc(x.filter) : ''} · ${x.lines} line${x.lines === 1 ? '' : 's'}</div>`).join('')}</div>` : ''}`;
+}
+const rfqButtons = () => `<div class="lg-msg ok" style="margin:0 0 8px">${esc(S.rfq.ref)} ready - ${S.rfq.lines} line${S.rfq.lines === 1 ? '' : 's'}, ${S.rfq.pages} page${S.rfq.pages === 1 ? '' : 's'}.</div><div class="btns">${navigator.canShare && navigator.canShare({ files: [new File([''], 'x.pdf', { type: 'application/pdf' })] }) ? `<button class="btn navy" data-act="rfqshare">${I.share} Share / email</button>` : ''}<button class="btn" data-act="rfqdl">${I.dl} Download</button><button class="btn" data-act="rfqopen">${I.eye} Open</button></div>`;
+
+async function buildRFQ(job, sc, ref) {
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+  const st = S.settings; const r = rfqOf(job); const loc = rfqLocation(job); const rp = rfqReply(job); const SCF = sc === 'scaffold'; const ls = SCF ? scafLines(job) : rfqLines(job, sc, r);
+  const W = 210, H = 297, M = 14, CW = W - 2 * M, TOP = 20, BOT = H - 16;
+  const NAVY = [15, 37, 66], OR = [241, 137, 2], GREY = [90, 102, 120], LIGHT = [241, 244, 248], LINE = [205, 214, 226], TXT = [22, 30, 42];
+  const tx = s => String(s ?? '').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/\u2026/g, '...').replace(/[\u2022\u25CF\u00B7]/g, '-').replace(/\u00D7/g, 'x').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
+  const fmtImg = d => /^data:image\/png/.test(d) ? 'PNG' : 'JPEG';
+  const font = (size, style = 'normal', c = TXT) => { doc.setFont('helvetica', style); doc.setFontSize(size); doc.setTextColor(...c); };
+  const hasLogo = !!(st.logo && st.logoW);
+  let y;
+  /* letterhead */
+  if (hasLogo) { const lw = Math.min(60, st.logoW * 25.4 / 150), lh = lw * st.logoH / st.logoW; doc.addImage(st.logo, fmtImg(st.logo), M, 11, lw, lh, 'logo', 'FAST'); }
+  else { font(16, 'bold', NAVY); doc.text(tx(st.company), M, 20); }
+  font(8.5, 'bold', NAVY); doc.text(tx(st.company), W - M, 13, { align: 'right' });
+  font(8, 'normal', GREY); [st.address, st.phone ? 'Tel: ' + st.phone : '', st.email, st.website].filter(Boolean).flatMap(l => doc.splitTextToSize(tx(l), 84)).forEach((l, i) => doc.text(l, W - M, 18 + i * 4.1, { align: 'right' }));
+  doc.setFillColor(...OR); doc.rect(0, 38, W, 1.2, 'F');
+  doc.setFillColor(...NAVY); doc.rect(0, 39.2, W, 20, 'F');
+  font(15.5, 'bold', [255, 255, 255]); doc.text(SCF ? 'REQUEST FOR QUOTATION - SCAFFOLDING & ACCESS' : 'REQUEST FOR QUOTATION - MATERIALS', M, 49);
+  font(10, 'bold', OR); doc.text(tx(`RFQ REF: ${ref}`), M, 55.5);
+  y = 66;
+  /* details grid */
+  const site = r.showClient ? tx([job.site.name, loc.address, loc.postcode].filter(Boolean).join(', ')) : tx(loc.short);
+  const L = [['RFQ ref', ref], ['Date issued', fmtDate(todayISO())], ['Quote required by', r.quoteBy ? fmtDate(r.quoteBy) : 'As soon as possible'], ['Project ref', job.ref], ['Scope', SCF ? 'Scaffolding & access (from site survey)' : sc === 'all' ? 'All materials (combined, by category)' : 'Roof area: ' + ownerName(job, sc)]];
+  const ft = SCF ? '' : rfqFilterText(r); if (ft) L.push(['Filter', ft]);
+  if (SCF && buildingInfo(job)) L.push(['Building', buildingInfo(job)]);
+  const R = [];
+  if (r.showClient && job.client.name) R.push(['Client', job.client.name]);
+  R.push(['Delivery to', r.showClient ? [loc.address, loc.postcode].filter(Boolean).join(', ') || '-' : (loc.short || '-') + '\n(full delivery address confirmed on order)']);
+  if (r.showClient && job.site.name) R.splice(R.length - 1, 0, ['Site', job.site.name]);
+  const contact = [r.contact || job.client.contact, r.contactPhone || job.client.phone].filter(Boolean).join(', ');
+  R.push(['Site contact', contact || 'Via ' + (st.company || 'ARS') + ' (see reply-to)']);
+  R.push(['Reply to', [rp.name, rp.email].filter(Boolean).join('\n')]);
+  const rows = []; for (let i = 0; i < Math.max(L.length, R.length); i++) rows.push([...(L[i] || ['', '']), ...(R[i] || ['', ''])].map(tx));
+  const tb = { margin: { left: M, right: M, top: TOP + 4, bottom: H - BOT + 2 }, styles: { font: 'helvetica', fontSize: 8.6, cellPadding: 1.7, textColor: TXT, lineColor: LINE, lineWidth: 0.2, overflow: 'linebreak' } };
+  doc.autoTable(Object.assign({}, tb, { startY: y, theme: 'grid', body: rows, columnStyles: { 0: { cellWidth: 30, fontStyle: 'bold', fillColor: LIGHT, textColor: NAVY }, 1: { cellWidth: 61 }, 2: { cellWidth: 28, fontStyle: 'bold', fillColor: LIGHT, textColor: NAVY }, 3: { cellWidth: 63 } } }));
+  y = doc.lastAutoTable.finalY + 4;
+  if (r.notes) {
+    const nl = doc.splitTextToSize(tx(r.notes), CW - 8); const h = 7 + nl.length * 4;
+    doc.setFillColor(255, 247, 235); doc.setDrawColor(...OR); doc.setLineWidth(0.3); doc.rect(M, y, CW, h, 'FD');
+    font(8, 'bold', OR); doc.text('DELIVERY NOTES', M + 3, y + 4.6); font(8.8, 'normal', TXT); doc.text(nl, M + 3, y + 9); y += h + 4;
+  }
+  font(9.5, 'normal', TXT); doc.text(doc.splitTextToSize(tx(SCF ? `Please quote for the scaffolding and access below${r.quoteBy ? ` by ${fmtDate(r.quoteBy)}` : ''}, including erection, dismantling, design (TG20 compliance sheet or bespoke design as noted), handover certificate and statutory inspections. Quantities and locations are from our site survey and are approximate - please visit site or confirm. Quote ${ref} on your reply.` : `Please provide your best price for supplying the materials below${r.quoteBy ? ` by ${fmtDate(r.quoteBy)}` : ''}. Quantities are order quantities and include a waste allowance. Please complete the shaded columns or attach your own quotation quoting ${ref}.`), CW), M, y + 2); y += 12;
+  /* items table */
+  if (SCF) {
+    const body = []; let n = 0; const grp = t => body.push([{ content: t, colSpan: 10, styles: { fillColor: [226, 233, 242], textColor: NAVY, fontStyle: 'bold', fontSize: 8, halign: 'left' } }]);
+    const sc1 = ls.filter(i => i.kind !== 'design'), sd = ls.filter(i => i.kind === 'design');
+    if (sc1.length) { grp('SCAFFOLDING & ACCESS'); sc1.forEach(i => { n++; body.push([n, tx(i.text + (i.mewpType ? ` - ${i.mewpType}` : '')), tx(i.qty || '-'), tx(i.qty ? i.unit : ''), tx(i.loc), tx(i.notes), tx(i.status), '', '', '']); }); }
+    if (sd.length) { grp('DESIGN, HANDOVER & INSPECTION'); sd.forEach(i => { n++; body.push([n, tx(i.text), '', '', tx(i.loc), tx(i.notes), tx(i.status), '', '', '']); }); }
+    const SUP = [7, 8, 9];
+    doc.autoTable(Object.assign({}, tb, {
+      startY: y, theme: 'grid', rowPageBreak: 'avoid', head: [['No.', 'Item', 'Qty', 'Unit', 'Location / elevation', 'Notes', 'Status', 'Price', 'Hire period / weekly hire', 'Lead time']], body,
+      styles: Object.assign({}, tb.styles, { fontSize: 7.6, cellPadding: 1.4, valign: 'middle' }), headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', fontSize: 7.4, valign: 'middle' },
+      columnStyles: { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 46, fontStyle: 'bold' }, 2: { cellWidth: 11, halign: 'right', fontStyle: 'bold' }, 3: { cellWidth: 11 }, 4: { cellWidth: 25 }, 5: { cellWidth: 27 }, 6: { cellWidth: 16 }, 7: { cellWidth: 13 }, 8: { cellWidth: 14 }, 9: { cellWidth: 11 } },
+      didParseCell: d => { if (SUP.includes(d.column.index)) { if (d.section === 'head') d.cell.styles.fillColor = OR; else if (!d.cell.colSpan || d.cell.colSpan === 1) { d.cell.styles.fillColor = [255, 250, 240]; d.cell.styles.minCellHeight = 7; } } if (d.section === 'body' && d.column.index === 6 && d.cell.raw === 'TBC') d.cell.styles.textColor = OR; },
+    }));
+  } else {
+  const body = []; let n = 0;
+  ls.forEach((e, i) => {
+    if (i === 0 || ls[i - 1].catKey !== e.catKey) body.push([{ content: tx(e.catName.toUpperCase()), colSpan: 11, styles: { fillColor: [226, 233, 242], textColor: NAVY, fontStyle: 'bold', fontSize: 8, halign: 'left' } }]);
+    n++; body.push([n, e.catName, e.name, e.spec, e.colour, (e.order || e.qty) ? fq(e.order || e.qty) : 'TBC', e.unit, e.notes.join('; '), '', '', ''].map(v => typeof v === 'string' ? tx(v) : v));
+  });
+  const SUP = [8, 9, 10];
+  doc.autoTable(Object.assign({}, tb, {
+    startY: y, theme: 'grid', rowPageBreak: 'avoid', head: [['No.', 'Category', 'Item', 'Spec / description', 'Colour / finish', 'Qty', 'Unit', 'Notes', 'Unit price', 'Total', 'Lead time']], body,
+    styles: Object.assign({}, tb.styles, { fontSize: 7.5, cellPadding: 1.4, valign: 'middle' }),
+    headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', fontSize: 7.4, valign: 'middle' },
+    columnStyles: { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 17 }, 2: { cellWidth: 28, fontStyle: 'bold' }, 3: { cellWidth: 31 }, 4: { cellWidth: 17 }, 5: { cellWidth: 11, halign: 'right', fontStyle: 'bold' }, 6: { cellWidth: 10 }, 7: { cellWidth: 19 }, 8: { cellWidth: 15 }, 9: { cellWidth: 14 }, 10: { cellWidth: 12 } },
+    didParseCell: d => { if (SUP.includes(d.column.index)) { if (d.section === 'head') d.cell.styles.fillColor = OR; else if (!d.cell.colSpan || d.cell.colSpan === 1) { d.cell.styles.fillColor = [255, 250, 240]; d.cell.styles.minCellHeight = 7; } } },
+  }));
+  }
+  y = doc.lastAutoTable.finalY;
+  font(7.2, 'italic', GREY); doc.text('Shaded columns to be completed by the supplier. Unit price and total excl. VAT.', M, y + 3.6); y += 7;
+  /* supplier totals */
+  const need = h => { if (y + h > BOT) { doc.addPage(); y = TOP + 6; } };
+  need(36);
+  doc.autoTable(Object.assign({}, tb, { startY: y, theme: 'grid', margin: { left: W - M - 86, right: M }, body: SCF ? [['Erect & dismantle (£)', ''], ['Min. hire period', ''], ['Weekly hire after (£)', ''], ['Total excl. VAT (£)', ''], ['Quote valid until', ''], ['Your quote ref', '']] : [['Delivery charge (£)', ''], ['Total excl. VAT (£)', ''], ['Quote valid until', ''], ['Your quote ref', '']], columnStyles: { 0: { cellWidth: 40, fontStyle: 'bold', fillColor: LIGHT, textColor: NAVY }, 1: { cellWidth: 46, fillColor: [255, 250, 240], minCellHeight: 6.5 } } }));
+  const ty = doc.lastAutoTable.finalY;
+  /* terms + reply-to (left of totals) */
+  const terms = tx(SCF ? 'Please quote for erection, hire and dismantling including transport. Include design (TG20 compliance sheet or bespoke design), handover certificate and 7-day / adverse weather inspections. Prices excl. VAT. State minimum hire period, lead times and validity.' : (st.rfqTerms || DEFAULT_RFQ_TERMS)); const tw = CW - 92;
+  font(8, 'bold', NAVY); doc.text('TERMS', M, y + 3.5); font(8.6, 'normal', TXT); const tl = doc.splitTextToSize(terms, tw); doc.text(tl, M, y + 8);
+  let ly = y + 8 + tl.length * 3.9 + 3;
+  font(8, 'bold', NAVY); doc.text('PLEASE REPLY TO', M, ly); font(8.6, 'normal', TXT);
+  [rp.name, rp.email, rp.phone ? 'Tel: ' + rp.phone : '', st.company].filter(Boolean).forEach((l, i) => doc.text(tx(l), M, ly + 4.5 + i * 4));
+  y = Math.max(ty, ly + 4.5 + 4 * 4) + 6;
+  need(26);
+  doc.setDrawColor(...LINE); doc.setLineWidth(0.3); doc.rect(M, y, CW, 20);
+  font(8, 'bold', NAVY); doc.text('SUPPLIER', M + 3, y + 5);
+  font(7.6, 'normal', GREY); [['Company', M + 3], ['Name', M + 64], ['Signature', M + 108], ['Date', M + 152]].forEach(([t, x]) => { doc.text(t, x, y + 16.5); doc.setDrawColor(...LINE); doc.line(x, y + 13, x + (t === 'Date' ? 24 : t === 'Company' ? 56 : 40), y + 13); });
+  /* header / footer */
+  const np = doc.getNumberOfPages(); const footLine = tx([st.company, st.phone ? 'Tel: ' + st.phone : '', st.email].filter(Boolean).join('  |  '));
+  for (let i = 1; i <= np; i++) {
+    doc.setPage(i);
+    if (i > 1) {
+      if (hasLogo) { const lh = 7, lw = lh * st.logoW / st.logoH; doc.addImage(st.logo, fmtImg(st.logo), M, 5, lw, lh, 'logo', 'FAST'); } else { font(8.5, 'bold', NAVY); doc.text(tx(st.company), M, 11); }
+      font(7.8, 'bold', NAVY); doc.text(tx(`Request for quotation - ${SCF ? 'scaffolding & access' : 'materials'}  |  ${ref}`), W - M, 9, { align: 'right' });
+      doc.setDrawColor(...OR); doc.setLineWidth(0.6); doc.line(M, 14, W - M, 14);
+    }
+    doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.line(M, H - 11, W - M, H - 11);
+    font(7.2, 'normal', GREY); doc.text(footLine, M, H - 6.5); font(7.2, 'bold', NAVY); doc.text(`${tx(ref)}  |  Page ${i} of ${np}`, W - M, H - 6.5, { align: 'right' });
+  }
+  doc.setProperties({ title: tx(`Request for Quotation - ${SCF ? 'Scaffolding & Access' : 'Materials'} - ${ref}`), author: tx(st.company), subject: tx(loc.short), creator: 'ARS Site Audit' });
+  const tag = sc === 'all' || SCF ? '' : '_' + safeName(ownerName(job, sc));
+  return { blob: doc.output('blob'), name: `${safeName(ref)}_${SCF ? 'Scaffold' : 'Materials'}-RFQ${tag}.pdf`, pages: np, lines: ls.length, ref };
+}
+
+/* ---------- Actions ---------- */
+const matOwnerPage = (job, o) => o === 'job' ? `#/job/${job.id}/materials` : `#/job/${job.id}/area/${o}/materials`;
+Object.assign(ACTIONS, {
+  pitchadd(a, job) { const ar = job.areas.find(x => x.id === a.dataset.aid); ar.pitches.push(newPitch({ label: ar.pitches.length ? '' : 'Main slope' })); markDirty(job); refreshPitchCard(job, ar); },
+  async pitchdel(a, job) {
+    const ar = job.areas.find(x => x.id === a.dataset.aid); const p = ar.pitches.find(x => x.id === a.dataset.pid); if (!p) return;
+    if (!await confirmBox('Remove pitch reading?', `"${p.label || 'Reading'}" will be removed.`, 'Remove')) return;
+    const first = ar.pitches[0] === p; ar.pitches = ar.pitches.filter(x => x !== p);
+    if (first) ar.pitch = ar.pitches[0] ? ar.pitches[0].deg : ar.pitch; markDirty(job); refreshPitchCard(job, ar); areaPitchDOM(ar);
+  },
+  async pitchphone(a, job) {
+    const ar = job.areas.find(x => x.id === a.dataset.aid); const d = await measurePitchWithPhone(); if (d == null) return;
+    let p = a.dataset.pid ? ar.pitches.find(x => x.id === a.dataset.pid) : null;
+    if (!p) { p = newPitch({ label: ar.pitches.length ? `Phone reading ${ar.pitches.length + 1}` : 'Main slope' }); ar.pitches.push(p); }
+    setPitchValue(job, ar, p, d, 'Phone (approx.)'); markDirty(job); refreshPitchCard(job, ar); areaPitchDOM(ar); toast(`Pitch ${p.deg}° saved (approx.)`);
+  },
+  async matlib(a, job) {
+    const o = a.dataset.o; const owner = ownerOf(job, o); const lib = matLib(); const sel = new Set(); let q = '';
+    const list = () => lib.map((c, ci) => { const its = c.items.map((it, ii) => [it, ii]).filter(([it]) => !q || q.split(/\s+/).every(w => (c.title + ' ' + it.name + ' ' + it.spec).toLowerCase().includes(w.replace(/s$/, '')))); return its.length ? `<h3 class="mcat">${esc(c.title)}</h3>${its.map(([it, ii]) => `<button type="button" class="libit ${sel.has(ci + ':' + ii) ? 'on' : ''}" data-k="${ci}:${ii}"><span class="mchk ${sel.has(ci + ':' + ii) ? 'on' : ''}">✓</span><span><b>${esc(it.name)}</b><small>${esc([it.spec, it.colour, it.unit].filter(Boolean).join(' · '))}</small></span></button>`).join('')}` : ''; }).join('') || '<p class="hint">No matches - close and add a custom item.</p>';
+    const r = await modal(`<h3>Add from materials library</h3><input type="search" id="libq" placeholder="Search, e.g. rooflight, fixings"><div class="liblist" id="liblist">${list()}</div><div style="height:10px"></div><button class="btn primary" data-r="add" id="libadd">Add selected</button><button class="btn" data-r="">Cancel</button>`, bg => {
+      const L = $('#liblist', bg); const upd = () => { L.innerHTML = list(); $('#libadd', bg).textContent = sel.size ? `Add ${sel.size} selected` : 'Add selected'; };
+      $('#libq', bg).addEventListener('input', e => { q = e.target.value.trim().toLowerCase(); upd(); });
+      L.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('.libit'); if (!b) return; const k = b.dataset.k; sel.has(k) ? sel.delete(k) : sel.add(k); upd(); });
+    });
+    if (r !== 'add' || !sel.size) return;
+    [...sel].forEach(k => { const [ci, ii] = k.split(':').map(Number); const c = lib[ci], it = c.items[ii]; const m = newMat({ cat: c.key, name: it.name, spec: it.spec || '', colour: it.colour || '', unit: it.unit || 'nr', waste: it.waste ? String(it.waste) : '' }); if (o !== 'job' && it.unit === 'm²' && ['sheets', 'insulation', 'membranes', 'spacers'].includes(c.key)) m.qtyFrom = 'area'; owner.materials.push(m); });
+    markDirty(job); rerender(); toast(`${sel.size} item${sel.size === 1 ? '' : 's'} added`);
+  },
+  matadd(a, job) { const o = a.dataset.o; const m = newMat(); ownerOf(job, o).materials.push(m); markDirty(job); go(`#/job/${job.id}/mat/${o}/${m.id}`); },
+  matcheck(a, job) { const m = ownerOf(job, a.dataset.o).materials.find(x => x.id === a.dataset.id); m.checked = !m.checked; markDirty(job); rerender(); },
+  matlink(a, job) { const o = a.dataset.o; const owner = ownerOf(job, o); const m = owner.materials.find(x => x.id === a.dataset.id); if (!a.dataset.v) { m.qty = fq(matBaseQty(job, m, owner)); m.qtyFrom = ''; } else { m.qtyFrom = a.dataset.v; if (m.unit !== 'm²') m.unit = 'm²'; } markDirty(job); rerender(); },
+  matdup(a, job) { const o = a.dataset.o; const owner = ownerOf(job, o); const m = owner.materials.find(x => x.id === a.dataset.id); const n = reId(clone(m)); n.checked = false; owner.materials.splice(owner.materials.indexOf(m) + 1, 0, n); markDirty(job); go(`#/job/${job.id}/mat/${o}/${n.id}`); toast('Item duplicated'); },
+  async matdel(a, job) { const o = a.dataset.o; const owner = ownerOf(job, o); const m = owner.materials.find(x => x.id === a.dataset.id); if (!await confirmBox('Delete material?', `"${m.name || 'Item'}" will be removed.`, 'Delete')) return; owner.materials = owner.materials.filter(x => x !== m); markDirty(job); go(matOwnerPage(job, o)); },
+  matcsv(a, job) { download(new Blob([matCSV(job)], { type: 'text/csv;charset=utf-8' }), `${safeName(job.ref)}_Materials-Schedule.csv`); toast('Materials schedule exported'); },
+  measquick(a, job) { const o = a.dataset.o; const m = newMeas('text', { label: a.dataset.l, unit: a.dataset.u }); ownerOf(job, o).measurements.push(m); markDirty(job); rerender(); setTimeout(() => { const el = document.getElementById(fid(`${ownerBase(job, o)}measurements#${m.id}.value`)); if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); } }, 30); },
+  measadd(a, job) { const o = a.dataset.o; const m = newMeas('text'); ownerOf(job, o).measurements.push(m); markDirty(job); rerender(); setTimeout(() => { const el = document.getElementById(fid(`${ownerBase(job, o)}measurements#${m.id}.label`)); if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); } }, 30); },
+  async measdel(a, job) { const o = a.dataset.o; const owner = ownerOf(job, o); const m = owner.measurements.find(x => x.id === a.dataset.id); if (!m) return; if ((m.kind !== 'text' || m.value) && !await confirmBox('Remove measurement?', `"${m.label || m.caption || 'Measurement'}" will be removed.`, 'Remove')) return; owner.measurements = owner.measurements.filter(x => x !== m); markDirty(job); if (a.dataset.back) go(o === 'job' ? `#/job/${job.id}/meas` : `#/job/${job.id}/area/${o}/meas`); else rerender(); },
+  measketch(a, job) { const o = a.dataset.o; const owner = ownerOf(job, o); const m = newMeas('sketch', { caption: `Sketch ${owner.measurements.filter(x => x.kind === 'sketch').length + 1}`, data: '', grid: true }); owner.measurements.push(m); markDirty(job); go(`#/job/${job.id}/mpad/${o}/${m.id}`); },
+  async measuse(a, job) {
+    const ar = job.areas.find(x => x.id === a.dataset.aid); const d = measDims(ar); if (!d.L || !d.W) return;
+    if ((ar.length || ar.width) && !await confirmBox('Update roof area?', `Replace ${ar.length || '-'} × ${ar.width || '-'} m with ${r2(d.L)} × ${r2(d.W)} m${d.P && !num(ar.pitch) ? ` and pitch ${d.P}°` : ''}?`, 'Update', false)) return;
+    ar.length = String(r2(d.L)); ar.width = String(r2(d.W)); if (d.P && !num(ar.pitch)) { ar.pitch = String(d.P); if (!ar.pitches.length) { const p = newPitch({ label: 'Main slope', deg: String(d.P) }); syncPitch(p, 'deg'); ar.pitches.push(p); } }
+    if (!ar.measured) ar.measured = 'plan'; markDirty(job); rerender(); toast(`Roof area now ${areaM2(ar)} m²`);
+  },
+  rfqnote(a, job) { const r = rfqOf(job); const t = a.dataset.t; if (r.notes.includes(t)) return; r.notes = (r.notes ? r.notes.replace(/\s+$/, '') + '\n' : '') + t; markDirty(job); const el = document.getElementById(fid('rfq.notes')); if (el) el.value = r.notes; },
+  async genrfq(a, job) {
+    const sc = a.dataset.sc; const b = $('#genrfq'); b.disabled = true; b.textContent = 'Generating…'; await flush();
+    try {
+      const r = rfqOf(job); const ref = rfqNextRef(job);
+      const out = await buildRFQ(job, sc, ref); r.seq = (r.seq || 0) + 1;
+      r.log.push({ ref, date: todayISO(), scope: sc === 'scaffold' ? 'Scaffolding & access' : sc === 'all' ? 'All materials' : ownerName(job, sc), filter: rfqFilterText(r), lines: out.lines });
+      markDirty(job); S.rfq = Object.assign(out, { jobId: job.id, sc }); rerender(); toast(`${ref} ready`);
+    } finally { const bb = $('#genrfq'); if (bb) { bb.disabled = false; bb.innerHTML = `${I.pdf} Generate quote request PDF`; } }
+  },
+  rfqdl() { download(S.rfq.blob, S.rfq.name); },
+  async rfqshare() { try { await navigator.share({ files: [new File([S.rfq.blob], S.rfq.name, { type: 'application/pdf' })], title: `Request for quotation ${S.rfq.ref}`, text: `Please find attached our request for quotation ${S.rfq.ref}.` }); } catch (e) { if (e.name !== 'AbortError') { toast('Share failed - downloading instead'); download(S.rfq.blob, S.rfq.name); } } },
+  rfqopen() { const u = URL.createObjectURL(S.rfq.blob); const w = window.open(u, '_blank'); if (!w) download(S.rfq.blob, S.rfq.name); },
+  rfqcsv(a, job) { const sc = a.dataset.sc; const ref = S.rfq && S.rfq.jobId === job.id && S.rfq.sc === sc ? S.rfq.ref : rfqNextRef(job); download(new Blob([rfqCSV(job, sc, ref)], { type: 'text/csv;charset=utf-8' }), `${safeName(ref)}_${sc === 'scaffold' ? 'Scaffold-RFQ' : 'Materials-RFQ' + (sc === 'all' ? '' : '_' + safeName(ownerName(job, sc)))}.csv`); toast('Quote list exported'); },
+  libitemadd(a) { getPath(S.settings, a.dataset.p).items.push(MI('New item', '', 'nr')); saveSettings(); rerender(); },
+  libitemdel(a) { getPath(S.settings, a.dataset.p).items.splice(+a.dataset.i, 1); saveSettings(); rerender(); },
+  libmove(a) { const it = getPath(S.settings, a.dataset.p).items; const i = +a.dataset.i, j = i + (+a.dataset.d); if (j < 0 || j >= it.length) return; [it[i], it[j]] = [it[j], it[i]]; saveSettings(); rerender(); },
+  libcatadd() { S.settings.matLib.push({ key: 'c_' + uid(), title: 'New category', items: [MI('New item')] }); saveSettings(); rerender(); },
+  async libcatdel(a) { const c = S.settings.matLib[+a.dataset.i]; if (await confirmBox('Delete category?', `"${c.title}" and its ${c.items.length} library items will be removed from the library. Audits are not changed.`)) { S.settings.matLib.splice(+a.dataset.i, 1); saveSettings(); rerender(); } },
+  async libreset() { if (await confirmBox('Reset materials library?', 'The library will be restored to the defaults. Audits are not changed.', 'Reset')) { S.settings.matLib = clone(DEFAULT_MATLIB); saveSettings(); rerender(); } },
+  async pitchreset() { if (await confirmBox('Reset pitch guidance?', 'Minimum and recommended pitches will be restored to the defaults.', 'Reset')) { S.settings.pitchMins = clone(DEFAULT_PITCHMINS); saveSettings(); rerender(); } },
+  rfqtermsreset() { S.settings.rfqTerms = DEFAULT_RFQ_TERMS; saveSettings(); rerender(); },
+});
+
+/* RFQ yes/no toggles */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-rfqtog] button'); if (!b || !S.ctx || !S.ctx.job) return;
+  const job = S.ctx.job; rfqOf(job)[b.parentElement.dataset.rfqtog] = b.dataset.v === '1'; markDirty(job); rerender();
+});
+/* photo measurement input */
+document.addEventListener('change', async e => {
+  const el = e.target; if (!el.matches || !el.matches('input[data-measphoto]') || !S.ctx || !S.ctx.job) return;
+  const job = S.ctx.job; const o = el.dataset.measphoto; const files = [...el.files]; el.value = ''; if (!files.length) return;
+  toast('Processing photo…', 1200); const [ph] = await filesToPhotos(files.slice(0, 1)); if (!ph) return;
+  const owner = ownerOf(job, o); const m = newMeas('photo', { caption: `Photo measurement ${owner.measurements.filter(x => x.kind === 'photo').length + 1}`, orig: ph.data, data: ph.data, ink: '', w: ph.w || 1200, h: ph.h || 900 });
+  owner.measurements.push(m); markDirty(job); go(`#/job/${job.id}/mpad/${o}/${m.id}`);
+});
+/* live updates for pitch / materials / measurements without re-rendering */
+const _derive0 = derive;
+derive = function (path, el) {
+  _derive0(path, el);
+  const job = S.ctx && S.ctx.job; if (!job) return;
+  let m;
+  if ((m = /^areas#([^.]+)\.pitches#([^.]+)\.(deg|rise|run|ratio|pct)$/.exec(path))) {
+    const a = job.areas.find(x => x.id === m[1]); const p = a && a.pitches.find(x => x.id === m[2]); if (!p) return;
+    if (syncPitch(p, m[3])) { if (m[3] === 'rise' || m[3] === 'run') p.method = 'Rise / run'; else if (m[3] === 'ratio' || m[3] === 'pct') p.method = 'Ratio / %'; const ms = document.querySelector(`[data-b="areas#${a.id}.pitches#${p.id}.method"]`); if (ms) ms.value = p.method; }
+    if (a.pitches[0] === p) a.pitch = p.deg; pitchDOM(job, a, p); areaPitchDOM(a);
+  }
+  if ((m = /^areas#([^.]+)\.pitch$/.exec(path))) {
+    const a = job.areas.find(x => x.id === m[1]); if (!a) return;
+    if (a.pitches.length) { const p = a.pitches[0]; p.deg = a.pitch; syncPitch(p, 'deg'); pitchDOM(job, a, p); } else if (String(a.pitch).trim() !== '') { const p = newPitch({ label: 'Main slope', deg: a.pitch }); syncPitch(p, 'deg'); a.pitches.push(p); }
+    areaPitchDOM(a);
+  }
+  if (/^areas#[^.]+\.(pitchSys|type)$/.test(path)) { const a = getPath(job, path.split('.')[0]); if (a && $('#pitchcard')) refreshPitchCard(job, a); }
+  if ((m = /^(?:areas#([^.]+)\.)?materials#([^.]+)\.(qty|waste|unit|status|name)$/.exec(path))) {
+    const owner = m[1] ? job.areas.find(x => x.id === m[1]) : job; const it = owner && owner.materials.find(x => x.id === m[2]); const c = $('#matorder');
+    if (it && c) c.innerHTML = `<span>${fq(orderQty(matBaseQty(job, it, owner), it.waste, it.unit))} ${esc(it.unit)}</span><small>${DISCRETE.has(it.unit) ? 'rounded up' : 'auto'}</small>`;
+    if (m[3] === 'name' && /\/mat\//.test(location.hash)) { const h1 = $('.hdr h1'); if (h1) h1.textContent = it.name || 'Material'; }
+  }
+  if ((m = /measurements#([^.]+)\.(value|unit|label)$/.exec(path))) {
+    const owner = path.startsWith('areas#') ? getPath(job, path.split('.')[0]) : job; const it = owner.measurements.find(x => x.id === m[1]);
+    const c = it && $('#mc_' + it.id); if (c) c.textContent = measCalc(it);
+    const ma = $('#measarea'); if (ma && owner !== job) { const d = measDims(owner); ma.firstElementChild.textContent = d.L && d.W ? `${r2(d.L)} × ${r2(d.W)} m = ${r2(d.L * d.W)} m²` : 'Add Length and Width'; const ub = $('[data-act=measuse]'); if (ub) ub.disabled = !(d.L && d.W); }
+  }
+  if (path === 'rfq.cat' || path === 'rfq.supplier') rerender();
+};
+
+/* ---------- Demo data ---------- */
+async function demoAnnotate(base, shapes, texts, grid) {
+  const W = 1200, H = 900; const ink = document.createElement('canvas'); ink.width = W; ink.height = H; const g = ink.getContext('2d');
+  shapes.forEach(s => drawShape(g, Object.assign({ w: 7 }, s))); (texts || []).forEach(([x, y, t, col]) => padText(g, x, y, t, col || '#0f172a', 7));
+  const out = document.createElement('canvas'); out.width = W; out.height = H; const o = out.getContext('2d');
+  if (base) { try { o.drawImage(await loadImg(base), 0, 0, W, H); } catch (e) { } } else { o.fillStyle = '#fff'; o.fillRect(0, 0, W, H); if (grid) drawGrid(o, W, H); }
+  o.drawImage(ink, 0, 0);
+  return { data: base ? out.toDataURL('image/jpeg', 0.8) : out.toDataURL('image/png'), ink: ink.toDataURL('image/png'), w: W, h: H };
+}
+async function addDemoExtras(j, A1, A2) {
+  const P = (a, label, method, o) => { const p = newPitch(Object.assign({ label, method }, o)); syncPitch(p, o.rise ? 'rise' : 'deg'); a.pitches.push(p); return p; };
+  P(A1, 'Main slope (bay 3)', 'Rise / run', { rise: '105', run: '1000', notes: 'Spirit level & rule on sheet crown' });
+  P(A1, 'Main slope (bay 6)', 'Phone (approx.)', { deg: '5.8' });
+  A1.pitch = A1.pitches[0].deg;
+  P(A2, 'Office link slope', 'Inclinometer', { deg: '4' }); A2.pitches[0].notes = 'Below recommended pitch for composite panel end laps - check manufacturer before re-sheeting';
+  A2.pitch = A2.pitches[0].deg;
+  const M = (cat, name, spec, unit, o = {}) => newMat(Object.assign({ cat, name, spec, unit }, o));
+  A1.materials.push(
+    M('rooflights', 'GRP rooflights - triple skin', 'Firth N1000R profile, 3.05 m, non-fragile Class B (ACR[M]001)', 'nr', { qty: '42', waste: '0', supplier: 'Brett Martin', status: 'Confirmed', checked: true, notes: 'Replace all 42 original rooflights' }),
+    M('fixings', 'Primary fixings', '5.5 x 120 mm self-drill c/w 16 mm washer & cap', 'box', { qty: '18', waste: '5', supplier: 'SFS', status: 'Required' }),
+    M('fixings', 'Stitcher fixings', '6.3 x 22 mm c/w washer', 'box', { qty: '6', waste: '5', supplier: 'SFS' }),
+    M('lining', 'Fatra PVC gutter lining membrane', '1.5 mm reinforced, girth 1,200 mm', 'lin m', { qty: '84', waste: '10', supplier: 'Fatra UK', status: 'Confirmed', notes: 'Central valley, bays 1-8; incl. outlets' }),
+    M('gutters', 'Gutter outlets', '150 mm spigot to suit lining', 'nr', { qty: '8', supplier: 'Fatra UK' }),
+    M('coatings', 'Cut-edge corrosion treatment', 'Clean, prime & seal (Colorcoat-approved system)', 'lin m', { qty: '168', waste: '5', notes: 'Eaves and end laps, both sides' }),
+    M('sealants', 'Butyl strip sealant', '6 x 5 mm', 'roll', { qty: '12', waste: '5', supplier: 'SFS' }),
+    M('safety', 'Rooflight covers / mesh', 'Galvanised mesh to suit 3.05 m rooflights', 'nr', { qty: '42', status: 'Ordered', checked: true, supplier: 'Brett Martin' }),
+    M('safety', 'Safety netting', 'Below rooflight bays during works', 'm²', { qty: '480', supplier: 'Netting contractor' }),
+    M('waste', 'Skip', '8 yd, wait & load', 'nr', { qty: '2' }),
+  );
+  A1.materials.push(M('sheets', 'Outer sheets - Firth N1000R', '0.7 mm Colorcoat HPS200 Ultra, as existing', 'm²', { qtyFrom: 'area', waste: '10', colour: 'Goosewing Grey', supplier: 'Tata Steel', status: 'Required', notes: 'Budget only - full re-sheet option' }));
+  A2.materials.push(
+    M('fixings', 'Primary fixings', '5.5 x 120 mm self-drill c/w 16 mm washer & cap', 'box', { qty: '4', waste: '5', supplier: 'SFS' }),
+    M('gutters', 'Trimline gutter', 'Plastisol-coated steel, to match', 'lin m', { qty: '12', waste: '5', colour: 'Merlin Grey', notes: 'Section at outlet 2' }),
+    M('sealants', 'Low-modulus silicone / mastic', '310 ml, grey', 'tube', { qty: '10', waste: '10', checked: true }),
+  );
+  j.materials.push(
+    M('safety', 'MEWP hire', '16 m articulated boom x 2, 3 weeks', 'item', { qty: '2', supplier: 'Nationwide Platforms' }),
+    M('safety', 'Edge protection', 'Free-standing, to service yard elevation', 'lin m', { qty: '30' }),
+    M('waste', 'Skip', '8 yd, wait & load', 'nr', { qty: '1' }),
+  );
+  const T = (a, label, value, unit, loc = '', notes = '') => a.measurements.push(newMeas('text', { label, value, unit, loc, notes }));
+  T(A1, 'Length', '84', 'm', 'Gridlines 1-15', 'Laser along eaves'); T(A1, 'Width', '22.5', 'm', 'Eaves to ridge (plan)'); T(A1, 'Eaves height', '9.2', 'm', 'Service yard');
+  T(A1, 'Gutter girth', '1200', 'mm', 'Central valley', 'Sole 450 mm'); T(A1, 'Number of rooflights', '42', 'nr', 'Bays 1-14'); T(A1, 'Rooflight size', '3050 x 1060', 'mm', 'Typical');
+  T(A1, 'Purlin centres', '1800', 'mm', 'Measured internally');
+  T(A2, 'Length', '30', 'm'); T(A2, 'Width', '12', 'm'); T(A2, 'Gutter length', '30', 'm', 'Eaves');
+  T(j, 'Service yard to building', '18', 'm', 'Gate 2', 'MEWP set-up zone'); T(j, 'Max vehicle length (gate 2)', '12', 'm', '', 'Rigid only - no artics');
+  const gp = demoPhoto('gutter', 'Valley gutter - bay 4', 21);
+  const pa = await demoAnnotate(gp.data, [{ t: 'dim', x1: 120, y1: 610, x2: 1080, y2: 500, col: '#f18902', label: 'Girth 1,200 mm' }, { t: 'dim', x1: 160, y1: 760, x2: 520, y2: 720, col: '#ffffff', label: 'Sole 450 mm' }, { t: 'arrow', x1: 760, y1: 210, x2: 640, y2: 470, col: '#dc2626' }], [[700, 190, 'Corroded joint - 150 mm lap', '#dc2626']]);
+  A1.measurements.push(newMeas('photo', Object.assign({ caption: 'Valley gutter girth, bay 4', orig: gp.data }, pa)));
+  const sk = await demoAnnotate('', [{ t: 'rect', x1: 160, y1: 200, x2: 1040, y2: 640, col: '#0f172a' }, { t: 'line', x1: 160, y1: 420, x2: 1040, y2: 420, col: '#2563eb', w: 5 }, { t: 'dim', x1: 160, y1: 140, x2: 1040, y2: 140, col: '#dc2626', label: '84.0 m' }, { t: 'dim', x1: 1100, y1: 200, x2: 1100, y2: 640, col: '#dc2626', label: '22.5 m' }, ...[0, 1, 2, 3, 4, 5].map(i => ({ t: 'rect', x1: 230 + i * 140, y1: 250, x2: 280 + i * 140, y2: 370, col: '#f18902', w: 5 }))], [[180, 470, 'Valley gutter (lined)', '#2563eb'], [230, 600, 'N  ->  Service yard', '#0f172a'], [230, 240, 'Rooflights (42 nr)', '#f18902']], true);
+  A1.measurements.push(newMeas('sketch', Object.assign({ caption: 'Roof plan - main warehouse, north slope', grid: true }, sk)));
+  const sf = scafOf(j); const SI = (re, o) => { const i = sf.items.find(x => re.test(x.text)); if (i) Object.assign(i, o); };
+  sf.items.forEach(i => { i.status = 'Not required'; });
+  SI(/^Edge protection scaffold at eaves/, { status: 'Required', qty: '84', unit: 'lin m', loc: 'North elevation (service yard)', notes: 'Eaves 9.2 m; handrail, mid-rail, toe board + brick guard' });
+  SI(/^Gable end/, { status: 'Required', qty: '45', unit: 'lin m', loc: 'East & west gables', notes: 'Both verges, full slope length' });
+  SI(/^Loading bay/, { status: 'Required', qty: '1', unit: 'nr', loc: 'North elevation, bay 7', notes: 'For sheet & rooflight loading - bespoke design' });
+  SI(/^Stair tower/, { status: 'Required', qty: '1', unit: 'nr', loc: 'North-west corner' });
+  SI(/^Crash decks/, { status: 'TBC', qty: '480', unit: 'm²', loc: 'Below rooflight bays', notes: 'Netting preferred - confirm with client (racking below)' });
+  SI(/^Rooflight covers/, { status: 'Required', qty: '42', unit: 'nr', loc: 'All rooflights' });
+  SI(/^Valley/, { status: 'Required', qty: '84', unit: 'lin m', loc: 'Central valley', notes: 'Walkway boards + edge protection both sides' });
+  SI(/^Chute/, { status: 'TBC', qty: '1', unit: 'nr', loc: 'Service yard skip position' });
+  SI(/^Pedestrian protection/, { status: 'Required', qty: '30', unit: 'lin m', loc: 'Gate 2 / service yard', notes: 'Exclusion zone barriers below working area' });
+  SI(/^MEWP/, { status: 'Required', qty: '2', unit: 'nr', mewpType: 'Boom - articulated', loc: 'Service yard', notes: '16 m working height' });
+  SI(/TG20 compliance/, { status: 'Required' }); SI(/bespoke design/, { status: 'Required', notes: 'Loading bay' }); SI(/handover certificate/i, { status: 'Required' }); SI(/7-day/, { status: 'Required' });
+  sf.notes = 'Firm hardstanding in service yard. Scaffold delivery via Gate 2 (rigid vehicles only). Racking below - netting/crash deck method to be agreed.';
+  const r = rfqOf(j); Object.assign(r, { contact: 'Sarah Patel', contactPhone: '0121 000 0000', notes: 'Offload by Moffett / forklift on site\nTimed delivery slot - call 30 min before arrival\nAccess via Gate 2 (rigid vehicles only, max 12 m)', quoteBy: (() => { const d = new Date(Date.now() + 10 * 864e5); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; })() });
+}
+
+/* ===================== SCAFFOLDING & ACCESS ===================== */
+const SC = (text, unit = 'lin m', kind = 'scaf') => ({ text, unit, kind });
+const DEFAULT_SCAFFOLD_TPL = [
+  SC('Independent tied scaffold (full perimeter / per elevation)'), SC('Edge protection scaffold at eaves (handrail, mid-rail, toe board / brick guard)'), SC('Gable end / verge edge protection'),
+  SC('Loading bay / loading tower', 'nr'), SC('Stair tower / ladder access tower (access to roof)', 'nr'), SC('Ladder access (secured, tied, 1 m above landing)', 'nr'),
+  SC('Birdcage scaffold (internal, under the roof)', 'm²'), SC('Mobile towers (PASMA)', 'nr'), SC('Temporary roof / encapsulation scaffold', 'm²'), SC('Chute for waste (rubbish chute)', 'nr'),
+  SC('Gutter-level edge protection / roof edge barrier system (proprietary)'), SC('Valley / internal gutter walkways and edge protection'), SC('Crash decks / fans / safety netting (with rigging)', 'm²'),
+  SC('Rooflight covers / mesh', 'nr'), SC('Hoist / gin wheel', 'nr'), SC('Pedestrian protection: fans / tunnels / hoarding / exclusion zones'), SC('MEWP (scissor / boom / cherry picker)', 'nr', 'mewp'),
+  SC('Scaffold design: TG20 compliance sheet', 'item', 'design'), SC('Scaffold design: bespoke design (loading bays / temporary roofs / heights)', 'item', 'design'), SC('Scaffold handover certificate', 'item', 'design'), SC('7-day scaffold inspection / after adverse weather', 'item', 'design'),
+];
+DEFAULT_TEMPLATES.scaffold = [{ key: 'scaffold', title: 'Scaffolding & access required', auto: true, items: DEFAULT_SCAFFOLD_TPL }];
+const SCAF_UNITS = ['lin m', 'm²', 'nr', 'item', 'weeks', 'elevations'];
+const SCAF_S = ['Required', 'Not required', 'TBC'];
+const SCAF_W = ['In place', 'Not in place', 'N/A'];
+const SCAF_TAG = ['Tag OK', 'Tag out of date', 'No tag'];
+const MEWP_TYPES = ['Scissor lift', 'Boom - articulated', 'Boom - telescopic', 'Cherry picker (truck-mounted)', 'Spider lift', 'Vertical mast / push-around'];
+const scafTpl = () => ((tpls('scaffold')[0] || {}).items || DEFAULT_SCAFFOLD_TPL);
+const newScafItem = t => ({ id: uid(), text: t.text, kind: t.kind || 'scaf', unit: t.unit || 'lin m', status: '', wstatus: '', qty: '', loc: '', notes: '', mewpType: '', tag: '', tagDate: '', photos: [] });
+function scafOf(job) {
+  if (!job.scaffold || !Array.isArray(job.scaffold.items)) job.scaffold = { items: scafTpl().map(newScafItem), notes: '', lastInsp: '', weatherInsp: '' };
+  job.scaffold.items.forEach(i => { i.photos = i.photos || []; });
+  return job.scaffold;
+}
+const scafIsW = job => isWorks(job);
+function scafCounts(job) {
+  const its = scafOf(job).items; const w = scafIsW(job);
+  if (w) return { a: its.filter(i => i.wstatus).length, n: its.length, inPlace: its.filter(i => i.wstatus === 'In place').length, tagBad: its.filter(i => i.wstatus === 'In place' && i.kind !== 'design' && (i.tag === 'Tag out of date' || i.tag === 'No tag')).length };
+  return { a: its.filter(i => i.status).length, n: its.length, req: its.filter(i => i.status === 'Required').length, tbc: its.filter(i => i.status === 'TBC').length };
+}
+function scafSummaryCard(job) {
+  const c = scafCounts(job); const w = scafIsW(job);
+  return `<div class="card" id="scafcard"><h2><span class="n">4</span> Scaffolding &amp; access ${w ? 'in place' : 'required'} <span class="prog ${c.a === c.n ? 'full' : ''}" style="margin-left:auto">${c.a}/${c.n}</span></h2>
+    <p class="hint" style="margin:-4px 0 10px">${w ? 'Check what is in place on site, with scaffold inspection tags, handover certificate and 7-day / adverse weather inspections.' : 'Mark each item Required / Not required / TBC with quantity, location and notes. Used for the scaffold quote request.'}</p>
+    <div class="meta" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${w ? `<span class="tag green">${c.inPlace} in place</span>${c.tagBad ? `<span class="tag red">${c.tagBad} tag issue${c.tagBad === 1 ? '' : 's'}</span>` : ''}` : `<span class="tag amber">${c.req} required</span><span class="tag">${c.tbc} TBC</span>`}</div>
+    <a class="btn primary block" href="#/job/${job.id}/scaffold">Open scaffolding &amp; access checklist</a>${w ? '' : `<a class="btn block" style="margin-top:10px" href="#/job/${job.id}/rfq/scaffold">${I.pdf} Scaffold quote request</a>`}</div>`;
+}
+function viewScaffold(job) {
+  const s = scafOf(job); const w = scafIsW(job); const f = mk(job);
+  const seg = (p, opts, cur, cls) => `<div class="seg yn ${cls || ''}" data-b="${p}" role="group">${opts.map(([v, l, c]) => `<button type="button" data-v="${esc(v)}" class="${c || ''} ${cur === v ? 'on' : ''}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
+  const row = (it, i) => {
+    const b = `scaffold.items#${it.id}`; const st = w ? it.wstatus : it.status;
+    const on = w ? it.wstatus === 'In place' : (it.status === 'Required' || it.status === 'TBC');
+    const bad = w && on && it.kind !== 'design' && (it.tag === 'Tag out of date' || it.tag === 'No tag');
+    return `<div class="ck scaf ${st ? 'done' : ''} ${bad ? 'fail' : ''}" data-sid="${it.id}"><div class="ck-h"><span class="ck-t">${esc(it.text)}${it.kind === 'design' ? ' <span class="tag navy">Design / cert</span>' : ''}</span></div>
+      ${w ? `${!it.status ? '' : `<p class="small" style="margin:0 0 6px">Survey: <b>${esc(it.status)}</b>${it.qty ? ` · ${esc(it.qty)} ${esc(it.unit)}` : ''}</p>`}${seg(b + '.wstatus', [['In place', 'In place', 'ok'], ['Not in place', 'Not in place', 'bad'], ['N/A', 'N/A']], it.wstatus)}`
+        : seg(b + '.status', [['Required', 'Required', 'warn'], ['Not required', 'Not required', 'ok'], ['TBC', 'TBC']], it.status)}
+      <div class="scaf-x" ${on || it.qty || it.loc || it.notes ? '' : 'hidden'}>
+        ${it.kind === 'design' ? '' : `<div class="g2" style="margin-top:8px"><div class="f"><label for="${fid(b + '.qty')}">Qty / length</label><input id="${fid(b + '.qty')}" type="text" inputmode="decimal" data-b="${b}.qty" value="${esc(it.qty)}"></div><div class="f"><label for="${fid(b + '.unit')}">Unit</label><select id="${fid(b + '.unit')}" data-b="${b}.unit">${SCAF_UNITS.map(u => `<option ${it.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div></div>${f.text('Location / elevation', b + '.loc', { ph: 'e.g. North elevation' })}`}
+        ${it.kind === 'mewp' ? `<div class="f"><label for="${fid(b + '.mewpType')}">MEWP type</label><select id="${fid(b + '.mewpType')}" data-b="${b}.mewpType"><option value="">— Select —</option>${MEWP_TYPES.map(t => `<option ${it.mewpType === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>` : ''}
+        ${w && it.kind !== 'design' ? `<span class="lbl">Inspection tag</span>${seg(b + '.tag', [['Tag OK', 'Tag OK', 'ok'], ['Tag out of date', 'Out of date', 'bad'], ['No tag', 'No tag', 'bad']], it.tag)}<div class="f" style="margin-top:8px"><label for="${fid(b + '.tagDate')}">Last inspected (tag date)</label><input id="${fid(b + '.tagDate')}" type="date" data-b="${b}.tagDate" value="${esc(it.tagDate)}"></div>` : ''}
+        ${w && it.kind === 'design' ? `<div class="f" style="margin-top:8px"><label for="${fid(b + '.tagDate')}">Date / reference</label><input id="${fid(b + '.tagDate')}" type="text" data-b="${b}.tagDate" value="${esc(it.tagDate)}" placeholder="e.g. 02/10/2026, cert no."></div>` : ''}
+        <div class="ck-row"><input type="text" class="ck-c" data-b="${b}.notes" value="${esc(it.notes)}" placeholder="Notes"><label class="ck-cam" aria-label="Add photo">${I.camera}<input type="file" accept="image/*" capture="environment" data-photo="${b}.photos" hidden></label></div>
+        ${it.photos.length ? `<div class="ck-ph">${it.photos.map(x => `<img src="${x.data}" alt="" data-act="viewphoto" data-key="${b}.photos" data-id="${x.id}">`).join('')}</div>` : ''}</div></div>`;
+  };
+  const sc = s.items.filter(i => i.kind !== 'design'), ds = s.items.filter(i => i.kind === 'design');
+  return `${hsStrip(job)}<div class="card"><h2>Scaffolding &amp; access ${w ? 'in place' : 'required'}</h2><p class="hint" style="margin:-4px 0 10px">${w ? 'Record what is in place and check scaffold inspection tags (inspected before first use, every 7 days and after adverse weather).' : 'What access will the works need? Qty in lin m unless stated. Required / TBC items go on the scaffold quote request.'}</p>
+    ${sc.map(row).join('')}</div>
+  <div class="card"><h2>Design, handover &amp; inspection</h2><p class="hint" style="margin:-4px 0 10px">TG20 compliance sheet for standard scaffolds; bespoke design for loading bays, temporary roofs, unusual heights or loads.</p>${ds.map(row).join('')}
+    ${w ? `<div class="g2">${f.text('Last 7-day inspection', 'scaffold.lastInsp', { type: 'date' })}${f.text('Inspected after adverse weather', 'scaffold.weatherInsp', { ph: 'Date / N/A' })}</div>` : ''}
+    ${f.area('Scaffolding & access notes', 'scaffold.notes', { rows: 3, ph: w ? 'e.g. Loading bay overloaded - reported to scaffold contractor' : 'e.g. Ground conditions, vehicle access for scaffold delivery, neighbours' })}
+    <button class="btn block" data-act="scafadd">${I.plus} Add custom item</button></div>
+  <div class="btns">${w ? '' : `<a class="btn primary" href="#/job/${job.id}/rfq/scaffold">${I.pdf} Generate scaffold quote request</a>`}<a class="btn" href="#/job/${job.id}/safety">Back to Safety</a></div>`;
+}
+function scafLines(job) { return scafOf(job).items.filter(i => i.status === 'Required' || i.status === 'TBC'); }
+function buildingInfo(job) {
+  return job.areas.map(a => { const e = (a.measurements || []).find(m => m.kind === 'text' && /eaves height/i.test(m.label || '') && num(m.value)); return `${a.name}: ${num(a.length) && num(a.width) ? `${a.length} x ${a.width} m` : ''}${e ? `, eaves ${e.value} ${e.unit || 'm'}` : ''}${a.pitch ? `, pitch ${a.pitch}°` : ''}`; }).join('\n');
+}
+function viewScafRFQ(job) {
+  const r = rfqOf(job); const f = mk(job); const ls = scafLines(job);
+  return `${hsStrip(job)}<div class="card"><h2>${I.pdf.replace('<svg', '<svg width="22" height="22"')} Scaffold quote request</h2>
+    <p class="hint" style="margin:-4px 0 10px">A request for quotation for a scaffold / access contractor, in the same style as the materials RFQ. Lists the Required and TBC items with quantities and locations. No client pricing or defects.</p>
+    <div class="calc"><span>${esc(rfqNextRef(job))}</span><small>next ref</small></div><div style="height:10px"></div>${f.text('Quote required by', 'rfq.quoteBy', { type: 'date' })}</div>
+  <div class="card"><h2>Items <span class="prog" style="margin-left:auto">${ls.length}</span></h2>${ls.length ? `<div class="tblwrap"><table class="mtbl" id="rfqtbl"><thead><tr><th>#</th><th>Item</th><th>Qty</th></tr></thead><tbody>${ls.map((i, n) => `<tr><td>${n + 1}</td><td><b>${esc(i.text)}</b><div class="small">${esc([i.mewpType, i.loc, i.notes].filter(Boolean).join(' · '))}</div></td><td>${i.qty ? `<b>${esc(i.qty)}</b> ${esc(i.unit)}` : '-'}${i.status === 'TBC' ? '<div class="small" style="color:#c96f00">TBC</div>' : ''}</td></tr>`).join('')}</tbody></table></div>` : '<div class="lg-msg warn">No scaffold items marked Required or TBC yet.</div>'}
+    <a class="btn block" style="margin-top:10px" href="#/job/${job.id}/scaffold">Edit scaffolding &amp; access list</a></div>
+  ${rfqDeliveryHTML(job, 'scaffold')}
+  <button class="btn primary block" id="genrfq" data-act="genrfq" data-sc="scaffold" ${ls.length ? '' : 'disabled'}>${I.pdf} Generate scaffold quote request</button>
+  <div id="rfqout" style="margin-top:10px">${S.rfq && S.rfq.jobId === job.id && S.rfq.sc === 'scaffold' ? rfqButtons() : ''}</div>
+  <button class="btn block" style="margin-top:10px" data-act="rfqcsv" data-sc="scaffold" ${ls.length ? '' : 'disabled'}>${I.dl} Export this list (CSV)</button>`;
+}
+Object.assign(ACTIONS, {
+  async scafadd(a, job) { let inp; const r = await modal(`<h3>Add scaffold / access item</h3><input type="text" id="scn" placeholder="e.g. Cantilever scaffold over canopy"><div style="height:12px"></div><button class="btn primary" data-r="ok">Add</button><button class="btn" data-r="">Cancel</button>`, bg => { inp = $('#scn', bg); setTimeout(() => inp.focus(), 50); }); if (r !== 'ok' || !inp.value.trim()) return; scafOf(job).items.splice(scafOf(job).items.findIndex(i => i.kind === 'design') >>> 0, 0, Object.assign(newScafItem(SC(inp.value.trim())), { status: isWorks(job) ? '' : 'Required', wstatus: isWorks(job) ? 'In place' : '' })); markDirty(job); rerender(); },
+  scitemadd() { tplScaf().items.push(SC('New scaffold / access item')); saveSettings(); rerender(); },
+  scitemdel(a) { tplScaf().items.splice(+a.dataset.i, 1); saveSettings(); rerender(); },
+  scmove(a) { const it = tplScaf().items; const i = +a.dataset.i, j = i - 1; if (j < 0) return; [it[i], it[j]] = [it[j], it[i]]; saveSettings(); rerender(); },
+  async screset() { if (await confirmBox('Reset scaffold list?', 'The scaffolding & access list will be restored to the defaults. Existing audits are not changed.', 'Reset')) { S.settings.templates.scaffold = clone(DEFAULT_TEMPLATES.scaffold); saveSettings(); rerender(); } },
+});
+function tplScaf() { if (!S.settings.templates) S.settings.templates = clone(DEFAULT_TEMPLATES); if (!S.settings.templates.scaffold) S.settings.templates.scaffold = clone(DEFAULT_TEMPLATES.scaffold); return S.settings.templates.scaffold[0]; }
+function scafTplHTML() {
+  const t = tplScaf(); const p = 'templates.scaffold.0';
+  return `<div class="divider"></div><h2 class="sec-h" style="margin:8px 4px 0">SCAFFOLDING &amp; ACCESS (SAFETY TAB)</h2><p class="hint" style="margin:4px 4px 10px">Items listed on new audits. Survey: Required / Not required / TBC. Works: In place, with inspection tag checks.</p>
+  <details class="sec" id="scaftpl"><summary>Scaffolding &amp; access list <span class="prog">${t.items.length} items</span>${I.chv}</summary><div class="bd">
+  ${t.items.map((it, ii) => `<div class="ck"><input type="text" data-b="${p}.items.${ii}.text" value="${esc(it.text)}" aria-label="Item"><div style="display:flex;gap:8px;margin-top:8px"><select data-b="${p}.items.${ii}.unit" style="flex:1" aria-label="Unit">${SCAF_UNITS.map(u => `<option ${it.unit === u ? 'selected' : ''}>${u}</option>`).join('')}</select><select data-b="${p}.items.${ii}.kind" style="flex:1" aria-label="Kind"><option value="scaf" ${it.kind === 'scaf' ? 'selected' : ''}>Access</option><option value="mewp" ${it.kind === 'mewp' ? 'selected' : ''}>MEWP</option><option value="design" ${it.kind === 'design' ? 'selected' : ''}>Design / cert</option></select><button class="btn" style="padding:0 14px" data-act="scmove" data-i="${ii}" aria-label="Move up">↑</button><button class="btn danger" style="padding:0 14px" data-act="scitemdel" data-i="${ii}" aria-label="Delete">×</button></div></div>`).join('')}
+  <button class="btn block" data-act="scitemadd">${I.plus} Add item</button><button class="btn danger block" style="margin-top:10px" data-act="screset">Reset list to defaults</button></div></details>`;
+}
+/* scaffold live behaviour */
+{
+  const _d1 = derive;
+  derive = function (path, el) { _d1(path, el); if (/^scaffold\.items#[^.]+\.(status|wstatus|tag)$/.test(path)) rerender(); else if (path.startsWith('scaffold.')) { const c = $('#scafcard'); if (c) c.outerHTML = scafSummaryCard(S.ctx.job); } };
+}
+
+/* ===================== WORKS: optional materials required ===================== */
+function worksMatCard(job, a) {
+  const o = a ? a.id : 'job'; const owner = a || job; const on = !!owner.matOn; const n = (owner.materials || []).length;
+  const st = matStatuses(job).map(x => [x, owner.materials.filter(m => (m.status || 'Required') === x).length]).filter(x => x[1]);
+  if (!on) return `<div class="card" id="wmat_${o}"><h2>${ICX.box.replace('<svg', '<svg width="22" height="22"')} Materials required <span class="tag" style="margin-left:auto">Optional</span></h2><p class="hint" style="margin:-4px 0 10px">${a ? 'Track materials for this area' : 'Track site-wide materials for this inspection'}: required, ordered, delivered, short or returned. Hidden until switched on.${n ? ` (${n} item${n === 1 ? '' : 's'} saved)` : ''}</p><button class="btn block" data-act="wmaton" data-o="${o}">${I.plus} Add materials required</button></div>`;
+  return `<div class="card" id="wmat_${o}"><h2>${ICX.box.replace('<svg', '<svg width="22" height="22"')} Materials required <span class="prog" style="margin-left:auto">${n} item${n === 1 ? '' : 's'}</span></h2>
+    ${st.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${st.map(([x, c]) => `<span class="tag ${STATUS_TAG[x]}">${c} ${esc(x.toLowerCase())}</span>`).join('')}</div>` : '<p class="hint" style="margin:-4px 0 10px">No items yet - add from the library.</p>'}
+    <a class="btn primary block" href="${o === 'job' ? `#/job/${job.id}/materials` : `#/job/${job.id}/area/${o}/materials`}">${o === 'job' ? 'Open materials (site-wide &amp; all areas)' : 'Open materials for this area'}</a>
+    <button class="btn block" style="margin-top:10px" data-act="wmaton" data-o="${o}" data-off="1">Hide (not included in report)</button></div>`;
+}
+function copySurveyMaterials(src, n) {
+  const map = m => Object.assign(reId(clone(m)), { checked: false, status: m.status === 'Ordered' ? 'Ordered' : 'Required' });
+  let c = 0;
+  src.areas.forEach((a, i) => { const na = n.areas[i]; if (!na || !(a.materials || []).length) return; na.materials = a.materials.filter(m => String(m.name || '').trim()).map(map); na.matOn = na.materials.length > 0; c += na.materials.length; });
+  if ((src.materials || []).length) { n.materials = src.materials.filter(m => String(m.name || '').trim()).map(map); n.matOn = n.materials.length > 0; c += n.materials.length; }
+  return c;
+}
+Object.assign(ACTIONS, {
+  wmaton(a, job) { const o = a.dataset.o; const owner = ownerOf(job, o); owner.matOn = !a.dataset.off; markDirty(job); if (owner.matOn && !owner.materials.length) go(o === 'job' ? `#/job/${job.id}/materials` : `#/job/${job.id}/area/${o}/materials`); else rerender(); },
+});
 
 /* ---------- Demo audit (illustrative images drawn on canvas) ---------- */
 function demoPhoto(kind, caption, seed = 1) {
@@ -2783,6 +3829,7 @@ async function makeDemoJob() {
   D(A1, { element: 'Flashings', location: 'NW corner verge', description: 'Verge flashing lifted with missing fixings.', priority: 'P3', remedy: 'Re-fix / reseal flashings', qty: '6', unit: 'lm' });
   D(A2, { element: 'Gutters', location: 'Eaves gutter, outlet 2', description: 'Light debris at outlet.', priority: 'P4', remedy: 'Clear gutters & outlets', qty: '1', unit: 'item' });
   j.summary.life = '2-5 years'; j.summary.lifeAfter = '10-15 years'; j.summary.reinspect = '12 months';
+  await addDemoExtras(j, A1, A2);
   j.summary.exec = autoExec(j); j.summary.recs = autoRecs(j);
   return j;
 }
