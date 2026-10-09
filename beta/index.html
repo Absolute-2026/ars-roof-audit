@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.3.1">
+<meta name="app-version" content="1.3.2">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -313,6 +313,12 @@ input:disabled,select:disabled,textarea:disabled{background:#eef1f5;color:#4b556
 @media (max-width:400px){.g3{grid-template-columns:1fr 1fr}}
 .pit .g3{grid-template-columns:1fr 1fr 1fr !important}
 .seg.st5{display:grid !important;grid-template-columns:repeat(3,1fr);gap:6px}
+.seg.req3{display:grid;grid-template-columns:1.1fr 1.3fr .8fr}
+.seg.req3 button.on.rq{background:var(--poor);border-color:var(--poor);color:#fff;box-shadow:none}
+.seg.req3 button.on:not(.rq):not(.tbc){background:#6b7785;border-color:#6b7785;color:#fff;box-shadow:none}
+.ck.reqd{border-left:5px solid var(--poor);background:#fff7ec}
+.reqtag{display:flex;align-items:center;gap:4px;margin-top:4px;font-size:12.5px;font-weight:700;color:#b25a00}
+.reqlist{margin:4px 0 0 18px;padding:0;font-size:14px;line-height:1.5}
 
 </style>
 </head>
@@ -880,10 +886,37 @@ window.addEventListener('pagehide', flush);
 
 /* ---------- Checklist templates ---------- */
 const T = (text, type = 'yn') => ({ text, type });
+/* Survey H&S requirements: [survey item, works 'in place' items it highlights (regex), or new works check to add] */
+const HS_REQ_ITEMS = [
+  ['RAMS / method statement required', /^RAMS/],
+  ['Permit to work (client) required', /^Permit to work/],
+  ['Fragile roof controls required (netting, rooflight covers, crawling boards)', /^Rooflights & openings|^Safety netting/, 'Fragile roof signage & crawling boards / staging in place'],
+  ['Edge protection required', /^Edge protection/],
+  ['Safety netting / fall arrest required', /^Safety netting/],
+  ['Rooflight protection (covers / mesh) required', /^Rooflights & openings/],
+  ['Asbestos refurbishment & demolition (R&D) survey required', null, 'R&D asbestos survey available on site'],
+  ['Licensed asbestos contractor / notification (ASB5) required', /^AC strip/],
+  ['Exclusion zones / segregation below required', /^Exclusion zones/],
+  ['Live services isolation (electrical / gas / sprinklers) required', null, 'Live services isolated / isolation permits in place'],
+  ['Hot works permit required', /^Hot works/],
+  ['Out of hours / weekend working required', null, 'Out of hours / weekend working arrangements in place'],
+  ['Client occupation: working over occupied areas / protection below required', null, 'Protection below occupied areas in place'],
+  ["Welfare facilities required (site welfare unit / client's welfare)", /^Welfare/],
+  ['Site compound / storage area required', /^Materials stored/, 'Site compound / storage area set up'],
+  ['Crane / lifting plan / appointed person required', null, 'Lifting plan in place / appointed person on site'],
+  ['Wind / weather restrictions', null, 'Wind / weather limits checked and observed'],
+  ['Lone working arrangements', null, 'Lone working arrangements in place'],
+  ['Traffic management / delivery restrictions', null, 'Traffic management / delivery controls in place'],
+  ['CDM: Principal Designer / Contractor and F10 notification required', null, 'CDM: F10 displayed / construction phase plan on site'],
+  ['Fire plan / emergency rescue plan for work at height required', null, 'Fire plan / rescue plan for work at height in place'],
+  ['Training / competency (IPAF, PASMA, SSSTS/SMSTS, harness, NFRC) required', /^MEWP inspected|^Harness/, 'Training / competency cards checked (IPAF, PASMA, SSSTS/SMSTS)'],
+  ['PPE beyond standard', /^Harness \/ PPE/],
+];
+const REQ_OPTS = ['Required', 'Not required', 'TBC'];
 const DEFAULT_TEMPLATES = {
   job: [
     { key: 'details', title: 'Job & site details', auto: true, items: [T('Client / site contact met on arrival'), T('Site induction completed'), T('Drawings / previous reports available'), T('O&M / warranty information available'), T('Roof history / previous repairs noted'), T('Access as planned'), T('Building elevation photos taken')] },
-    { key: 'safety', title: 'Health & safety', auto: true, items: [T('RAMS reviewed and briefed'), T('Permit to work issued'), T('Fragile roof signage at access points'), T('Edge protection adequate'), T('Rooflights protected (covers / mesh / nets)'), T('Safety netting in place where required'), T('MEWP operator IPAF / harness & lanyard checked'), T('Exclusion zone set up below'), T('Live services identified / isolated'), T('Weather suitable for roof access'), T('Asbestos register checked'), T('Lone working procedure in place'), T('Rescue plan / first aid in place')] },
+    { key: 'safety', title: 'H&S requirements for the works', auto: true, items: HS_REQ_ITEMS.map(r => T(r[0], 'req')) },
     { key: 'general', title: 'General observations', auto: true, items: [T('Overall roof condition', 'rate'), T('Roof drainage adequate overall'), T('Plant / equipment on roof'), T('Solar PV installed'), T('Bird / pest activity'), T('Signs of previous repairs'), T('Permanent access / safety systems in place'), T('Site left clean and safe')] },
   ],
   area: [
@@ -899,9 +932,15 @@ const DEFAULT_TEMPLATES = {
   ],
 };
 function sectionFromTemplate(t) {
-  return { id: uid(), key: t.key, title: t.title, rating: '', items: (t.items || []).map(i => ({ id: uid(), text: i.text, type: i.type || 'yn', answer: '', comment: '', photos: [] })), photos: [], notes: '' };
+  return { id: uid(), key: t.key, title: t.title, rating: '', items: (t.items || []).map(i => Object.assign({ id: uid(), text: i.text, type: i.type || 'yn', answer: '', comment: '', photos: [] }, i.type === 'req' ? { qty: '' } : {})), photos: [], notes: '' };
 }
-const tpls = scope => (S.settings.templates && S.settings.templates[scope]) || DEFAULT_TEMPLATES[scope] || [];
+const tpls = scope => {
+  const c = S.settings.templates && S.settings.templates[scope];
+  if (!c) return DEFAULT_TEMPLATES[scope] || [];
+  // pre-1.3.2 custom survey templates: swap the old 'in place' H&S list for the requirements list
+  if (scope === 'job') return c.map(t => t.key === 'safety' && !(t.items || []).some(i => i.type === 'req') ? DEFAULT_TEMPLATES.job.find(d => d.key === 'safety') : t);
+  return c;
+};
 
 /* ---------- Model ---------- */
 function newJob() {
@@ -1063,6 +1102,7 @@ function checklistHTML(base, sec, f) {
     let ctl = '';
     if (it.type === 'rate') ctl = `<div class="seg rate" data-b="${p}.answer">${[...RATINGS, 'NA'].map(x => `<button type="button" data-v="${x}" class="${it.answer === x ? 'on' : ''}">${x === 'NA' ? 'N/A' : x}</button>`).join('')}</div>`;
     else if (it.type === 'yn') ctl = `<div class="seg yn3" data-b="${p}.answer">${answerOpts().map(([v, l]) => `<button type="button" data-v="${v}" class="${it.answer === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    else if (it.type === 'req') ctl = `<div class="seg req3" data-b="${p}.answer">${REQ_OPTS.map(v => `<button type="button" data-v="${v}" class="${it.answer === v ? 'on' : ''} ${v === 'Required' ? 'rq' : v === 'TBC' ? 'tbc' : ''}">${v}</button>`).join('')}</div><input type="text" class="ck-c" style="margin-top:8px" data-b="${p}.qty" value="${esc(it.qty || '')}" placeholder="Qty / extent (optional), e.g. 30 lin m">`;
     else if (it.type === 'pf') ctl = `<div class="seg pf" data-b="${p}.answer">${['Pass', 'Fail', 'N/A'].map(v => `<button type="button" data-v="${v}" class="${it.answer === v ? 'on' : ''}">${v}</button>`).join('')}</div>`;
     else if (it.type === 'num') { const st = numStats(it.answer); ctl = `<input type="text" inputmode="decimal" data-b="${p}.answer" value="${esc(it.answer)}" placeholder="Readings, e.g. 250, 262, 245"><div class="small" id="ns_${it.id}" style="margin-top:4px">${st ? `${st.n} reading${st.n > 1 ? 's' : ''} · min ${st.min} · avg ${st.avg} · max ${st.max}` : 'Enter one or more numbers separated by commas'}</div>`; }
     const cm = it.type === 'text'
@@ -1072,11 +1112,11 @@ function checklistHTML(base, sec, f) {
     const snag = job && job.snags && it.snagId && job.snags.find(s => s.id === it.snagId);
     const cam = `<label class="ck-cam" title="Add photo to this item" aria-label="Add photo to this item">${I.camera}<input type="file" accept="image/*" capture="environment" data-photo="${p}.photos" hidden></label>`;
     const thumbs = (ph.length || snag) ? `<div class="ck-ph">${ph.map(x => `<img src="${x.data}" alt="" data-act="viewphoto" data-key="${p}.photos" data-id="${x.id}">`).join('')}${snag ? `<a class="tag ${snag.status === 'Closed' ? 'green' : 'red'}" style="text-decoration:none;margin-left:auto;font-size:13px;padding:8px 12px" href="#/job/${job.id}/snag/${snag.id}">Snag ${esc(snag.ref)} · ${snag.status} ›</a>` : ''}</div>` : '';
-    return `<div class="ck ${it.answer || it.comment ? 'done' : ''} ${it.answer === 'Fail' ? 'fail' : ''}" data-item="${it.id}"><div class="ck-h"><div class="ck-t">${esc(it.text)}</div><button type="button" class="ck-x" title="Remove item" aria-label="Remove item" data-act="delitem" data-base="${base}" data-id="${it.id}">×</button></div>${ctl}<div class="ck-row">${cm}${cam}</div>${thumbs}</div>`;
+    return `<div class="ck ${it.answer || it.comment ? 'done' : ''} ${it.answer === 'Fail' ? 'fail' : ''} ${it.req ? 'reqd' : ''}" data-item="${it.id}"><div class="ck-h"><div class="ck-t">${esc(it.text)}${it.req ? `<div class="reqtag">${I.warn.replace('<svg', '<svg width="14" height="14"')} Required per survey${it.req !== true ? ': ' + esc(it.req) : ''}</div>` : ''}</div><button type="button" class="ck-x" title="Remove item" aria-label="Remove item" data-act="delitem" data-base="${base}" data-id="${it.id}">×</button></div>${ctl}<div class="ck-row">${cm}${cam}</div>${thumbs}</div>`;
   }).join('');
   const pfOpt = job && isWorks(job) ? '<option value="pf">Pass / Fail / N/A</option>' : '';
   return `${items || '<p class="hint">No checklist items yet.</p>'}
-  <div class="addit"><input type="text" id="ni_${sec.id}" placeholder="Add a custom checklist item…"><select id="nt_${sec.id}">${pfOpt}<option value="yn">Yes / No / N/A</option><option value="rate">Good / Fair / Poor / Critical</option><option value="num">Numeric readings</option><option value="text">Text answer</option></select><button type="button" class="btn navy" data-act="additem" data-base="${base}" data-sid="${sec.id}">${I.plus}Add</button></div>`;
+  <div class="addit"><input type="text" id="ni_${sec.id}" placeholder="Add a custom checklist item…"><select id="nt_${sec.id}">${job && !isWorks(job) && sec.key === 'safety' ? '<option value="req">Required / Not required / TBC</option>' : ''}${pfOpt}<option value="yn">Yes / No / N/A</option><option value="rate">Good / Fair / Poor / Critical</option><option value="num">Numeric readings</option><option value="text">Text answer</option></select><button type="button" class="btn navy" data-act="additem" data-base="${base}" data-sid="${sec.id}">${I.plus}Add</button></div>`;
 }
 function photoGrid(key, photos, opts = {}) {
   return `<div class="pgrid">${(photos || []).map((p, i) => `<div class="ph"><img src="${p.data}" alt="Photo ${i + 1}" data-act="viewphoto" data-key="${key}" data-id="${p.id}" loading="lazy"><div class="pc">${opts.tags ? `<div class="seg tagseg" data-b="${key}#${p.id}.tag">${['Before', 'During', 'After'].map(t => `<button type="button" data-v="${t}" class="${p.tag === t ? 'on' : ''}">${t}</button>`).join('')}</div>` : ''}<textarea data-b="${key}#${p.id}.caption" placeholder="Caption / notes…">${esc(p.caption)}</textarea><button type="button" class="del" data-act="delphoto" data-key="${key}" data-id="${p.id}">Remove</button></div></div>`).join('')}</div>${(photos || []).length ? '' : `<p class="hint">${opts.empty || 'No photos yet.'}</p>`}${addPhotoButtons(key)}`;
@@ -1158,7 +1198,9 @@ function viewSafety(job) {
     ${f.seg('Lone working?', 'hs.loneWorking', [['yes', 'Yes', 'warn'], ['no', 'No', 'ok']], { cls: 'yn' })}
   </div>
   ${scafSummaryCard(job)}
-  ${sec ? sectionCards(`sections#${sec.id}`, sec, f, { checklistTitle: 'H&S checklist', notesLabel: 'H&S notes' }) : ''}`;
+  ${sec && sec.hsMigrated ? `<div class="lg-msg warn" style="margin:0 0 12px">This H&amp;S list was converted from the old 'in place' checklist (v1.3.1 and earlier). Old answers were cleared and kept in each comment as 'Previously recorded'. Please re-answer as Required / Not required / TBC.</div>` : ''}
+  ${sec ? hsReqSummaryCard(job, sec) : ''}
+  ${sec ? sectionCards(`sections#${sec.id}`, sec, f, { checklistTitle: 'H&S requirements for the works', notesLabel: 'H&S notes' }) : ''}`;
 }
 function areaItem(job, a) {
   if (isWorks(job)) { const os = job.snags.filter(s => s.areaId === a.id && s.status !== 'Closed').length; const first = a.progress.slice(-1)[0] || a.sections.flatMap(s => s.photos)[0]; return `<a class="item" href="#/job/${job.id}/area/${a.id}">${first ? `<img class="th" src="${first.data}" alt="">` : `<div class="th">${I.roof.replace('<svg', '<svg width="30" height="30"')}</div>`}<div class="bd"><div class="t1">${esc(a.name || 'Unnamed area')}</div><div class="t2">${esc(a.sections.map(s => s.title).join(', ') || 'No packages selected')}</div><div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${a.pct !== '' && a.pct != null ? `<span class="tag navy">${a.pct}% complete</span>` : ''}<span class="tag ${os ? 'red' : ''}">${os} open snag${os === 1 ? '' : 's'}</span></div></div>${I.chev}</a>`; }
@@ -1299,6 +1341,7 @@ function viewSettings() {
 function viewTemplates() {
   if (!S.settings.templates) S.settings.templates = clone(DEFAULT_TEMPLATES);
   Object.keys(DEFAULT_TEMPLATES).forEach(k => { if (!S.settings.templates[k]) S.settings.templates[k] = clone(DEFAULT_TEMPLATES[k]); });
+  S.settings.templates.job = S.settings.templates.job.map(t => t.key === 'safety' && !(t.items || []).some(i => i.type === 'req') ? clone(DEFAULT_TEMPLATES.job.find(d => d.key === 'safety')) : t);
   const f = mk(S.settings);
   const grp = (scope, title, hint) => `<h2 class="sec-h" style="margin:18px 4px 8px;font-size:16px">${title}</h2><p class="hint" style="margin:0 4px 10px">${hint}</p>` + S.settings.templates[scope].map((t, ti) => {
     const p = `templates.${scope}.${ti}`;
@@ -1306,12 +1349,12 @@ function viewTemplates() {
     ${f.text('Section title', p + '.title')}
     ${scope === 'packages' ? '' : `<div class="f"><span class="lbl">Add to new ${scope === 'area' ? 'roof areas' : 'audits'} automatically</span><div class="seg" data-tauto="${p}"><button type="button" data-v="1" class="${t.auto !== false ? 'on' : ''}">Yes</button><button type="button" data-v="0" class="${t.auto === false ? 'on' : ''}">No (optional)</button></div></div>`}
     <span class="lbl">Checklist items</span>
-    ${t.items.map((it, ii) => `<div class="ck"><input type="text" data-b="${p}.items.${ii}.text" value="${esc(it.text)}"><div style="display:flex;gap:8px;margin-top:8px"><select data-b="${p}.items.${ii}.type" style="flex:1">${[['yn', 'Yes / No / N/A'], ['pf', 'Pass / Fail / N/A'], ['rate', 'Good / Fair / Poor / Critical'], ['num', 'Numeric readings'], ['text', 'Text answer']].map(([v, l]) => `<option value="${v}" ${it.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select><button class="btn" style="padding:0 14px" data-act="tmove" data-p="${p}" data-i="${ii}" data-d="-1" aria-label="Move up">↑</button><button class="btn" style="padding:0 14px" data-act="tmove" data-p="${p}" data-i="${ii}" data-d="1" aria-label="Move down">↓</button><button class="btn danger" style="padding:0 14px" data-act="titemdel" data-p="${p}" data-i="${ii}" aria-label="Delete">×</button></div></div>`).join('')}
+    ${t.items.map((it, ii) => `<div class="ck"><input type="text" data-b="${p}.items.${ii}.text" value="${esc(it.text)}"><div style="display:flex;gap:8px;margin-top:8px"><select data-b="${p}.items.${ii}.type" style="flex:1">${[['yn', 'Yes / No / N/A'], ['req', 'Required / Not required / TBC'], ['pf', 'Pass / Fail / N/A'], ['rate', 'Good / Fair / Poor / Critical'], ['num', 'Numeric readings'], ['text', 'Text answer']].map(([v, l]) => `<option value="${v}" ${it.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select><button class="btn" style="padding:0 14px" data-act="tmove" data-p="${p}" data-i="${ii}" data-d="-1" aria-label="Move up">↑</button><button class="btn" style="padding:0 14px" data-act="tmove" data-p="${p}" data-i="${ii}" data-d="1" aria-label="Move down">↓</button><button class="btn danger" style="padding:0 14px" data-act="titemdel" data-p="${p}" data-i="${ii}" aria-label="Delete">×</button></div></div>`).join('')}
     <button class="btn block" data-act="titemadd" data-p="${p}">${I.plus} Add item</button>
     <div class="divider"></div><button class="btn danger block" data-act="tdel" data-scope="${scope}" data-i="${ti}">Delete this section template</button>
     </div></details>`;
   }).join('') + `<button class="btn block" data-act="tadd" data-scope="${scope}">${I.plus} New ${({ job: 'survey', area: 'roof area', worksJob: 'works inspection', packages: 'work package' })[scope]} ${scope === 'packages' ? 'template' : 'section'}</button>`;
-  return `<h2 class="sec-h" style="margin:8px 4px 0">PRE-WORKS SURVEY</h2>` + grp('job', 'Survey: audit-level sections', 'Job details, Health & safety and General are shown on their own tabs. Extra sections appear under General.') +
+  return `<h2 class="sec-h" style="margin:8px 4px 0">PRE-WORKS SURVEY</h2>` + grp('job', 'Survey: audit-level sections', 'Job details, H&amp;S requirements and General are shown on their own tabs. Extra sections appear under General.') +
     grp('area', 'Survey: roof area sections', 'Added to every new roof area.') +
     `<div class="divider"></div><h2 class="sec-h" style="margin:8px 4px 0">WORKS INSPECTION</h2>` + grp('worksJob', 'Works: inspection-level sections', 'Inspection checklist (Details tab), Site H&S during works (Safety tab) and General observations.') +
     grp('packages', 'Works: work packages', 'Chosen per roof area on a works inspection (overclad, strip & re-sheet, coatings, rooflights, gutter lining, remedial). Pass/Fail items that FAIL create a snag automatically.') + scafTplHTML() +
@@ -1697,13 +1740,13 @@ async function buildPDF(job, opts) {
     if (job.scaffold.notes) { label('Scaffolding & access notes'); para(job.scaffold.notes); }
     const ph = its.flatMap(i => (i.photos || []).map(p => Object.assign({}, p, { caption: p.caption || i.text }))); if (ph.length) photoGrid(ph);
   };
-  const ansCol = a => RC[a] || (a === 'Pass' ? RC.Good : a === 'Fail' ? RC.Critical : null);
+  const ansCol = a => RC[a] || (a === 'Pass' ? RC.Good : a === 'Fail' ? RC.Critical : a === 'Required' ? RC.Poor : a === 'TBC' ? NAVY : null);
   const sectionBlock = (sec, title, showRating = true) => {
     const pc = pfCounts(sec); const hasPF = sec.items.some(i => i.type === 'pf');
     h3((title || sec.title) + (hasPF ? `   (Pass ${pc.Pass}  /  Fail ${pc.Fail}  /  N/A ${pc.NA})` : ''), showRating ? sec.rating : '');
     const items = opts.hideBlank ? sec.items.filter(i => i.answer || i.comment || (i.photos || []).length) : sec.items;
     const ansTxt = i => { if (i.type === 'text') return ''; if (i.type === 'num') { const st = numStats(i.answer); return st ? (st.n > 1 ? `avg ${st.avg}` : String(st.avg)) : '-'; } return i.answer === 'NA' ? 'N/A' : i.answer || '-'; };
-    const cmTxt = i => { if (i.type !== 'num') return tx(i.comment); const st = numStats(i.answer); return tx([st && st.n > 1 ? `Readings: ${i.answer} (min ${st.min}, max ${st.max}, n=${st.n})` : '', i.comment].filter(Boolean).join('. ')); };
+    const cmTxt = i => { if (i.req) return tx(['REQUIRED PER SURVEY' + (i.req !== true ? ': ' + i.req : ''), i.comment].filter(Boolean).join('. ')); if (i.type === 'req') return tx([i.qty ? 'Qty: ' + i.qty : '', i.comment].filter(Boolean).join('. ')); if (i.type !== 'num') return tx(i.comment); const st = numStats(i.answer); return tx([st && st.n > 1 ? `Readings: ${i.answer} (min ${st.min}, max ${st.max}, n=${st.n})` : '', i.comment].filter(Boolean).join('. ')); };
     if (items.length) table({
       head: [['Checklist item', 'Answer', 'Comment']],
       body: items.map(i => [tx(i.text), ansTxt(i), cmTxt(i)]),
@@ -1870,14 +1913,19 @@ async function buildPDF(job, opts) {
   if (job.summary.exec) { label('Summary of findings'); para(job.summary.exec, 10); }
 
   /* ----- 3. Health & Safety ----- */
-  h1(++sn, 'Health & Safety Findings');
+  h1(++sn, 'H&S Requirements for the Works');
+  const ssec = secByKey(job, 'safety');
+  { const L = hsReqLines(job); h3('Required for the works   (' + L.length + ' item' + (L.length === 1 ? '' : 's') + ')');
+    if (L.length) { para('Summary of everything marked Required - for the quotation and RAMS.', 8.8, 'normal', GREY); table({ head: [['#', 'Required for the works', 'Qty / extent', 'Notes']], body: L.map((l, k) => [String(k + 1), tx(l.text) + (l.kind !== 'H&S' ? '  (scaffold / access)' : ''), tx(l.qty || '-'), tx(l.note)]), rowPageBreak: 'avoid', styles: { fontSize: 8.4 }, columnStyles: { 0: { cellWidth: 8, halign: 'center' }, 1: { cellWidth: 78, fontStyle: 'bold' }, 2: { cellWidth: 26 } } }); }
+    else para('No H&S requirements have been marked as Required.', 8.8, 'italic', GREY);
+    const tbc = ssec ? ssec.items.filter(i => i.type === 'req' && i.answer === 'TBC') : []; if (tbc.length) { label('To be confirmed'); para(tbc.map(i => i.text.replace(/\s+required\b/i, '') + (i.comment ? ' (' + i.comment + ')' : '')).join('; ')); } }
   const warnBox = (title, body) => { font(9, 'normal'); const lines = doc.splitTextToSize(tx(body), CW - 10); const hh = 10 + lines.length * 4; need(hh + 3); color(RC.Critical, 'fill'); doc.roundedRect(M, y, CW, hh, 2, 2, 'F'); font(11, 'bold', [255, 255, 255]); doc.text(tx('!  ' + title), M + 5, y + 6.5); font(9, 'normal', [255, 255, 255]); doc.text(lines, M + 5, y + 11.5); y += hh + 4; };
   if (fragile) warnBox(h.fragility === 'fragile' ? 'FRAGILE ROOF' : 'FRAGILITY UNKNOWN - TREAT AS FRAGILE', 'The roof (including rooflights) must be treated as fragile. No person should access the roof surface without suitable collective protection (e.g. MEWP, staging, crawling boards, safety netting) in accordance with HSE HSG33 and ACR[M]001. Fragile roof warning signs should be displayed at all access points.');
   if (acSusp) warnBox('SUSPECTED ASBESTOS CEMENT', 'Roof sheets and/or associated materials are suspected to contain asbestos (visual identification only). AC sheets are fragile. A refurbishment & demolition asbestos survey must be obtained before any work that may disturb these materials (Control of Asbestos Regulations 2012). Do not drill, cut, break or pressure-wash.');
   const yn = v => ({ yes: 'Yes', no: 'No', unknown: 'Unknown', fragile: 'FRAGILE', 'non-fragile': 'Non-fragile' }[v] || v || '');
   kv([['Fragility status', yn(h.fragility) + (h.fragilityNotes ? ' - ' + h.fragilityNotes : '')], ['Pre-2000 building', yn(h.pre2000)], ['Suspected AC materials', yn(h.acSuspected)], ['R&D asbestos survey available', yn(h.rdSurvey) + (h.asbestosRef ? ' - ref ' + h.asbestosRef : '')], ['Live services', (h.liveServices || []).join(', ')], ['Other hazards', (h.otherHazards || []).join(', ')], ['RAMS reference', h.rams], ['Permit to work', h.permit], ['Lone working', yn(h.loneWorking)]]);
   scafBlock(false);
-  const ssec = secByKey(job, 'safety'); if (ssec) sectionBlock(ssec, 'Health & safety checklist', false);
+  if (ssec) sectionBlock(ssec, 'H&S requirements checklist', false);
 
   /* ----- 4. Roof areas ----- */
   h1(++sn, 'Roof Areas');
@@ -2014,7 +2062,7 @@ function migrateJob(j) {
   const fixSec = s => { s.items = s.items || []; s.photos = s.photos || []; s.items.forEach(i => { i.photos = i.photos || []; }); };
   j.sections.forEach(fixSec); j.areas.forEach(a => { a.sections = a.sections || []; a.defects = a.defects || []; a.sections.forEach(fixSec); a.progress = a.progress || []; });
   if (j.type === 'works') { j.snags = j.snags || []; j.works = Object.assign({ inspNo: '1', visitNo: '', contractRef: '', siteManager: '', subcontractor: '', operatives: '', stage: '', pct: '', programme: '', programmeDays: '', nextDate: '', actions: '', rag: '', linkedRef: '' }, j.works || {}); j.signoff = j.signoff || {}; }
-  migrateExtras(j); return j;
+  migrateExtras(j); migrateHSReq(j); return j;
 }
 function initWorks(j) {
   j.type = 'works'; j.snags = []; j.signoff = {};
@@ -2073,6 +2121,7 @@ function startWorksFromSurvey(src) {
     keys.forEach(k => { const t = tpls('packages').find(x => x.key === k); if (t) na.sections.push(sectionFromTemplate(t)); });
     j.areas.push(na);
   });
+  applyHSReqToWorks(src, j);
   return j;
 }
 function followUpInspection(src) {
@@ -2221,6 +2270,7 @@ async function makeDemoWorks() {
   Object.assign(j.works, { inspNo: '2', visitNo: '2', contractRef: 'PO 45021 / ARS-C-1187', siteManager: 'Dave Collins (ARS contracts manager)', subcontractor: 'Apex Cladding Ltd - gang of 4', operatives: '6', stage: 'Install - outer sheets', pct: '', programme: 'Behind', programmeDays: '3', nextDate: '', linkedRef: 'ARS-2610-DEMO' });
   const d = new Date(); d.setDate(d.getDate() + 7); j.works.nextDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const det = secByKey(j, 'details'); ['Previous inspection', 'Drawings', 'Materials delivered', 'Programme reviewed', 'Client', 'Daily diary'].forEach(t => setAns(det, t, 'Pass')); setAns(det, 'Programme reviewed', 'Pass', '3 days lost to high winds');
+  { const ss = sectionFromTemplate(DEFAULT_TEMPLATES.job.find(t => t.key === 'safety')); demoHSReq(ss); applyHSReqToWorks({ sections: [ss] }, j); }
   const hs = secByKey(j, 'safety'); hs.items.forEach(i => { i.answer = /AC strip|Hot works/.test(i.text) ? 'N/A' : 'Pass'; }); setAns(hs, 'Scaffold tagged', 'Pass', 'Tag dated ' + fmtDate(todayISO()));
   const A1 = newWorksArea(j); Object.assign(A1, { name: 'Main warehouse - north slope', type: 'Built-up metal', profile: 'Firth N1000R overclad on spacer system', colour: 'Goosewing Grey', length: '84', width: '22.5', pct: '65', stage: 'Install - outer sheets' });
   const A2 = newWorksArea(j); Object.assign(A2, { name: 'Central valley gutter', type: 'Other', profile: 'Fatra reinforced PVC lining', length: '84', width: '0.9', pct: '40', stage: 'Gutter lining' });
@@ -3762,6 +3812,48 @@ Object.assign(ACTIONS, {
   wmaton(a, job) { const o = a.dataset.o; const owner = ownerOf(job, o); owner.matOn = !a.dataset.off; markDirty(job); if (owner.matOn && !owner.materials.length) go(o === 'job' ? `#/job/${job.id}/materials` : `#/job/${job.id}/area/${o}/materials`); else rerender(); },
 });
 
+/* ===================== 1.3.2: survey H&S requirements ===================== */
+const HS_OLD_MAP = [[/^RAMS/i, 0], [/^Permit to work/i, 1], [/^Fragile roof signage/i, 2], [/^Edge protection/i, 3], [/^Rooflights protected/i, 5], [/^Safety netting/i, 4], [/^MEWP operator/i, 21], [/^Exclusion zone/i, 8], [/^Live services/i, 9], [/^Weather/i, 16], [/^Asbestos register/i, 6], [/^Lone working/i, 17], [/^Rescue plan/i, 20]];
+function hsReqLines(job) {
+  const sec = secByKey(job, 'safety'); const out = [];
+  if (sec) sec.items.filter(i => i.type === 'req' && i.answer === 'Required').forEach(i => out.push({ kind: 'H&S', text: i.text.replace(/\s+required\b/i, ''), qty: i.qty || '', note: i.comment || '' }));
+  if (!scafIsW(job)) (scafOf(job).items || []).filter(i => i.status === 'Required').forEach(i => out.push({ kind: 'Scaffold / access', text: i.text + (i.mewpType ? ` (${i.mewpType})` : ''), qty: i.qty ? [i.qty, i.unit].filter(Boolean).join(' ') : '', note: [i.loc, i.notes].filter(Boolean).join(' - ') }));
+  return out;
+}
+function hsReqSummaryCard(job, sec) {
+  const L = hsReqLines(job); const n = sec.items.filter(i => i.type === 'req');
+  const c = REQ_OPTS.map(o => [o, n.filter(i => i.answer === o).length]);
+  return `<div class="card" id="hsreqsum"><h2>${I.shield.replace('<svg', '<svg width="22" height="22"')} Required for the works <span class="prog" style="margin-left:auto">${L.length}</span></h2>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${c.map(([o, k]) => `<span class="tag ${o === 'Required' ? 'amber' : o === 'TBC' ? 'navy' : ''}">${k} ${esc(o.toLowerCase())}</span>`).join('')}<span class="tag">${n.length - c.reduce((s, x) => s + x[1], 0)} unanswered</span></div>
+  ${L.length ? `<ul class="reqlist">${L.map(l => `<li><b>${esc(l.text)}</b>${l.qty ? ` · ${esc(l.qty)}` : ''}${l.kind !== 'H&S' ? ' <span class="small">(scaffold)</span>' : ''}</li>`).join('')}</ul>` : '<p class="hint">Mark items below as Required, Not required or TBC. Everything Required is listed here and at the top of the H&amp;S section in the report, ready for the quote and RAMS.</p>'}</div>`;
+}
+function migrateHSReq(j) {
+  if (j.type === 'works') return j;
+  const sec = (j.sections || []).find(s => s.key === 'safety'); if (!sec || !Array.isArray(sec.items)) return j;
+  if (sec.items.some(i => i.type === 'req') || !sec.items.some(i => i.type === 'yn')) return j;
+  const old = sec.items; const used = new Set(); const fresh = HS_REQ_ITEMS.map((r, k) => ({ id: sec.id + '_r' + k, text: r[0], type: 'req', answer: '', comment: '', qty: '', photos: [] }));
+  const note = i => i.answer || i.comment ? `Previously recorded: "${i.text}"${i.answer ? ' = ' + (i.answer === 'NA' ? 'N/A' : i.answer) : ''}${i.comment ? ' - ' + i.comment : ''}` : '';
+  old.forEach(i => { const m = HS_OLD_MAP.find(([re]) => re.test(i.text || '')); if (m && !used.has(m[1])) { used.add(m[1]); const t = fresh[m[1]]; t.id = i.id; t.comment = note(i); t.photos = i.photos || []; } });
+  const extra = old.filter(i => !HS_OLD_MAP.some(([re]) => re.test(i.text || ''))).map(i => i.type === 'yn' ? Object.assign({}, i, { type: 'req', answer: '', qty: '', comment: note(i) }) : i);
+  sec.items = [...fresh, ...extra]; sec.title = 'H&S requirements for the works';
+  sec.hsMigrated = old.some(i => i.answer || i.comment) ? 'v1.3.1' : '';
+  return j;
+}
+/* works: pre-highlight 'in place' checks from the survey's Required items */
+function applyHSReqToWorks(src, j) {
+  const ss = secByKey(src, 'safety'), ws = secByKey(j, 'safety'); if (!ss || !ws) return 0; let n = 0;
+  ss.items.filter(i => i.type === 'req' && i.answer === 'Required').forEach(i => {
+    const r = HS_REQ_ITEMS.find(x => x[0] === i.text); const why = [i.qty, i.comment].filter(Boolean).join(' - ') || true;
+    let hit = r && r[1] ? ws.items.filter(w => r[1].test(w.text)) : [];
+    if (!hit.length) { const t = r && r[2] ? r[2] : i.text.replace(/\s+required\b/i, '') + ' in place'; let w = ws.items.find(x => x.text === t); if (!w) { w = { id: uid(), text: t, type: 'pf', answer: '', comment: '', photos: [], custom: true }; ws.items.push(w); } hit = [w]; }
+    hit.forEach(w => { w.req = w.req && w.req !== true && why !== true ? w.req + '; ' + why : (w.req && w.req !== true ? w.req : why); }); n++;
+  });
+  // required items first so they stand out
+  ws.items.sort((a, b) => (b.req ? 1 : 0) - (a.req ? 1 : 0));
+  return n;
+}
+{ const _d1 = derive; derive = function (path, el) { _d1(path, el); const job = S.ctx && S.ctx.job; if (!job || isWorks(job)) return; if (/^sections#[^.]+\.items#[^.]+\.(answer|qty)$/.test(path) || /^scaffold\.items#[^.]+\.(status|qty|unit)$/.test(path)) { const c = $('#hsreqsum'), sec = secByKey(job, 'safety'); if (c && sec) c.outerHTML = hsReqSummaryCard(job, sec); } }; }
+
 /* ---------- Demo audit (illustrative images drawn on canvas) ---------- */
 function demoPhoto(kind, caption, seed = 1) {
   const w = 1200, h = 900, c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
@@ -3792,6 +3884,15 @@ function demoPhoto(kind, caption, seed = 1) {
 }
 function shade(hex, amt) { const n = parseInt(hex.slice(1), 16); const f = v => Math.max(0, Math.min(255, v + amt)); return '#' + ((f(n >> 16) << 16) | (f((n >> 8) & 255) << 8) | f(n & 255)).toString(16).padStart(6, '0'); }
 function ans(sec, text, answer, comment = '') { const it = sec.items.find(i => i.text.toLowerCase().startsWith(text.toLowerCase())); if (it) { it.answer = answer; it.comment = comment; } return sec; }
+function demoHSReq(hs) {
+  const R = (t, a, c = '', q = '') => { ans(hs, t, a, c); const it = hs.items.find(i => i.text.toLowerCase().startsWith(t.toLowerCase())); if (it) it.qty = q; };
+  R('RAMS', 'Required', 'Site-specific RAMS for re-sheeting and rooflight replacement'); R('Permit to work', 'Required', "Client's permit for roof access and isolations"); R('Fragile roof controls', 'Required', 'Treat whole roof as fragile until rooflights are covered', '42 rooflights');
+  R('Edge protection', 'Required', 'Free-standing to service yard elevation', '30 lin m'); R('Safety netting', 'Required', 'Below rooflight bays during works', '480 m²'); R('Rooflight protection', 'Required', 'Mesh to all rooflights before works start', '42 nr');
+  R('Asbestos refurbishment', 'Not required', 'R&D survey AR-2019-114 held - no ACMs in the roof'); R('Licensed asbestos', 'Not required'); R('Exclusion zones', 'Required', 'Service yard below eaves, barriers and signage'); R('Live services', 'Required', 'Sprinkler mains and lighting below rooflight bays');
+  R('Hot works', 'Not required'); R('Out of hours', 'TBC', 'Client may want Sunday working over the despatch area'); R('Client occupation', 'Required', 'Warehouse stays operational - protection below working areas'); R('Welfare', 'Required', "Client's welfare agreed - canteen and WCs");
+  R('Site compound', 'Required', 'Compound in north-east car park corner', '15 x 10 m'); R('Crane', 'Not required', 'Sheets loaded by telehandler'); R('Wind / weather', 'Required', 'No sheet handling above 17 mph gusts; MEWP limit 12.5 m/s'); R('Lone working', 'Not required');
+  R('Traffic management', 'Required', 'Deliveries 07:00-09:00 only, banksman for HGVs'); R('CDM', 'Required', 'Notifiable project (over 30 days) - F10 by client'); R('Fire plan', 'Required', 'MEWP rescue plan and harness rescue kit on site'); R('Training', 'Required', 'IPAF 3a/3b, harness, SSSTS supervisor'); R('PPE beyond standard', 'TBC', 'Client to confirm site rules for hi-vis and gloves');
+}
 async function makeDemoJob() {
   const j = newJob(); const sec = k => secByKey(j, k);
   Object.assign(j, { ref: j.ref.replace(/-\d+$/, '-DEMO'), surveyor: S.settings.surveyor || 'Matt Ross', weather: ['Dry / overcast'], temp: '11°C, light SW breeze', access: ['MEWP', 'Internal access'], accessNotes: '2 x 16 m articulated booms from the service yard; internal inspection from ground level.', limitations: 'North-east valley gutter only partly visible from MEWP. High-bay racking restricted internal view of liner sheets in bays 6-8.', buildingUse: 'Warehouse / distribution', era: '1990s', status: 'Draft' });
@@ -3800,8 +3901,8 @@ async function makeDemoJob() {
   j.hs = { fragility: 'fragile', fragilityNotes: 'Original GRP rooflights, brittle and unprotected; built-up sheeting non-fragile when new but cut-edge corrosion noted at eaves.', pre2000: 'yes', acSuspected: 'no', rdSurvey: 'yes', asbestosRef: 'AR-2019-114 (no ACMs in roof)', liveServices: ['Extract fans / flues', 'HVAC plant'], otherHazards: ['Public / staff below', 'Vehicle movements', 'Bird fouling'], rams: 'RAMS-ARS-2610-07', permit: 'PTW-0412', loneWorking: 'no' };
   ans(sec('details'), 'Client / site contact', 'Yes', 'Met S. Patel 08:15'); ans(sec('details'), 'Site induction', 'Yes'); ans(sec('details'), 'Drawings', 'No', 'No drawings on site'); ans(sec('details'), 'O&M', 'No'); ans(sec('details'), 'Roof history', 'Yes', 'Gutters patch-repaired c.2018'); ans(sec('details'), 'Access as planned', 'Yes'); ans(sec('details'), 'Building elevation', 'Yes');
   sec('details').photos.push(demoPhoto('overview', 'Main warehouse roof - general view looking north', 1));
-  const hs = sec('safety'); ['RAMS', 'Permit', 'Edge protection', 'MEWP operator', 'Exclusion zone', 'Live services', 'Weather', 'Asbestos register', 'Rescue plan'].forEach(t => ans(hs, t, 'Yes')); ans(hs, 'Fragile roof signage', 'No', 'No signage at ladder access - P1 item'); ans(hs, 'Rooflights protected', 'No', 'No mesh or covers'); ans(hs, 'Safety netting', 'N/A', 'MEWP access only'); ans(hs, 'Lone working', 'N/A');
-  hs.notes = 'Roof not walked. All inspection carried out from MEWP baskets with harness and short lanyard. Exclusion zone set up in yard.';
+  const hs = sec('safety'); demoHSReq(hs);
+  hs.notes = 'Survey carried out from MEWP baskets with harness and short lanyard - roof not walked. The requirements above are for the proposed re-sheeting and rooflight works.';
   const gen = sec('general'); ans(gen, 'Overall roof condition', 'Fair'); ans(gen, 'Roof drainage', 'No', 'Main valley undersized for current outlets'); ans(gen, 'Plant', 'Yes', '3 x AHUs on support frames'); ans(gen, 'Solar', 'No'); ans(gen, 'Bird', 'Yes', 'Pigeon nesting at ridge'); ans(gen, 'Signs of previous', 'Yes'); ans(gen, 'Permanent access', 'No'); ans(gen, 'Site left', 'Yes');
   gen.notes = 'The building is a steel portal frame warehouse constructed c.1996 with built-up twin-skin metal roof sheeting and in-plane GRP rooflights at approximately 10% of the roof area.';
   const A1 = newArea(j); Object.assign(A1, { name: 'Main warehouse - north slope', type: 'Built-up metal', profile: 'Firth N1000R', colour: 'Goosewing Grey', pitch: '6', length: '84', width: '22.5', measured: 'plan', rlType: 'GRP in-plane (triple skin)', rlCount: '42', gutterTypes: ['Trimline', 'Valley'], gutterMat: 'Galvanised steel', outletCount: '8', flashTypes: ['Ridge', 'Verge / barge', 'Eaves'], insType: 'Spacer system (built-up)', overall: 'Fair' });
