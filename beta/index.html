@@ -3996,7 +3996,7 @@ async function pushDaily(c) {
   c.status = 'synced'; dcSave();
 }
 async function notifyDaily(c) {
-  try { const r = await fnCall('daily-check-notify', { id: c.id }); c.status = 'sent'; c.emailedTo = (r && r.to) || ''; delete c.emailErr; }
+  try { const r = await fnCall('daily-check-notify', { id: c.id }); if (r && r.pending) { c.emailPending = true; c.pendingAt = Date.now(); delete c.emailErr; } else { c.status = 'sent'; c.emailedTo = (r && r.to) || ''; delete c.emailErr; delete c.emailPending; } }
   catch (e) { if (e.offline) throw e; c.emailErr = e.status === 404 && /function/i.test(e.message) ? 'Email service not set up yet' : (e.message || String(e)); c.tries = (c.tries || 0) + 1; }
   dcSave();
 }
@@ -4008,13 +4008,13 @@ async function opSync() {
   try { const rows = await sbFetch('/rest/v1/app_settings?select=key,value&key=eq.daily') || []; const d = rows[0] && rows[0].value; if (d) applyDailySettings(d); } catch (e) { if (e.offline) throw e; }
   const errs = [];
   for (const c of dcPending()) {
-    try { if (c.status === 'queued') await pushDaily(c); if (c.status === 'synced' && (c.tries || 0) < 20) await notifyDaily(c); }
+    try { if (c.status === 'queued') await pushDaily(c); if (c.status === 'synced' && (c.tries || 0) < 20 && !(c.emailPending && (Date.now() - (c.pendingAt || 0) < 3600e3 || Date.now() - (c.submitted || 0) > 7 * 864e5))) await notifyDaily(c); }
     catch (e) { if (e.offline || e.status === 401) throw e; errs.push(`${c.jobRef} ${fmtDate(c.date)}: ${e.message}`); }
   }
   // my own checks from the server (other devices)
   try {
     const rows = await sbFetch(`/rest/v1/daily_checks?select=id,job_id,check_date,issues,email_status,emailed_to,submitted_at,owner_name,data&owner=eq.${me()}&order=submitted_at.desc&limit=30`) || [];
-    rows.forEach(r => { const c = dcGet(r.id); if (c) { if (r.email_status === 'sent' && c.status !== 'sent') { c.status = 'sent'; c.emailedTo = r.emailed_to; } } else Ops.list.push(Object.assign(r.data || {}, { id: r.id, jobId: r.job_id, status: r.email_status === 'sent' ? 'sent' : 'synced', emailedTo: r.emailed_to, remote: true, pdfUp: true })); });
+    rows.forEach(r => { const c = dcGet(r.id); if (c) { if (r.email_status === 'sent' && c.status !== 'sent') { c.status = 'sent'; c.emailedTo = r.emailed_to; delete c.emailPending; } } else Ops.list.push(Object.assign(r.data || {}, { id: r.id, jobId: r.job_id, status: r.email_status === 'sent' ? 'sent' : 'synced', emailedTo: r.emailed_to, remote: true, pdfUp: true })); });
     dcSave(true);
   } catch (e) { if (e.offline) throw e; }
   return errs;
@@ -4059,7 +4059,7 @@ async function loadDaily(pid, f = {}) {
       if (Cloud.again) { Cloud.again = false; kick(500); }
     }
   };
-  const _pc = pendingCount; pendingCount = function () { return signedIn() && isOp() ? dcPending().filter(c => c.status === 'queued' || !c.emailErr).length : _pc(); };
+  const _pc = pendingCount; pendingCount = function () { return signedIn() && isOp() ? dcPending().filter(c => c.status === 'queued' || (!c.emailErr && !c.emailPending)).length : _pc(); };
 }
 // managers also publish the daily template + letterhead for operatives
 {
@@ -4146,7 +4146,7 @@ function buildDailySummaryPDF(proj, rows, f) {
 
 /* ---------- Operative views ---------- */
 const DC_ST = { draft: ['Draft - not submitted', 'amber'], queued: ['Waiting for signal to upload', 'amber'], synced: ['Uploaded', 'navy'], sent: ['Uploaded & emailed', 'green'] };
-function dcStatusTag(c) { const [l, cls] = DC_ST[c.status] || ['', '']; return `<span class="tag ${cls}">${l}</span>${c.status === 'synced' && c.emailErr ? '<span class="tag">Email pending</span>' : ''}`; }
+function dcStatusTag(c) { const [l, cls] = DC_ST[c.status] || ['', '']; return `<span class="tag ${cls}">${l}</span>${c.status === 'synced' && (c.emailErr || c.emailPending) ? '<span class="tag">Email pending</span>' : ''}`; }
 const opJob = id => Ops.jobs.find(j => j.id === id);
 function todaysCheck(jobId) { return Ops.list.find(c => c.jobId === jobId && c.date === todayISO() && c.owner === me()); }
 function viewOpHome() {
@@ -4268,7 +4268,7 @@ function viewDailyList(job) {
     <div class="btns"><button class="btn primary" data-act="dc-sumpdf" ${rows.length ? '' : 'disabled'}>${I.pdf} Summary PDF</button><button class="btn" data-act="dc-reload">Refresh</button></div>
     ${Ops.dcErr ? `<p class="hint" style="margin-top:8px">${esc(Ops.dcErr)}</p>` : ''}</div>
   <div class="card"><h2>${rows.length} check${rows.length === 1 ? '' : 's'} <span class="prog ${tot ? 'bad' : 'full'}" style="margin-left:auto">${tot} issue${tot === 1 ? '' : 's'}</span></h2>
-    ${Ops.dcLoading && !Ops.dc[pid] ? '<p class="hint">Loading…</p>' : rows.map(r => { const w = (r.data || {}).weather || {}; return `<a class="item" href="#/daily/${r.id}"><div class="th dcth ${r.issues ? 'bad' : 'good'}">${r.issues || '✓'}</div><div class="bd"><div class="t1">${fmtDate(r.check_date)} · ${esc(r.owner_name || '')}</div><div class="t2">${esc([(w.conditions || []).join(', '), ((r.data || {}).workforce || {}).count ? r.data.workforce.count + ' on site' : ''].filter(Boolean).join(' · '))}</div><div class="meta">${r.issues ? `<span class="tag red">${r.issues} issue${r.issues > 1 ? 's' : ''}</span>` : '<span class="tag green">No issues</span>'}${w.stopped === 'yes' ? '<span class="tag amber">Work stopped</span>' : ''}${((r.data || {}).incident || {}).any === 'yes' ? '<span class="tag red">Incident</span>' : ''}${r.email_status === 'sent' ? '<span class="tag">Emailed</span>' : r.email_status ? '<span class="tag amber">Email not sent</span>' : ''}</div></div>${I.chev}</a>`; }).join('') || '<p class="hint">No daily checks for this period yet.</p>'}</div>`;
+    ${Ops.dcLoading && !Ops.dc[pid] ? '<p class="hint">Loading…</p>' : rows.map(r => { const w = (r.data || {}).weather || {}; return `<a class="item" href="#/daily/${r.id}"><div class="th dcth ${r.issues ? 'bad' : 'good'}">${r.issues || '✓'}</div><div class="bd"><div class="t1">${fmtDate(r.check_date)} · ${esc(r.owner_name || '')}</div><div class="t2">${esc([(w.conditions || []).join(', '), ((r.data || {}).workforce || {}).count ? r.data.workforce.count + ' on site' : ''].filter(Boolean).join(' · '))}</div><div class="meta">${r.issues ? `<span class="tag red">${r.issues} issue${r.issues > 1 ? 's' : ''}</span>` : '<span class="tag green">No issues</span>'}${w.stopped === 'yes' ? '<span class="tag amber">Work stopped</span>' : ''}${((r.data || {}).incident || {}).any === 'yes' ? '<span class="tag red">Incident</span>' : ''}${r.email_status === 'sent' ? '<span class="tag">Emailed</span>' : /^pending/.test(r.email_status || '') ? '<span class="tag">Email pending</span>' : r.email_status ? '<span class="tag amber">Email not sent</span>' : ''}</div></div>${I.chev}</a>`; }).join('') || '<p class="hint">No daily checks for this period yet.</p>'}</div>`;
 }
 async function staffDaily(id) {
   for (const k in Ops.dc) { const r = Ops.dc[k].find(x => x.id === id); if (r) return r; }
@@ -4362,7 +4362,7 @@ Object.assign(ACTIONS, {
   },
   async 'dc-resend'(a) {
     if (!await confirmBox('Resend email?', 'The daily check email will be sent again to the contracts manager (or managers).', 'Resend', false)) return;
-    try { const r = await fnCall('daily-check-notify', { id: a.dataset.id, resend: true }); toast('Sent to ' + ((r && r.to) || 'recipients'), 3500); Ops.staffView = null; for (const k in Ops.dc) delete Ops.dc[k]; render(true); }
+    try { const r = await fnCall('daily-check-notify', { id: a.dataset.id, resend: true }); toast(r && r.pending ? 'Email is not set up on the server yet - the check is saved and can be resent later' : 'Sent to ' + ((r && r.to) || 'recipients'), 4500); Ops.staffView = null; for (const k in Ops.dc) delete Ops.dc[k]; render(true); }
     catch (e) { toast(e.message || String(e), 5000); }
   },
   async 'dc-sumpdf'(a, job) {
