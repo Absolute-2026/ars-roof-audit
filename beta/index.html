@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.3.2">
+<meta name="app-version" content="1.4.0">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -319,6 +319,29 @@ input:disabled,select:disabled,textarea:disabled{background:#eef1f5;color:#4b556
 .ck.reqd{border-left:5px solid var(--poor);background:#fff7ec}
 .reqtag{display:flex;align-items:center;gap:4px;margin-top:4px;font-size:12.5px;font-weight:700;color:#b25a00}
 .reqlist{margin:4px 0 0 18px;padding:0;font-size:14px;line-height:1.5}
+/* v1.4.0 daily checks */
+.dc-big{min-height:72px;font-size:19px;gap:10px;margin:0 0 14px;border-radius:16px}
+.dc-big.alt{min-height:56px;font-size:16px}
+.dck{border:1px solid var(--line);border-left:6px solid var(--line);border-radius:12px;padding:10px 10px 10px 12px;margin:0 0 10px;background:#fff}
+.dck.ok{border-left-color:var(--good)}.dck.issue{border-left-color:var(--crit);background:#fff5f5}.dck.na{border-left-color:#94a3b8}
+.dq{font-weight:700;font-size:16px;margin:0 0 8px;color:var(--navy2)}
+.seg.dcs button{min-width:0;font-size:17px}
+.seg.dcs button.on[data-v=ok]{background:var(--good);border-color:var(--good);box-shadow:none}
+.seg.dcs button.on[data-v=issue]{background:var(--crit);border-color:var(--crit);box-shadow:none}
+.seg.dcs button.on[data-v=na]{background:#64748b;border-color:#64748b;box-shadow:none}
+.dci{margin-top:8px}.dci textarea{width:100%;border:2px solid var(--crit);border-radius:10px;padding:8px;font:inherit;font-size:16px}
+.dc-allok{margin:0 0 12px;border-style:dashed;color:var(--good);font-weight:800}
+.dcph{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}.dcph img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}.dcph .btn{min-height:44px}
+.dcsig{display:block;max-width:260px;width:100%;border:1px solid var(--line);border-radius:8px;margin:0 0 10px;background:#fff}
+.item .th.dcth{font-weight:900;font-size:20px;color:#fff;width:52px;height:52px}.item .th.dcth.good{background:var(--good)}.item .th.dcth.bad{background:var(--crit)}
+.dcr{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px}.dcr:last-child{border-bottom:0}.dcr b{text-align:right}
+.dciss{border:2px solid var(--crit)}.dciss h2{color:var(--crit)}
+.dtrow{display:flex;gap:6px;align-items:center;margin:0 0 8px}.dtrow input{flex:1;min-height:44px;border:1px solid var(--line);border-radius:10px;padding:0 10px;font:inherit}
+.ckl{display:flex;align-items:center;gap:10px;min-height:44px;font-weight:600;margin:2px 0}.ckl input{width:22px;height:22px;accent-color:var(--navy)}
+.lgtabs{margin:6px 0 4px}.lgtabs button{flex:1}
+input.pin{letter-spacing:.5em;font-size:22px;text-align:center}
+.prog.bad{color:var(--crit)}
+.dcmiss{margin:0 0 12px 18px;line-height:1.6}
 
 </style>
 </head>
@@ -739,7 +762,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -2393,6 +2416,7 @@ async function ensureFreshToken() {
 function authMsg(e) {
   const m = String(e.message || e);
   if (e.offline) return 'You are offline. Connect to the internet to sign in (after that the app works offline).';
+  if (e.opLogin) return m;
   if (/invalid login credentials/i.test(m)) return 'Email or password is incorrect.';
   if (/email not confirmed/i.test(m)) return 'Please confirm your email address first - check your inbox for the confirmation link.';
   if (/database error saving new user|restricted to/i.test(m)) return 'Sign-up is limited to @absoluteroofingsolutions.co.uk email addresses. Ask your manager if you need an exception.';
@@ -2428,10 +2452,10 @@ async function loadProfile() {
     Cloud.profile = (await DB.getKV('cloud.profile')) || { id: me(), email: u.email, full_name: (u.user_metadata || {}).full_name || '', role: 'surveyor' };
     if (Cloud.profile.id !== me()) Cloud.profile = { id: me(), email: u.email, full_name: '', role: 'surveyor' };
   }
-  if (isMgr()) await loadProfiles(); else Cloud.profiles = [Cloud.profile];
+  if (isStaffRole(Cloud.profile.role)) await loadProfiles(); else Cloud.profiles = [Cloud.profile];
 }
 async function loadProfiles() {
-  try { Cloud.profiles = await sbFetch('/rest/v1/profiles?select=id,email,full_name,role,created_at&order=full_name.asc') || []; await DB.setKV('cloud.profiles', Cloud.profiles); }
+  try { Cloud.profiles = await sbFetch('/rest/v1/profiles?select=id,email,full_name,role,created_at,phone,active,locked_until&order=full_name.asc') || []; await DB.setKV('cloud.profiles', Cloud.profiles); }
   catch (e) { Cloud.profiles = (await DB.getKV('cloud.profiles')) || [Cloud.profile]; }
 }
 const personName = id => { const p = Cloud.profiles.find(x => x.id === id) || (Cloud.profile && Cloud.profile.id === id ? Cloud.profile : null); return p ? (p.full_name || p.email) : ''; };
@@ -2630,7 +2654,7 @@ function cloudFresh(j) { delete j.sync; delete j.owner; delete j.conflict; delet
 
 /* ---------- Shared settings (app_settings) ---------- */
 const companyOf = s => { const o = {}; COMPANY_KEYS.forEach(k => { o[k] = s[k]; }); return o; };
-const settingsSig = () => blobSig(JSON.stringify([companyOf(S.settings), S.settings.templates || null]));
+const settingsSig = () => blobSig(JSON.stringify([companyOf(S.settings), S.settings.templates || null, S.settings.dailyTpl || null]));
 async function pullSettings() {
   const rows = await sbFetch('/rest/v1/app_settings?select=key,value,updated_at') || [];
   const m = {}; rows.forEach(r => { m[r.key] = r.value; });
@@ -2788,7 +2812,7 @@ Object.assign(ACTIONS, {
   'lg-magic'() { return lgRun(async () => { const email = lgVal('lg-email').toLowerCase(); if (!email) throw new Error('Enter your work email.'); await sbFetch('/auth/v1/otp?redirect_to=' + encodeURIComponent(redirectURL()), { method: 'POST', auth: false, body: { email, create_user: false } }); Cloud.loginMode = 'signin'; Cloud.loginMsg = `Check your inbox: a sign-in link has been sent to ${email}.`; }); },
   async syncinfo() {
     const l = syncLabel(); const p = Cloud.profile || {}; const n = pendingCount();
-    const r = await modal(`<h3>Account & sync</h3><p><b>${esc(p.full_name || p.email || '')}</b><br><span class="small">${esc(p.email || '')} · ${isMgr() ? 'Manager' : 'Surveyor'}</span></p>
+    const r = await modal(`<h3>Account & sync</h3><p><b>${esc(p.full_name || p.email || '')}</b><br><span class="small">${esc(isOp() ? prettyPhone(p.phone) : p.email || '')} · ${roleName(p.role)}</span></p>
       <div class="lg-msg ${l.cls === 'error' ? 'err' : l.cls === 'synced' ? 'ok' : 'warn'}">${esc(l.title)}</div>
       <p class="small">${n ? `${n} item${n > 1 ? 's' : ''} waiting to upload. ` : ''}Last synced: ${Cloud.lastSync ? new Date(Cloud.lastSync).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : 'never'}${Cloud.conflicts ? ` · ${Cloud.conflicts} conflict${Cloud.conflicts > 1 ? 's' : ''} this session (see audits marked CONFLICT COPY)` : ''}</p>
       ${Cloud.authExpired ? '<button class="btn primary" data-r="relogin">Sign in again</button>' : `<button class="btn primary" data-r="sync" ${online() ? '' : 'disabled'}>Sync now</button>`}
@@ -2815,11 +2839,12 @@ document.addEventListener('submit', e => { if (e.target.id === 'lgform') { e.pre
 /* ---------- Team page (managers) ---------- */
 async function loadAllow() { try { Cloud.allow = await sbFetch('/rest/v1/allowed_emails?select=*&order=email.asc') || []; } catch (e) { Cloud.allow = null; } }
 function viewTeam() {
-  const ps = Cloud.profiles || [];
+  const ps = (Cloud.profiles || []).filter(p => p.role !== 'operative');
   const rows = ps.map(p => `<div class="item"><div class="th">${esc((p.full_name || p.email || '?').split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase())}</div><div class="bd"><div class="t1">${esc(p.full_name || p.email)} ${p.id === me() ? '<span class="tag">You</span>' : ''}</div><div class="t2">${esc(p.email)}</div><div class="meta"><span class="tag ${p.role === 'manager' ? 'type-works' : 'navy'}">${p.role === 'manager' ? 'Manager' : 'Surveyor'}</span><span class="tag">${S.jobs.filter(j => j.owner === p.id && !j.localOnly).length} audits</span></div></div>
     ${p.role === 'manager' ? `<button class="btn" style="padding:0 12px" data-act="setrole" data-email="${esc(p.email)}" data-role="surveyor">Demote</button>` : `<button class="btn primary" style="padding:0 12px" data-act="setrole" data-email="${esc(p.email)}" data-role="manager">Promote</button>`}</div>`).join('');
   const al = Cloud.allow;
   return `<div class="card"><h2>Team</h2><p class="hint" style="margin-bottom:10px">Everyone who has signed up. Managers can see and edit all audits, edit company settings and checklist templates, and manage roles. New staff sign up from the app with their @absoluteroofingsolutions.co.uk email.</p>${rows || '<p class="hint">No users loaded.</p>'}<button class="btn block" data-act="teamreload">Refresh</button></div>
+  ${opsTeamCard()}
   <div class="card"><h2>Sign-up exceptions</h2><p class="hint" style="margin-bottom:10px">Email addresses outside @absoluteroofingsolutions.co.uk that are allowed to sign up (e.g. subcontractors). They sign up as surveyors.</p>
     ${al === null ? '<p class="hint">Could not load the list (offline?).</p>' : al.length ? al.map(x => `<div class="item"><div class="bd"><div class="t1">${esc(x.email)}</div><div class="t2">${esc(x.note || '')}</div></div><button class="btn danger" style="padding:0 12px" data-act="allowdel" data-email="${esc(x.email)}">Remove</button></div>`).join('') : '<p class="hint">None - only company email addresses can sign up.</p>'}
     <div class="row"><div class="f"><label for="allow-email">Email</label><input id="allow-email" type="email" autocomplete="off"></div><div class="f"><label for="allow-note">Note</label><input id="allow-note" type="text" placeholder="e.g. Apex Cladding - site lead" autocomplete="off"></div></div><button class="btn block" data-act="allowadd">Add exception</button></div>`;
@@ -2856,7 +2881,7 @@ function cloudMenu(job) {
 function cloudSettingsCard() {
   if (!signedIn()) return '';
   const p = Cloud.profile || {};
-  return `<div class="card"><h2>Account</h2><div class="item" style="margin:0"><div class="th">${CLOUD_IC}</div><div class="bd"><div class="t1">${esc(p.full_name || p.email || '')}</div><div class="t2">${esc(p.email || '')} · ${isMgr() ? 'Manager' : 'Surveyor'}</div></div></div>
+  return `<div class="card"><h2>Account</h2><div class="item" style="margin:0"><div class="th">${CLOUD_IC}</div><div class="bd"><div class="t1">${esc(p.full_name || p.email || '')}</div><div class="t2">${esc(isOp() ? prettyPhone(p.phone) : p.email || '')} · ${roleName(p.role)}</div></div></div>
     <div class="btns" style="margin-top:10px"><button class="btn" data-act="syncinfo">${CLOUD_IC} Sync status</button>${isMgr() ? '<a class="btn" href="#/team">Team & roles</a>' : ''}<button class="btn" data-act="signout">Sign out</button></div>
     ${cloudRO() ? '<p class="hint" style="margin-top:10px">Company details, report disclaimers and checklist templates are shared by the whole company and can only be changed by a manager.</p>' : isMgr() ? '<p class="hint" style="margin-top:10px">As a manager, your changes to company details, disclaimers and checklist templates are shared with everyone.</p>' : ''}</div>`;
 }
@@ -3853,6 +3878,645 @@ function applyHSReqToWorks(src, j) {
   return n;
 }
 { const _d1 = derive; derive = function (path, el) { _d1(path, el); const job = S.ctx && S.ctx.job; if (!job || isWorks(job)) return; if (/^sections#[^.]+\.items#[^.]+\.(answer|qty)$/.test(path) || /^scaffold\.items#[^.]+\.(status|qty|unit)$/.test(path)) { const c = $('#hsreqsum'), sec = secByKey(job, 'safety'); if (c && sec) c.outerHTML = hsReqSummaryCard(job, sec); } }; }
+
+/* =====================================================================
+   v1.4.0: operatives (phone + PIN), jobs / projects, daily site checks
+   - Operatives see only their assigned jobs (RPC op_jobs) and their own daily checks (RLS).
+   - Daily checks are saved on the phone first, queued, then uploaded to public.daily_checks with
+     photos/signature/PDF in the private 'daily-checks' bucket; the daily-check-notify Edge Function
+     emails the contracts manager (issues first, PDF attached).
+   ===================================================================== */
+const DC_BUCKET = 'daily-checks', DC_PREFIX = 'sb:daily-checks/';
+const OPS_DOMAIN = 'ops.absoluteroofingsolutions.invalid';
+const isOp = () => !!(Cloud.profile && Cloud.profile.role === 'operative');
+const isStaffRole = r => r === 'manager' || r === 'surveyor';
+const roleName = r => ({ manager: 'Manager', surveyor: 'Surveyor', operative: 'Operative' })[r] || 'Surveyor';
+const Ops = { jobs: [], list: [], loaded: false, busy: false, jobsTbl: [], dc: {}, dcErr: '' };
+
+// keep in step with supabase/functions/_shared/daily.js
+function normPhone(input) {
+  let d = String(input || '').replace(/[\s\-().]/g, '');
+  if (d.startsWith('+')) d = d.slice(1); else if (d.startsWith('00')) d = d.slice(2);
+  if (/^0\d{10}$/.test(d)) d = '44' + d.slice(1); else if (/^7\d{9}$/.test(d)) d = '44' + d;
+  if (/^440\d{10}$/.test(d)) d = '44' + d.slice(3);
+  return /^447\d{9}$/.test(d) ? '+' + d : null;
+}
+const prettyPhone = p => { const d = String(p || '').replace(/^\+44/, '0'); return d.length === 11 ? `${d.slice(0, 5)} ${d.slice(5)}` : d; };
+function pinProblem(pin) {
+  const p = String(pin || '');
+  if (!/^\d{6}$/.test(p)) return 'The PIN must be exactly 6 digits.';
+  if (/^(\d)\1{5}$/.test(p)) return 'Choose a PIN that is not all the same digit.';
+  if ('0123456789012345'.includes(p) || '9876543210987654'.includes(p)) return 'Choose a PIN that is not a simple sequence.';
+  return '';
+}
+function dcIssues(c) {
+  const out = [];
+  (c.sections || []).forEach(s => (s.items || []).forEach(i => { if (i.answer === 'issue') out.push({ section: s.title, text: i.text, comment: i.comment || '', photos: i.photos || [] }); }));
+  const w = c.weather || {};
+  if (w.tooWindy === 'yes' || w.tooWindy === true) out.push({ section: 'Weather', text: 'Too windy to work', comment: w.wind ? `Wind ${w.wind} mph` : '' });
+  if (w.stopped === 'yes') out.push({ section: 'Weather', text: 'Work stopped due to weather', comment: w.hours ? `${w.hours} h lost` : '' });
+  if ((c.incident || {}).any === 'yes') out.push({ section: 'Incidents / near misses', text: 'Incident or near miss reported', comment: c.incident.detail || '' });
+  return out;
+}
+
+/* ---------- Template (editable in Settings by managers) ---------- */
+const DEFAULT_DAILY_TPL = [
+  { key: 'site', title: 'Site & access', items: ['Signed in to site / visitor book', 'Site secure (fencing, gates, hoarding)', 'Access routes clear', 'Housekeeping acceptable', 'Welfare facilities OK'] },
+  { key: 'wah', title: 'Work at height & edge protection', items: ['Edge protection in place and complete', 'Safety netting in place', 'Rooflight covers / mesh in place', 'Crawling boards / staging in use', 'Fragile roof signage displayed', 'Harnesses & anchor points inspected'] },
+  { key: 'plant', title: 'Plant & equipment', items: ['MEWP pre-use check done (IPAF operator)', 'Scaffold tag inspected (in date)', 'Ladders inspected and secured', 'Power tools PAT tested', 'Fire extinguisher on site', 'Hoist / crane checked (where applicable)'] },
+  { key: 'permits', title: 'Permits & hazards', items: ['Permits in place for today’s work', 'Hot works permit (if hot works)', 'Asbestos / ACMs not disturbed', 'Live services isolated / identified'] },
+];
+const DC_WEATHER = ['Dry', 'Rain', 'Wind', 'Frost', 'Snow'];
+const dailyTpl = () => (Array.isArray(S.settings.dailyTpl) && S.settings.dailyTpl.length ? S.settings.dailyTpl : DEFAULT_DAILY_TPL);
+const myName = () => (Cloud.profile && (Cloud.profile.full_name || '')) || S.settings.surveyor || '';
+function newDaily(job) {
+  return {
+    id: uid(), jobId: job.id, jobRef: job.ref || '', site: job.site_name || '', address: [job.site_address, job.postcode].filter(Boolean).join(', '), cm: job.contracts_manager_name || '',
+    owner: me(), by: myName(), date: todayISO(), time: nowTime(), created: Date.now(), updated: Date.now(), status: 'draft',
+    sections: dailyTpl().map(s => ({ id: uid(), key: s.key || '', title: s.title, items: (s.items || []).map(t => ({ id: uid(), text: typeof t === 'string' ? t : t.text, answer: '', comment: '', photos: [] })) })),
+    weather: { conditions: [], wind: '', tooWindy: '', temp: '', stopped: '', hours: '' }, workforce: { count: '', names: '', toolbox: '', topic: '' },
+    progress: { note: '', photos: [] }, incident: { any: '', detail: '' }, signoff: { name: myName(), sig: '' },
+  };
+}
+
+/* ---------- Local store (per user) ---------- */
+const dcKey = () => 'daily.mine.' + (me() || 'local');
+async function dcLoad() {
+  const stored = (await DB.getKV(dcKey())) || []; const mem = Ops.list || [];
+  Ops.list = stored.concat(mem.filter(c => !stored.some(x => x.id === c.id)));
+  if (!Ops.jobsFresh) Ops.jobs = (await DB.getKV('ops.jobs.' + me())) || [];
+  Ops.loaded = true;
+}
+let dcSaveT;
+function dcSave(now) { clearTimeout(dcSaveT); const run = () => DB.setKV(dcKey(), Ops.list); if (now) return run(); dcSaveT = setTimeout(run, 300); }
+const dcGet = id => Ops.list.find(c => c.id === id);
+const dcPending = () => Ops.list.filter(c => c.status === 'queued' || c.status === 'synced');
+
+/* ---------- Cloud helpers ---------- */
+const fnCall = (name, body, auth = true) => sbFetch('/functions/v1/' + name, { method: 'POST', body, auth });
+function dcWalk(root, fn) {
+  const rec = (o, base) => {
+    if (Array.isArray(o)) { o.forEach(x => { if (x && typeof x === 'object') rec(x, base); }); return; }
+    const hasId = typeof o.id === 'string' && o !== root; const b = hasId ? o.id : base;
+    for (const k of Object.keys(o)) {
+      const v = o[k];
+      if (typeof v === 'string') { if (v.startsWith('data:image/') || v.startsWith(DC_PREFIX)) fn(v, nv => { o[k] = nv; }, String(hasId ? b + (k === 'data' ? '' : '-' + k) : (b ? b + '-' : '') + k).replace(/[^A-Za-z0-9_-]/g, '_')); }
+      else if (v && typeof v === 'object') rec(v, hasId ? b : (b ? b + '-' : '') + k);
+    }
+  };
+  rec(root, '');
+}
+const dcPath = (c, name, v) => `${c.owner}/${c.id}/${name}.${blobExt(v)}`;
+function dcSerialize(c) {
+  const d = clone(c); ['status', 'pdfUp', 'emailErr', 'emailedTo', 'synced', 'tries'].forEach(k => delete d[k]);
+  dcWalk(d, (v, set, name) => { if (v.startsWith('data:')) set(DC_PREFIX + dcPath(c, name, v)); }); return d;
+}
+async function dcUploadBlobs(c) {
+  const tasks = []; dcWalk(c, (v, set, name) => { if (v.startsWith('data:')) { const p = dcPath(c, name, v); const g = blobSig(v); if (Cloud.uploaded[DC_BUCKET + '/' + p] !== g) tasks.push({ p, v, g }); } });
+  for (const t of tasks) { const b = dataURLtoBlob(t.v); await sbFetch(`/storage/v1/object/${DC_BUCKET}/${encPath(t.p)}`, { method: 'POST', body: b, headers: { 'Content-Type': b.type, 'x-upsert': 'true' } }); Cloud.uploaded[DC_BUCKET + '/' + t.p] = t.g; }
+  if (tasks.length) await saveUploaded();
+}
+async function dcHydrate(d) {   // replace sb:daily-checks refs with data URLs (staff viewing / PDF)
+  const miss = []; dcWalk(d, (v, set) => { if (v.startsWith(DC_PREFIX)) miss.push({ v, set }); });
+  let left = 0;
+  for (const m of miss) { try { m.set(await blobToDataURL(await sbBlob(`/storage/v1/object/authenticated/${DC_BUCKET}/${encPath(m.v.slice(DC_PREFIX.length))}`))); } catch (e) { left++; if (e.offline) break; } }
+  return left;
+}
+async function pushDaily(c) {
+  await dcUploadBlobs(c);
+  const pdfPath = `${c.owner}/${c.id}/check.pdf`;
+  if (!c.pdfUp) { const blob = buildDailyPDF(c).output('blob'); await sbFetch(`/storage/v1/object/${DC_BUCKET}/${encPath(pdfPath)}`, { method: 'POST', body: blob, headers: { 'Content-Type': 'application/pdf', 'x-upsert': 'true' } }); c.pdfUp = true; dcSave(); }
+  const row = { id: c.id, job_id: c.jobId, owner: c.owner, owner_name: c.by || myName(), check_date: c.date, data: dcSerialize(c), issues: dcIssues(c).length, pdf_path: pdfPath, submitted_at: new Date(c.submitted || Date.now()).toISOString(), updated_at: new Date(c.updated || Date.now()).toISOString() };
+  try { await sbFetch('/rest/v1/daily_checks', { method: 'POST', body: row, headers: { Prefer: 'return=minimal' } }); }
+  catch (e) {
+    if (e.status !== 409) throw e;
+    const p = Object.assign({}, row); delete p.id; delete p.job_id; delete p.owner;
+    await sbFetch(`/rest/v1/daily_checks?id=eq.${encodeURIComponent(c.id)}`, { method: 'PATCH', body: p, headers: { Prefer: 'return=minimal' } });
+  }
+  c.status = 'synced'; dcSave();
+}
+async function notifyDaily(c) {
+  try { const r = await fnCall('daily-check-notify', { id: c.id }); c.status = 'sent'; c.emailedTo = (r && r.to) || ''; delete c.emailErr; }
+  catch (e) { if (e.offline) throw e; c.emailErr = e.status === 404 && /function/i.test(e.message) ? 'Email service not set up yet' : (e.message || String(e)); c.tries = (c.tries || 0) + 1; }
+  dcSave();
+}
+async function opSync() {
+  if (!Ops.loaded) await dcLoad();
+  // jobs I'm assigned to + daily template / letterhead
+  try { Ops.jobs = await sbFetch('/rest/v1/rpc/op_jobs', { method: 'POST', body: {} }) || []; Ops.jobsFresh = true; Ops.err = ''; await DB.setKV('ops.jobs.' + me(), Ops.jobs); }
+  catch (e) { if (e.offline || e.status === 401) throw e; Ops.err = e.message; }
+  try { const rows = await sbFetch('/rest/v1/app_settings?select=key,value&key=eq.daily') || []; const d = rows[0] && rows[0].value; if (d) applyDailySettings(d); } catch (e) { if (e.offline) throw e; }
+  const errs = [];
+  for (const c of dcPending()) {
+    try { if (c.status === 'queued') await pushDaily(c); if (c.status === 'synced' && (c.tries || 0) < 20) await notifyDaily(c); }
+    catch (e) { if (e.offline || e.status === 401) throw e; errs.push(`${c.jobRef} ${fmtDate(c.date)}: ${e.message}`); }
+  }
+  // my own checks from the server (other devices)
+  try {
+    const rows = await sbFetch(`/rest/v1/daily_checks?select=id,job_id,check_date,issues,email_status,emailed_to,submitted_at,owner_name,data&owner=eq.${me()}&order=submitted_at.desc&limit=30`) || [];
+    rows.forEach(r => { const c = dcGet(r.id); if (c) { if (r.email_status === 'sent' && c.status !== 'sent') { c.status = 'sent'; c.emailedTo = r.emailed_to; } } else Ops.list.push(Object.assign(r.data || {}, { id: r.id, jobId: r.job_id, status: r.email_status === 'sent' ? 'sent' : 'synced', emailedTo: r.emailed_to, remote: true, pdfUp: true })); });
+    dcSave(true);
+  } catch (e) { if (e.offline) throw e; }
+  return errs;
+}
+function applyDailySettings(d) {
+  if (Array.isArray(d.template) && d.template.length) S.settings.dailyTpl = d.template;
+  if (d.company && isOp()) ['company', 'address', 'phone', 'email', 'website', 'legal', 'logo', 'logoW', 'logoH'].forEach(k => { if (d.company[k] !== undefined) S.settings[k] = d.company[k]; });
+  DB.setKV('settings', S.settings);
+}
+const dailySettingsValue = () => ({ template: S.settings.dailyTpl || null, company: (() => { const o = {}; ['company', 'address', 'phone', 'email', 'website', 'legal', 'logo', 'logoW', 'logoH'].forEach(k => { o[k] = S.settings[k]; }); return o; })() });
+
+// staff: the jobs table + daily checks per job
+async function loadJobsTbl() { try { Ops.jobsTbl = await sbFetch('/rest/v1/jobs?select=*&order=ref.asc') || []; await DB.setKV('cloud.jobsTbl', Ops.jobsTbl); } catch (e) { if (!Ops.jobsTbl.length) Ops.jobsTbl = (await DB.getKV('cloud.jobsTbl')) || []; if (e.offline) return; } }
+const projOf = job => job && job.projectId ? Ops.jobsTbl.find(r => r.id === job.projectId) : null;
+async function loadDaily(pid, f = {}) {
+  let q = `/rest/v1/daily_checks?select=*&job_id=eq.${encodeURIComponent(pid)}&deleted=eq.false&order=check_date.desc,submitted_at.desc&limit=500`;
+  if (f.from) q += `&check_date=gte.${f.from}`; if (f.to) q += `&check_date=lte.${f.to}`;
+  try { Ops.dc[pid] = await sbFetch(q) || []; Ops.dcErr = ''; await DB.setKV('cloud.dc.' + pid, Ops.dc[pid]); }
+  catch (e) { Ops.dcErr = e.offline ? 'Offline - showing the last list downloaded' : e.message; Ops.dc[pid] = Ops.dc[pid] || (await DB.getKV('cloud.dc.' + pid)) || []; }
+  return Ops.dc[pid];
+}
+
+/* ---------- Sync integration ---------- */
+{
+  const _sync = syncNow;
+  syncNow = async function (reason) {
+    if (!signedIn() || !isOp()) {
+      const r = await _sync(reason);
+      if (signedIn() && !isOp() && online() && !Cloud.busy && reason !== 'jobs') { await loadJobsTbl(); const rt = route(); if (rt[0] === 'job' && document.querySelector('#projcard') && !(document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) render(true); }
+      return r;
+    }
+    if (Cloud.authExpired) { updateBadge(); return; }
+    if (Ops.busy) { Cloud.again = true; return; }
+    if (!online()) { setSync('offline'); return; }
+    Ops.busy = true; Cloud.busy = true; setSync('syncing');
+    try { const errs = await opSync(); Cloud.lastSync = Date.now(); await DB.setKV('cloud.lastSync', Cloud.lastSync); setSync(errs.length ? 'error' : 'idle', errs[0] || ''); }
+    catch (e) { console.warn('opsync', e); setSync(e.offline ? 'offline' : 'error', e.offline ? '' : (e.message || String(e))); }
+    finally {
+      Ops.busy = false; Cloud.busy = false; updateBadge();
+      const rt = route(); const typing = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+      if (!typing && !document.querySelector('.modal-bg') && (!rt.length || (rt[0] === 'daily' && (dcGet(rt[1]) || {}).status !== 'draft'))) render(true);
+      if (Cloud.again) { Cloud.again = false; kick(500); }
+    }
+  };
+  const _pc = pendingCount; pendingCount = function () { return signedIn() && isOp() ? dcPending().filter(c => c.status === 'queued' || !c.emailErr).length : _pc(); };
+}
+// managers also publish the daily template + letterhead for operatives
+{
+  const _ps = pushSettings;
+  pushSettings = async function (force) {
+    const sig0 = Cloud.settingsSig; await _ps(force);
+    if (isMgr() && (force || sig0 !== Cloud.settingsSig || !Cloud.dailyPushed)) { await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'daily', value: dailySettingsValue() }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); Cloud.dailyPushed = true; }
+  };
+  const _pl = pullSettings;
+  pullSettings = async function () { await _pl(); try { const rows = await sbFetch('/rest/v1/app_settings?select=key,value&key=eq.daily') || []; if (rows[0] && rows[0].value) { applyDailySettings(rows[0].value); Cloud.settingsSig = settingsSig(); await DB.setKV('cloud.settingsSig', Cloud.settingsSig); } } catch (e) { } };
+}
+
+/* ---------- PDFs ---------- */
+function dcPdfKit(title) {
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+  const st = S.settings, W = 210, H = 297, M = 14, CW = W - 2 * M, TOP = 20, BOT = H - 16;
+  const NAVY = [15, 37, 66], OR = [241, 137, 2], GREY = [90, 102, 120], LIGHT = [241, 244, 248], LINE = [205, 214, 226], TXT = [22, 30, 42], RED = [185, 28, 28], GREEN = [21, 128, 61];
+  const tx = s => String(s ?? '').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/\u2026/g, '...').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
+  const fmtImg = d => /^data:image\/png/.test(d) ? 'PNG' : 'JPEG';
+  const k = { doc, st, W, H, M, CW, TOP, BOT, NAVY, OR, GREY, LIGHT, LINE, TXT, RED, GREEN, tx, fmtImg, y: TOP };
+  k.font = (size, style = 'normal', c = TXT) => { doc.setFont('helvetica', style); doc.setFontSize(size); doc.setTextColor(...c); };
+  k.need = h => { if (k.y + h > BOT) { doc.addPage(); k.y = TOP; } };
+  k.para = (text, size = 9.5, style = 'normal', c = TXT) => { if (!text) return; k.font(size, style, c); const lh = size * 0.45; String(text).split('\n').forEach(pg => { doc.splitTextToSize(tx(pg) || ' ', CW).forEach(l => { k.need(lh + 1); doc.text(l, M, k.y); k.y += lh; }); }); k.y += 1.5; };
+  k.h2 = t => { k.need(16); doc.setFillColor(...NAVY); doc.rect(M, k.y - 5, CW, 8, 'F'); k.font(11, 'bold', [255, 255, 255]); doc.text(tx(t), M + 3, k.y + 0.5); k.y += 7; };
+  k.table = o => { doc.autoTable(Object.assign({ startY: k.y, margin: { left: M, right: M, top: TOP + 2, bottom: H - BOT + 2 }, theme: 'grid', styles: { font: 'helvetica', fontSize: 9, cellPadding: 1.8, textColor: TXT, lineColor: LINE, lineWidth: 0.2, overflow: 'linebreak' }, headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold' } }, o)); k.y = doc.lastAutoTable.finalY + 5; };
+  k.kv = rows => { rows = rows.filter(r => r[1] !== undefined && r[1] !== null && String(r[1]).trim() !== ''); if (rows.length) k.table({ body: rows.map(r => [tx(r[0]), tx(r[1])]), columnStyles: { 0: { cellWidth: 52, fontStyle: 'bold', fillColor: LIGHT } } }); };
+  k.photos = (list, cap) => {
+    list = (list || []).filter(p => p && typeof p.data === 'string' && p.data.startsWith('data:image/')); if (!list.length) return;
+    const cols = 3, gap = 4, cw = (CW - gap * (cols - 1)) / cols, ih = cw * 0.75;
+    for (let i = 0; i < list.length; i += cols) { k.need(ih + 8); list.slice(i, i + cols).forEach((p, j) => { const x = M + j * (cw + gap); doc.setFillColor(...LIGHT); doc.rect(x, k.y, cw, ih, 'F'); const r = Math.min(cw / (p.w || 4), ih / (p.h || 3)); const w = (p.w || 4) * r, h = (p.h || 3) * r; try { doc.addImage(p.data, fmtImg(p.data), x + (cw - w) / 2, k.y + (ih - h) / 2, w, h, undefined, 'FAST'); } catch (e) { } if (cap) { k.font(7.5, 'normal', GREY); doc.text(tx(cap), x, k.y + ih + 3.5); } }); k.y += ih + (cap ? 7 : 4); }
+  };
+  k.letterhead = (sub) => {
+    const hasLogo = !!(st.logo && st.logoW);
+    if (hasLogo) { const lw = Math.min(46, st.logoW * 25.4 / 150), lh = lw * st.logoH / st.logoW; try { doc.addImage(st.logo, fmtImg(st.logo), M, 10, lw, lh, 'logo', 'FAST'); } catch (e) { } }
+    else { k.font(14, 'bold', NAVY); doc.text(tx(st.company || 'Absolute Roofing Solutions'), M, 18); }
+    k.font(8, 'normal', GREY); const right = [st.company, st.phone, st.email, st.website].filter(Boolean); right.forEach((t, i) => doc.text(tx(t), W - M, 13 + i * 3.8, { align: 'right' }));
+    k.y = 34; doc.setFillColor(...OR); doc.rect(M, k.y, CW, 1, 'F'); k.y += 9;
+    k.font(17, 'bold', NAVY); doc.text(tx(title), M, k.y); k.y += 6; if (sub) { k.font(10, 'normal', GREY); doc.text(tx(sub), M, k.y); k.y += 7; }
+  };
+  k.finish = (footL) => { const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.line(M, H - 11, W - M, H - 11); k.font(7.5, 'normal', GREY); doc.text(tx(footL), M, H - 7); doc.text(`Page ${i} of ${n}`, W - M, H - 7, { align: 'right' }); } return doc; };
+  return k;
+}
+const ANS_TXT = { ok: 'OK', issue: 'ISSUE', na: 'N/A', '': '-' };
+function buildDailyPDF(c) {
+  const k = dcPdfKit('Daily Site Check'); const { doc, tx } = k; const iss = dcIssues(c);
+  k.letterhead(`${c.jobRef ? c.jobRef + ' - ' : ''}${c.site || ''}`);
+  k.kv([['Date', `${fmtDate(c.date)}${c.time ? ' at ' + c.time : ''}`], ['Job', [c.jobRef, c.site].filter(Boolean).join(' - ')], ['Site address', c.address], ['Completed by', c.by], ['Contracts manager', c.cm]]);
+  // issues first
+  if (iss.length) {
+    k.need(14); doc.setFillColor(254, 226, 226); doc.setDrawColor(...k.RED); const top = k.y - 5;
+    k.font(11, 'bold', k.RED); doc.text(`${iss.length} ISSUE${iss.length > 1 ? 'S' : ''} FLAGGED`, k.M + 3, k.y); k.y += 2;
+    k.table({ head: [['Section', 'Item', 'Comment']], body: iss.map(i => [tx(i.section), tx(i.text), tx(i.comment)]), headStyles: { fillColor: k.RED, textColor: [255, 255, 255], fontStyle: 'bold' }, columnStyles: { 0: { cellWidth: 42 }, 1: { cellWidth: 62, fontStyle: 'bold' } } });
+    doc.setLineWidth(0.6); void top;
+  } else { k.need(12); doc.setFillColor(220, 252, 231); doc.rect(k.M, k.y - 5, k.CW, 9, 'F'); k.font(11, 'bold', k.GREEN); doc.text('No issues flagged', k.M + 3, k.y + 0.8); k.y += 10; }
+  const AC = { ok: k.GREEN, issue: k.RED, na: k.GREY, '': k.GREY };
+  (c.sections || []).forEach(s => {
+    k.h2(s.title);
+    k.table({ head: [['Item', 'Result', 'Comment']], body: (s.items || []).map(i => [tx(i.text), ANS_TXT[i.answer || ''], tx(i.comment)]), columnStyles: { 0: { cellWidth: 86 }, 1: { cellWidth: 20, halign: 'center', fontStyle: 'bold' } },
+      didParseCell: d => { if (d.section === 'body' && d.column.index === 1) { const a = (s.items[d.row.index] || {}).answer || ''; d.cell.styles.textColor = AC[a]; if (a === 'issue') d.cell.styles.fillColor = [254, 226, 226]; } } });
+    (s.items || []).forEach(i => { if (i.photos && i.photos.length) k.photos(i.photos, i.text); });
+  });
+  const w = c.weather || {}, f = c.workforce || {};
+  k.h2('Weather'); k.kv([['Conditions', (w.conditions || []).join(', ') || '-'], ['Wind speed', w.wind ? w.wind + ' mph' : ''], ['Too windy to work', w.tooWindy === 'yes' ? 'YES' : w.tooWindy === 'no' ? 'No' : ''], ['Temperature', w.temp !== '' && w.temp != null ? w.temp + ' °C' : ''], ['Work stopped', w.stopped === 'yes' ? `YES${w.hours ? ' - ' + w.hours + ' h lost' : ''}` : w.stopped === 'no' ? 'No' : '']]);
+  k.h2('Workforce'); k.kv([['Number on site', f.count], ['Names', f.names], ['Toolbox talk', f.toolbox === 'yes' ? `Yes${f.topic ? ' - ' + f.topic : ''}` : f.toolbox === 'no' ? 'No' : '']]);
+  k.h2('Progress'); k.para(c.progress && c.progress.note || 'No progress note.'); k.photos(c.progress && c.progress.photos, '');
+  k.h2('Incidents / near misses'); k.para(c.incident && c.incident.any === 'yes' ? 'YES - ' + (c.incident.detail || '(no detail given)') : c.incident && c.incident.any === 'no' ? 'None reported.' : 'Not answered.', 9.5, c.incident && c.incident.any === 'yes' ? 'bold' : 'normal', c.incident && c.incident.any === 'yes' ? k.RED : k.TXT);
+  k.h2('Sign-off'); k.need(34); k.font(9.5, 'normal'); doc.text(tx(`Name: ${(c.signoff || {}).name || c.by || ''}`), k.M, k.y); doc.text(tx(`Submitted: ${c.submitted ? new Date(c.submitted).toLocaleString('en-GB') : fmtDate(c.date)}`), k.M + 95, k.y); k.y += 3;
+  const sig = (c.signoff || {}).sig; if (sig && sig.startsWith('data:image/')) { try { doc.addImage(sig, k.fmtImg(sig), k.M, k.y, 60, 24, undefined, 'FAST'); } catch (e) { } k.y += 26; }
+  return k.finish(`Daily site check - ${c.jobRef || ''} - ${fmtDate(c.date)} - ${c.by || ''}`);
+}
+function buildDailySummaryPDF(proj, rows, f) {
+  const k = dcPdfKit('Daily Checks Summary'); const { doc, tx } = k;
+  k.letterhead(`${proj.ref ? proj.ref + ' - ' : ''}${proj.site_name || ''}`);
+  const tot = rows.reduce((a, r) => a + (r.issues || 0), 0), stopped = rows.filter(r => ((r.data || {}).weather || {}).stopped === 'yes');
+  k.kv([['Period', `${f.from ? fmtDate(f.from) : 'Start'} to ${f.to ? fmtDate(f.to) : 'today'}`], ['Checks', String(rows.length)], ['Checks with issues', String(rows.filter(r => r.issues > 0).length)], ['Total issues', String(tot)], ['Weather stoppages', stopped.length ? `${stopped.length} (${stopped.reduce((a, r) => a + (+r.data.weather.hours || 0), 0)} h lost)` : 'None'], ['Incidents / near misses', String(rows.filter(r => ((r.data || {}).incident || {}).any === 'yes').length)]]);
+  k.h2('Checks');
+  k.table({ head: [['Date', 'Operative', 'Workforce', 'Weather', 'Issues', 'Emailed']], body: rows.map(r => { const d = r.data || {}, w = d.weather || {}; return [fmtDate(r.check_date), tx(r.owner_name), tx((d.workforce || {}).count || ''), tx([(w.conditions || []).join('/'), w.stopped === 'yes' ? 'STOPPED' : ''].filter(Boolean).join(' ')), String(r.issues || 0), r.email_status === 'sent' ? 'Yes' : (r.email_status || '-')]; }), columnStyles: { 4: { halign: 'center', fontStyle: 'bold' } }, didParseCell: d => { if (d.section === 'body' && d.column.index === 4 && +d.cell.raw > 0) d.cell.styles.textColor = k.RED; } });
+  const all = []; rows.forEach(r => dcIssues(r.data || {}).forEach(i => all.push([fmtDate(r.check_date), tx(r.owner_name), tx(i.section), tx(i.text), tx(i.comment)])));
+  if (all.length) { k.h2('All issues'); k.table({ head: [['Date', 'By', 'Section', 'Item', 'Comment']], body: all, headStyles: { fillColor: k.RED, textColor: [255, 255, 255] } }); }
+  const notes = rows.filter(r => r.data && r.data.progress && r.data.progress.note);
+  if (notes.length) { k.h2('Progress notes'); k.table({ head: [['Date', 'By', 'Note']], body: notes.map(r => [fmtDate(r.check_date), tx(r.owner_name), tx(r.data.progress.note)]), columnStyles: { 0: { cellWidth: 22 }, 1: { cellWidth: 34 } } }); }
+  return k.finish(`Daily checks summary - ${proj.ref || ''} - generated ${fmtDate(todayISO())}`);
+}
+
+/* ---------- Operative views ---------- */
+const DC_ST = { draft: ['Draft - not submitted', 'amber'], queued: ['Waiting for signal to upload', 'amber'], synced: ['Uploaded', 'navy'], sent: ['Uploaded & emailed', 'green'] };
+function dcStatusTag(c) { const [l, cls] = DC_ST[c.status] || ['', '']; return `<span class="tag ${cls}">${l}</span>${c.status === 'synced' && c.emailErr ? '<span class="tag">Email pending</span>' : ''}`; }
+const opJob = id => Ops.jobs.find(j => j.id === id);
+function todaysCheck(jobId) { return Ops.list.find(c => c.jobId === jobId && c.date === todayISO() && c.owner === me()); }
+function viewOpHome() {
+  const jobs = Ops.jobs || []; const mine = Ops.list.filter(c => c.owner === me()).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.created || 0) - (a.created || 0));
+  const drafts = mine.filter(c => c.status === 'draft'); const recent = mine.filter(c => c.status !== 'draft').slice(0, 15);
+  const tc = jobs.length === 1 ? todaysCheck(jobs[0].id) : null;
+  const big = !jobs.length ? '' : tc && tc.status !== 'draft' ? `<div class="lg-msg ok" style="margin:0 0 12px">Today's check for ${esc(jobs[0].ref)} is done. ${tc.status === 'queued' ? 'It will upload when you have signal.' : ''}</div><button class="btn block dc-big alt" data-act="dc-start" data-job="${jobs[0].id}" data-again="1">${I.plus} Start another check</button>`
+    : `<button class="btn primary block dc-big" data-act="dc-start" ${jobs.length === 1 ? `data-job="${jobs[0].id}"` : ''}>${I.shield.replace('<svg', '<svg width="30" height="30"')}<span>${tc ? "Continue today's daily check" : "Start today's daily check"}</span></button>`;
+  const jobCards = jobs.map(j => { const t = todaysCheck(j.id); return `<div class="item"><div class="th">${I.roof.replace('<svg', '<svg width="26" height="26"')}</div><div class="bd"><div class="t1">${esc(j.ref)} · ${esc(j.site_name || '')}</div><div class="t2">${esc([j.site_address, j.postcode].filter(Boolean).join(', '))}</div><div class="meta">${j.client_name ? `<span class="tag">${esc(j.client_name)}</span>` : ''}${j.contracts_manager_name ? `<span class="tag navy">CM: ${esc(j.contracts_manager_name)}</span>` : ''}${t ? (t.status === 'draft' ? '<span class="tag amber">Today: in progress</span>' : '<span class="tag green">Today: done ✓</span>') : '<span class="tag red">Today: not done</span>'}</div></div>${jobs.length > 1 ? `<button class="btn ${t && t.status !== 'draft' ? '' : 'primary'}" style="padding:0 12px" data-act="dc-start" data-job="${j.id}">${t && t.status === 'draft' ? 'Continue' : 'Start'}</button>` : ''}</div>`; }).join('');
+  const row = c => `<a class="item" href="#/daily/${c.id}"><div class="th dcth ${dcIssues(c).length ? 'bad' : 'good'}">${dcIssues(c).length || '✓'}</div><div class="bd"><div class="t1">${esc(c.jobRef || '')} · ${fmtDate(c.date)}</div><div class="t2">${esc(c.site || '')}</div><div class="meta">${dcStatusTag(c)}${dcIssues(c).length ? `<span class="tag red">${dcIssues(c).length} issue${dcIssues(c).length > 1 ? 's' : ''}</span>` : ''}</div></div>${I.chev}</a>`;
+  return {
+    head: header({ title: 'Daily site checks', sub: (Cloud.profile && Cloud.profile.full_name) || '' }),
+    body: `${!online() ? '<div class="lg-msg warn" style="margin:0 0 12px">No signal - you can still do your check. It will upload and email your contracts manager automatically when you are back online.</div>' : ''}
+    ${big}
+    ${drafts.length ? `<div class="card"><h2>In progress</h2>${drafts.map(row).join('')}</div>` : ''}
+    <div class="card"><h2>My jobs</h2>${jobCards || `<p class="hint">You have no jobs assigned yet. Ask your manager or contracts manager to add you to a job.${Ops.err ? ' (' + esc(Ops.err) + ')' : ''}</p>`}</div>
+    <div class="card"><h2>Recent checks</h2>${recent.map(row).join('') || '<p class="hint">Your submitted checks will appear here.</p>'}</div>
+    <p class="small" style="text-align:center">Site Audit v${APP_VERSION}${BUILD.beta ? ' BETA' : ''} · <button class="linkbtn" data-act="syncinfo">Account & sign out</button></p>`
+  };
+}
+function secProg(s) { const n = s.items.length, a = s.items.filter(i => i.answer).length; return { n, a }; }
+function dcItemHTML(c, s, i) {
+  const p = `sections#${s.id}.items#${i.id}`, ans = i.answer || '';
+  return `<div class="dck ${ans}" id="dck_${i.id}"><div class="dq">${esc(i.text)}</div>
+    <div class="seg dcs" data-b="${p}.answer">${[['ok', 'OK'], ['issue', 'Issue'], ['na', 'N/A']].map(([v, l]) => `<button type="button" data-v="${v}" class="${ans === v ? 'on' : ''}" aria-pressed="${ans === v}">${l}</button>`).join('')}</div>
+    <div class="dci" data-when="${p}.answer=issue" ${ans === 'issue' ? '' : 'hidden'}><textarea data-b="${p}.comment" rows="2" placeholder="What's the issue? (required)">${esc(i.comment)}</textarea>${dcPhotos(p + '.photos', i.photos, 'Photo (optional)')}</div></div>`;
+}
+function dcPhotos(key, photos, lbl) {
+  return `<div class="dcph">${(photos || []).map(ph => `<img src="${ph.data}" alt="" data-act="viewphoto" data-key="${key}" data-id="${ph.id}">`).join('')}<label class="btn">${I.camera} ${lbl}<input type="file" accept="image/*" capture="environment" data-photo="${key}" hidden></label></div>`;
+}
+function viewDailyForm(c) {
+  const f = mk(c); const yn = (lbl, p, bad) => f.seg(lbl, p, [['yes', 'Yes', bad ? 'bad' : 'ok'], ['no', 'No', bad ? 'ok' : '']], { cls: 'yn' });
+  const secs = c.sections.map(s => { const pr = secProg(s); return `<div class="card dcsec" id="sec_${s.id}"><h2>${esc(s.title)} <span class="prog ${pr.a === pr.n ? 'full' : ''}" id="prog_${s.id}" style="margin-left:auto">${pr.a}/${pr.n}</span></h2>
+    <button class="btn block dc-allok" data-act="dc-allok" data-s="${s.id}">✓ All OK (fill unanswered)</button>${s.items.map(i => dcItemHTML(c, s, i)).join('')}</div>`; }).join('');
+  return `<div class="card"><h2>${esc(c.jobRef)} · ${esc(c.site)}</h2><p class="hint">${esc(c.address || '')}${c.cm ? ` · Contracts manager: ${esc(c.cm)}` : ''}</p>
+    <div class="row">${f.text('Date', 'date', { type: 'date' })}${f.text('Time', 'time', { type: 'time' })}</div><p class="hint">Tap <b>OK</b>, <b>Issue</b> or <b>N/A</b> for each item. An issue needs a short comment.</p></div>
+  ${secs}
+  <div class="card"><h2>Weather</h2>${f.chips('Conditions', 'weather.conditions', DC_WEATHER)}
+    <div class="row">${f.text('Wind speed (mph)', 'weather.wind', { type: 'number' })}${f.text('Temperature (°C)', 'weather.temp', { type: 'number' })}</div>
+    ${yn('Too windy to work?', 'weather.tooWindy', true)}${yn('Work stopped due to weather?', 'weather.stopped', true)}
+    <div data-when="weather.stopped=yes" ${c.weather.stopped === 'yes' ? '' : 'hidden'}>${f.text('Hours lost', 'weather.hours', { type: 'number' })}</div></div>
+  <div class="card"><h2>Workforce</h2>${f.text('Number on site (incl. you)', 'workforce.count', { type: 'number' })}${f.area('Names (optional)', 'workforce.names', { rows: 2 })}
+    ${yn('Toolbox talk given today?', 'workforce.toolbox')}<div data-when="workforce.toolbox=yes" ${c.workforce.toolbox === 'yes' ? '' : 'hidden'}>${f.text('Toolbox talk topic', 'workforce.topic', { ph: 'e.g. Fragile roofs, manual handling' })}</div></div>
+  <div class="card"><h2>Progress note</h2>${f.area('What was done today / planned', 'progress.note', { rows: 3 })}${dcPhotos('progress.photos', c.progress.photos, 'Add progress photo')}</div>
+  <div class="card"><h2>Incidents / near misses</h2>${yn('Any incident or near miss today?', 'incident.any', true)}<div data-when="incident.any=yes" ${c.incident.any === 'yes' ? '' : 'hidden'}>${f.area('What happened? (required)', 'incident.detail', { rows: 3 })}</div></div>
+  <div class="card"><h2>Sign-off</h2>${f.text('Your name', 'signoff.name')}
+    ${c.signoff.sig ? `<img class="dcsig" src="${c.signoff.sig}" alt="Signature">` : '<p class="hint">Not signed yet.</p>'}<button class="btn block" data-act="dc-sign">${I.pen} ${c.signoff.sig ? 'Sign again' : 'Sign'}</button></div>
+  <button class="btn primary block dc-big" data-act="dc-submit">Submit daily check</button>
+  <button class="btn danger block" data-act="dc-deldraft" style="margin-top:10px">Delete draft</button>`;
+}
+function dcProblems(c) {
+  const p = []; const un = c.sections.reduce((a, s) => a + s.items.filter(i => !i.answer).length, 0);
+  if (un) p.push(`${un} checklist item${un > 1 ? 's' : ''} not answered`);
+  const nc = c.sections.reduce((a, s) => a + s.items.filter(i => i.answer === 'issue' && !String(i.comment || '').trim()).length, 0);
+  if (nc) p.push(`${nc} issue${nc > 1 ? 's' : ''} without a comment`);
+  if (!(c.weather.conditions || []).length) p.push('Weather conditions');
+  if (!c.weather.tooWindy) p.push('Too windy to work? (yes / no)');
+  if (!c.weather.stopped) p.push('Work stopped? (yes / no)');
+  if (!String(c.workforce.count || '').trim()) p.push('Number on site');
+  if (!c.incident.any) p.push('Incidents / near misses (yes / no)');
+  if (c.incident.any === 'yes' && !String(c.incident.detail || '').trim()) p.push('Incident detail');
+  if (!String(c.signoff.name || '').trim()) p.push('Your name');
+  if (!c.signoff.sig) p.push('Signature');
+  return p;
+}
+function dcAnswerTag(a) { return a === 'ok' ? '<span class="tag green">OK</span>' : a === 'issue' ? '<span class="tag red">ISSUE</span>' : a === 'na' ? '<span class="tag">N/A</span>' : '<span class="tag">-</span>'; }
+function viewDailyRead(c, staff) {
+  const iss = dcIssues(c); const w = c.weather || {}, wf = c.workforce || {};
+  const ph = l => (l || []).filter(p => p && p.data).length ? `<div class="dcph">${l.map(p => `<img src="${p.data}" alt="">`).join('')}</div>` : '';
+  return `<div class="card"><h2>${esc(c.jobRef || '')} · ${esc(c.site || '')}</h2><p class="hint">${fmtDate(c.date)} ${esc(c.time || '')} · ${esc(c.by || '')}</p><div class="meta">${staff ? staff : dcStatusTag(c)}</div>${c.emailedTo ? `<p class="small" style="margin-top:6px">Emailed to ${esc(c.emailedTo)}</p>` : c.emailErr && !staff ? `<p class="small" style="margin-top:6px">Email: ${esc(c.emailErr)} - will retry automatically.</p>` : ''}</div>
+  ${iss.length ? `<div class="card dciss"><h2>${I.warn.replace('<svg', '<svg width="22" height="22"')} ${iss.length} issue${iss.length > 1 ? 's' : ''} flagged</h2>${iss.map(i => `<div class="item"><div class="bd"><div class="t1">${esc(i.text)}</div><div class="t2">${esc(i.section)}${i.comment ? ' - ' + esc(i.comment) : ''}</div>${ph(i.photos)}</div></div>`).join('')}</div>` : '<div class="lg-msg ok" style="margin:0 0 12px">No issues flagged</div>'}
+  ${(c.sections || []).map(s => `<details class="sec card"><summary><b>${esc(s.title)}</b> <span class="small">${s.items.filter(i => i.answer === 'issue').length ? `<span class="tag red">${s.items.filter(i => i.answer === 'issue').length} issue</span>` : '<span class="tag green">OK</span>'}</span></summary>${s.items.map(i => `<div class="dcr"><span>${esc(i.text)}${i.comment ? `<br><span class="small">${esc(i.comment)}</span>` : ''}</span>${dcAnswerTag(i.answer)}</div>`).join('')}</details>`).join('')}
+  <div class="card"><h2>Weather & workforce</h2><div class="dcr"><span>Conditions</span><b>${esc((w.conditions || []).join(', ') || '-')}</b></div><div class="dcr"><span>Wind / temperature</span><b>${esc(w.wind ? w.wind + ' mph' : '-')} / ${esc(w.temp !== '' && w.temp != null ? w.temp + ' °C' : '-')}</b></div><div class="dcr"><span>Too windy to work</span><b>${w.tooWindy === 'yes' ? '<span class="tag red">YES</span>' : esc(w.tooWindy || '-')}</b></div><div class="dcr"><span>Work stopped</span><b>${w.stopped === 'yes' ? `<span class="tag red">YES${w.hours ? ' · ' + esc(w.hours) + ' h' : ''}</span>` : esc(w.stopped || '-')}</b></div>
+    <div class="dcr"><span>Number on site</span><b>${esc(wf.count || '-')}</b></div>${wf.names ? `<div class="dcr"><span>Names</span><b>${esc(wf.names)}</b></div>` : ''}<div class="dcr"><span>Toolbox talk</span><b>${wf.toolbox === 'yes' ? 'Yes' + (wf.topic ? ' - ' + esc(wf.topic) : '') : esc(wf.toolbox || '-')}</b></div></div>
+  <div class="card"><h2>Progress</h2><p>${esc((c.progress || {}).note || 'No note.')}</p>${ph((c.progress || {}).photos)}</div>
+  <div class="card"><h2>Incidents / near misses</h2><p>${(c.incident || {}).any === 'yes' ? `<span class="tag red">YES</span> ${esc(c.incident.detail || '')}` : 'None reported.'}</p></div>
+  <div class="card"><h2>Sign-off</h2><p>${esc((c.signoff || {}).name || '')}</p>${(c.signoff || {}).sig && c.signoff.sig.startsWith('data:') ? `<img class="dcsig" src="${c.signoff.sig}" alt="Signature">` : ''}</div>`;
+}
+
+/* ---------- Staff: project card, project page, daily list ---------- */
+const staffPeople = () => (Cloud.profiles || []).filter(p => isStaffRole(p.role) && p.email && !p.email.endsWith('.invalid'));
+const operatives = () => (Cloud.profiles || []).filter(p => p.role === 'operative');
+function projCard(job) {
+  if (!signedIn() || isOp()) return '';
+  const p = projOf(job);
+  if (!job.projectId) return `<div class="card" id="projcard"><h2>${I.shield.replace('<svg', '<svg width="22" height="22"')} Project & daily checks</h2><p class="hint" style="margin-bottom:10px">Set up a project for this job to assign operatives and a contracts manager. Operatives then do a quick daily site check on their phone, and the contracts manager is emailed each one.</p><a class="btn block" href="#/job/${job.id}/project">Set up project</a></div>`;
+  const ops = p ? operatives().filter(o => (p.operatives || []).includes(o.id)) : [];
+  return `<div class="card" id="projcard"><h2>${I.shield.replace('<svg', '<svg width="22" height="22"')} Project & daily checks</h2>
+    ${p ? `<div class="dcr"><span>Project</span><b>${esc(p.ref)} · ${esc(p.site_name || '')}${p.active ? '' : ' <span class="tag">Closed</span>'}</b></div><div class="dcr"><span>Contracts manager</span><b>${esc(personName(p.contracts_manager) || 'Not set - managers are emailed')}</b></div><div class="dcr"><span>Operatives</span><b>${ops.length ? ops.map(o => esc(o.full_name)).join(', ') : 'None assigned'}</b></div>` : `<p class="hint">${online() ? 'Loading project…' : 'Project details need a connection.'}</p>`}
+    <div class="btns" style="margin-top:10px"><a class="btn primary" href="#/job/${job.id}/daily">${I.chart} Daily checks</a><a class="btn" href="#/job/${job.id}/project">Edit project</a></div></div>`;
+}
+function viewProject(job) {
+  const p = projOf(job) || {}; const isNew = !job.projectId;
+  const cm = staffPeople(), ops = operatives(); const others = Ops.jobsTbl.filter(r => r.id !== job.projectId);
+  const v = (k, d) => esc(p[k] !== undefined && p[k] !== null ? p[k] : d);
+  return `${isNew && others.length ? `<div class="card"><h2>Link to an existing project</h2><p class="hint" style="margin-bottom:8px">E.g. the survey and works inspections for the same job can share one project.</p><div class="f"><select id="pj-link"><option value="">— Choose a project —</option>${others.map(r => `<option value="${esc(r.id)}">${esc(r.ref)} · ${esc(r.site_name || '')}</option>`).join('')}</select></div><button class="btn block" data-act="pj-link">Link this audit</button></div>` : ''}
+  <div class="card"><h2>${isNew ? 'New project' : 'Project'}</h2>
+    <div class="row"><div class="f"><label for="pj-ref">Job / project ref</label><input type="text" id="pj-ref" value="${v('ref', job.ref)}"></div><div class="f"><label for="pj-pc">Postcode</label><input type="text" id="pj-pc" value="${v('postcode', job.site.postcode)}"></div></div>
+    <div class="f"><label for="pj-site">Site name</label><input type="text" id="pj-site" value="${v('site_name', job.site.name || job.client.name)}"></div>
+    <div class="f"><label for="pj-addr">Site address</label><textarea id="pj-addr" rows="2">${v('site_address', job.site.address)}</textarea></div>
+    <div class="f"><label for="pj-client">Client name</label><input type="text" id="pj-client" value="${v('client_name', job.client.name)}"></div>
+    <label class="ckl"><input type="checkbox" id="pj-showclient" ${p.show_client ? 'checked' : ''}> Show the client name to operatives</label>
+    <label class="ckl"><input type="checkbox" id="pj-active" ${p.active === false ? '' : 'checked'}> Active (operatives can do daily checks)</label></div>
+  <div class="card"><h2>Contracts manager</h2><p class="hint" style="margin-bottom:8px">Gets an email for every daily check (issues at the top, PDF attached). If none is set, all managers are emailed.</p>
+    <div class="f"><select id="pj-cm"><option value="">— None (email managers) —</option>${cm.map(u => `<option value="${u.id}" ${p.contracts_manager === u.id ? 'selected' : ''}>${esc(u.full_name || u.email)} (${roleName(u.role)})</option>`).join('')}</select></div></div>
+  <div class="card"><h2>Assigned operatives</h2>${ops.length ? ops.map(o => `<label class="ckl"><input type="checkbox" class="pj-op" value="${o.id}" ${(p.operatives || []).includes(o.id) ? 'checked' : ''} ${o.active === false ? 'disabled' : ''}> ${esc(o.full_name)} <span class="small">${esc(prettyPhone(o.phone))}${o.active === false ? ' · deactivated' : ''}</span></label>`).join('') : `<p class="hint">No operatives yet. ${isMgr() ? 'Add them on the <a href="#/team">Team</a> page.' : 'A manager adds operatives on the Team page.'}</p>`}</div>
+  <button class="btn primary block" data-act="pj-save">Save project</button>${!isNew ? '<button class="btn block" data-act="pj-unlink" style="margin-top:10px">Unlink this audit from the project</button>' : ''}`;
+}
+function dcFilters() { return Ops.f || (Ops.f = { from: '', to: '', op: '', iss: false }); }
+function viewDailyList(job) {
+  const p = projOf(job); const pid = job.projectId; const f = dcFilters();
+  if (!Ops.dc[pid] && !Ops.dcLoading) { Ops.dcLoading = true; loadDaily(pid, f).finally(() => { Ops.dcLoading = false; if (route()[2] === 'daily') render(true); }); }
+  let rows = (Ops.dc[pid] || []); const ownersAll = [...new Map(rows.map(r => [r.owner, r.owner_name])).entries()];
+  if (f.op) rows = rows.filter(r => r.owner === f.op); if (f.iss) rows = rows.filter(r => r.issues > 0);
+  const tot = rows.reduce((a, r) => a + (r.issues || 0), 0);
+  return `<div class="card"><h2>Daily checks${p ? ' · ' + esc(p.ref) : ''}</h2>
+    <div class="row"><div class="f"><label for="dcf-from">From</label><input type="date" id="dcf-from" value="${f.from}"></div><div class="f"><label for="dcf-to">To</label><input type="date" id="dcf-to" value="${f.to}"></div></div>
+    <div class="row"><div class="f"><label for="dcf-op">Operative</label><select id="dcf-op"><option value="">All</option>${ownersAll.map(([id, n]) => `<option value="${id}" ${f.op === id ? 'selected' : ''}>${esc(n || personName(id) || 'Unknown')}</option>`).join('')}</select></div><div class="f"><span class="lbl">&nbsp;</span><label class="ckl" style="margin:0"><input type="checkbox" id="dcf-iss" ${f.iss ? 'checked' : ''}> Issues only</label></div></div>
+    <div class="btns"><button class="btn primary" data-act="dc-sumpdf" ${rows.length ? '' : 'disabled'}>${I.pdf} Summary PDF</button><button class="btn" data-act="dc-reload">Refresh</button></div>
+    ${Ops.dcErr ? `<p class="hint" style="margin-top:8px">${esc(Ops.dcErr)}</p>` : ''}</div>
+  <div class="card"><h2>${rows.length} check${rows.length === 1 ? '' : 's'} <span class="prog ${tot ? 'bad' : 'full'}" style="margin-left:auto">${tot} issue${tot === 1 ? '' : 's'}</span></h2>
+    ${Ops.dcLoading && !Ops.dc[pid] ? '<p class="hint">Loading…</p>' : rows.map(r => { const w = (r.data || {}).weather || {}; return `<a class="item" href="#/daily/${r.id}"><div class="th dcth ${r.issues ? 'bad' : 'good'}">${r.issues || '✓'}</div><div class="bd"><div class="t1">${fmtDate(r.check_date)} · ${esc(r.owner_name || '')}</div><div class="t2">${esc([(w.conditions || []).join(', '), ((r.data || {}).workforce || {}).count ? r.data.workforce.count + ' on site' : ''].filter(Boolean).join(' · '))}</div><div class="meta">${r.issues ? `<span class="tag red">${r.issues} issue${r.issues > 1 ? 's' : ''}</span>` : '<span class="tag green">No issues</span>'}${w.stopped === 'yes' ? '<span class="tag amber">Work stopped</span>' : ''}${((r.data || {}).incident || {}).any === 'yes' ? '<span class="tag red">Incident</span>' : ''}${r.email_status === 'sent' ? '<span class="tag">Emailed</span>' : r.email_status ? '<span class="tag amber">Email not sent</span>' : ''}</div></div>${I.chev}</a>`; }).join('') || '<p class="hint">No daily checks for this period yet.</p>'}</div>`;
+}
+async function staffDaily(id) {
+  for (const k in Ops.dc) { const r = Ops.dc[k].find(x => x.id === id); if (r) return r; }
+  const r = await sbFetch(`/rest/v1/daily_checks?id=eq.${encodeURIComponent(id)}&select=*`); return r && r[0];
+}
+const rowToCheck = r => Object.assign({}, r.data || {}, { id: r.id, jobId: r.job_id, owner: r.owner, by: (r.data || {}).by || r.owner_name, date: (r.data || {}).date || r.check_date, emailedTo: r.emailed_to || '' });
+function viewDailyStaff(id) {
+  const st = Ops.staffView;
+  if (!st || st.id !== id) {
+    Ops.staffView = { id, loading: true };
+    staffDaily(id).then(async r => { if (!r) { Ops.staffView = { id, err: 'Daily check not found.' }; } else { const c = rowToCheck(r); Ops.staffView = { id, row: r, c, hyd: true }; render(true); await dcHydrate(c); Ops.staffView.hyd = false; } if (route()[1] === id) render(true); }).catch(e => { Ops.staffView = { id, err: e.message }; if (route()[1] === id) render(true); });
+    return '<div class="card"><p class="hint">Loading…</p></div>';
+  }
+  if (st.loading) return '<div class="card"><p class="hint">Loading…</p></div>';
+  if (st.err) return `<div class="card"><p class="hint">${esc(st.err)}</p></div>`;
+  const r = st.row; const tag = `${r.email_status === 'sent' ? `<span class="tag green">Emailed ${r.emailed_at ? new Date(r.emailed_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : ''}</span>` : r.email_status ? `<span class="tag amber">${esc(r.email_status)}</span>` : '<span class="tag">Not emailed yet</span>'}`;
+  return `<div class="btns" style="margin-bottom:12px"><button class="btn primary" data-act="dc-pdf" data-id="${r.id}">${I.pdf} PDF</button><button class="btn" data-act="dc-resend" data-id="${r.id}">Resend email</button></div>${st.hyd ? '<p class="hint">Downloading photos…</p>' : ''}${viewDailyRead(st.c, tag)}`;
+}
+
+/* ---------- Settings: daily template ---------- */
+function viewDailyTpl() {
+  const t = dailyTpl(); const ro = signedIn() && !isMgr();
+  return `${ro ? '<div class="lg-msg warn" style="margin:4px 0 12px">The daily check template is managed by your manager. It is shown read-only.</div>' : ''}<p class="hint" style="margin:0 0 12px">Sections and items operatives answer OK / Issue / N/A each day. Weather, workforce, progress, incidents and sign-off are always included. Changes apply to new checks.</p>
+  ${t.map((s, si) => `<div class="card"><div class="f"><label>Section title</label><input type="text" data-dt="${si}" value="${esc(s.title)}" ${ro ? 'disabled' : ''}></div>
+    ${(s.items || []).map((it, ii) => `<div class="dtrow"><input type="text" data-dt="${si}.${ii}" value="${esc(typeof it === 'string' ? it : it.text)}" aria-label="Item" ${ro ? 'disabled' : ''}>${ro ? '' : `<button class="ibtn" data-act="dt-delitem" data-s="${si}" data-i="${ii}" aria-label="Remove item">${I.trash}</button>`}</div>`).join('')}
+    ${ro ? '' : `<div class="btns"><button class="btn" data-act="dt-additem" data-s="${si}">${I.plus} Add item</button><button class="btn danger" data-act="dt-delsec" data-s="${si}">Remove section</button></div>`}</div>`).join('')}
+  ${ro ? '' : `<button class="btn block" data-act="dt-addsec">${I.plus} Add section</button><button class="btn block" data-act="dt-reset" style="margin-top:10px">Reset to default</button>`}`;
+}
+function dtEdit() { if (!Array.isArray(S.settings.dailyTpl) || !S.settings.dailyTpl.length) S.settings.dailyTpl = clone(DEFAULT_DAILY_TPL); return S.settings.dailyTpl; }
+document.addEventListener('input', e => {
+  const el = e.target; if (el.dataset && el.dataset.dt !== undefined) { const t = dtEdit(); const [si, ii] = el.dataset.dt.split('.').map(Number); if (ii === undefined || isNaN(ii)) t[si].title = el.value; else t[si].items[ii] = el.value; saveSettings(); }
+});
+
+/* ---------- Team: operatives ---------- */
+function opsTeamCard() {
+  const ops = operatives(); const asg = id => Ops.jobsTbl.filter(j => (j.operatives || []).includes(id) && j.active !== false);
+  return `<div class="card" id="opscard"><h2>Operatives</h2><p class="hint" style="margin-bottom:10px">Site operatives sign in with their mobile number and a 6-digit PIN you set (no email or text messages needed). They only see the jobs you assign and their own daily checks.</p>
+    ${ops.map(o => { const locked = o.locked_until && Date.parse(o.locked_until) > Date.now(); const n = asg(o.id); return `<div class="item"><div class="th">${esc((o.full_name || '?').split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase())}</div><div class="bd"><div class="t1">${esc(o.full_name || '')}</div><div class="t2">${esc(prettyPhone(o.phone))}</div><div class="meta">${o.active === false ? '<span class="tag">Deactivated</span>' : '<span class="tag green">Active</span>'}${locked ? '<span class="tag red">Locked (wrong PINs)</span>' : ''}<span class="tag navy">${n.length} job${n.length === 1 ? '' : 's'}</span>${n.slice(0, 3).map(j => `<span class="tag">${esc(j.ref)}</span>`).join('')}</div></div><button class="btn" style="padding:0 12px" data-act="op-manage" data-id="${o.id}">Manage</button></div>`; }).join('') || '<p class="hint">No operatives yet.</p>'}
+    <div class="divider"></div><h3 style="margin:0 0 6px">Add operative</h3>
+    <div class="f"><label for="op-name">Full name</label><input type="text" id="op-name" autocomplete="off"></div>
+    <div class="f"><label for="op-phone">UK mobile</label><input id="op-phone" type="tel" inputmode="tel" placeholder="07700 900123" autocomplete="off"></div>
+    <div class="row"><div class="f"><label for="op-pin">6-digit PIN</label><input id="op-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"></div><div class="f"><label for="op-pin2">Repeat PIN</label><input id="op-pin2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"></div></div>
+    <button class="btn primary block" data-act="op-add">${I.plus} Add operative</button><p class="hint" style="margin-top:8px">Give the operative their PIN in person. They sign in on the <b>Operative</b> tab of the sign-in screen. After 5 wrong PINs the account locks for 15 minutes (longer after more); resetting the PIN unlocks it.</p></div>`;
+}
+async function opAdmin(body, okMsg) {
+  try { const r = await fnCall('op-admin', body); if (okMsg) toast(okMsg); await loadProfiles(); await loadJobsTbl(); render(true); return r || true; }
+  catch (e) { toast((e.status === 404 && !(e.body && e.body.error)) || (e.offline && navigator.onLine) ? 'The operatives service is not reachable - it may not be set up on the server yet.' : (e.message || String(e)), 4500); return null; }
+}
+async function pinPrompt(title, sub) {
+  return modal(`<h3>${esc(title)}</h3><p>${esc(sub || '')}</p><div class="f"><label for="pp1">New 6-digit PIN</label><input id="pp1" type="password" inputmode="numeric" maxlength="6"></div><div class="f"><label for="pp2">Repeat PIN</label><input id="pp2" type="password" inputmode="numeric" maxlength="6"></div><p class="hint" id="pperr"></p><button class="btn primary" id="ppok">Save PIN</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => {
+    bg.querySelector('#ppok').addEventListener('click', () => { const a = bg.querySelector('#pp1').value, b = bg.querySelector('#pp2').value; const bad = pinProblem(a) || (a !== b ? 'The PINs do not match.' : ''); if (bad) { bg.querySelector('#pperr').textContent = bad; return; } close(a); });
+  });
+}
+
+/* ---------- Actions ---------- */
+function opSaveField() { const c = S.ctx && S.ctx.daily; if (!c) return; c.updated = Date.now(); dcSave(); }
+async function openOrCreate(jobId, again) {
+  const j = opJob(jobId); if (!j) return toast('Job not found');
+  let c = again ? null : todaysCheck(jobId);
+  if (!c) { c = newDaily(j); Ops.list.push(c); await dcSave(true); }
+  go('#/daily/' + c.id);
+}
+Object.assign(ACTIONS, {
+  async 'dc-start'(a) {
+    if (a.dataset.job) return openOrCreate(a.dataset.job, !!a.dataset.again);
+    const jobs = Ops.jobs; if (!jobs.length) return toast('No jobs assigned yet');
+    const r = await modal(`<h3>Which job?</h3>${jobs.map(j => `<button class="btn ${todaysCheck(j.id) ? '' : 'primary'}" data-r="${j.id}" style="height:auto;padding:12px 16px;flex-direction:column;align-items:flex-start"><b>${esc(j.ref)} · ${esc(j.site_name || '')}</b><span style="font-weight:500">${todaysCheck(j.id) ? (todaysCheck(j.id).status === 'draft' ? 'In progress - continue' : 'Done today ✓') : esc(j.site_address || '')}</span></button>`).join('')}<button class="btn" data-r="">Cancel</button>`);
+    if (r) openOrCreate(r);
+  },
+  'dc-allok'(a) {
+    const c = S.ctx && S.ctx.daily; const s = c && c.sections.find(x => x.id === a.dataset.s); if (!s) return;
+    s.items.forEach(i => { if (!i.answer) i.answer = 'ok'; }); opSaveField(); rerender();
+    const nx = $('#sec_' + s.id); if (nx && nx.nextElementSibling) nx.nextElementSibling.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
+  async 'dc-sign'() { const c = S.ctx && S.ctx.daily; if (!c) return; const d = await signaturePad(); if (!d) return; c.signoff.sig = d; opSaveField(); rerender(); },
+  async 'dc-submit'() {
+    const c = S.ctx && S.ctx.daily; if (!c) return; const p = dcProblems(c);
+    if (p.length) { await modal(`<h3>Almost done</h3><p>Please complete:</p><ul class="dcmiss">${p.map(x => `<li>${esc(x)}</li>`).join('')}</ul><button class="btn primary" data-r="">OK</button>`); const first = $('.dck:not(.ok):not(.na):not(.issue)') || $$('.dck.issue').find(x => !x.querySelector('textarea').value.trim()); if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    const n = dcIssues(c).length;
+    if (!await confirmBox('Submit daily check?', `${n ? n + ' issue' + (n > 1 ? 's' : '') + ' will be flagged to' : 'It will be sent to'} ${c.cm || 'your managers'}. You can't edit it after submitting.`, 'Submit', false)) return;
+    c.status = 'queued'; c.submitted = Date.now(); c.updated = Date.now(); await dcSave(true);
+    toast(online() ? 'Submitted - uploading…' : 'Saved - it will upload when you have signal', 3500); window.scrollTo(0, 0); render(); kick(200);
+  },
+  async 'dc-deldraft'() { const c = S.ctx && S.ctx.daily; if (!c || c.status !== 'draft') return; if (!await confirmBox('Delete draft?', 'This daily check has not been submitted. It will be deleted from this phone.')) return; Ops.list = Ops.list.filter(x => x !== c); await dcSave(true); go('#/'); },
+  async 'dc-mypdf'(a) { const c = dcGet(a.dataset.id); if (!c) return; if (c.remote) { toast('Downloading photos…'); await dcHydrate(c); } download(buildDailyPDF(c).output('blob'), `Daily-check_${c.jobRef}_${c.date}.pdf`); },
+  async 'dc-pdf'(a) {
+    const st = Ops.staffView; if (!st || !st.c) return;
+    if (st.row.pdf_path) { try { const b = await sbBlob(`/storage/v1/object/authenticated/${DC_BUCKET}/${encPath(st.row.pdf_path)}`); return download(b, `Daily-check_${st.c.jobRef}_${st.c.date}.pdf`); } catch (e) { if (e.offline) return toast('Offline'); } }
+    const left = await dcHydrate(st.c); if (left) toast(`${left} photo(s) could not be downloaded`);
+    download(buildDailyPDF(st.c).output('blob'), `Daily-check_${st.c.jobRef}_${st.c.date}.pdf`);
+  },
+  async 'dc-resend'(a) {
+    if (!await confirmBox('Resend email?', 'The daily check email will be sent again to the contracts manager (or managers).', 'Resend', false)) return;
+    try { const r = await fnCall('daily-check-notify', { id: a.dataset.id, resend: true }); toast('Sent to ' + ((r && r.to) || 'recipients'), 3500); Ops.staffView = null; for (const k in Ops.dc) delete Ops.dc[k]; render(true); }
+    catch (e) { toast(e.message || String(e), 5000); }
+  },
+  async 'dc-sumpdf'(a, job) {
+    const p = projOf(job) || { ref: job.ref, site_name: job.site.name }; const f = dcFilters();
+    let rows = Ops.dc[job.projectId] || []; if (f.op) rows = rows.filter(r => r.owner === f.op); if (f.iss) rows = rows.filter(r => r.issues > 0);
+    download(buildDailySummaryPDF(p, rows.slice().reverse(), f).output('blob'), `Daily-checks-summary_${p.ref}_${f.from || 'start'}_${f.to || todayISO()}.pdf`);
+  },
+  async 'dc-reload'(a, job) { delete Ops.dc[job.projectId]; await loadDaily(job.projectId, dcFilters()); render(true); },
+  async 'pj-save'(a, job) {
+    const val = id => ($('#' + id) || {}).value || '';
+    const row = { ref: val('pj-ref').trim() || job.ref, site_name: val('pj-site').trim(), site_address: val('pj-addr').trim(), postcode: val('pj-pc').trim(), client_name: val('pj-client').trim(), show_client: $('#pj-showclient').checked, active: $('#pj-active').checked, contracts_manager: val('pj-cm') || null, operatives: $$('.pj-op').filter(x => x.checked).map(x => x.value) };
+    if (!online()) return toast('Saving a project needs a connection');
+    const p = projOf(job);
+    try {
+      if (job.projectId && p) await sbFetch(`/rest/v1/jobs?id=eq.${encodeURIComponent(job.projectId)}`, { method: 'PATCH', body: Object.assign(row, { audit_ids: [...new Set([...(p.audit_ids || []), job.id])] }), headers: { Prefer: 'return=minimal' } });
+      else { const id = job.projectId || uid(); await sbFetch('/rest/v1/jobs', { method: 'POST', body: Object.assign(row, { id, audit_ids: [job.id] }), headers: { Prefer: 'return=minimal' } }); job.projectId = id; markDirty(job); }
+      await loadJobsTbl(); toast('Project saved'); go(`#/job/${job.id}/details`);
+    } catch (e) { toast(e.status === 404 ? 'Projects are not set up on the server yet (database update needed).' : e.message, 5000); }
+  },
+  async 'pj-link'(a, job) { const id = $('#pj-link').value; if (!id) return toast('Choose a project'); const p = Ops.jobsTbl.find(r => r.id === id); job.projectId = id; markDirty(job); try { await sbFetch(`/rest/v1/jobs?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', body: { audit_ids: [...new Set([...(p.audit_ids || []), job.id])] }, headers: { Prefer: 'return=minimal' } }); } catch (e) { } toast('Linked to ' + p.ref); go(`#/job/${job.id}/details`); },
+  async 'pj-unlink'(a, job) { if (!await confirmBox('Unlink project?', 'This audit will no longer show the project or its daily checks. The project and its checks are kept.', 'Unlink')) return; delete job.projectId; markDirty(job); go(`#/job/${job.id}/details`); },
+  'dt-additem'(a) { dtEdit()[+a.dataset.s].items.push('New item'); saveSettings(); rerender(); },
+  'dt-delitem'(a) { dtEdit()[+a.dataset.s].items.splice(+a.dataset.i, 1); saveSettings(); rerender(); },
+  'dt-addsec'() { dtEdit().push({ key: 'c' + uid().slice(0, 5), title: 'New section', items: ['New item'] }); saveSettings(); rerender(); },
+  async 'dt-delsec'(a) { const t = dtEdit(); if (!await confirmBox('Remove section?', `"${t[+a.dataset.s].title}" will be removed from new daily checks.`, 'Remove')) return; t.splice(+a.dataset.s, 1); saveSettings(); rerender(); },
+  async 'dt-reset'() { if (!await confirmBox('Reset template?', 'The daily check template will be restored to the default.', 'Reset')) return; S.settings.dailyTpl = null; saveSettings(); rerender(); },
+  async 'op-add'() {
+    const name = lgVal('op-name'), phone = normPhone(lgVal('op-phone')), pin = $('#op-pin').value, pin2 = $('#op-pin2').value;
+    if (!name) return toast('Enter the operative’s name'); if (!phone) return toast('Enter a valid UK mobile number (07…)');
+    const bad = pinProblem(pin) || (pin !== pin2 ? 'The PINs do not match.' : ''); if (bad) return toast(bad);
+    const r = await opAdmin({ action: 'create', name, phone, pin }, `${name} added - they can sign in with ${prettyPhone(phone)} and their PIN`);
+    if (r) { const p = r.profile; if (p && Ops.jobsTbl.length && await confirmBox('Assign jobs now?', `Choose which jobs ${name} can do daily checks on.`, 'Assign jobs', false)) opAssign(p.id); }
+  },
+  'op-manage'(a) { opManage(a.dataset.id); },
+});
+async function opManage(id) {
+  const o = operatives().find(x => x.id === id); if (!o) return;
+  const r = await modal(`<h3>${esc(o.full_name)}</h3><p>${esc(prettyPhone(o.phone))} · ${o.active === false ? 'Deactivated' : 'Active'}</p>
+    <button class="btn primary" data-r="assign">Assign jobs</button><button class="btn" data-r="pin">Reset PIN${o.locked_until && Date.parse(o.locked_until) > Date.now() ? ' (unlocks)' : ''}</button><button class="btn" data-r="rename">Rename</button>
+    <button class="btn" data-r="active">${o.active === false ? 'Reactivate' : 'Deactivate (blocks sign-in)'}</button><button class="btn danger" data-r="remove">Remove operative</button><button class="btn" data-r="">Close</button>`);
+  if (r === 'assign') return opAssign(id);
+  if (r === 'pin') { const pin = await pinPrompt('Reset PIN', `Set a new PIN for ${o.full_name}. Tell them the new PIN in person.`); if (pin) opAdmin({ action: 'reset_pin', id, pin }, 'PIN reset'); }
+  if (r === 'rename') { const n = await modal(`<h3>Rename</h3><div class="f"><input type="text" id="rn" value="${esc(o.full_name)}"></div><button class="btn primary" id="rnok">Save</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#rnok').addEventListener('click', () => close(bg.querySelector('#rn').value.trim()))); if (n) opAdmin({ action: 'rename', id, name: n }, 'Renamed'); }
+  if (r === 'active') { const on = o.active === false; if (on || await confirmBox('Deactivate operative?', `${o.full_name} will be signed out and can't sign in until reactivated. Their daily checks are kept.`, 'Deactivate')) opAdmin({ action: 'set_active', id, active: on }, on ? 'Reactivated' : 'Deactivated'); }
+  if (r === 'remove') { if (await confirmBox('Remove operative?', `${o.full_name}'s account is deleted and they are removed from all jobs. Their submitted daily checks are kept.`, 'Remove')) opAdmin({ action: 'remove', id }, 'Operative removed'); }
+}
+async function opAssign(id) {
+  const o = operatives().find(x => x.id === id) || { full_name: 'Operative' }; const js = Ops.jobsTbl.filter(j => j.active !== false);
+  const sel = await modal(`<h3>Assign jobs - ${esc(o.full_name)}</h3>${js.length ? js.map(j => `<label class="ckl"><input type="checkbox" class="as-j" value="${esc(j.id)}" ${(j.operatives || []).includes(id) ? 'checked' : ''}> ${esc(j.ref)} · ${esc(j.site_name || '')}</label>`).join('') : '<p class="hint">No active projects. Set up a project from an audit’s Details tab first.</p>'}<button class="btn primary" id="asok">Save</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#asok').addEventListener('click', () => close([...bg.querySelectorAll('.as-j')].filter(x => x.checked).map(x => x.value))));
+  if (!sel) return;
+  try {
+    for (const j of js) { const has = (j.operatives || []).includes(id), want = sel.includes(j.id); if (has === want) continue; const ops = want ? [...(j.operatives || []), id] : (j.operatives || []).filter(x => x !== id); await sbFetch(`/rest/v1/jobs?id=eq.${encodeURIComponent(j.id)}`, { method: 'PATCH', body: { operatives: ops }, headers: { Prefer: 'return=minimal' } }); }
+    toast('Jobs updated'); await loadJobsTbl(); render(true);
+  } catch (e) { toast(e.message, 4500); }
+}
+document.addEventListener('change', e => {
+  const el = e.target; if (!el.id || !el.id.startsWith('dcf-')) return; const f = dcFilters(); const job = S.ctx && S.ctx.job;
+  if (el.id === 'dcf-from') f.from = el.value; else if (el.id === 'dcf-to') f.to = el.value; else if (el.id === 'dcf-op') f.op = el.value; else if (el.id === 'dcf-iss') f.iss = el.checked;
+  if (job && (el.id === 'dcf-from' || el.id === 'dcf-to')) { delete Ops.dc[job.projectId]; loadDaily(job.projectId, f).then(() => render(true)); } else render(true);
+});
+// live show/hide + progress inside the daily form
+{
+  const _d = derive;
+  derive = function (path, el) {
+    const c = S.ctx && S.ctx.daily; if (!c) return _d(path, el);
+    $$('[data-when]').forEach(x => { const [p, v] = x.dataset.when.split('='); x.hidden = getPath(c, p) !== v; });
+    const m = /^sections#([^.]+)\.items#([^.]+)\.answer$/.exec(path);
+    if (m) { const s = c.sections.find(x => x.id === m[1]); const it = s && s.items.find(x => x.id === m[2]); const box = $('#dck_' + m[2]); if (box && it) { box.className = 'dck ' + (it.answer || ''); if (it.answer === 'issue') { const ta = box.querySelector('textarea'); if (ta && !ta.value) setTimeout(() => ta.focus(), 50); } } const pr = $('#prog_' + m[1]); if (pr && s) { const p = secProg(s); pr.textContent = `${p.a}/${p.n}`; pr.classList.toggle('full', p.a === p.n); } }
+  };
+}
+
+/* ---------- Hooks: staff views ---------- */
+{
+  const _vd = viewDetails; viewDetails = function (job) { return projCard(job) + _vd(job); };
+  const _vw = viewWorksDetails; viewWorksDetails = function (job) { return projCard(job) + _vw(job); };
+  const _bn = bnav; bnav = function (job, cur) { const h = _bn(job, cur); if (!signedIn() || isOp() || !job.projectId) return h; return h.replace('</nav>', `<a href="#/job/${job.id}/daily" class="${cur === 'daily' ? 'on' : ''}" data-tab="daily">${I.shield}<span>Daily</span></a></nav>`); };
+  const _vx = viewExtra; viewExtra = function (job, r) {
+    if (r[2] === 'project') { if (!signedIn()) return { redirect: `#/job/${job.id}/details` }; return { body: viewProject(job), title: 'Project & operatives', tab: 'details', back: `#/job/${job.id}/details` }; }
+    if (r[2] === 'daily') { if (!signedIn() || !job.projectId) return { redirect: `#/job/${job.id}/details` }; return { body: viewDailyList(job), title: 'Daily checks', tab: 'daily', back: `#/job/${job.id}/details` }; }
+    return _vx(job, r);
+  };
+  const _sw = startWorksFromSurvey; startWorksFromSurvey = function (src) { const j = _sw(src); if (src.projectId) j.projectId = src.projectId; return j; };
+  const _ou = offerUpload; offerUpload = async function () { if (isOp()) return; return _ou(); };
+  const _vs = viewSettings; viewSettings = function () {
+    const h = _vs(); if (signedIn() && !isMgr()) return h;
+    return h.replace('<a class="item" href="#/settings/templates">', `<a class="item" href="#/settings/daily"><div class="th">${I.shield.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">Daily site check template</div><div class="t2">Items operatives check each day (OK / Issue / N/A)</div></div>${I.chev}</a><a class="item" href="#/settings/templates">`);
+  };
+  const _al = afterLogin; afterLogin = async function (t) { Ops.loaded = false; Ops.jobsFresh = false; Ops.list = []; Ops.jobs = []; await _al(t); };
+}
+
+/* ---------- Login: Staff / Operative tabs ---------- */
+{
+  const _vl = viewLogin;
+  viewLogin = function () {
+    const m = Cloud.loginMode;
+    if (m !== 'signin' && m !== 'op') return _vl();
+    const tabs = `<div class="filters lgtabs" role="tablist"><button type="button" data-act="lg-mode" data-m="signin" class="${m === 'signin' ? 'on' : ''}" role="tab" aria-selected="${m === 'signin'}">Staff</button><button type="button" data-act="lg-mode" data-m="op" class="${m === 'op' ? 'on' : ''}" role="tab" aria-selected="${m === 'op'}">Operative</button></div>`;
+    if (m === 'signin') return _vl().replace('<h2>Sign in</h2>', tabs + '<h2>Staff sign in</h2>');
+    Cloud.loginMode = 'signin'; const h = _vl(); Cloud.loginMode = 'op';
+    const last = localStorage.getItem('ars-op-phone') || '';
+    return h.replace(/<h2>Sign in<\/h2><form id="lgform" novalidate>[\s\S]*<\/form>/, `${tabs}<h2>Operative sign in</h2><form id="lgform" novalidate>
+      <div class="f"><label for="lg-phone">Mobile number</label><input id="lg-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="07700 900123" value="${esc(last)}"></div>
+      <div class="f"><label for="lg-pin">6-digit PIN</label><input id="lg-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="current-password" class="pin"></div>
+      <button class="btn primary block" type="submit" data-act="lg-op">Sign in</button><p class="hint" style="text-align:center;margin-top:10px">Your manager sets up your mobile number and PIN. Forgotten your PIN? Ask your manager to reset it.</p></form>`);
+  };
+  ACTIONS['lg-op'] = function () {
+    return lgRun(async () => {
+      const raw = lgVal('lg-phone'), pin = ($('#lg-pin') || {}).value || ''; const phone = normPhone(raw);
+      if (!phone) throw new Error('Enter your UK mobile number (07…).'); if (!/^\d{6}$/.test(pin)) throw new Error('Enter your 6-digit PIN.');
+      localStorage.setItem('ars-op-phone', prettyPhone(phone));
+      let t; try { t = await fnCall('op-login', { phone, pin }, false); } catch (e) { if (e.status === 404 && !(e.body && e.body.error)) throw new Error('Operative sign-in is not set up on the server yet. Ask your manager.'); if (e.offline && navigator.onLine) throw new Error('Could not reach the operative sign-in service - it may not be set up on the server yet. Check your signal, or ask your manager.'); if (!e.offline && e.body && e.body.error) e.opLogin = true; throw e; }
+      await afterLogin(t);
+    });
+  };
+}
+
+/* ---------- Render: operative mode + new routes ---------- */
+{
+  const _r = render;
+  render = function (keep) {
+    const rt = route();
+    if (Cloud.enabled && me() && !Cloud.showLogin && isOp()) {
+      if (!Ops.loaded) { $('#app').innerHTML = header({ title: 'Daily site checks' }) + '<main><p class="hint">Loading…</p></main>'; dcLoad().then(() => render(keep)); return; }
+      let head = '', body = ''; S.ctx = null;
+      if (rt[0] === 'daily' && dcGet(rt[1])) {
+        const c = dcGet(rt[1]);
+        if (c.status === 'draft' && c.owner === me()) { S.ctx = { obj: c, save: opSaveField, daily: c }; head = header({ title: 'Daily check', sub: `${c.jobRef} · ${fmtDate(c.date)}`, back: '#/' }); body = viewDailyForm(c); }
+        else { head = header({ title: 'Daily check', sub: `${c.jobRef} · ${fmtDate(c.date)}`, back: '#/' }); body = `<div class="btns" style="margin-bottom:12px"><a class="btn primary" href="#/">Done</a><button class="btn" data-act="dc-mypdf" data-id="${c.id}">${I.pdf} PDF</button></div>${viewDailyRead(c)}`; }
+      } else if (rt.length) { go('#/'); return; }
+      else { const v = viewOpHome(); head = v.head; body = v.body; }
+      const y = window.scrollY; document.body.classList.remove('hasnav');
+      $('#app').innerHTML = head + `<main>${body}</main>`;
+      if (keep) window.scrollTo(0, y); else if (lastHash !== location.hash) window.scrollTo(0, 0); lastHash = location.hash;
+      cloudPostRender(); return;
+    }
+    if (signedIn() && rt[0] === 'daily') {
+      document.body.classList.remove('hasnav'); S.ctx = null;
+      const st = Ops.staffView && Ops.staffView.id === rt[1] ? Ops.staffView : null; const c = st && st.c;
+      const pj = c && Ops.jobsTbl.find(j => j.id === c.jobId); const aud = pj && S.jobs.find(j => j.projectId === pj.id);
+      $('#app').innerHTML = header({ title: 'Daily check', sub: c ? `${c.jobRef || ''} · ${fmtDate(c.date)} · ${c.by || ''}` : '', back: aud ? `#/job/${aud.id}/daily` : '#/' }) + `<main>${viewDailyStaff(rt[1])}</main>`;
+      return;
+    }
+    if (rt[0] === 'settings' && rt[1] === 'daily') {
+      if (Cloud.enabled && !me()) return _r(keep);
+      S.ctx = null; document.body.classList.remove('hasnav'); const y = window.scrollY;
+      $('#app').innerHTML = header({ title: 'Daily check template', back: '#/settings' }) + `<main>${viewDailyTpl()}</main>`; if (keep) window.scrollTo(0, y); return;
+    }
+    if (signedIn() && rt[0] === 'team' && isMgr() && !Ops.teamJobs) { Ops.teamJobs = true; loadJobsTbl().then(() => { if (route()[0] === 'team') render(true); }); }
+    if (rt[0] !== 'team') Ops.teamJobs = false;
+    _r(keep);
+  };
+}
+// first load of the staff jobs table (cached), so the project card can show offline
+(async () => { try { Ops.jobsTbl = (await DB.getKV('cloud.jobsTbl')) || []; } catch (e) { } })();
 
 /* ---------- Demo audit (illustrative images drawn on canvas) ---------- */
 function demoPhoto(kind, caption, seed = 1) {
