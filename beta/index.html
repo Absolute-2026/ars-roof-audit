@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.4.0">
+<meta name="app-version" content="1.5.0">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -342,6 +342,26 @@ input:disabled,select:disabled,textarea:disabled{background:#eef1f5;color:#4b556
 input.pin{letter-spacing:.5em;font-size:22px;text-align:center}
 .prog.bad{color:var(--crit)}
 .dcmiss{margin:0 0 12px 18px;line-height:1.6}
+
+/* v1.5.0 plant pre-use checks + weather time lost */
+.dck.defect{border-left-color:var(--crit);background:#fff5f5}
+.seg.dcs button.on[data-v=defect]{background:var(--crit);border-color:var(--crit);box-shadow:none}
+.dcplant{border-left:6px solid var(--navy)}.dcplant h2{gap:8px}.dcplant.quar{border:2px solid var(--crit);border-left-width:8px;background:#fff8f8}
+.seg.quarseg{margin-top:6px}.seg.quarseg button{width:100%;justify-content:center;gap:8px;font-weight:800;color:var(--crit);border:2px dashed var(--crit);background:#fff;min-height:52px}
+.seg.quarseg button.on{background:var(--crit);color:#fff;border-style:solid;box-shadow:none}
+.seg.one button{width:100%}
+.dcl{border:1px solid var(--line);border-left:6px solid var(--poor);border-radius:12px;padding:10px 10px 10px 12px;margin:0 0 10px;background:#fffaf2}
+.dcl .btn.danger{min-height:40px;padding:0 12px}
+.r2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}.r2 input,.r2 select{min-width:0;width:100%}
+.lh{min-height:48px;display:flex;align-items:center;font-size:20px;font-weight:800;color:var(--navy2)}
+.losttot{margin-top:12px;padding:12px;border-radius:12px;background:var(--navy);color:#fff;font-size:17px;text-align:center}.losttot b{color:#ffb54d;font-size:20px}
+details.pttype summary{cursor:pointer;min-height:40px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sdb{margin:4px 0 10px;padding:10px;border-radius:10px;background:#fff;border:1px dashed var(--line)}.sdb.signed{border:1px solid var(--good)}.sdb.refused{border:1px solid var(--crit)}
+.sdh{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.sdb .dcsig{max-width:200px;margin:0 0 6px}
+.dcsig.sm{max-width:150px;margin:6px 0 0}
+.plrow{display:block;width:100%;text-align:left;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 8px;font:inherit;color:var(--navy2);cursor:pointer}.plrow .t1{display:block;font-weight:800;font-size:15.5px;margin-bottom:4px}
+.dtrow textarea{flex:1;min-height:44px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:15px;resize:vertical}
+.dciss .item .t1,.dciss .item .t2{white-space:normal;overflow:visible;text-overflow:clip}
 
 </style>
 </head>
@@ -762,7 +782,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -2654,7 +2674,7 @@ function cloudFresh(j) { delete j.sync; delete j.owner; delete j.conflict; delet
 
 /* ---------- Shared settings (app_settings) ---------- */
 const companyOf = s => { const o = {}; COMPANY_KEYS.forEach(k => { o[k] = s[k]; }); return o; };
-const settingsSig = () => blobSig(JSON.stringify([companyOf(S.settings), S.settings.templates || null, S.settings.dailyTpl || null]));
+const settingsSig = () => blobSig(JSON.stringify([companyOf(S.settings), S.settings.templates || null, S.settings.dailyTpl || null, S.settings.plantTypes || null]));
 async function pullSettings() {
   const rows = await sbFetch('/rest/v1/app_settings?select=key,value,updated_at') || [];
   const m = {}; rows.forEach(r => { m[r.key] = r.value; });
@@ -3880,7 +3900,7 @@ function applyHSReqToWorks(src, j) {
 { const _d1 = derive; derive = function (path, el) { _d1(path, el); const job = S.ctx && S.ctx.job; if (!job || isWorks(job)) return; if (/^sections#[^.]+\.items#[^.]+\.(answer|qty)$/.test(path) || /^scaffold\.items#[^.]+\.(status|qty|unit)$/.test(path)) { const c = $('#hsreqsum'), sec = secByKey(job, 'safety'); if (c && sec) c.outerHTML = hsReqSummaryCard(job, sec); } }; }
 
 /* =====================================================================
-   v1.4.0: operatives (phone + PIN), jobs / projects, daily site checks
+   v1.4.0 (+1.5.0 plant & weather, see app12.js): operatives (phone + PIN), jobs / projects, daily site checks
    - Operatives see only their assigned jobs (RPC op_jobs) and their own daily checks (RLS).
    - Daily checks are saved on the phone first, queued, then uploaded to public.daily_checks with
      photos/signature/PDF in the private 'daily-checks' bucket; the daily-check-notify Edge Function
@@ -3909,32 +3929,42 @@ function pinProblem(pin) {
   if ('0123456789012345'.includes(p) || '9876543210987654'.includes(p)) return 'Choose a PIN that is not a simple sequence.';
   return '';
 }
+// keep in step with supabase/functions/_shared/daily.js issuesOf(): plant out of use first, then plant defects, checklist issues, weather, incidents
 function dcIssues(c) {
   const out = [];
+  (c.plant || []).forEach(p => { if (p.quarantine === 'yes') out.push({ section: 'Plant OUT OF USE', text: `${plantLabel(p)} - quarantined / tagged out of use`, comment: p.qNote || '', photos: [], kind: 'quarantine' }); });
+  (c.plant || []).forEach(p => (p.items || []).forEach(i => { if (i.answer === 'defect') out.push({ section: `Plant defect: ${plantLabel(p)}`, text: i.text, comment: i.comment || '', photos: i.photos || [], kind: 'plant' }); }));
   (c.sections || []).forEach(s => (s.items || []).forEach(i => { if (i.answer === 'issue') out.push({ section: s.title, text: i.text, comment: i.comment || '', photos: i.photos || [] }); }));
   const w = c.weather || {};
   if (w.tooWindy === 'yes' || w.tooWindy === true) out.push({ section: 'Weather', text: 'Too windy to work', comment: w.wind ? `Wind ${w.wind} mph` : '' });
-  if (w.stopped === 'yes') out.push({ section: 'Weather', text: 'Work stopped due to weather', comment: w.hours ? `${w.hours} h lost` : '' });
+  const L = dcLost(c);
+  if (L.hours > 0) out.push({ section: 'Weather', text: L.legacy ? 'Work stopped due to weather' : `Time lost to weather: ${fmtH(L.hours)} h`, comment: L.legacy ? `${fmtH(L.hours)} h lost` : L.reasons.join(', '), kind: 'weather' });
+  else if (w.stopped === 'yes') out.push({ section: 'Weather', text: 'Work stopped due to weather', comment: '' });
   if ((c.incident || {}).any === 'yes') out.push({ section: 'Incidents / near misses', text: 'Incident or near miss reported', comment: c.incident.detail || '' });
   return out;
 }
 
 /* ---------- Template (editable in Settings by managers) ---------- */
 const DEFAULT_DAILY_TPL = [
-  { key: 'site', title: 'Site & access', items: ['Signed in to site / visitor book', 'Site secure (fencing, gates, hoarding)', 'Access routes clear', 'Housekeeping acceptable', 'Welfare facilities OK'] },
-  { key: 'wah', title: 'Work at height & edge protection', items: ['Edge protection in place and complete', 'Safety netting in place', 'Rooflight covers / mesh in place', 'Crawling boards / staging in use', 'Fragile roof signage displayed', 'Harnesses & anchor points inspected'] },
-  { key: 'plant', title: 'Plant & equipment', items: ['MEWP pre-use check done (IPAF operator)', 'Scaffold tag inspected (in date)', 'Ladders inspected and secured', 'Power tools PAT tested', 'Fire extinguisher on site', 'Hoist / crane checked (where applicable)'] },
+  { key: 'site', title: 'Site & access', items: ['Signed in to site / visitor book', 'Site secure (fencing, gates, hoarding)', 'Access routes clear', 'Housekeeping acceptable', 'Welfare facilities OK', 'Fire extinguisher on site and accessible'] },
+  { key: 'wah', title: 'Work at height & edge protection', items: ['Edge protection in place and complete', 'Scaffold tag inspected (in date)', 'Safety netting in place', 'Rooflight covers / mesh in place', 'Crawling boards / staging in use', 'Fragile roof signage displayed', 'Harnesses & anchor points inspected'] },
   { key: 'permits', title: 'Permits & hazards', items: ['Permits in place for today’s work', 'Hot works permit (if hot works)', 'Asbestos / ACMs not disturbed', 'Live services isolated / identified'] },
 ];
-const DC_WEATHER = ['Dry', 'Rain', 'Wind', 'Frost', 'Snow'];
-const dailyTpl = () => (Array.isArray(S.settings.dailyTpl) && S.settings.dailyTpl.length ? S.settings.dailyTpl : DEFAULT_DAILY_TPL);
+const DC_WEATHER = ['Dry', 'Sunny', 'Showers', 'Rain', 'Wind', 'Frost', 'Snow', 'Fog', 'Hot'];
+// v1.5: plant is checked per machine (app12.js), so a saved pre-1.5 template loses its old one-line plant items
+function migrateDailyTpl(t) {
+  if (!Array.isArray(t)) return t;
+  return t.map(s => s.key !== 'plant' ? s : Object.assign({}, s, { title: s.title === 'Plant & equipment' ? 'Site equipment' : s.title, items: (s.items || []).filter(i => !PLANT_KEYS_OLD.includes(typeof i === 'string' ? i : i.text)) })).filter(s => (s.items || []).length);
+}
+const dailyTpl = () => (Array.isArray(S.settings.dailyTpl) && S.settings.dailyTpl.length ? migrateDailyTpl(S.settings.dailyTpl) : DEFAULT_DAILY_TPL);
 const myName = () => (Cloud.profile && (Cloud.profile.full_name || '')) || S.settings.surveyor || '';
 function newDaily(job) {
   return {
-    id: uid(), jobId: job.id, jobRef: job.ref || '', site: job.site_name || '', address: [job.site_address, job.postcode].filter(Boolean).join(', '), cm: job.contracts_manager_name || '',
+    v: 2, id: uid(), jobId: job.id, jobRef: job.ref || '', site: job.site_name || '', address: [job.site_address, job.postcode].filter(Boolean).join(', '), cm: job.contracts_manager_name || '',
     owner: me(), by: myName(), date: todayISO(), time: nowTime(), created: Date.now(), updated: Date.now(), status: 'draft',
     sections: dailyTpl().map(s => ({ id: uid(), key: s.key || '', title: s.title, items: (s.items || []).map(t => ({ id: uid(), text: typeof t === 'string' ? t : t.text, answer: '', comment: '', photos: [] })) })),
-    weather: { conditions: [], wind: '', tooWindy: '', temp: '', stopped: '', hours: '' }, workforce: { count: '', names: '', toolbox: '', topic: '' },
+    plant: [], plantNone: '',
+    weather: { conditions: [], windAM: '', windPM: '', tempAM: '', tempPM: '', lostAny: '', lost: [] }, workforce: { count: '', names: '', toolbox: '', topic: '' },
     progress: { note: '', photos: [] }, incident: { any: '', detail: '' }, signoff: { name: myName(), sig: '' },
   };
 }
@@ -3943,7 +3973,7 @@ function newDaily(job) {
 const dcKey = () => 'daily.mine.' + (me() || 'local');
 async function dcLoad() {
   const stored = (await DB.getKV(dcKey())) || []; const mem = Ops.list || [];
-  Ops.list = stored.concat(mem.filter(c => !stored.some(x => x.id === c.id)));
+  Ops.list = stored.concat(mem.filter(c => !stored.some(x => x.id === c.id))); Ops.list.forEach(dcMigrate);
   if (!Ops.jobsFresh) Ops.jobs = (await DB.getKV('ops.jobs.' + me())) || [];
   Ops.loaded = true;
 }
@@ -4021,10 +4051,11 @@ async function opSync() {
 }
 function applyDailySettings(d) {
   if (Array.isArray(d.template) && d.template.length) S.settings.dailyTpl = d.template;
+  if (d.plant !== undefined) S.settings.plantTypes = Array.isArray(d.plant) && d.plant.length ? d.plant : null;
   if (d.company && isOp()) ['company', 'address', 'phone', 'email', 'website', 'legal', 'logo', 'logoW', 'logoH'].forEach(k => { if (d.company[k] !== undefined) S.settings[k] = d.company[k]; });
   DB.setKV('settings', S.settings);
 }
-const dailySettingsValue = () => ({ template: S.settings.dailyTpl || null, company: (() => { const o = {}; ['company', 'address', 'phone', 'email', 'website', 'legal', 'logo', 'logoW', 'logoH'].forEach(k => { o[k] = S.settings[k]; }); return o; })() });
+const dailySettingsValue = () => ({ template: S.settings.dailyTpl || null, plant: S.settings.plantTypes || null, company: (() => { const o = {}; ['company', 'address', 'phone', 'email', 'website', 'legal', 'logo', 'logoW', 'logoH'].forEach(k => { o[k] = S.settings[k]; }); return o; })() });
 
 // staff: the jobs table + daily checks per job
 async function loadJobsTbl() { try { Ops.jobsTbl = await sbFetch('/rest/v1/jobs?select=*&order=ref.asc') || []; await DB.setKV('cloud.jobsTbl', Ops.jobsTbl); } catch (e) { if (!Ops.jobsTbl.length) Ops.jobsTbl = (await DB.getKV('cloud.jobsTbl')) || []; if (e.offline) return; } }
@@ -4083,7 +4114,7 @@ function dcPdfKit(title) {
   k.font = (size, style = 'normal', c = TXT) => { doc.setFont('helvetica', style); doc.setFontSize(size); doc.setTextColor(...c); };
   k.need = h => { if (k.y + h > BOT) { doc.addPage(); k.y = TOP; } };
   k.para = (text, size = 9.5, style = 'normal', c = TXT) => { if (!text) return; k.font(size, style, c); const lh = size * 0.45; String(text).split('\n').forEach(pg => { doc.splitTextToSize(tx(pg) || ' ', CW).forEach(l => { k.need(lh + 1); doc.text(l, M, k.y); k.y += lh; }); }); k.y += 1.5; };
-  k.h2 = t => { k.need(16); doc.setFillColor(...NAVY); doc.rect(M, k.y - 5, CW, 8, 'F'); k.font(11, 'bold', [255, 255, 255]); doc.text(tx(t), M + 3, k.y + 0.5); k.y += 7; };
+  k.h2 = t => { k.need(26); doc.setFillColor(...NAVY); doc.rect(M, k.y - 5, CW, 8, 'F'); k.font(11, 'bold', [255, 255, 255]); doc.text(tx(t), M + 3, k.y + 0.5); k.y += 7; };
   k.table = o => { doc.autoTable(Object.assign({ startY: k.y, margin: { left: M, right: M, top: TOP + 2, bottom: H - BOT + 2 }, theme: 'grid', styles: { font: 'helvetica', fontSize: 9, cellPadding: 1.8, textColor: TXT, lineColor: LINE, lineWidth: 0.2, overflow: 'linebreak' }, headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold' } }, o)); k.y = doc.lastAutoTable.finalY + 5; };
   k.kv = rows => { rows = rows.filter(r => r[1] !== undefined && r[1] !== null && String(r[1]).trim() !== ''); if (rows.length) k.table({ body: rows.map(r => [tx(r[0]), tx(r[1])]), columnStyles: { 0: { cellWidth: 52, fontStyle: 'bold', fillColor: LIGHT } } }); };
   k.photos = (list, cap) => {
@@ -4099,6 +4130,18 @@ function dcPdfKit(title) {
     k.y = 34; doc.setFillColor(...OR); doc.rect(M, k.y, CW, 1, 'F'); k.y += 9;
     k.font(17, 'bold', NAVY); doc.text(tx(title), M, k.y); k.y += 6; if (sub) { k.font(10, 'normal', GREY); doc.text(tx(sub), M, k.y); k.y += 7; }
   };
+  // stand-down sign-offs: signature, printed name, position / company, time (or the refusal note)
+  k.sdSigns = (list, prefix) => {
+    list.filter(e => sdStatus(e) !== 'Unsigned').forEach(e => {
+      const g = e.sign || {}, st = sdStatus(e); const hasSig = st === 'Signed' && typeof g.sig === 'string' && g.sig.startsWith('data:image/'); const bh = hasSig ? 27 : (g.note ? 15 : 11);
+      k.need(bh + 3); const y0 = k.y; doc.setFillColor(...LIGHT); doc.rect(M, y0 - 4, CW, bh, 'F');
+      k.font(9, 'bold', st === 'Signed' ? GREEN : RED); doc.text(tx(`${prefix ? prefix + ' - ' : ''}Stand-down ${st === 'Signed' ? 'signed off' : 'NOT signed - refused / not available'}: ${e.reason || ''} ${fmtH(lostHours(e))} h`), M + 3, y0 + 0.5);
+      k.font(8.5, 'normal', TXT); doc.text(tx([`Name: ${g.name || '-'}`, `Position / company: ${g.position || '-'}`, `Time: ${sdTime(g) || '-'}`].join('     ')), M + 3, y0 + 5);
+      if (!hasSig && g.note) { k.font(8.5, 'italic', TXT); doc.text(doc.splitTextToSize(tx('Note: ' + g.note), CW - 6)[0], M + 3, y0 + 9); }
+      if (hasSig) { try { doc.addImage(g.sig, fmtImg(g.sig), M + 3, y0 + 7, 48, 17, undefined, 'FAST'); } catch (er) { } }
+      k.y = y0 + bh + 2;
+    });
+  };
   k.finish = (footL) => { const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.line(M, H - 11, W - M, H - 11); k.font(7.5, 'normal', GREY); doc.text(tx(footL), M, H - 7); doc.text(`Page ${i} of ${n}`, W - M, H - 7, { align: 'right' }); } return doc; };
   return k;
 }
@@ -4110,8 +4153,11 @@ function buildDailyPDF(c) {
   // issues first
   if (iss.length) {
     k.need(14); doc.setFillColor(254, 226, 226); doc.setDrawColor(...k.RED); const top = k.y - 5;
-    k.font(11, 'bold', k.RED); doc.text(`${iss.length} ISSUE${iss.length > 1 ? 'S' : ''} FLAGGED`, k.M + 3, k.y); k.y += 2;
-    k.table({ head: [['Section', 'Item', 'Comment']], body: iss.map(i => [tx(i.section), tx(i.text), tx(i.comment)]), headStyles: { fillColor: k.RED, textColor: [255, 255, 255], fontStyle: 'bold' }, columnStyles: { 0: { cellWidth: 42 }, 1: { cellWidth: 62, fontStyle: 'bold' } } });
+    k.font(11, 'bold', k.RED); doc.text(`${iss.length} ISSUE${iss.length > 1 ? 'S' : ''} FLAGGED`, k.M + 3, k.y);
+    const ps = dcPlantStats(c); if (ps.quarantined || ps.defects) { k.font(9.5, 'bold', k.RED); doc.text(tx([ps.quarantined ? `${ps.quarantined} item${ps.quarantined > 1 ? 's' : ''} of plant OUT OF USE` : '', ps.defects ? `${ps.defects} plant defect${ps.defects > 1 ? 's' : ''}` : ''].filter(Boolean).join('  -  ')), k.M + 3, k.y + 5); k.y += 5; }
+    k.y += 2;
+    k.table({ head: [['Section', 'Item', 'Comment']], body: iss.map(i => [tx(i.section), tx(i.text), tx(i.comment)]), headStyles: { fillColor: k.RED, textColor: [255, 255, 255], fontStyle: 'bold' }, columnStyles: { 0: { cellWidth: 42 }, 1: { cellWidth: 62, fontStyle: 'bold' } },
+      didParseCell: d => { if (d.section === 'body' && (iss[d.row.index] || {}).kind === 'quarantine') { d.cell.styles.fillColor = [254, 202, 202]; d.cell.styles.textColor = k.RED; d.cell.styles.fontStyle = 'bold'; } } });
     doc.setLineWidth(0.6); void top;
   } else { k.need(12); doc.setFillColor(220, 252, 231); doc.rect(k.M, k.y - 5, k.CW, 9, 'F'); k.font(11, 'bold', k.GREEN); doc.text('No issues flagged', k.M + 3, k.y + 0.8); k.y += 10; }
   const AC = { ok: k.GREEN, issue: k.RED, na: k.GREY, '': k.GREY };
@@ -4121,8 +4167,25 @@ function buildDailyPDF(c) {
       didParseCell: d => { if (d.section === 'body' && d.column.index === 1) { const a = (s.items[d.row.index] || {}).answer || ''; d.cell.styles.textColor = AC[a]; if (a === 'issue') d.cell.styles.fillColor = [254, 226, 226]; } } });
     (s.items || []).forEach(i => { if (i.photos && i.photos.length) k.photos(i.photos, i.text); });
   });
-  const w = c.weather || {}, f = c.workforce || {};
-  k.h2('Weather'); k.kv([['Conditions', (w.conditions || []).join(', ') || '-'], ['Wind speed', w.wind ? w.wind + ' mph' : ''], ['Too windy to work', w.tooWindy === 'yes' ? 'YES' : w.tooWindy === 'no' ? 'No' : ''], ['Temperature', w.temp !== '' && w.temp != null ? w.temp + ' °C' : ''], ['Work stopped', w.stopped === 'yes' ? `YES${w.hours ? ' - ' + w.hours + ' h lost' : ''}` : w.stopped === 'no' ? 'No' : '']]);
+  // plant & equipment pre-use checks
+  if ((c.plant || []).length || c.plantNone === 'yes') k.h2('Plant & equipment pre-use checks');
+  if (!(c.plant || []).length && c.plantNone === 'yes') k.para('No plant or powered equipment used.');
+  (c.plant || []).forEach(p => {
+    const q = p.quarantine === 'yes'; k.need(18);
+    k.font(10.5, 'bold', q ? k.RED : k.NAVY); doc.text(tx(plantLabel(p) + (q ? '  -  OUT OF USE (quarantined / tagged)' : '')), k.M, k.y + 1); k.y += 5;
+    k.font(8.5, 'normal', k.GREY); doc.text(tx([p.typeName, p.hire ? 'Hire: ' + p.hire : '', p.hours ? 'Hours / meter: ' + p.hours : '', q && p.qNote ? 'Out of use: ' + p.qNote : ''].filter(Boolean).join('   ·   ')), k.M, k.y); k.y += 3;
+    k.table({ head: [['Pre-use check', 'Result', 'Comment']], body: p.items.map(i => [tx(i.text), i.answer === 'defect' ? 'DEFECT' : ANS_TXT[i.answer || ''], tx(i.comment)]), columnStyles: { 0: { cellWidth: 96 }, 1: { cellWidth: 20, halign: 'center', fontStyle: 'bold' } }, styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 1.5, textColor: k.TXT, lineColor: k.LINE, lineWidth: 0.2 },
+      didParseCell: d => { if (d.section === 'body' && d.column.index === 1) { const a = (p.items[d.row.index] || {}).answer || ''; d.cell.styles.textColor = a === 'defect' ? k.RED : AC[a] || k.GREY; if (a === 'defect') d.cell.styles.fillColor = [254, 226, 226]; } } });
+    p.items.forEach(i => { if (i.photos && i.photos.length) k.photos(i.photos, i.text); });
+  });
+  const w = c.weather || {}, f = c.workforce || {}; const L = dcLost(c);
+  k.h2('Weather'); k.kv([['Conditions', (w.conditions || []).join(', ') || '-'], ...readings(w).map(r => ['Reading', r]), ['Too windy to work', w.tooWindy === 'yes' ? 'YES' : w.tooWindy === 'no' ? 'No' : ''], ['Time lost to weather', L.hours ? `${fmtH(L.hours)} h  (${L.reasons.join(', ')})` : (w.lostAny === 'no' || w.stopped === 'no') ? 'None' : '']]);
+  if (L.hours && L.list.length) {
+    const lostCols = L.legacy ? [['Reason', 'From', 'To', 'Hours', 'Note']] : [['Reason', 'From', 'To', 'Hours', 'Note', 'Stand-down sign-off']];
+    k.table({ head: lostCols, body: [...L.list.map(e => { const r = [tx(e.reason), tx(e.from || ''), tx(e.to || ''), fmtH(lostHours(e)), tx(e.note || '')]; if (!L.legacy) r.push(tx(sdStatus(e).toUpperCase())); return r; }), [{ content: 'Total time lost', colSpan: 3, styles: { fontStyle: 'bold' } }, { content: fmtH(L.hours) + ' h', styles: { fontStyle: 'bold', textColor: k.RED } }, '', ...(L.legacy ? [] : [''])]], columnStyles: { 1: { cellWidth: 14 }, 2: { cellWidth: 14 }, 3: { cellWidth: 15, halign: 'center' }, 5: { cellWidth: 30, fontStyle: 'bold' } },
+      didParseCell: d => { if (d.section === 'body' && d.column.index === 5 && d.row.index < L.list.length) { const st = sdStatus(L.list[d.row.index]); d.cell.styles.textColor = st === 'Signed' ? k.GREEN : st === 'Refused' ? k.RED : [180, 83, 9]; } } });
+    k.sdSigns(L.list);
+  }
   k.h2('Workforce'); k.kv([['Number on site', f.count], ['Names', f.names], ['Toolbox talk', f.toolbox === 'yes' ? `Yes${f.topic ? ' - ' + f.topic : ''}` : f.toolbox === 'no' ? 'No' : '']]);
   k.h2('Progress'); k.para(c.progress && c.progress.note || 'No progress note.'); k.photos(c.progress && c.progress.photos, '');
   k.h2('Incidents / near misses'); k.para(c.incident && c.incident.any === 'yes' ? 'YES - ' + (c.incident.detail || '(no detail given)') : c.incident && c.incident.any === 'no' ? 'None reported.' : 'Not answered.', 9.5, c.incident && c.incident.any === 'yes' ? 'bold' : 'normal', c.incident && c.incident.any === 'yes' ? k.RED : k.TXT);
@@ -4133,12 +4196,37 @@ function buildDailyPDF(c) {
 function buildDailySummaryPDF(proj, rows, f) {
   const k = dcPdfKit('Daily Checks Summary'); const { doc, tx } = k;
   k.letterhead(`${proj.ref ? proj.ref + ' - ' : ''}${proj.site_name || ''}`);
-  const tot = rows.reduce((a, r) => a + (r.issues || 0), 0), stopped = rows.filter(r => ((r.data || {}).weather || {}).stopped === 'yes');
-  k.kv([['Period', `${f.from ? fmtDate(f.from) : 'Start'} to ${f.to ? fmtDate(f.to) : 'today'}`], ['Checks', String(rows.length)], ['Checks with issues', String(rows.filter(r => r.issues > 0).length)], ['Total issues', String(tot)], ['Weather stoppages', stopped.length ? `${stopped.length} (${stopped.reduce((a, r) => a + (+r.data.weather.hours || 0), 0)} h lost)` : 'None'], ['Incidents / near misses', String(rows.filter(r => ((r.data || {}).incident || {}).any === 'yes').length)]]);
+  const tot = rows.reduce((a, r) => a + (r.issues || 0), 0); const D = r => r.data || {};
+  const lost = rows.map(r => ({ r, L: dcLost(D(r)) })).filter(x => x.L.hours > 0); const lostTot = lost.reduce((a, x) => a + x.L.hours, 0);
+  const ps = rows.reduce((a, r) => { const s = dcPlantStats(D(r)); a.n += s.n; a.defects += s.defects; a.quarantined += s.quarantined; return a; }, { n: 0, defects: 0, quarantined: 0 });
+  k.kv([['Period', `${f.from ? fmtDate(f.from) : 'Start'} to ${f.to ? fmtDate(f.to) : 'today'}`], ['Checks', String(rows.length)], ['Checks with issues', String(rows.filter(r => r.issues > 0).length)], ['Total issues', String(tot)],
+    ['Time lost to weather', lost.length ? `${fmtH(lostTot)} h over ${new Set(lost.map(x => x.r.check_date)).size} day(s)` : 'None'],
+    ['Plant pre-use checks', `${ps.n} item${ps.n === 1 ? '' : 's'} checked · ${ps.defects} defect${ps.defects === 1 ? '' : 's'} · ${ps.quarantined} quarantined / out of use`],
+    ['Incidents / near misses', String(rows.filter(r => (D(r).incident || {}).any === 'yes').length)]]);
   k.h2('Checks');
-  k.table({ head: [['Date', 'Operative', 'Workforce', 'Weather', 'Issues', 'Emailed']], body: rows.map(r => { const d = r.data || {}, w = d.weather || {}; return [fmtDate(r.check_date), tx(r.owner_name), tx((d.workforce || {}).count || ''), tx([(w.conditions || []).join('/'), w.stopped === 'yes' ? 'STOPPED' : ''].filter(Boolean).join(' ')), String(r.issues || 0), r.email_status === 'sent' ? 'Yes' : (r.email_status || '-')]; }), columnStyles: { 4: { halign: 'center', fontStyle: 'bold' } }, didParseCell: d => { if (d.section === 'body' && d.column.index === 4 && +d.cell.raw > 0) d.cell.styles.textColor = k.RED; } });
-  const all = []; rows.forEach(r => dcIssues(r.data || {}).forEach(i => all.push([fmtDate(r.check_date), tx(r.owner_name), tx(i.section), tx(i.text), tx(i.comment)])));
-  if (all.length) { k.h2('All issues'); k.table({ head: [['Date', 'By', 'Section', 'Item', 'Comment']], body: all, headStyles: { fillColor: k.RED, textColor: [255, 255, 255] } }); }
+  k.table({ head: [['Date', 'Operative', 'Workforce', 'Weather', 'Lost h', 'Plant', 'Issues', 'Emailed']], body: rows.map(r => { const d = D(r), w = d.weather || {}; const L = dcLost(d), s = dcPlantStats(d); return [fmtDate(r.check_date), tx(r.owner_name), tx((d.workforce || {}).count || ''), tx((w.conditions || []).join('/')), L.hours ? fmtH(L.hours) : '-', s.n ? `${s.n}${s.defects ? ` (${s.defects} def)` : ''}${s.quarantined ? ` ${s.quarantined} OUT` : ''}` : '-', String(r.issues || 0), r.email_status === 'sent' ? 'Yes' : /^pending/.test(r.email_status || '') ? 'Pending' : (r.email_status || '-')]; }),
+    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 1.5, textColor: k.TXT, lineColor: k.LINE, lineWidth: 0.2 }, columnStyles: { 4: { halign: 'center' }, 6: { halign: 'center', fontStyle: 'bold' } },
+    didParseCell: d => { if (d.section !== 'body') return; if (d.column.index === 6 && +d.cell.raw > 0) d.cell.styles.textColor = k.RED; if ((d.column.index === 4 && d.cell.raw !== '-') || (d.column.index === 5 && /def|OUT/.test(d.cell.raw))) { d.cell.styles.textColor = k.RED; d.cell.styles.fontStyle = 'bold'; } } });
+  if (lost.length) {
+    k.h2('Time lost to weather');
+    const byDay = new Map(); lost.forEach(({ r, L }) => { const e = byDay.get(r.check_date) || { h: 0, reasons: new Set(), who: new Set(), notes: [] }; e.h = Math.max(e.h, L.hours); L.reasons.forEach(x => e.reasons.add(x)); e.who.add(r.owner_name || ''); L.list.forEach(x => { if (x.note) e.notes.push(x.note); }); byDay.set(r.check_date, e); });
+    const days = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    lost.forEach(({ r, L }) => { const e = byDay.get(r.check_date); e.sd = e.sd || { Signed: 0, Refused: 0, Unsigned: 0 }; if (!L.legacy) L.list.forEach(x => { e.sd[sdStatus(x)]++; }); });
+    k.table({ head: [['Date', 'Hours lost', 'Reasons', 'Reported by', 'Sign-off', 'Notes']], body: [...days.map(([d, e]) => [fmtDate(d), fmtH(e.h), tx([...e.reasons].join(', ')), tx([...e.who].join(', ')), Object.entries(e.sd || {}).filter(x => x[1]).map(x => `${x[1]} ${x[0].toLowerCase()}`).join(', ') || '-', tx(e.notes.join('; '))]), [{ content: 'Total', styles: { fontStyle: 'bold' } }, { content: fmtH(days.reduce((a, x) => a + x[1].h, 0)) + ' h', styles: { fontStyle: 'bold', textColor: k.RED } }, '', '', '', '']],
+      columnStyles: { 0: { cellWidth: 22 }, 1: { cellWidth: 16, halign: 'center' }, 2: { cellWidth: 28 }, 3: { cellWidth: 28 }, 4: { cellWidth: 34 } }, didParseCell: d => { if (d.section === 'body' && d.column.index === 4 && /unsigned|refused/.test(d.cell.raw || '')) d.cell.styles.textColor = k.RED; } });
+    k.para('Hours per day: where more than one operative reported time lost on the same day, the longest is counted (not added together).', 8, 'normal', k.GREY); k.y += 3;
+    const sdl = []; lost.forEach(({ r, L }) => { if (!L.legacy) L.list.forEach(e => sdl.push({ r, e })); });
+    if (sdl.length) {
+      k.h2('Stand-down sign-offs');
+      k.table({ head: [['Date', 'Reason', 'Hours', 'Status', 'Name', 'Position / company', 'Time']], body: sdl.map(({ r, e }) => { const g = e.sign || {}; return [fmtDate(r.check_date), tx(e.reason), fmtH(lostHours(e)), sdStatus(e).toUpperCase(), tx(g.name || ''), tx(g.position || ''), tx(sdTime(g))]; }), styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 1.5, textColor: k.TXT, lineColor: k.LINE, lineWidth: 0.2 },
+        didParseCell: d => { if (d.section === 'body' && d.column.index === 3) { const st = sdStatus(sdl[d.row.index].e); d.cell.styles.fontStyle = 'bold'; d.cell.styles.textColor = st === 'Signed' ? k.GREEN : st === 'Refused' ? k.RED : [180, 83, 9]; } } });
+      sdl.forEach(({ r, e }) => k.sdSigns([e], fmtDate(r.check_date)));
+    }
+  }
+  const pl = []; rows.forEach(r => (D(r).plant || []).forEach(p => { if (p.quarantine === 'yes') pl.push([fmtDate(r.check_date), tx(plantLabel(p)), 'OUT OF USE - quarantined / tagged', tx(p.qNote || ''), true]); (p.items || []).forEach(i => { if (i.answer === 'defect') pl.push([fmtDate(r.check_date), tx(plantLabel(p)), tx(i.text), tx(i.comment || ''), false]); }); }));
+  if (pl.length) { k.h2('Plant defects & quarantined items'); k.table({ head: [['Date', 'Plant / equipment', 'Check', 'Comment']], body: pl.map(x => x.slice(0, 4)), headStyles: { fillColor: k.RED, textColor: [255, 255, 255] }, columnStyles: { 0: { cellWidth: 22 }, 1: { cellWidth: 42, fontStyle: 'bold' } }, didParseCell: d => { if (d.section === 'body' && pl[d.row.index][4]) { d.cell.styles.textColor = k.RED; d.cell.styles.fontStyle = 'bold'; } } }); }
+  const all = []; rows.forEach(r => dcIssues(D(r)).filter(i => i.kind !== 'plant' && i.kind !== 'quarantine').forEach(i => all.push([fmtDate(r.check_date), tx(r.owner_name), tx(i.section), tx(i.text), tx(i.comment)])));
+  if (all.length) { k.h2('Other issues'); k.table({ head: [['Date', 'By', 'Section', 'Item', 'Comment']], body: all, headStyles: { fillColor: k.RED, textColor: [255, 255, 255] } }); }
   const notes = rows.filter(r => r.data && r.data.progress && r.data.progress.note);
   if (notes.length) { k.h2('Progress notes'); k.table({ head: [['Date', 'By', 'Note']], body: notes.map(r => [fmtDate(r.check_date), tx(r.owner_name), tx(r.data.progress.note)]), columnStyles: { 0: { cellWidth: 22 }, 1: { cellWidth: 34 } } }); }
   return k.finish(`Daily checks summary - ${proj.ref || ''} - generated ${fmtDate(todayISO())}`);
@@ -4182,12 +4270,10 @@ function viewDailyForm(c) {
   const secs = c.sections.map(s => { const pr = secProg(s); return `<div class="card dcsec" id="sec_${s.id}"><h2>${esc(s.title)} <span class="prog ${pr.a === pr.n ? 'full' : ''}" id="prog_${s.id}" style="margin-left:auto">${pr.a}/${pr.n}</span></h2>
     <button class="btn block dc-allok" data-act="dc-allok" data-s="${s.id}">✓ All OK (fill unanswered)</button>${s.items.map(i => dcItemHTML(c, s, i)).join('')}</div>`; }).join('');
   return `<div class="card"><h2>${esc(c.jobRef)} · ${esc(c.site)}</h2><p class="hint">${esc(c.address || '')}${c.cm ? ` · Contracts manager: ${esc(c.cm)}` : ''}</p>
-    <div class="row">${f.text('Date', 'date', { type: 'date' })}${f.text('Time', 'time', { type: 'time' })}</div><p class="hint">Tap <b>OK</b>, <b>Issue</b> or <b>N/A</b> for each item. An issue needs a short comment.</p></div>
+    <div class="row">${f.text('Date', 'date', { type: 'date' })}${f.text('Time', 'time', { type: 'time' })}</div><p class="hint">Tap <b>OK</b>, <b>Issue</b> or <b>N/A</b> for each item. An issue needs a short comment. Then add the plant and equipment you are using and do their pre-use checks.</p></div>
   ${secs}
-  <div class="card"><h2>Weather</h2>${f.chips('Conditions', 'weather.conditions', DC_WEATHER)}
-    <div class="row">${f.text('Wind speed (mph)', 'weather.wind', { type: 'number' })}${f.text('Temperature (°C)', 'weather.temp', { type: 'number' })}</div>
-    ${yn('Too windy to work?', 'weather.tooWindy', true)}${yn('Work stopped due to weather?', 'weather.stopped', true)}
-    <div data-when="weather.stopped=yes" ${c.weather.stopped === 'yes' ? '' : 'hidden'}>${f.text('Hours lost', 'weather.hours', { type: 'number' })}</div></div>
+  ${plantSectionHTML(c)}
+  ${weatherCardHTML(c)}
   <div class="card"><h2>Workforce</h2>${f.text('Number on site (incl. you)', 'workforce.count', { type: 'number' })}${f.area('Names (optional)', 'workforce.names', { rows: 2 })}
     ${yn('Toolbox talk given today?', 'workforce.toolbox')}<div data-when="workforce.toolbox=yes" ${c.workforce.toolbox === 'yes' ? '' : 'hidden'}>${f.text('Toolbox talk topic', 'workforce.topic', { ph: 'e.g. Fragile roofs, manual handling' })}</div></div>
   <div class="card"><h2>Progress note</h2>${f.area('What was done today / planned', 'progress.note', { rows: 3 })}${dcPhotos('progress.photos', c.progress.photos, 'Add progress photo')}</div>
@@ -4202,9 +4288,17 @@ function dcProblems(c) {
   if (un) p.push(`${un} checklist item${un > 1 ? 's' : ''} not answered`);
   const nc = c.sections.reduce((a, s) => a + s.items.filter(i => i.answer === 'issue' && !String(i.comment || '').trim()).length, 0);
   if (nc) p.push(`${nc} issue${nc > 1 ? 's' : ''} without a comment`);
+  const pl = c.plant || [];
+  if (!pl.length && c.plantNone !== 'yes' && !hasLegacyPlant(c)) p.push('Plant & equipment: add what you are using, or tick "No plant or powered equipment used today"');
+  pl.forEach(x => { const lbl = plantLabel(x); const un2 = x.items.filter(i => !i.answer).length, nc2 = x.items.filter(i => i.answer === 'defect' && !String(i.comment || '').trim()).length;
+    if (x.custom && !String(x.name || '').trim()) p.push(`${x.typeName}: say what the equipment is`);
+    if (!String(x.ident || '').trim()) p.push(`${lbl}: ID / fleet or serial no.`);
+    if (un2) p.push(`${lbl}: ${un2} pre-use check${un2 > 1 ? 's' : ''} not answered`);
+    if (nc2) p.push(`${lbl}: ${nc2} defect${nc2 > 1 ? 's' : ''} without a comment`);
+    if (x.quarantine === 'yes' && !String(x.qNote || '').trim()) p.push(`${lbl}: say why it is out of use`); });
   if (!(c.weather.conditions || []).length) p.push('Weather conditions');
-  if (!c.weather.tooWindy) p.push('Too windy to work? (yes / no)');
-  if (!c.weather.stopped) p.push('Work stopped? (yes / no)');
+  if (!c.weather.lostAny) p.push('Any time lost to weather? (yes / no)');
+  if (c.weather.lostAny === 'yes') { const ls = c.weather.lost || []; if (!ls.length) p.push('Time lost: add how long and why'); ls.forEach((e, n) => { if (!e.reason) p.push(`Time lost ${n + 1}: reason`); if (!(lostHours(e) > 0)) p.push(`Time lost ${n + 1}: from / to times or hours`); }); }
   if (!String(c.workforce.count || '').trim()) p.push('Number on site');
   if (!c.incident.any) p.push('Incidents / near misses (yes / no)');
   if (c.incident.any === 'yes' && !String(c.incident.detail || '').trim()) p.push('Incident detail');
@@ -4214,12 +4308,13 @@ function dcProblems(c) {
 }
 function dcAnswerTag(a) { return a === 'ok' ? '<span class="tag green">OK</span>' : a === 'issue' ? '<span class="tag red">ISSUE</span>' : a === 'na' ? '<span class="tag">N/A</span>' : '<span class="tag">-</span>'; }
 function viewDailyRead(c, staff) {
-  const iss = dcIssues(c); const w = c.weather || {}, wf = c.workforce || {};
+  const iss = dcIssues(c); const wf = c.workforce || {};
   const ph = l => (l || []).filter(p => p && p.data).length ? `<div class="dcph">${l.map(p => `<img src="${p.data}" alt="">`).join('')}</div>` : '';
   return `<div class="card"><h2>${esc(c.jobRef || '')} · ${esc(c.site || '')}</h2><p class="hint">${fmtDate(c.date)} ${esc(c.time || '')} · ${esc(c.by || '')}</p><div class="meta">${staff ? staff : dcStatusTag(c)}</div>${c.emailedTo ? `<p class="small" style="margin-top:6px">Emailed to ${esc(c.emailedTo)}</p>` : c.emailErr && !staff ? `<p class="small" style="margin-top:6px">Email: ${esc(c.emailErr)} - will retry automatically.</p>` : ''}</div>
   ${iss.length ? `<div class="card dciss"><h2>${I.warn.replace('<svg', '<svg width="22" height="22"')} ${iss.length} issue${iss.length > 1 ? 's' : ''} flagged</h2>${iss.map(i => `<div class="item"><div class="bd"><div class="t1">${esc(i.text)}</div><div class="t2">${esc(i.section)}${i.comment ? ' - ' + esc(i.comment) : ''}</div>${ph(i.photos)}</div></div>`).join('')}</div>` : '<div class="lg-msg ok" style="margin:0 0 12px">No issues flagged</div>'}
+  ${plantReadHTML(c)}
   ${(c.sections || []).map(s => `<details class="sec card"><summary><b>${esc(s.title)}</b> <span class="small">${s.items.filter(i => i.answer === 'issue').length ? `<span class="tag red">${s.items.filter(i => i.answer === 'issue').length} issue</span>` : '<span class="tag green">OK</span>'}</span></summary>${s.items.map(i => `<div class="dcr"><span>${esc(i.text)}${i.comment ? `<br><span class="small">${esc(i.comment)}</span>` : ''}</span>${dcAnswerTag(i.answer)}</div>`).join('')}</details>`).join('')}
-  <div class="card"><h2>Weather & workforce</h2><div class="dcr"><span>Conditions</span><b>${esc((w.conditions || []).join(', ') || '-')}</b></div><div class="dcr"><span>Wind / temperature</span><b>${esc(w.wind ? w.wind + ' mph' : '-')} / ${esc(w.temp !== '' && w.temp != null ? w.temp + ' °C' : '-')}</b></div><div class="dcr"><span>Too windy to work</span><b>${w.tooWindy === 'yes' ? '<span class="tag red">YES</span>' : esc(w.tooWindy || '-')}</b></div><div class="dcr"><span>Work stopped</span><b>${w.stopped === 'yes' ? `<span class="tag red">YES${w.hours ? ' · ' + esc(w.hours) + ' h' : ''}</span>` : esc(w.stopped || '-')}</b></div>
+  <div class="card"><h2>Weather & workforce</h2>${weatherReadHTML(c)}
     <div class="dcr"><span>Number on site</span><b>${esc(wf.count || '-')}</b></div>${wf.names ? `<div class="dcr"><span>Names</span><b>${esc(wf.names)}</b></div>` : ''}<div class="dcr"><span>Toolbox talk</span><b>${wf.toolbox === 'yes' ? 'Yes' + (wf.topic ? ' - ' + esc(wf.topic) : '') : esc(wf.toolbox || '-')}</b></div></div>
   <div class="card"><h2>Progress</h2><p>${esc((c.progress || {}).note || 'No note.')}</p>${ph((c.progress || {}).photos)}</div>
   <div class="card"><h2>Incidents / near misses</h2><p>${(c.incident || {}).any === 'yes' ? `<span class="tag red">YES</span> ${esc(c.incident.detail || '')}` : 'None reported.'}</p></div>
@@ -4261,14 +4356,16 @@ function viewDailyList(job) {
   if (!Ops.dc[pid] && !Ops.dcLoading) { Ops.dcLoading = true; loadDaily(pid, f).finally(() => { Ops.dcLoading = false; if (route()[2] === 'daily') render(true); }); }
   let rows = (Ops.dc[pid] || []); const ownersAll = [...new Map(rows.map(r => [r.owner, r.owner_name])).entries()];
   if (f.op) rows = rows.filter(r => r.owner === f.op); if (f.iss) rows = rows.filter(r => r.issues > 0);
-  const tot = rows.reduce((a, r) => a + (r.issues || 0), 0);
+  const tot = rows.reduce((a, r) => a + (r.issues || 0), 0); const lostTot = rows.reduce((a, r) => a + dcLost(r.data || {}).hours, 0);
+  const pst = rows.reduce((a, r) => { const s = dcPlantStats(r.data || {}); a.d += s.defects; a.q += s.quarantined; return a; }, { d: 0, q: 0 });
   return `<div class="card"><h2>Daily checks${p ? ' · ' + esc(p.ref) : ''}</h2>
     <div class="row"><div class="f"><label for="dcf-from">From</label><input type="date" id="dcf-from" value="${f.from}"></div><div class="f"><label for="dcf-to">To</label><input type="date" id="dcf-to" value="${f.to}"></div></div>
     <div class="row"><div class="f"><label for="dcf-op">Operative</label><select id="dcf-op"><option value="">All</option>${ownersAll.map(([id, n]) => `<option value="${id}" ${f.op === id ? 'selected' : ''}>${esc(n || personName(id) || 'Unknown')}</option>`).join('')}</select></div><div class="f"><span class="lbl">&nbsp;</span><label class="ckl" style="margin:0"><input type="checkbox" id="dcf-iss" ${f.iss ? 'checked' : ''}> Issues only</label></div></div>
     <div class="btns"><button class="btn primary" data-act="dc-sumpdf" ${rows.length ? '' : 'disabled'}>${I.pdf} Summary PDF</button><button class="btn" data-act="dc-reload">Refresh</button></div>
     ${Ops.dcErr ? `<p class="hint" style="margin-top:8px">${esc(Ops.dcErr)}</p>` : ''}</div>
   <div class="card"><h2>${rows.length} check${rows.length === 1 ? '' : 's'} <span class="prog ${tot ? 'bad' : 'full'}" style="margin-left:auto">${tot} issue${tot === 1 ? '' : 's'}</span></h2>
-    ${Ops.dcLoading && !Ops.dc[pid] ? '<p class="hint">Loading…</p>' : rows.map(r => { const w = (r.data || {}).weather || {}; return `<a class="item" href="#/daily/${r.id}"><div class="th dcth ${r.issues ? 'bad' : 'good'}">${r.issues || '✓'}</div><div class="bd"><div class="t1">${fmtDate(r.check_date)} · ${esc(r.owner_name || '')}</div><div class="t2">${esc([(w.conditions || []).join(', '), ((r.data || {}).workforce || {}).count ? r.data.workforce.count + ' on site' : ''].filter(Boolean).join(' · '))}</div><div class="meta">${r.issues ? `<span class="tag red">${r.issues} issue${r.issues > 1 ? 's' : ''}</span>` : '<span class="tag green">No issues</span>'}${w.stopped === 'yes' ? '<span class="tag amber">Work stopped</span>' : ''}${((r.data || {}).incident || {}).any === 'yes' ? '<span class="tag red">Incident</span>' : ''}${r.email_status === 'sent' ? '<span class="tag">Emailed</span>' : /^pending/.test(r.email_status || '') ? '<span class="tag">Email pending</span>' : r.email_status ? '<span class="tag amber">Email not sent</span>' : ''}</div></div>${I.chev}</a>`; }).join('') || '<p class="hint">No daily checks for this period yet.</p>'}</div>`;
+    ${rows.length ? `<div class="meta" style="margin:-4px 0 8px"><span class="tag ${lostTot ? 'amber' : ''}">${fmtH(lostTot)} h lost to weather</span><span class="tag ${pst.d ? 'red' : ''}">${pst.d} plant defect${pst.d === 1 ? '' : 's'}</span>${pst.q ? `<span class="tag red">${pst.q} plant out of use</span>` : ''}</div>` : ''}
+    ${Ops.dcLoading && !Ops.dc[pid] ? '<p class="hint">Loading…</p>' : rows.map(r => { const w = (r.data || {}).weather || {}; return `<a class="item" href="#/daily/${r.id}"><div class="th dcth ${r.issues ? 'bad' : 'good'}">${r.issues || '✓'}</div><div class="bd"><div class="t1">${fmtDate(r.check_date)} · ${esc(r.owner_name || '')}</div><div class="t2">${esc([(w.conditions || []).join(', '), ((r.data || {}).workforce || {}).count ? r.data.workforce.count + ' on site' : ''].filter(Boolean).join(' · '))}</div><div class="meta">${r.issues ? `<span class="tag red">${r.issues} issue${r.issues > 1 ? 's' : ''}</span>` : '<span class="tag green">No issues</span>'}${(() => { const L = dcLost(r.data || {}), s = dcPlantStats(r.data || {}); return (L.hours ? `<span class="tag amber">${fmtH(L.hours)} h lost${L.reasons.length ? ' · ' + esc(L.reasons.join(', ')) : ''}</span>` : '') + (s.quarantined ? `<span class="tag red">${s.quarantined} plant OUT OF USE</span>` : '') + (s.defects ? `<span class="tag red">${s.defects} plant defect${s.defects > 1 ? 's' : ''}</span>` : '') + (s.n && !s.defects && !s.quarantined ? `<span class="tag">${s.n} plant checked</span>` : '') + Object.entries(sdSummary(r.data || {})).filter(x => x[1]).map(([k2, n]) => `<span class="tag ${sdTagCls(k2)}">Stand-down: ${n > 1 ? n + ' ' : ''}${k2}</span>`).join(''); })()}${((r.data || {}).incident || {}).any === 'yes' ? '<span class="tag red">Incident</span>' : ''}${r.email_status === 'sent' ? '<span class="tag">Emailed</span>' : /^pending/.test(r.email_status || '') ? '<span class="tag">Email pending</span>' : r.email_status ? '<span class="tag amber">Email not sent</span>' : ''}</div></div>${I.chev}</a>`; }).join('') || '<p class="hint">No daily checks for this period yet.</p>'}</div>`;
 }
 async function staffDaily(id) {
   for (const k in Ops.dc) { const r = Ops.dc[k].find(x => x.id === id); if (r) return r; }
@@ -4291,11 +4388,13 @@ function viewDailyStaff(id) {
 /* ---------- Settings: daily template ---------- */
 function viewDailyTpl() {
   const t = dailyTpl(); const ro = signedIn() && !isMgr();
-  return `${ro ? '<div class="lg-msg warn" style="margin:4px 0 12px">The daily check template is managed by your manager. It is shown read-only.</div>' : ''}<p class="hint" style="margin:0 0 12px">Sections and items operatives answer OK / Issue / N/A each day. Weather, workforce, progress, incidents and sign-off are always included. Changes apply to new checks.</p>
+  return `${ro ? '<div class="lg-msg warn" style="margin:4px 0 12px">The daily check template is managed by your manager. It is shown read-only.</div>' : ''}<p class="hint" style="margin:0 0 12px">Sections and items operatives answer OK / Issue / N/A each day. Plant pre-use checks (below), weather and time lost, workforce, progress, incidents and sign-off are always included. Changes apply to new checks.</p>
+  <h3 style="margin:0 0 6px">Site check sections</h3>
   ${t.map((s, si) => `<div class="card"><div class="f"><label>Section title</label><input type="text" data-dt="${si}" value="${esc(s.title)}" ${ro ? 'disabled' : ''}></div>
     ${(s.items || []).map((it, ii) => `<div class="dtrow"><input type="text" data-dt="${si}.${ii}" value="${esc(typeof it === 'string' ? it : it.text)}" aria-label="Item" ${ro ? 'disabled' : ''}>${ro ? '' : `<button class="ibtn" data-act="dt-delitem" data-s="${si}" data-i="${ii}" aria-label="Remove item">${I.trash}</button>`}</div>`).join('')}
     ${ro ? '' : `<div class="btns"><button class="btn" data-act="dt-additem" data-s="${si}">${I.plus} Add item</button><button class="btn danger" data-act="dt-delsec" data-s="${si}">Remove section</button></div>`}</div>`).join('')}
-  ${ro ? '' : `<button class="btn block" data-act="dt-addsec">${I.plus} Add section</button><button class="btn block" data-act="dt-reset" style="margin-top:10px">Reset to default</button>`}`;
+  ${ro ? '' : `<button class="btn block" data-act="dt-addsec">${I.plus} Add section</button><button class="btn block" data-act="dt-reset" style="margin-top:10px">Reset to default</button>`}
+  ${viewPlantTpl(ro)}`;
 }
 function dtEdit() { if (!Array.isArray(S.settings.dailyTpl) || !S.settings.dailyTpl.length) S.settings.dailyTpl = clone(DEFAULT_DAILY_TPL); return S.settings.dailyTpl; }
 document.addEventListener('input', e => {
@@ -4346,7 +4445,7 @@ Object.assign(ACTIONS, {
   async 'dc-sign'() { const c = S.ctx && S.ctx.daily; if (!c) return; const d = await signaturePad(); if (!d) return; c.signoff.sig = d; opSaveField(); rerender(); },
   async 'dc-submit'() {
     const c = S.ctx && S.ctx.daily; if (!c) return; const p = dcProblems(c);
-    if (p.length) { await modal(`<h3>Almost done</h3><p>Please complete:</p><ul class="dcmiss">${p.map(x => `<li>${esc(x)}</li>`).join('')}</ul><button class="btn primary" data-r="">OK</button>`); const first = $('.dck:not(.ok):not(.na):not(.issue)') || $$('.dck.issue').find(x => !x.querySelector('textarea').value.trim()); if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    if (p.length) { await modal(`<h3>Almost done</h3><p>Please complete:</p><ul class="dcmiss">${p.map(x => `<li>${esc(x)}</li>`).join('')}</ul><button class="btn primary" data-r="">OK</button>`); const first = $('.dck:not(.ok):not(.na):not(.issue):not(.defect)') || $$('.dck.issue, .dck.defect').find(x => !x.querySelector('textarea').value.trim()) || (!(c.plant || []).length && c.plantNone !== 'yes' && $('#plantcard')) || $$('.dcplant input[data-b$=".ident"]').find(x => !x.value.trim()) || (!c.weather.lostAny && $('#wxcard')); if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     const n = dcIssues(c).length;
     if (!await confirmBox('Submit daily check?', `${n ? n + ' issue' + (n > 1 ? 's' : '') + ' will be flagged to' : 'It will be sent to'} ${c.cm || 'your managers'}. You can't edit it after submitting.`, 'Submit', false)) return;
     c.status = 'queued'; c.submitted = Date.now(); c.updated = Date.now(); await dcSave(true);
@@ -4368,6 +4467,8 @@ Object.assign(ACTIONS, {
   async 'dc-sumpdf'(a, job) {
     const p = projOf(job) || { ref: job.ref, site_name: job.site.name }; const f = dcFilters();
     let rows = Ops.dc[job.projectId] || []; if (f.op) rows = rows.filter(r => r.owner === f.op); if (f.iss) rows = rows.filter(r => r.issues > 0);
+    rows = rows.map(r => clone(r)); let miss = 0; for (const r of rows) { const w = (r.data || {}).weather; if (w && Array.isArray(w.lost) && w.lost.some(e => e.sign && e.sign.sig)) miss += await dcHydrate({ x: w.lost }); }
+    if (miss) toast(`${miss} signature(s) could not be downloaded`);
     download(buildDailySummaryPDF(p, rows.slice().reverse(), f).output('blob'), `Daily-checks-summary_${p.ref}_${f.from || 'start'}_${f.to || todayISO()}.pdf`);
   },
   async 'dc-reload'(a, job) { delete Ops.dc[job.projectId]; await loadDaily(job.projectId, dcFilters()); render(true); },
@@ -4430,6 +4531,13 @@ document.addEventListener('change', e => {
     const c = S.ctx && S.ctx.daily; if (!c) return _d(path, el);
     $$('[data-when]').forEach(x => { const [p, v] = x.dataset.when.split('='); x.hidden = getPath(c, p) !== v; });
     const m = /^sections#([^.]+)\.items#([^.]+)\.answer$/.exec(path);
+    const pm = /^plant#([^.]+)\.items#([^.]+)\.answer$/.exec(path);
+    if (pm) { const pl = (c.plant || []).find(x => x.id === pm[1]); const it = pl && pl.items.find(x => x.id === pm[2]); const box = $('#dck_' + pm[2]); if (box && it) { box.className = 'dck ' + (it.answer || ''); if (it.answer === 'defect') { const ta = box.querySelector('textarea'); if (ta && !ta.value) setTimeout(() => ta.focus(), 50); } } const pr = $('#prog_' + pm[1]); if (pr && pl) { const a = pl.items.filter(i => i.answer).length, n = pl.items.length; pr.textContent = `${a}/${n}`; pr.classList.toggle('full', a === n); pr.classList.toggle('bad', pl.items.some(i => i.answer === 'defect')); } }
+    if (/^plant#[^.]+\.quarantine$/.test(path)) { const id = path.split('#')[1].split('.')[0]; const card = $('#pl_' + id); const pl = (c.plant || []).find(x => x.id === id); if (card && pl) card.classList.toggle('quar', pl.quarantine === 'yes'); }
+    if (/^plant#[^.]+\.name$/.test(path)) { const id = path.split('#')[1].split('.')[0]; const h = $('#pl_' + id + ' h2 span'); const pl = (c.plant || []).find(x => x.id === id); if (h && pl) h.textContent = plantName(pl); }
+    if (/^weather\.lost#/.test(path)) { const id = path.split('#')[1].split('.')[0]; const e = (c.weather.lost || []).find(x => x.id === id); const lh = $('#lh_' + id); if (lh && e) lh.textContent = fmtH(lostHours(e)) + ' h'; const t = $('#losttot b'); if (t) t.textContent = fmtH(dcLost(c).hours) + ' h'; }
+    if (path === 'weather.lostAny' && c.weather.lostAny === 'yes' && !(c.weather.lost || []).length) { c.weather.lost = [{ id: uid(), reason: '', from: '', to: '', hours: '', note: '' }]; opSaveField(); rerender(); return; }
+    if (path === 'plantNone' && c.plantNone === 'yes' && (c.plant || []).length) { c.plantNone = ''; }
     if (m) { const s = c.sections.find(x => x.id === m[1]); const it = s && s.items.find(x => x.id === m[2]); const box = $('#dck_' + m[2]); if (box && it) { box.className = 'dck ' + (it.answer || ''); if (it.answer === 'issue') { const ta = box.querySelector('textarea'); if (ta && !ta.value) setTimeout(() => ta.focus(), 50); } } const pr = $('#prog_' + m[1]); if (pr && s) { const p = secProg(s); pr.textContent = `${p.a}/${p.n}`; pr.classList.toggle('full', p.a === p.n); } }
   };
 }
@@ -4448,7 +4556,7 @@ document.addEventListener('change', e => {
   const _ou = offerUpload; offerUpload = async function () { if (isOp()) return; return _ou(); };
   const _vs = viewSettings; viewSettings = function () {
     const h = _vs(); if (signedIn() && !isMgr()) return h;
-    return h.replace('<a class="item" href="#/settings/templates">', `<a class="item" href="#/settings/daily"><div class="th">${I.shield.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">Daily site check template</div><div class="t2">Items operatives check each day (OK / Issue / N/A)</div></div>${I.chev}</a><a class="item" href="#/settings/templates">`);
+    return h.replace('<a class="item" href="#/settings/templates">', `<a class="item" href="#/settings/daily"><div class="th">${I.shield.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">Daily site check template</div><div class="t2">Daily items and plant pre-use checklists for operatives</div></div>${I.chev}</a><a class="item" href="#/settings/templates">`);
   };
   const _al = afterLogin; afterLogin = async function (t) { Ops.loaded = false; Ops.jobsFresh = false; Ops.list = []; Ops.jobs = []; await _al(t); };
 }
@@ -4517,6 +4625,441 @@ document.addEventListener('change', e => {
 }
 // first load of the staff jobs table (cached), so the project card can show offline
 (async () => { try { Ops.jobsTbl = (await DB.getKV('cloud.jobsTbl')) || []; } catch (e) { } })();
+
+/* =====================================================================
+   v1.5.0: plant & equipment pre-use checks, weather time-lost log
+   - Operatives add each item of plant / equipment they use (type from a dropdown, ID / fleet / serial no.,
+     hire company, hours / meter reading) and answer that type's pre-use checklist (OK / Defect / N/A).
+     A defect needs a comment (photo optional). 'Out of use - quarantined / tagged' flags it at the top.
+   - Weather: conditions, optional AM/PM wind + temperature, and a 'time lost' log (reason, from/to or hours, note).
+   - Managers edit the plant types and their checklists in Settings > Daily site check template.
+   Checks saved before v1.5 (weather.stopped / hours / tooWindy, a 'Plant & equipment' template section) are
+   still read, shown and totalled as they were; drafts are upgraded in place.
+   ===================================================================== */
+I.wrench = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>';
+const LOL = 'LOLER thorough examination in date and certificate / report available';
+const DEFAULT_PLANT_TYPES = [
+  { key: 'telehandler', name: 'Telehandler', meter: true, items: [
+    'Operator holds a valid CPCS / NPORS telehandler card (A17 / N010) and is authorised',
+    LOL + ' (12-monthly; 6-monthly if lifting people or with a man basket)',
+    'Walk-round: no damage to boom, chassis, cab or guards',
+    'Engine oil, hydraulic oil, coolant and fuel / AdBlue levels OK',
+    'No hydraulic, fuel or oil leaks - hoses, rams and fittings undamaged',
+    'Tyres: pressures, cuts / damage and wheel nuts OK',
+    'Forks / attachment correct for the job, locking pins fitted, no cracks, bends or heel wear',
+    'Load chart in the cab matches the attachment; safe working load (SWL) signage legible',
+    'Rated capacity indicator / load moment indicator (LMI) tested and working',
+    'Seat belt worn and working; mirrors, windows and cameras clean and undamaged',
+    'Lights, beacon, horn and reversing alarm working',
+    'Service brake, parking brake and steering working',
+    'Stabilisers / outriggers (if fitted) and interlocks working',
+    'Controls work smoothly and return to neutral; emergency stop working',
+    'Cab tidy, no loose items; fire extinguisher (if fitted) in date',
+  ] },
+  { key: 'mewp-scissor', name: 'MEWP - scissor lift', meter: true, items: [
+    'Operator holds a valid IPAF PAL card for scissor lifts (3a / 3b) and is familiarised on this model',
+    LOL + ' (6-monthly)',
+    'Rescue plan in place and a trained person at ground level knows the emergency lowering',
+    'Ground firm and level; no overhead hazards or power lines',
+    'Platform guardrails, toe boards and entry gate / chain secure and self-closing',
+    'Platform controls and ground (base) controls working; dead-man / enable switch working',
+    'Emergency stop buttons working (platform and ground)',
+    'Emergency / manual lowering system tested',
+    'Tilt alarm, overload sensor and movement alarm working',
+    'Pothole protection deploys when the platform is raised',
+    'Scissor arms, pins, cylinders and hoses undamaged - no hydraulic leaks',
+    'Tyres / wheels undamaged',
+    'Battery charged (charger leads undamaged) / fuel level OK',
+    'SWL, maximum occupants and wind rating (indoor / outdoor) signage legible',
+    'Operator manual on the machine',
+  ] },
+  { key: 'mewp-boom', name: 'MEWP - boom (cherry picker / articulated / telescopic)', meter: true, items: [
+    'Operator holds a valid IPAF PAL card for booms (1b / 3b) and is familiarised on this model',
+    LOL + ' (6-monthly)',
+    'Rescue plan in place; trained ground person knows the ground controls and emergency lowering',
+    'Full body harness and SHORT restraint lanyard worn and clipped to the platform anchor point',
+    'Platform anchor points marked and undamaged',
+    'Platform guardrails, toe boards and gate secure',
+    'Platform and ground controls working; foot pedal / dead-man working',
+    'Emergency stop buttons working (platform and ground)',
+    'Emergency lowering / auxiliary descent tested',
+    'Secondary guarding / anti-entrapment device working (if fitted)',
+    'Outriggers / stabilisers, spreader pads and interlocks working (if fitted)',
+    'Tilt alarm, load sensing / overload and travel / slew alarms working',
+    'Boom, jib, cylinders, pins and hoses - no damage or leaks',
+    'Tyres / tracks undamaged',
+    'Fuel / battery and hydraulic oil levels OK',
+    'Wind speed within the machine limit (typically 28 mph / 12.5 m/s) - checked with an anemometer',
+    'SWL and maximum occupants signage legible',
+  ] },
+  { key: 'forklift', name: 'Forklift (counterbalance / rough terrain)', meter: true, items: [
+    'Operator holds a valid licence for this truck type (RTITB / ITSSAR / CPCS / NPORS) and is authorised',
+    LOL + ' (12-monthly)',
+    'Forks: no cracks, bends or heel wear; locking pins secure',
+    'Mast, chains and rollers: lubricated, even tension, no damage',
+    'Hydraulic oil level OK; no leaks from hoses, rams or fittings',
+    'Engine oil, coolant and fuel OK / LPG bottle secure and valve OK / battery charged',
+    'Tyres and wheels undamaged',
+    'Service brake, parking brake and steering working',
+    'Lights, horn, beacon and reversing alarm working',
+    'Seat belt / operator restraint and overhead guard undamaged',
+    'Data plate / load capacity plate legible',
+    'Controls return to neutral',
+  ] },
+  { key: 'crane', name: 'Crane (mobile / tower / spider crane)', meter: true, items: [
+    'Lift plan / method statement by the Appointed Person covers today\u2019s lifts',
+    'Crane operator holds a valid CPCS / NPORS card for this crane; slinger / signaller card held',
+    LOL + ' (crane 12-monthly; lifting accessories 6-monthly)',
+    'Lifting accessories (slings, chains, shackles, lifting beams) tagged, in date and undamaged',
+    'Rated capacity indicator / limiter (RCI) tested and set for the configuration',
+    'Outriggers fully extended, on spreader mats / pads on firm ground',
+    'Hook, safety catch and wire rope / chain - no damage, kinks or birdcaging',
+    'Hoist limit / anti-two-block and overload cut-outs working',
+    'Hydraulic and fuel / battery levels OK; no leaks',
+    'Wind speed within the crane limit (anemometer checked)',
+    'Exclusion zone set up below the lift',
+    'Controls, emergency stop and warning alarms working',
+    'Remote control / radio batteries charged (spider cranes)',
+    'Tracks / tyres undamaged',
+  ] },
+  { key: 'tower', name: 'Scaffold tower (PASMA)', meter: false, items: [
+    'Erected by a PASMA-trained person to the manufacturer\u2019s instructions',
+    'Tower inspection tag / record completed (after erection, after alteration and at least every 7 days)',
+    'Base level; castors locked / base plates and sole boards in place',
+    'Stabilisers / outriggers fitted as the instructions require',
+    'Guardrails and toe boards fitted at the working platform',
+    'Braces correctly fitted; all clips / claws fully engaged',
+    'Platforms and trapdoor secure and undamaged',
+    'Height within the maximum for the base / instructions',
+    'No damaged, bent or missing components',
+    'Access by the built-in ladder / frames only (inside the tower)',
+    'Clear of overhead power lines; wind within the limit for use',
+  ] },
+  { key: 'ladder', name: 'Ladder / stepladder', meter: false, items: [
+    'Suitable for the job (short duration, low risk) - BS EN 131 Professional',
+    'Recorded inspection / ladder tag in date',
+    'Stiles straight - not bent, split or cracked',
+    'Rungs / treads secure, none missing or damaged',
+    'Feet fitted, not worn or damaged',
+    'Locking bars / spreaders working (stepladders)',
+    'Clean - no paint, mud, oil or grease',
+    'Secured: tied, footed or stability device; 1-in-4 angle; 1 m above the landing',
+  ] },
+  { key: 'hoist', name: 'Hoist / gin wheel', meter: false, items: [
+    LOL + ' (6-monthly for lifting gear)',
+    'Gin wheel / hoist fixed to the scaffold with the correct fitting and safety clip / pin',
+    'SWL marked and not exceeded',
+    'Rope / wire: no fraying, cuts or kinks; correct size for the wheel',
+    'Hook and safety catch working',
+    'Brake and limit switches working (powered hoist)',
+    'Landing gates and enclosure interlocked (goods hoist)',
+    'Exclusion zone and signage below',
+    '110V supply; cables and plugs undamaged (powered hoist)',
+    'Emergency stop working (powered hoist)',
+  ] },
+  { key: 'generator', name: 'Generator', meter: true, items: [
+    'Positioned outdoors, well ventilated, away from doors, windows and openings (carbon monoxide)',
+    'Fuel level OK, no leaks; refuelled only with the engine off and cool',
+    'Oil and coolant levels OK',
+    'Earthing / RCD protection tested (test button)',
+    'Sockets, outlets and covers undamaged',
+    'Cables and plugs undamaged and correctly rated',
+    'Guards and panels in place',
+    'Emergency stop working',
+    'Drip tray / spill kit in place',
+    'Fire extinguisher nearby',
+  ] },
+  { key: 'compressor', name: 'Compressor', meter: true, items: [
+    'Written scheme of examination (PSSR) in date',
+    'Safety / pressure relief valve and pressure gauge OK',
+    'Hoses, couplings and whip checks secure and undamaged',
+    'Oil, fuel and coolant levels OK; no leaks',
+    'Guards and panels closed',
+    'Water drained from the receiver',
+    'On level ground, well ventilated',
+    'Tow hitch, brakes and lights OK (towed units)',
+    'Emergency stop / shutdown working',
+  ] },
+  { key: 'tools-110v', name: 'Power tools 110V', meter: false, items: [
+    'PAT test label in date',
+    '110V centre-tapped-earth transformer used; casing undamaged and PAT in date',
+    'Extension leads / reels fully unwound, undamaged and PAT in date',
+    'Yellow 110V plugs and sockets (BS EN 60309) undamaged - no taped joints',
+    'Cable sheath undamaged - no bare wires or repairs',
+    'Guards fitted and working',
+    'Switch / trigger and lock-off working',
+    'Correct blade / bit / accessory fitted and secure',
+    'PPE for the task (eye, hearing, dust / RPE, gloves); dust extraction where required',
+  ] },
+  { key: 'cordless', name: 'Cordless tools / batteries', meter: false, items: [
+    'Tool casing undamaged; guards fitted',
+    'Batteries undamaged - no swelling, cracks, overheating or leaks',
+    'Charger and lead undamaged; charger PAT in date',
+    'Charging in a safe area, not left charging unattended overnight',
+    'Trigger, brake and lock-off working',
+    'Correct bit / blade fitted; chuck secure',
+    'PPE for the task',
+  ] },
+  { key: 'cutting', name: 'Cutting tools / disc cutters', meter: false, items: [
+    'Operator trained in abrasive wheels (PUWER) and authorised',
+    'Disc correct type and size; disc max RPM at least the machine RPM; disc in date',
+    'Disc undamaged (no cracks / chips) and correctly mounted with the right flanges',
+    'Guard fitted, correctly adjusted and undamaged',
+    'Petrol cutter: no fuel leaks, starter and anti-vibration mounts OK',
+    'Water suppression or on-tool extraction for silica dust',
+    'Sparks / hot works risk controlled; fire extinguisher at hand',
+    'RPE (FFP3), eye and hearing protection and gloves worn',
+    'Hand-arm vibration (HAV) exposure time recorded and within limits',
+    'Electric cutter: PAT in date, 110V, cable and plug undamaged',
+  ] },
+  { key: 'nibbler', name: 'Nibblers / shears', meter: false, items: [
+    'PAT in date / battery undamaged',
+    'Cutting head, punch and die sharp and undamaged',
+    'Guards fitted',
+    'Cable and plug undamaged',
+    'Rated for the sheet thickness being cut',
+    'Trigger and lock-off working',
+    'Swarf cleared; gloves and eye protection worn',
+  ] },
+  { key: 'harness', name: 'Harness and lanyard / fall arrest', meter: false, items: [
+    'Detailed inspection in date (at least 6-monthly; 3-monthly in heavy use) - tag / record checked',
+    'Webbing free of cuts, fraying, burns, chemical damage or UV fading',
+    'Stitching intact - no broken or pulled threads',
+    'Buckles, D-rings and adjusters undamaged and working',
+    'Lanyard / energy absorber pack intact and not deployed',
+    'Karabiners / snap hooks close and lock properly',
+    'Fall arrest indicator not activated',
+    'Inertia reel / self-retracting lifeline locks when pulled; line undamaged; in date',
+    'Anchor point suitable and rated (EN 795); rescue plan in place',
+    'Harness correctly fitted and adjusted; user trained',
+  ] },
+  { key: 'fixing', name: 'Rivet guns / screw guns', meter: false, items: [
+    'PAT in date / battery undamaged',
+    'Nose piece / mandrel collector correct and secure (rivet guns)',
+    'Depth stop / clutch set correctly (screw guns)',
+    'Casing, trigger and lock-off working',
+    'Leads, hoses and couplings undamaged (pneumatic tools)',
+    'Collated strip feed working (auto-feed screw guns)',
+    'Eye protection worn',
+  ] },
+  { key: 'hotworks', name: 'Hot works equipment (torch, gas, extinguisher)', meter: false, items: [
+    'Hot works permit issued for today',
+    'Operative trained for the work (e.g. torch-on roofing)',
+    'Gas cylinders secured upright, away from heat; in date',
+    'Regulator, hoses and connections - no leaks (leak spray test done)',
+    'Flashback arrestors / hose check valves fitted',
+    'Torch / burner undamaged; igniter working',
+    'Two fire extinguishers (e.g. 2 x 9 kg dry powder) at the point of work',
+    'Combustibles removed or protected; fire watch for at least 60 min after finishing',
+    'Cylinders turned off and removed from the roof at the end of the shift',
+    'Burns kit / first aid available',
+  ] },
+  { key: 'other', name: 'Other (custom)', meter: false, custom: true, items: [
+    'Inspection / test certificate in date (LOLER / PAT / PSSR as applicable)',
+    'Operator trained, authorised and holds the right card',
+    'Guards and safety devices fitted and working',
+    'Controls and emergency stop working',
+    'No visible damage, wear or leaks',
+    'Cables, hoses and connections undamaged',
+    'Fuel / battery / fluid levels OK',
+    'SWL, signage and instructions legible',
+  ] },
+];
+const PLANT_KEYS_OLD = ['MEWP pre-use check done (IPAF operator)', 'Ladders inspected and secured', 'Power tools PAT tested', 'Hoist / crane checked (where applicable)'];
+const plantTypes = () => (Array.isArray(S.settings.plantTypes) && S.settings.plantTypes.length ? S.settings.plantTypes : DEFAULT_PLANT_TYPES);
+const LOST_REASONS = ['Rain', 'High wind', 'Frost / ice', 'Snow', 'Fog / visibility', 'Heat', 'Lightning', 'Other'];
+const plantName = p => (p.custom && p.name ? p.name : p.typeName || p.name || 'Plant') ;
+const plantLabel = p => [plantName(p), p.ident].filter(Boolean).join(' - ');
+const numOr = (v, d = 0) => { const n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isFinite(n) ? n : d; };
+const fmtH = h => (Math.round(h * 100) / 100).toString();
+// stand-down sign-off on a time-lost entry: the person who stood the gang down signs on the operative's phone
+const sdStatus = e => { const g = (e && e.sign) || {}; return g.status === 'signed' && g.sig ? 'Signed' : g.status === 'refused' ? 'Refused' : 'Unsigned'; };
+const sdTime = g => g && g.at ? new Date(g.at).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const sdTagCls = st => st === 'Signed' ? 'green' : st === 'Refused' ? 'red' : 'amber';
+function sdSummary(c) { const L = dcLost(c); const o = { Signed: 0, Refused: 0, Unsigned: 0 }; if (!L.legacy && L.hours) L.list.forEach(e => { o[sdStatus(e)]++; }); return o; }
+const sdText = e => { const g = e.sign || {}; const st = sdStatus(e); return st === 'Signed' ? `Signed: ${[g.name, g.position].filter(Boolean).join(', ')} - ${sdTime(g)}` : st === 'Refused' ? `Refused / not available${g.name ? ': ' + [g.name, g.position].filter(Boolean).join(', ') : ''}${g.note ? ' - ' + g.note : ''}${g.at ? ' (' + sdTime(g) + ')' : ''}` : 'Unsigned'; };
+// hours for one time-lost entry: from/to wins when both are set, else the hours typed
+function lostHours(e) {
+  const m = t => { const x = /^(\d{1,2}):(\d{2})/.exec(t || ''); return x ? +x[1] * 60 + +x[2] : null; };
+  const a = m(e.from), b = m(e.to);
+  if (a != null && b != null && b > a) return Math.round((b - a) / 15) / 4;
+  return Math.max(0, numOr(e.hours));
+}
+// daily total + reasons, for new and pre-1.5 checks
+function dcLost(c) {
+  const w = (c && c.weather) || {};
+  if (Array.isArray(w.lost)) { const list = w.lostAny === 'no' ? [] : w.lost.filter(e => lostHours(e) > 0 || e.reason); const hours = list.reduce((a, e) => a + lostHours(e), 0); return { hours, reasons: [...new Set(list.map(e => e.reason).filter(Boolean))], list, legacy: false }; }
+  if (w.stopped === 'yes') { const hrs = numOr(w.hours); const rs = (w.conditions || []).filter(x => x !== 'Dry'); return { hours: hrs, reasons: rs.length ? rs : ['Weather'], list: [{ reason: rs.join(', ') || 'Weather', hours: w.hours, note: 'Work stopped due to weather' }], legacy: true }; }
+  return { hours: 0, reasons: [], list: [], legacy: !Array.isArray(w.lost) };
+}
+function dcPlantStats(c) {
+  const pl = (c && c.plant) || []; let defects = 0; pl.forEach(p => (p.items || []).forEach(i => { if (i.answer === 'defect') defects++; }));
+  return { n: pl.length, defects, quarantined: pl.filter(p => p.quarantine === 'yes').length };
+}
+const readings = w => { const r = []; if (w.windAM || w.windPM) r.push(`Wind ${w.windAM || '-'} / ${w.windPM || '-'} mph (AM / PM)`); else if (w.wind) r.push(`Wind ${w.wind} mph`); if (w.tempAM || w.tempPM) r.push(`Temp ${w.tempAM || '-'} / ${w.tempPM || '-'} °C (AM / PM)`); else if (w.temp !== undefined && w.temp !== '' && w.temp !== null) r.push(`Temp ${w.temp} °C`); return r; };
+// upgrade a pre-1.5 draft in place (submitted checks are only read, never rewritten)
+function dcMigrate(c) {
+  if (!c || c.v >= 2) return c;
+  if (c.status === 'draft') {
+    c.plant = c.plant || []; c.plantNone = c.plantNone || '';
+    const w = c.weather = c.weather || {};
+    if (!Array.isArray(w.lost)) { w.lost = []; w.lostAny = w.stopped || ''; if (w.stopped === 'yes' && w.hours) w.lost.push({ id: uid(), reason: (w.conditions || []).includes('Wind') ? 'High wind' : (w.conditions || []).includes('Rain') ? 'Rain' : 'Other', from: '', to: '', hours: w.hours, note: '' }); }
+    if (w.wind && !w.windAM) w.windAM = w.wind; if (w.temp && !w.tempAM) w.tempAM = w.temp;
+    c.v = 2;
+  }
+  return c;
+}
+const hasLegacyPlant = c => (c.sections || []).some(s => s.key === 'plant');
+function newPlant(type, f) {
+  return { id: uid(), type: type.key, typeName: type.name, custom: !!type.custom, name: type.custom ? (f.name || '') : '', meter: !!type.meter, ident: f.ident || '', hire: f.hire || '', hours: f.hours || '', quarantine: '', qNote: '',
+    items: (type.items || []).map(t => ({ id: uid(), text: t, answer: '', comment: '', photos: [] })) };
+}
+
+/* ---------- operative form pieces ---------- */
+function plantItemHTML(p, i) {
+  const b = `plant#${p.id}.items#${i.id}`, ans = i.answer || '';
+  return `<div class="dck ${ans}" id="dck_${i.id}"><div class="dq">${esc(i.text)}</div>
+    <div class="seg dcs pl" data-b="${b}.answer">${[['ok', 'OK'], ['defect', 'Defect'], ['na', 'N/A']].map(([v, l]) => `<button type="button" data-v="${v}" class="${ans === v ? 'on' : ''}" aria-pressed="${ans === v}">${l}</button>`).join('')}</div>
+    <div class="dci" data-when="${b}.answer=defect" ${ans === 'defect' ? '' : 'hidden'}><textarea data-b="${b}.comment" rows="2" placeholder="What is the defect? (required)">${esc(i.comment)}</textarea>${dcPhotos(b + '.photos', i.photos, 'Photo (optional)')}</div></div>`;
+}
+function plantCardHTML(c, p) {
+  const f = mk(c), b = `plant#${p.id}`; const n = p.items.length, a = p.items.filter(i => i.answer).length; const d = p.items.filter(i => i.answer === 'defect').length;
+  return `<div class="card dcplant ${p.quarantine === 'yes' ? 'quar' : ''}" id="pl_${p.id}"><h2>${I.wrench ? I.wrench.replace('<svg', '<svg width="22" height="22"') : ''}<span>${esc(plantName(p))}</span> <span class="prog ${a === n ? 'full' : ''} ${d ? 'bad' : ''}" id="prog_${p.id}" style="margin-left:auto">${a}/${n}</span></h2>
+    ${p.custom ? f.text('What is it?', b + '.name', { ph: 'e.g. Roof sheet lifter, vacuum lifter' }) : ''}
+    <div class="row">${f.text('ID / fleet or serial no.', b + '.ident', { ph: 'e.g. T123 or serial no.' })}${f.text('Hire company (optional)', b + '.hire', { ph: 'e.g. own plant / hire firm' })}</div>
+    ${p.meter ? f.text('Hours / meter reading', b + '.hours', { type: 'number', ph: 'e.g. 2481' }) : ''}
+    <button class="btn block dc-allok" data-act="dc-plantok" data-p="${p.id}">✓ All OK (fill unanswered)</button>
+    ${p.items.map(i => plantItemHTML(p, i)).join('')}
+    <div class="seg quarseg" data-b="${b}.quarantine"><button type="button" data-v="yes" class="${p.quarantine === 'yes' ? 'on' : ''}" aria-pressed="${p.quarantine === 'yes'}">${I.warn ? I.warn.replace('<svg', '<svg width="20" height="20"') : ''} Out of use - quarantined / tagged</button></div>
+    <div data-when="${b}.quarantine=yes" ${p.quarantine === 'yes' ? '' : 'hidden'}>${f.text('Why / who was told? (required)', b + '.qNote', { ph: 'e.g. Hydraulic leak - tagged out, hire firm called' })}</div>
+    <button class="btn block danger" style="margin-top:10px" data-act="dc-delplant" data-p="${p.id}">Remove this item</button></div>`;
+}
+function plantSectionHTML(c) {
+  const f = mk(c); const legacy = hasLegacyPlant(c); const pl = c.plant || [];
+  return `<div class="card" id="plantcard"><h2>Plant &amp; equipment pre-use checks</h2><p class="hint" style="margin-bottom:10px">Add each machine or piece of equipment you use today and do its pre-use check. Report any defect - and take it out of use if it is not safe.</p>
+    ${pl.map(p => { const n = p.items.length, an = p.items.filter(i => i.answer).length, d = p.items.filter(i => i.answer === 'defect').length; return `<button type="button" class="plrow" data-act="dc-goplant" data-p="${p.id}"><span class="t1">${esc(plantLabel(p) || plantName(p))}</span><span class="meta"><span class="tag ${an === n ? 'green' : 'amber'}">${an}/${n} checked</span>${d ? `<span class="tag red">${d} defect${d > 1 ? 's' : ''}</span>` : ''}${p.quarantine === 'yes' ? '<span class="tag red">OUT OF USE</span>' : ''}</span></button>`; }).join('')}
+    <button class="btn primary block" data-act="dc-addplant">${I.plus} Add plant / equipment</button>
+    ${!pl.length && !legacy ? `<div style="margin-top:10px">${f.seg('', 'plantNone', [['yes', 'No plant or powered equipment used today', 'ok']], { cls: 'yn one' })}</div>` : ''}</div>
+  ${pl.map(p => plantCardHTML(c, p)).join('')}`;
+}
+function lostRowHTML(c, e) {
+  const f = mk(c), b = `weather.lost#${e.id}`;
+  return `<div class="dcl" id="dcl_${e.id}"><div class="r2">${f.select('Reason', b + '.reason', LOST_REASONS)}<div class="f"><span class="lbl">Hours lost</span><div class="lh" id="lh_${e.id}">${fmtH(lostHours(e))} h</div></div></div>
+    <div class="r2">${f.text('From', b + '.from', { type: 'time' })}${f.text('To', b + '.to', { type: 'time' })}</div>
+    ${f.text('Or hours (if no times)', b + '.hours', { type: 'number', ph: 'e.g. 2.5' })}
+    ${f.text('Note', b + '.note', { ph: 'e.g. Heavy rain - sheets too slippery, stood down' })}
+    ${sdBlockHTML(e)}
+    <button class="btn danger" data-act="dc-dellost" data-e="${e.id}">${I.trash} Remove</button></div>`;
+}
+function sdBlockHTML(e) {
+  const g = e.sign || {}, st = sdStatus(e);
+  return `<div class="sdb ${st.toLowerCase()}" id="sdb_${e.id}"><div class="sdh"><span class="lbl" style="margin:0">Stand-down sign-off <span class="small">(optional)</span></span><span class="tag ${sdTagCls(st)}">${st}</span></div>
+    ${st === 'Signed' ? `<img class="dcsig" src="${g.sig}" alt="Signature"><p class="small" style="margin:0 0 8px"><b>${esc(g.name || '')}</b>${g.position ? ' · ' + esc(g.position) : ''}<br>${esc(sdTime(g))}</p>`
+      : st === 'Refused' ? `<p class="small" style="margin:0 0 8px"><b>Refused to sign / not available</b>${g.name ? ' · ' + esc([g.name, g.position].filter(Boolean).join(', ')) : ''}${g.note ? '<br>' + esc(g.note) : ''}<br>${esc(sdTime(g))}</p>` : '<p class="small" style="margin:0 0 8px">Ask the person who stood you down to sign on this phone.</p>'}
+    <div class="btns"><button class="btn ${st === 'Unsigned' ? 'primary' : ''}" data-act="dc-sdsign" data-e="${e.id}">${I.pen} ${st === 'Unsigned' ? 'Get it signed' : 'Sign again'}</button>${st !== 'Unsigned' ? `<button class="btn" data-act="dc-sdclear" data-e="${e.id}">Clear</button>` : ''}</div></div>`;
+}
+function weatherCardHTML(c) {
+  const f = mk(c), w = c.weather; const L = dcLost(c);
+  return `<div class="card" id="wxcard"><h2>Weather</h2>${f.chips('Conditions', 'weather.conditions', DC_WEATHER)}
+    <span class="lbl">Readings (optional)</span>
+    <div class="r2">${f.text('Wind AM (mph)', 'weather.windAM', { type: 'number' })}${f.text('Wind PM (mph)', 'weather.windPM', { type: 'number' })}</div>
+    <div class="r2">${f.text('Temp AM (°C)', 'weather.tempAM', { type: 'number' })}${f.text('Temp PM (°C)', 'weather.tempPM', { type: 'number' })}</div>
+    ${f.seg('Any time lost to weather today?', 'weather.lostAny', [['yes', 'Yes', 'bad'], ['no', 'No', 'ok']], { cls: 'yn' })}
+    <div data-when="weather.lostAny=yes" ${w.lostAny === 'yes' ? '' : 'hidden'}><div id="lostlist">${(w.lost || []).map(e => lostRowHTML(c, e)).join('')}</div>
+      <button class="btn block" data-act="dc-addlost">${I.plus} Add time lost</button>
+      <div class="losttot" id="losttot">Total time lost today: <b>${fmtH(L.hours)} h</b></div></div></div>`;
+}
+
+/* ---------- read views ---------- */
+function plantReadHTML(c) {
+  const pl = c.plant || []; if (!pl.length) return c.plantNone === 'yes' ? '<div class="card"><h2>Plant &amp; equipment</h2><p>No plant or powered equipment used.</p></div>' : '';
+  const ph = l => (l || []).filter(p => p && p.data).length ? `<div class="dcph">${l.map(p => `<img src="${p.data}" alt="">`).join('')}</div>` : '';
+  return pl.map(p => { const d = p.items.filter(i => i.answer === 'defect').length; return `<details class="sec card"${p.quarantine === 'yes' || d ? ' open' : ''}><summary><b>${esc(plantLabel(p))}</b> <span class="small">${p.quarantine === 'yes' ? '<span class="tag red">OUT OF USE</span>' : ''}${d ? `<span class="tag red">${d} defect${d > 1 ? 's' : ''}</span>` : '<span class="tag green">OK</span>'}</span></summary>
+    <div class="dcr"><span>Type</span><b>${esc(p.typeName || '')}</b></div>${p.hire ? `<div class="dcr"><span>Hire company</span><b>${esc(p.hire)}</b></div>` : ''}${p.hours ? `<div class="dcr"><span>Hours / meter</span><b>${esc(p.hours)}</b></div>` : ''}${p.quarantine === 'yes' ? `<div class="dcr"><span>Out of use</span><b><span class="tag red">QUARANTINED / TAGGED</span> ${esc(p.qNote || '')}</b></div>` : ''}
+    ${p.items.map(i => `<div class="dcr"><span>${esc(i.text)}${i.comment ? `<br><span class="small">${esc(i.comment)}</span>` : ''}${ph(i.photos)}</span>${i.answer === 'defect' ? '<span class="tag red">DEFECT</span>' : dcAnswerTag(i.answer)}</div>`).join('')}</details>`; }).join('');
+}
+function weatherReadHTML(c) {
+  const w = c.weather || {}; const L = dcLost(c);
+  return `<div class="dcr"><span>Conditions</span><b>${esc((w.conditions || []).join(', ') || '-')}</b></div>${readings(w).map(r => `<div class="dcr"><span>Reading</span><b>${esc(r)}</b></div>`).join('')}
+    ${w.tooWindy ? `<div class="dcr"><span>Too windy to work</span><b>${w.tooWindy === 'yes' ? '<span class="tag red">YES</span>' : esc(w.tooWindy)}</b></div>` : ''}
+    <div class="dcr"><span>Time lost to weather</span><b>${L.hours ? `<span class="tag red">${fmtH(L.hours)} h</span> ${esc(L.reasons.join(', '))}` : (w.lostAny === 'no' || w.stopped === 'no' ? 'None' : '-')}</b></div>
+    ${L.list.filter(() => L.hours).map(e => { const g = e.sign || {}, st = sdStatus(e); return `<div class="dcr"><span class="small">${esc(e.reason || '')}${e.from && e.to ? ` ${esc(e.from)}-${esc(e.to)}` : ''}${e.note ? ' - ' + esc(e.note) : ''}${L.legacy ? '' : `<br><span class="tag ${sdTagCls(st)}">${st}</span> ${st !== 'Unsigned' ? esc(sdText(e).replace(/^Signed: |^Refused \/ not available:? ?/, '')) : ''}`}${st === 'Signed' && g.sig && /^data:/.test(g.sig) ? `<img class="dcsig sm" src="${g.sig}" alt="Signature">` : ''}</span><b>${fmtH(lostHours(e))} h</b></div>`; }).join('')}`;
+}
+
+/* ---------- Settings: plant types editor ---------- */
+function ptEdit() { if (!Array.isArray(S.settings.plantTypes) || !S.settings.plantTypes.length) S.settings.plantTypes = clone(DEFAULT_PLANT_TYPES); return S.settings.plantTypes; }
+function viewPlantTpl(ro) {
+  const t = plantTypes();
+  return `<h3 style="margin:18px 0 6px">Plant &amp; equipment pre-use checklists</h3><p class="hint" style="margin:0 0 10px">Operatives pick a type from this list when they add plant or equipment, and answer its checklist (OK / Defect / N/A). Changes apply to plant added after the change.</p>
+  ${t.map((p, pi) => `<details class="card pttype"><summary><b>${esc(p.name)}</b> <span class="small">${(p.items || []).length} checks${p.meter ? ' · hours reading' : ''}</span></summary>
+    <div class="f"><label>Type name</label><input type="text" data-pt="${pi}" value="${esc(p.name)}" ${ro ? 'disabled' : ''}></div>
+    <label class="ckl"><input type="checkbox" data-ptm="${pi}" ${p.meter ? 'checked' : ''} ${ro ? 'disabled' : ''}> Ask for an hours / meter reading</label>
+    ${(p.items || []).map((it, ii) => `<div class="dtrow"><textarea rows="3" data-pt="${pi}.${ii}" aria-label="Check" ${ro ? 'disabled' : ''}>${esc(it)}</textarea>${ro ? '' : `<button class="ibtn" data-act="pt-delitem" data-p="${pi}" data-i="${ii}" aria-label="Remove check">${I.trash}</button>`}</div>`).join('')}
+    ${ro ? '' : `<div class="btns"><button class="btn" data-act="pt-additem" data-p="${pi}">${I.plus} Add check</button>${p.key === 'other' ? '' : `<button class="btn danger" data-act="pt-deltype" data-p="${pi}">Remove type</button>`}</div>`}</details>`).join('')}
+  ${ro ? '' : `<button class="btn block" data-act="pt-addtype">${I.plus} Add plant type</button><button class="btn block" data-act="pt-reset" style="margin-top:10px">Reset plant checklists to default</button>`}`;
+}
+document.addEventListener('input', e => {
+  const el = e.target; if (!el.dataset || el.dataset.pt === undefined) return; const t = ptEdit(); const [pi, ii] = el.dataset.pt.split('.').map(Number);
+  if (ii === undefined || isNaN(ii)) t[pi].name = el.value; else t[pi].items[ii] = el.value; saveSettings();
+});
+document.addEventListener('change', e => { const el = e.target; if (!el.dataset || el.dataset.ptm === undefined) return; ptEdit()[+el.dataset.ptm].meter = el.checked; saveSettings(); });
+
+/* ---------- actions ---------- */
+async function addPlantModal() {
+  const ts = plantTypes();
+  return modal(`<h3>Add plant / equipment</h3>
+    <div class="f"><label for="ap-type">Type</label><select id="ap-type"><option value="">— Choose type —</option>${ts.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('')}</select></div>
+    <div class="f" id="ap-namef" hidden><label for="ap-name">What is it?</label><input type="text" id="ap-name" placeholder="e.g. Roof sheet lifter"></div>
+    <div class="f"><label for="ap-id">ID / fleet or serial no.</label><input type="text" id="ap-id" placeholder="e.g. T123 or serial no." autocomplete="off"></div>
+    <div class="f"><label for="ap-hire">Hire company (optional)</label><input type="text" id="ap-hire" autocomplete="off"></div>
+    <div class="f" id="ap-hoursf" hidden><label for="ap-hours">Hours / meter reading</label><input type="number" inputmode="decimal" id="ap-hours"></div>
+    <p class="hint" id="ap-err"></p><button class="btn primary" id="ap-ok">Add and start checks</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => {
+    const sel = bg.querySelector('#ap-type');
+    sel.addEventListener('change', () => { const t = ts[+sel.value]; bg.querySelector('#ap-hoursf').hidden = !(t && t.meter); bg.querySelector('#ap-namef').hidden = !(t && t.custom); });
+    bg.querySelector('#ap-ok').addEventListener('click', () => {
+      const t = ts[+sel.value]; const v = id => bg.querySelector(id).value.trim();
+      if (sel.value === '' || !t) { bg.querySelector('#ap-err').textContent = 'Choose the type of plant or equipment.'; return; }
+      if (t.custom && !v('#ap-name')) { bg.querySelector('#ap-err').textContent = 'Say what the equipment is.'; return; }
+      close({ t, ident: v('#ap-id'), hire: v('#ap-hire'), hours: v('#ap-hours'), name: v('#ap-name') });
+    });
+  });
+}
+Object.assign(ACTIONS, {
+  async 'dc-addplant'() {
+    const c = S.ctx && S.ctx.daily; if (!c) return; const r = await addPlantModal(); if (!r) return;
+    const p = newPlant(r.t, r); (c.plant = c.plant || []).push(p); c.plantNone = ''; opSaveField(); rerender();
+    setTimeout(() => { const el = $('#pl_' + p.id); el && el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
+  },
+  async 'dc-delplant'(a) { const c = S.ctx && S.ctx.daily; if (!c) return; const p = (c.plant || []).find(x => x.id === a.dataset.p); if (!p) return; if (!await confirmBox('Remove this item?', `${plantLabel(p)} and its checks will be removed from today's check.`, 'Remove')) return; c.plant = c.plant.filter(x => x !== p); opSaveField(); rerender(); },
+  'dc-goplant'(a) { const el = $('#pl_' + a.dataset.p); if (el) { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -64); } },
+  'dc-plantok'(a) { const c = S.ctx && S.ctx.daily; const p = c && (c.plant || []).find(x => x.id === a.dataset.p); if (!p) return; p.items.forEach(i => { if (!i.answer) i.answer = 'ok'; }); opSaveField(); rerender(); },
+  'dc-addlost'() { const c = S.ctx && S.ctx.daily; if (!c) return; const w = c.weather; (w.lost = w.lost || []).push({ id: uid(), reason: '', from: '', to: '', hours: '', note: '' }); opSaveField(); rerender(); },
+  async 'dc-sdsign'(a) {
+    const c = S.ctx && S.ctx.daily; const e = c && (c.weather.lost || []).find(x => x.id === a.dataset.e); if (!e) return; const g0 = e.sign || {};
+    const r = await modal(`<h3>Stand-down sign-off</h3><p>The person who stood you down (e.g. site manager or main contractor) confirms the time lost: ${esc(e.reason || 'weather')}, ${fmtH(lostHours(e))} h.</p>
+      <div class="f"><label for="sd-name">Their name (printed)</label><input type="text" id="sd-name" value="${esc(g0.name || '')}" autocomplete="off"></div>
+      <div class="f"><label for="sd-pos">Position / company</label><input type="text" id="sd-pos" value="${esc(g0.position || '')}" placeholder="e.g. Site manager, Main contractor Ltd" autocomplete="off"></div>
+      <p class="hint" id="sd-err"></p><button class="btn primary" id="sd-sign">${I.pen} Sign now</button>
+      <div id="sd-reff" hidden><div class="f"><label for="sd-note">Note (required)</label><textarea id="sd-note" rows="2" placeholder="e.g. Site manager not on site - phoned at 09:20, agreed by phone">${esc(g0.note || '')}</textarea></div><button class="btn danger" id="sd-refok">Save as refused / not available</button></div>
+      <button class="btn" id="sd-ref">Refused to sign / not available</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => {
+      const v = id => bg.querySelector(id).value.trim(); const err = t => { bg.querySelector('#sd-err').textContent = t; };
+      bg.querySelector('#sd-sign').addEventListener('click', () => { if (!v('#sd-name')) return err('Enter their name.'); close({ how: 'sign', name: v('#sd-name'), position: v('#sd-pos') }); });
+      bg.querySelector('#sd-ref').addEventListener('click', () => { bg.querySelector('#sd-reff').hidden = false; bg.querySelector('#sd-ref').hidden = true; bg.querySelector('#sd-note').focus(); });
+      bg.querySelector('#sd-refok').addEventListener('click', () => { if (!v('#sd-note')) return err('Add a note (who, and why it was not signed).'); close({ how: 'refused', name: v('#sd-name'), position: v('#sd-pos'), note: v('#sd-note') }); });
+    });
+    if (!r) return;
+    if (r.how === 'sign') { const d = await signaturePad(); if (!d) return toast('Not signed'); e.sign = { status: 'signed', name: r.name, position: r.position, sig: d, at: Date.now(), note: '' }; toast('Signed'); }
+    else e.sign = { status: 'refused', name: r.name, position: r.position, sig: '', at: Date.now(), note: r.note };
+    opSaveField(); rerender();
+  },
+  async 'dc-sdclear'(a) { const c = S.ctx && S.ctx.daily; const e = c && (c.weather.lost || []).find(x => x.id === a.dataset.e); if (!e) return; if (!await confirmBox('Clear sign-off?', 'The signature / refusal for this stand-down will be removed.', 'Clear')) return; delete e.sign; opSaveField(); rerender(); },
+  'dc-dellost'(a) { const c = S.ctx && S.ctx.daily; if (!c) return; c.weather.lost = (c.weather.lost || []).filter(e => e.id !== a.dataset.e); opSaveField(); rerender(); },
+  'pt-additem'(a) { ptEdit()[+a.dataset.p].items.push('New check'); saveSettings(); rerender(); },
+  'pt-delitem'(a) { ptEdit()[+a.dataset.p].items.splice(+a.dataset.i, 1); saveSettings(); rerender(); },
+  async 'pt-deltype'(a) { const t = ptEdit(); if (!await confirmBox('Remove plant type?', `"${t[+a.dataset.p].name}" will no longer be offered to operatives. Checks already done are kept.`, 'Remove')) return; t.splice(+a.dataset.p, 1); saveSettings(); rerender(); },
+  'pt-addtype'() { const t = ptEdit(); const at = t.findIndex(x => x.key === 'other'); t.splice(at < 0 ? t.length : at, 0, { key: 'c' + uid().slice(0, 6), name: 'New plant type', meter: false, items: ['Inspection / certificate in date', 'No visible damage', 'Controls and emergency stop working'] }); saveSettings(); rerender(); },
+  async 'pt-reset'() { if (!await confirmBox('Reset plant checklists?', 'All plant types and their checks will be restored to the default list.', 'Reset')) return; S.settings.plantTypes = null; saveSettings(); rerender(); },
+});
 
 /* ---------- Demo audit (illustrative images drawn on canvas) ---------- */
 function demoPhoto(kind, caption, seed = 1) {
