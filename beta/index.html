@@ -5282,7 +5282,7 @@ function wkStatusTag(c) {
 viewOpHome = function () {
   const jobs = Ops.jobs || []; const today = todayISO(), ws = wkStartOf(today);
   const cards = jobs.map(j => { const sh = wkSheetFor(j.id, ws); const d = sh && sh.days[today]; const miss = sh ? wkMissing(sh, today) : wkDates(ws).filter((x, i) => i < 5 && x < today);
-    return `<div class="card wkjob"><h2>${esc(j.ref)} · ${esc(j.site_name || '')}</h2><p class="hint">${esc([j.site_address, j.postcode].filter(Boolean).join(', '))}${j.contracts_manager_name ? ` · CM: ${esc(j.contracts_manager_name)}` : ''}</p>
+    return `<div class="card wkjob"><h2>${esc(j.ref)} · ${esc(j.site_name || '')}</h2><p class="hint">${esc([[j.site_address, j.postcode].filter(Boolean).join(', '), j.contracts_manager_name ? 'CM: ' + j.contracts_manager_name : ''].filter(Boolean).join(' · '))}</p>
       <p class="small" style="margin:8px 0 4px"><b>This week</b> (w/c ${fmtDate(ws)})${sh && wkSigned(sh) ? ' <span class="tag green">Signed off</span>' : ''}</p>${wkStripHTML(sh, ws, sh ? { href: '#/week/' + sh.id } : { act: j.id })}
       ${miss.length && !(sh && wkSigned(sh)) ? `<div class="lg-msg warn" style="margin:8px 0">Not ticked off: ${esc(wkMissTxt(miss))}. Tap the day to fill it in.</div>` : ''}
       ${sh && wkSigned(sh) ? `<a class="btn block" href="#/week/${sh.id}">View this week's sheet</a>` : `<button class="btn ${d && d.done ? '' : 'primary'} block dc-big wk-big" data-act="wk-open" data-job="${j.id}">${d && d.done ? `✓ Today ticked off · view or change` : `${I.shield.replace('<svg', '<svg width="28" height="28"')}<span>Tick off today (${wkDayName(today)} ${fmtDate(today).slice(0, 5)})</span>`}</button>`}</div>`; }).join('');
