@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.5.0">
+<meta name="app-version" content="1.6.0">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -362,6 +362,25 @@ details.pttype summary{cursor:pointer;min-height:40px;display:flex;align-items:c
 .plrow{display:block;width:100%;text-align:left;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 8px;font:inherit;color:var(--navy2);cursor:pointer}.plrow .t1{display:block;font-weight:800;font-size:15.5px;margin-bottom:4px}
 .dtrow textarea{flex:1;min-height:44px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:15px;resize:vertical}
 .dciss .item .t1,.dciss .item .t2{white-space:normal;overflow:visible;text-overflow:clip}
+/* v1.6.0 weekly sheet */
+.wkstrip{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:4px 0}
+.wkd{display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0 4px;border-radius:10px;border:2px solid transparent;background:#eef1f5;color:#5b6675;font:inherit;font-size:11.5px;font-weight:700;text-decoration:none;line-height:1.15;cursor:pointer}
+.wkd b{font-size:17px}.wkd .n{font-weight:600;font-size:10.5px;opacity:.8}
+.wkd.ok{background:#dcfce7;color:#15803d}.wkd.bad{background:#fee2e2;color:#b91c1c}.wkd.off{background:#e5e7eb;color:#64748b}
+.wkd.miss{background:#fff;border-color:#b91c1c;color:#b91c1c}.wkd.fut{opacity:.55;cursor:default}.wkd.due{background:#fff7ed;color:#9a3412}
+.wkd.today{box-shadow:0 0 0 2px var(--orange,#f18902) inset}.wkd.sel{border-color:var(--navy2,#0f2542)}
+.wk3{display:grid !important;grid-template-columns:1.3fr 1fr 1fr;gap:6px}.wk3 button{min-height:52px}
+.wksec.ok{border-left:6px solid var(--good)}.wksec.issue{border-left:6px solid var(--crit)}.wksec.na{border-left:6px solid #94a3b8}
+.seg.dcs button.on[data-v=out]{background:#7f1d1d;border-color:#7f1d1d;box-shadow:none}
+.wkpl{border:1px solid var(--line);border-left:6px solid var(--line);border-radius:12px;padding:10px;margin:0 0 10px;background:#fff}
+.wkpl.ok{border-left-color:var(--good)}.wkpl.defect{border-left-color:var(--crit);background:#fff5f5}.wkpl.out{border-left-color:#7f1d1d;background:#fee2e2}
+.wkplh{display:flex;flex-direction:column;margin-bottom:8px}.wkplh .t1{font-weight:800;font-size:15.5px;color:var(--navy2,#0f2542)}
+.wkpl .linkbtn{margin-top:6px}.wkfull{margin-top:8px}
+.wkx .btn.on{border-color:var(--good);color:var(--good)}
+.wktbl,.wkgrid{width:100%;border-collapse:collapse;font-size:13px}.wktbl th,.wktbl td{padding:5px 4px;border-bottom:1px solid var(--line);text-align:left}.wktbl tfoot td{font-weight:800}.wktbl tr.miss td{background:#fff5f5}.wktbl .bad,.wkgrid .bad{color:#b91c1c}
+.wkgridw{overflow-x:auto}.wkgrid th,.wkgrid td{padding:4px 3px;border:1px solid var(--line);text-align:center;font-size:12px}.wkgrid th.l{text-align:left;font-weight:600;max-width:120px;font-size:11.5px}
+.wkgrid td.ok{color:#15803d;font-weight:800}.wkgrid td.bad{background:#fee2e2;font-weight:800}.wkgrid td.miss{color:#b91c1c;font-weight:800;background:#fff5f5}.wkgrid td.off,.wkgrid td.na{color:#64748b}
+.wkgrid th a{color:inherit}.wkitem .wkstrip{margin:6px 0}
 
 </style>
 </head>
@@ -782,7 +801,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.6.0';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -3940,6 +3959,8 @@ function dcIssues(c) {
   const L = dcLost(c);
   if (L.hours > 0) out.push({ section: 'Weather', text: L.legacy ? 'Work stopped due to weather' : `Time lost to weather: ${fmtH(L.hours)} h`, comment: L.legacy ? `${fmtH(L.hours)} h lost` : L.reasons.join(', '), kind: 'weather' });
   else if (w.stopped === 'yes') out.push({ section: 'Weather', text: 'Work stopped due to weather', comment: '' });
+  // v1.6: stand-downs (weekly sheet days) - who stood the gang down, hours, sign-off status
+  (c.sd || []).forEach(e => { const h = lostHours(e); if (h > 0 || e.who) out.push({ section: 'Stood down', text: `Stood down by ${e.who || 'not stated'}: ${fmtH(h)} h`, comment: [e.reason, e.note, 'Sign-off: ' + sdStatus(e)].filter(Boolean).join(' - '), kind: 'standdown' }); });
   if ((c.incident || {}).any === 'yes') out.push({ section: 'Incidents / near misses', text: 'Incident or near miss reported', comment: c.incident.detail || '' });
   return out;
 }
@@ -4202,7 +4223,16 @@ function buildDailySummaryPDF(proj, rows, f) {
   k.kv([['Period', `${f.from ? fmtDate(f.from) : 'Start'} to ${f.to ? fmtDate(f.to) : 'today'}`], ['Checks', String(rows.length)], ['Checks with issues', String(rows.filter(r => r.issues > 0).length)], ['Total issues', String(tot)],
     ['Time lost to weather', lost.length ? `${fmtH(lostTot)} h over ${new Set(lost.map(x => x.r.check_date)).size} day(s)` : 'None'],
     ['Plant pre-use checks', `${ps.n} item${ps.n === 1 ? '' : 's'} checked · ${ps.defects} defect${ps.defects === 1 ? '' : 's'} · ${ps.quarantined} quarantined / out of use`],
-    ['Incidents / near misses', String(rows.filter(r => (D(r).incident || {}).any === 'yes').length)]]);
+    ['Stood down', (() => { const sdr = rows.filter(r => wkSdHours(D(r)) > 0); return sdr.length ? `${fmtH(sdr.reduce((a, r) => a + wkSdHours(D(r)), 0))} h over ${new Set(sdr.map(r => r.check_date)).size} day(s)` : 'None'; })()],
+    ['Incidents / near misses', String(rows.filter(r => (D(r).incident || {}).any === 'yes').length)],
+    ...((f.weekly || []).length ? [['Weekly sheets', `${f.weekly.length} sheet${f.weekly.length === 1 ? '' : 's'} · ${f.weekly.filter(r => r.email_status === 'sent').length} signed off & emailed · ${f.weekly.reduce((a, r) => a + wkMissing(rowToSheet(r), todayISO()).length, 0)} missing day(s)`]] : [])]);
+  if ((f.weekly || []).length) {
+    k.h2('Weekly sheets');
+    const wrows = f.weekly.slice().sort((a, b) => a.check_date.localeCompare(b.check_date) || (a.owner_name || '').localeCompare(b.owner_name || '')).map(r => { const s = rowToSheet(r); const rs = wkRows(s); const ms = wkMissing(s, todayISO()); return [`w/c ${fmtDate(r.check_date)}`, tx(r.owner_name), rs.map(x => x.off ? '-' : x.done ? (x.issues ? '!' : 'Y') : ms.includes(x.date) ? 'X' : '.').join(' '), String(rs.reduce((a, x) => a + x.issues, 0)), fmtH(rs.reduce((a, x) => a + x.wx + x.sd, 0)), tx(ms.map(x => wkDayName(x)).join(', ') || '-'), wkSigned(s) ? `${r.email_status === 'sent' ? 'Signed & emailed' : 'Signed'}` : 'Open']; });
+    k.table({ head: [['Week', 'Operative', 'M T W T F S S', 'Issues', 'Lost h', 'Missing', 'Status']], body: wrows, styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 1.5, textColor: k.TXT, lineColor: k.LINE, lineWidth: 0.2 }, columnStyles: { 2: { font: 'courier', cellWidth: 30 }, 3: { halign: 'center' }, 4: { halign: 'center' } },
+      didParseCell: d => { if (d.section === 'body' && d.column.index === 5 && d.cell.raw !== '-') { d.cell.styles.textColor = k.RED; d.cell.styles.fontStyle = 'bold'; } } });
+    k.para('Y = ticked off, ! = ticked off with issues, - = not on site, X = missing (nothing ticked off), . = not due yet.', 7.5, 'normal', k.GREY);
+  }
   k.h2('Checks');
   k.table({ head: [['Date', 'Operative', 'Workforce', 'Weather', 'Lost h', 'Plant', 'Issues', 'Emailed']], body: rows.map(r => { const d = D(r), w = d.weather || {}; const L = dcLost(d), s = dcPlantStats(d); return [fmtDate(r.check_date), tx(r.owner_name), tx((d.workforce || {}).count || ''), tx((w.conditions || []).join('/')), L.hours ? fmtH(L.hours) : '-', s.n ? `${s.n}${s.defects ? ` (${s.defects} def)` : ''}${s.quarantined ? ` ${s.quarantined} OUT` : ''}` : '-', String(r.issues || 0), r.email_status === 'sent' ? 'Yes' : /^pending/.test(r.email_status || '') ? 'Pending' : (r.email_status || '-')]; }),
     styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 1.5, textColor: k.TXT, lineColor: k.LINE, lineWidth: 0.2 }, columnStyles: { 4: { halign: 'center' }, 6: { halign: 'center', fontStyle: 'bold' } },
@@ -4223,9 +4253,17 @@ function buildDailySummaryPDF(proj, rows, f) {
       sdl.forEach(({ r, e }) => k.sdSigns([e], fmtDate(r.check_date)));
     }
   }
+  const sdl2 = []; rows.forEach(r => (D(r).sd || []).forEach(e => sdl2.push({ r, e })));
+  if (sdl2.length) {
+    k.h2('Stood down (by others)');
+    k.table({ head: [['Date', 'Stood down by', 'Reason', 'Hours', 'Sign-off', 'Signed by']], body: [...sdl2.map(({ r, e }) => { const g = e.sign || {}; return [fmtDate(r.check_date), tx([e.who, e.byName].filter(Boolean).join(' - ')), tx(e.reason || ''), fmtH(lostHours(e)), sdStatus(e).toUpperCase(), tx([g.name, g.position].filter(Boolean).join(', '))]; }), [{ content: 'Total', colSpan: 3, styles: { fontStyle: 'bold' } }, { content: fmtH(sdl2.reduce((a, x) => a + lostHours(x.e), 0)) + ' h', styles: { fontStyle: 'bold', textColor: k.RED } }, '', '']],
+      styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 1.5, textColor: k.TXT, lineColor: k.LINE, lineWidth: 0.2 }, columnStyles: { 0: { cellWidth: 22 }, 3: { cellWidth: 14, halign: 'center' }, 4: { cellWidth: 22, fontStyle: 'bold' } },
+      didParseCell: d => { if (d.section === 'body' && d.column.index === 4 && d.row.index < sdl2.length) { const st = sdStatus(sdl2[d.row.index].e); d.cell.styles.textColor = st === 'Signed' ? k.GREEN : st === 'Refused' ? k.RED : [180, 83, 9]; } } });
+    sdl2.forEach(({ r, e }) => k.sdSigns([e], fmtDate(r.check_date)));
+  }
   const pl = []; rows.forEach(r => (D(r).plant || []).forEach(p => { if (p.quarantine === 'yes') pl.push([fmtDate(r.check_date), tx(plantLabel(p)), 'OUT OF USE - quarantined / tagged', tx(p.qNote || ''), true]); (p.items || []).forEach(i => { if (i.answer === 'defect') pl.push([fmtDate(r.check_date), tx(plantLabel(p)), tx(i.text), tx(i.comment || ''), false]); }); }));
   if (pl.length) { k.h2('Plant defects & quarantined items'); k.table({ head: [['Date', 'Plant / equipment', 'Check', 'Comment']], body: pl.map(x => x.slice(0, 4)), headStyles: { fillColor: k.RED, textColor: [255, 255, 255] }, columnStyles: { 0: { cellWidth: 22 }, 1: { cellWidth: 42, fontStyle: 'bold' } }, didParseCell: d => { if (d.section === 'body' && pl[d.row.index][4]) { d.cell.styles.textColor = k.RED; d.cell.styles.fontStyle = 'bold'; } } }); }
-  const all = []; rows.forEach(r => dcIssues(D(r)).filter(i => i.kind !== 'plant' && i.kind !== 'quarantine').forEach(i => all.push([fmtDate(r.check_date), tx(r.owner_name), tx(i.section), tx(i.text), tx(i.comment)])));
+  const all = []; rows.forEach(r => dcIssues(D(r)).filter(i => i.kind !== 'plant' && i.kind !== 'quarantine' && i.kind !== 'standdown').forEach(i => all.push([fmtDate(r.check_date), tx(r.owner_name), tx(i.section), tx(i.text), tx(i.comment)])));
   if (all.length) { k.h2('Other issues'); k.table({ head: [['Date', 'By', 'Section', 'Item', 'Comment']], body: all, headStyles: { fillColor: k.RED, textColor: [255, 255, 255] } }); }
   const notes = rows.filter(r => r.data && r.data.progress && r.data.progress.note);
   if (notes.length) { k.h2('Progress notes'); k.table({ head: [['Date', 'By', 'Note']], body: notes.map(r => [fmtDate(r.check_date), tx(r.owner_name), tx(r.data.progress.note)]), columnStyles: { 0: { cellWidth: 22 }, 1: { cellWidth: 34 } } }); }
@@ -4465,9 +4503,11 @@ Object.assign(ACTIONS, {
     catch (e) { toast(e.message || String(e), 5000); }
   },
   async 'dc-sumpdf'(a, job) {
-    const p = projOf(job) || { ref: job.ref, site_name: job.site.name }; const f = dcFilters();
-    let rows = Ops.dc[job.projectId] || []; if (f.op) rows = rows.filter(r => r.owner === f.op); if (f.iss) rows = rows.filter(r => r.issues > 0);
-    rows = rows.map(r => clone(r)); let miss = 0; for (const r of rows) { const w = (r.data || {}).weather; if (w && Array.isArray(w.lost) && w.lost.some(e => e.sign && e.sign.sig)) miss += await dcHydrate({ x: w.lost }); }
+    const p = projOf(job) || { ref: job.ref, site_name: job.site.name }; let f = dcFilters();
+    const raw = Ops.dc[job.projectId] || []; let rows = dcExpandRows(raw, f); if (f.op) rows = rows.filter(r => r.owner === f.op); if (f.iss) rows = rows.filter(r => r.issues > 0);
+    const weekly = raw.filter(r => isWkRow(r) && (!f.op || r.owner === f.op) && (!f.from || wkAddDays(r.check_date, 6) >= f.from) && (!f.to || r.check_date <= f.to));
+    rows = rows.map(r => clone(r)); let miss = 0; for (const r of rows) { const w = (r.data || {}).weather; if (w && Array.isArray(w.lost) && w.lost.some(e => e.sign && e.sign.sig)) miss += await dcHydrate({ x: w.lost }); const sd = (r.data || {}).sd; if (Array.isArray(sd) && sd.some(e => e.sign && e.sign.sig)) miss += await dcHydrate({ x: sd }); }
+    f = Object.assign({}, f, { weekly });
     if (miss) toast(`${miss} signature(s) could not be downloaded`);
     download(buildDailySummaryPDF(p, rows.slice().reverse(), f).output('blob'), `Daily-checks-summary_${p.ref}_${f.from || 'start'}_${f.to || todayISO()}.pdf`);
   },
@@ -5035,7 +5075,7 @@ Object.assign(ACTIONS, {
   'dc-plantok'(a) { const c = S.ctx && S.ctx.daily; const p = c && (c.plant || []).find(x => x.id === a.dataset.p); if (!p) return; p.items.forEach(i => { if (!i.answer) i.answer = 'ok'; }); opSaveField(); rerender(); },
   'dc-addlost'() { const c = S.ctx && S.ctx.daily; if (!c) return; const w = c.weather; (w.lost = w.lost || []).push({ id: uid(), reason: '', from: '', to: '', hours: '', note: '' }); opSaveField(); rerender(); },
   async 'dc-sdsign'(a) {
-    const c = S.ctx && S.ctx.daily; const e = c && (c.weather.lost || []).find(x => x.id === a.dataset.e); if (!e) return; const g0 = e.sign || {};
+    const c = S.ctx && S.ctx.daily; const e = c && [...(c.weather.lost || []), ...(c.sd || [])].find(x => x.id === a.dataset.e); if (!e) return; const g0 = e.sign || {};
     const r = await modal(`<h3>Stand-down sign-off</h3><p>The person who stood you down (e.g. site manager or main contractor) confirms the time lost: ${esc(e.reason || 'weather')}, ${fmtH(lostHours(e))} h.</p>
       <div class="f"><label for="sd-name">Their name (printed)</label><input type="text" id="sd-name" value="${esc(g0.name || '')}" autocomplete="off"></div>
       <div class="f"><label for="sd-pos">Position / company</label><input type="text" id="sd-pos" value="${esc(g0.position || '')}" placeholder="e.g. Site manager, Main contractor Ltd" autocomplete="off"></div>
@@ -5052,7 +5092,7 @@ Object.assign(ACTIONS, {
     else e.sign = { status: 'refused', name: r.name, position: r.position, sig: '', at: Date.now(), note: r.note };
     opSaveField(); rerender();
   },
-  async 'dc-sdclear'(a) { const c = S.ctx && S.ctx.daily; const e = c && (c.weather.lost || []).find(x => x.id === a.dataset.e); if (!e) return; if (!await confirmBox('Clear sign-off?', 'The signature / refusal for this stand-down will be removed.', 'Clear')) return; delete e.sign; opSaveField(); rerender(); },
+  async 'dc-sdclear'(a) { const c = S.ctx && S.ctx.daily; const e = c && [...(c.weather.lost || []), ...(c.sd || [])].find(x => x.id === a.dataset.e); if (!e) return; if (!await confirmBox('Clear sign-off?', 'The signature / refusal for this stand-down will be removed.', 'Clear')) return; delete e.sign; opSaveField(); rerender(); },
   'dc-dellost'(a) { const c = S.ctx && S.ctx.daily; if (!c) return; c.weather.lost = (c.weather.lost || []).filter(e => e.id !== a.dataset.e); opSaveField(); rerender(); },
   'pt-additem'(a) { ptEdit()[+a.dataset.p].items.push('New check'); saveSettings(); rerender(); },
   'pt-delitem'(a) { ptEdit()[+a.dataset.p].items.splice(+a.dataset.i, 1); saveSettings(); rerender(); },
@@ -5060,6 +5100,604 @@ Object.assign(ACTIONS, {
   'pt-addtype'() { const t = ptEdit(); const at = t.findIndex(x => x.key === 'other'); t.splice(at < 0 ? t.length : at, 0, { key: 'c' + uid().slice(0, 6), name: 'New plant type', meter: false, items: ['Inspection / certificate in date', 'No visible damage', 'Controls and emergency stop working'] }); saveSettings(); rerender(); },
   async 'pt-reset'() { if (!await confirmBox('Reset plant checklists?', 'All plant types and their checks will be restored to the default list.', 'Reset')) return; S.settings.plantTypes = null; saveSettings(); rerender(); },
 });
+
+/* =====================================================================
+   v1.6.0: WEEKLY SITE SHEET with quick daily ticks (operatives)
+   - One sheet per operative per job per week (Mon-Sun), kept in public.daily_checks (data.kind = 'weekly',
+     check_date = the Monday). Job, plant list, workforce and toolbox talk carry over from the previous week.
+   - Each day: 'All OK' / Issue / N/A per template section, a daily tick per listed machine (OK / Defect / Out of use,
+     with that type's full checklist a tap away), and weather, time lost, stand-downs and incidents only if any.
+   - Each day is saved + synced when ticked off (phone time in the data; the server stamps day_log on arrival).
+     Issues / defects / quarantine / stand-downs / incidents -> same-day alert email (daily-check-notify {id, day}).
+   - End-of-week sign-off -> one weekly PDF + email (daily-check-notify {id, final}). Missing weekdays are flagged.
+   - The day logic (dayAsCheck, wkMissing, emails) is supabase/functions/_shared/weekly.js, inlined by build.js.
+   ===================================================================== */
+const issuesOf = c => dcIssues(c);
+function emailContent() { return { subject: '', html: '', text: '', issues: [] }; }   // server-only (weekly.js emails)
+// v1.6.0 weekly sheet helpers - ONE source for the app and the Edge Function.
+// build.js inlines this file into the app (import/export lines stripped), so the day logic and the email are
+// identical on the phone and on the server. Depends on lostHours / sdStatus / issuesOf-style helpers that exist
+// with the same names on both sides (daily.js here, app11/app12 in the app).
+
+const WK_DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WK_SD_WHO = ['Site manager', 'Client', 'Principal contractor', 'Our contracts manager', 'Other'];
+function wkAddDays(iso, n) { const [y, m, d] = String(iso).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); }
+function wkStartOf(iso) { const [y, m, d] = String(iso).split('-').map(Number); const wd = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; return wkAddDays(iso, -wd); }
+const wkDates = ws => [0, 1, 2, 3, 4, 5, 6].map(i => wkAddDays(ws, i));
+const wkDayName = iso => WK_DAY_NAMES[(new Date(iso + 'T12:00:00Z').getUTCDay() + 6) % 7];
+const wkUk = iso => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || ''); };
+const wkClock = ms => ms ? new Date(ms).toLocaleTimeString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit' }) : '';
+const wkStamp = ms => ms ? new Date(ms).toLocaleString('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const wkH = x => String(Math.round(x * 100) / 100);
+
+// plant listed for a day: the list as it was when the day was saved (so removing plant later never rewrites history)
+function wkPlantList(sheet, day) { return day && day.done && Array.isArray(day.plantSnap) ? day.plantSnap : (sheet.plant || []); }
+// one listed machine on one day -> the v1.5 per-check plant shape (daily tick + optional full checklist)
+function wkPlantDay(p, d) {
+  d = d || {}; const ans = d.ans || ''; const items = Array.isArray(d.items) ? d.items.slice() : [];
+  if (ans === 'defect' && !items.some(i => i.answer === 'defect')) items.unshift({ id: p.id + '-daily', text: 'Daily pre-use check', answer: 'defect', comment: d.note || '', photos: d.photos || [] });
+  if (!items.length) items.push({ id: p.id + '-daily', text: 'Daily pre-use check', answer: ans === 'ok' ? 'ok' : ans === 'defect' ? 'defect' : '', comment: ans === 'out' ? '' : (d.note || ''), photos: ans === 'out' ? [] : (d.photos || []) });
+  return Object.assign({}, p, { hours: d.hours || '', quarantine: ans === 'out' ? 'yes' : '', qNote: ans === 'out' ? (d.note || '') : '', qPhotos: ans === 'out' ? (d.photos || []) : [], items, dayAns: ans, full: Array.isArray(d.items) && d.items.length > 0 });
+}
+// one day of a weekly sheet as a v1.5-style daily check (so issues, PDFs and emails reuse the daily-check logic)
+function dayAsCheck(sheet, date) {
+  const d = (sheet.days || {})[date] || {}; const pl = d.off ? [] : wkPlantList(sheet, d);
+  return { v: 2, kind: 'weekday', id: `${sheet.id}-${date}`, weekId: sheet.id, jobId: sheet.jobId, jobRef: sheet.jobRef, site: sheet.site, address: sheet.address, cm: sheet.cm, owner: sheet.owner, by: sheet.by,
+    date, time: wkClock(d.savedAt), submitted: d.savedAt || 0, off: !!d.off, done: !!d.done, late: !!d.late,
+    sections: d.off ? [] : (d.sections || []), plant: pl.map(p => wkPlantDay(p, (d.plant || {})[p.id])), plantNone: pl.length ? '' : 'yes',
+    weather: d.weather || { conditions: [], lostAny: '', lost: [] }, sd: d.sd || [], workforce: sheet.workforce || {}, incident: d.incident || { any: '' }, progress: d.progress || { note: '', photos: [] },
+    signoff: { name: (sheet.signoff || {}).name || sheet.by || '', sig: '' } };
+}
+const wkSdHours = d => ((d && d.sd) || []).reduce((a, e) => a + lostHours(e), 0);
+function wkWxHours(d) { const w = (d && d.weather) || {}; if (!Array.isArray(w.lost) || w.lostAny === 'no') return 0; return w.lost.reduce((a, e) => a + lostHours(e), 0); }
+// Mon-Fri days with nothing saved: past days (or every weekday once the sheet is signed off). 'Not on site' counts as done.
+function wkMissing(sheet, today) {
+  const signed = !!(sheet.signoff && sheet.signoff.at);
+  return wkDates(sheet.week).filter((x, i) => i < 5 && !((sheet.days || {})[x] || {}).done && (x < today || signed));
+}
+function wkDayRows(sheet, issuesFn) {
+  return wkDates(sheet.week).map(date => { const d = (sheet.days || {})[date] || {}; const c = dayAsCheck(sheet, date); const iss = d.done && !d.off ? issuesFn(c) : [];
+    return { date, day: wkDayName(date), done: !!d.done, off: !!d.off, late: !!d.late, savedAt: d.savedAt || 0, issues: iss.length, iss, wx: wkWxHours(d), sd: wkSdHours(d), c }; });
+}
+function wkIssueCount(sheet, issuesFn) { return wkDayRows(sheet, issuesFn).reduce((a, r) => a + r.issues, 0); }
+// same-day alert signature: an unchanged list of issues is never emailed twice
+const wkIssueSig = iss => iss.map(i => [i.section, i.text, i.comment].join('|')).join('\n');
+
+// ---------- emails ----------
+const hx = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+function wkDayEmail(sheet, date, job, link, company) {
+  const c = dayAsCheck(sheet, date); const m = emailContent(c, job, link, company); const n = m.issues.length;
+  const site = [job.ref || sheet.jobRef, job.site_name || sheet.site].filter(Boolean).join(' - ');
+  m.subject = `[${n} ISSUE${n === 1 ? '' : 'S'}] Same-day alert - ${site} - ${wkDayName(date)} ${wkUk(date)} - ${sheet.by || ''}`.trim();
+  const note = `This is a same-day alert from ${sheet.by || 'the operative'}'s weekly site sheet (ticked off at ${wkClock((sheet.days[date] || {}).savedAt) || '-'}). The full weekly sheet PDF follows when it is signed off at the end of the week.`;
+  m.html = m.html.replace('>DAILY SITE CHECK<', '>SAME-DAY ALERT &middot; WEEKLY SHEET<').replace(/The full check, with photos and signature, is attached as a PDF\./, hx(note));
+  m.text = m.text.replace(/^Daily site check:/, 'Same-day alert (weekly sheet):').replace(/The full check is attached as a PDF/, note.replace(/\.$/, ''));
+  return m;
+}
+function wkEmail(sheet, job, link, company = 'Absolute Roofing Solutions Ltd', today) {
+  const rows = wkDayRows(sheet, issuesOf); const tot = rows.reduce((a, r) => a + r.issues, 0); const miss = wkMissing(sheet, today || wkAddDays(sheet.week, 7));
+  const wx = rows.reduce((a, r) => a + r.wx, 0), sd = rows.reduce((a, r) => a + r.sd, 0);
+  const site = [job.ref || sheet.jobRef, job.site_name || sheet.site].filter(Boolean).join(' - ');
+  const subject = `${tot ? `[${tot} ISSUE${tot > 1 ? 'S' : ''}] ` : ''}Weekly site sheet - ${site} - w/c ${wkUk(sheet.week)} - ${sheet.by || ''}`.trim();
+  const st = r => r.off ? 'Not on site' : r.done ? (r.issues ? `${r.issues} issue${r.issues > 1 ? 's' : ''}` : 'OK') : miss.includes(r.date) ? 'MISSING' : '-';
+  const T = [`Weekly site sheet: ${site}`, `Week commencing: ${wkUk(sheet.week)}`, `Operative: ${sheet.by || ''}`, `Signed off: ${wkStamp((sheet.signoff || {}).at) || '-'}`, ''];
+  rows.forEach(r => T.push(`${r.day} ${wkUk(r.date)}: ${st(r)}${r.done && !r.off ? ` (ticked ${wkClock(r.savedAt)}${r.late ? ', filled in late' : ''})` : ''}${r.wx ? `, ${wkH(r.wx)} h lost to weather` : ''}${r.sd ? `, ${wkH(r.sd)} h stood down` : ''}`));
+  T.push('', `Issues this week: ${tot}`, `Time lost to weather: ${wkH(wx)} h`, `Stood down: ${wkH(sd)} h`);
+  if (miss.length) T.push(`MISSING DAYS: ${miss.map(x => `${wkDayName(x)} ${wkUk(x)}`).join(', ')}`);
+  rows.forEach(r => r.iss.forEach(i => T.push(`- ${r.day}: [${i.section}] ${i.text}${i.comment ? ' - ' + i.comment : ''}`)));
+  T.push('', `The full weekly sheet is attached as a PDF${link ? ` and can be viewed in the app: ${link}` : ''}.`, '', company);
+  const cell = r => { const bad = r.issues || miss.includes(r.date); return `<td style="padding:6px 4px;text-align:center;border:1px solid #dfe4ea;font-weight:700;font-size:12px;color:${r.off ? '#5b6675' : bad ? '#b91c1c' : r.done ? '#15803d' : '#5b6675'};background:${bad ? '#fdecec' : r.done && !r.off ? '#e8f5ec' : '#f7f8fa'}">${hx(r.off ? 'OFF' : r.done ? (r.issues ? '! ' + r.issues : '&#10003;') : miss.includes(r.date) ? 'MISSING' : '-').replace('&amp;#10003;', '&#10003;')}</td>`; };
+  const html = `<!doctype html><html><body style="margin:0;background:#f2f4f7;font-family:Segoe UI,Arial,sans-serif">
+<div style="max-width:640px;margin:0 auto;background:#fff">
+<div style="background:#0f2542;color:#fff;padding:16px 20px;border-bottom:4px solid #f18902"><div style="font-size:12px;letter-spacing:1px;color:#f18902;font-weight:700">WEEKLY SITE SHEET</div><div style="font-size:20px;font-weight:700;margin-top:4px">${hx(site)}</div><div style="font-size:14px;margin-top:2px">w/c ${hx(wkUk(sheet.week))} &middot; ${hx(sheet.by || '')}</div></div>
+<div style="padding:16px 20px">
+${miss.length ? `<div style="background:#fff4e0;border-left:6px solid #b45309;padding:10px 14px;margin-bottom:12px;color:#7c2d12;font-weight:700">Missing days: ${hx(miss.map(x => `${wkDayName(x)} ${wkUk(x)}`).join(', '))}</div>` : ''}
+${tot ? `<div style="background:#fdecec;border-left:6px solid #b91c1c;padding:12px 14px;margin-bottom:14px"><div style="color:#b91c1c;font-weight:700;font-size:16px;margin-bottom:6px">&#9888; ${tot} ISSUE${tot > 1 ? 'S' : ''} THIS WEEK</div><ol style="margin:0;padding-left:20px;color:#0f2542">${rows.map(r => r.iss.map(x => `<li style="margin:3px 0"><b>${hx(r.day)}:</b> ${hx(x.text)} <span style="color:#5b6675">(${hx(x.section)})</span>${x.comment ? `<br>${hx(x.comment)}` : ''}</li>`).join('')).join('')}</ol></div>` : `<div style="background:#e8f5ec;border-left:6px solid #15803d;padding:12px 14px;margin-bottom:14px;color:#15803d;font-weight:700">&#10003; No issues this week</div>`}
+<table style="border-collapse:collapse;width:100%;margin-bottom:12px"><tr>${rows.map(r => `<th style="padding:4px;font-size:12px;color:#0f2542;border:1px solid #dfe4ea;background:#f2f4f7">${hx(r.day)}<br><span style="font-weight:400;color:#5b6675">${hx(wkUk(r.date).slice(0, 5))}</span></th>`).join('')}</tr><tr>${rows.map(cell).join('')}</tr></table>
+<table style="border-collapse:collapse;font-size:14px">
+<tr><td style="padding:4px 10px 4px 0;color:#5b6675">Time lost to weather</td><td style="padding:4px 0;color:#0f2542">${wx ? `<b style="color:#b91c1c">${wkH(wx)} h</b>` : 'None'}</td></tr>
+<tr><td style="padding:4px 10px 4px 0;color:#5b6675">Stood down</td><td style="padding:4px 0;color:#0f2542">${sd ? `<b style="color:#b91c1c">${wkH(sd)} h</b>` : 'None'}</td></tr>
+<tr><td style="padding:4px 10px 4px 0;color:#5b6675">Workforce</td><td style="padding:4px 0;color:#0f2542">${hx(`${(sheet.workforce || {}).count || '-'} on site${(sheet.workforce || {}).names ? ` (${sheet.workforce.names})` : ''}`)}</td></tr>
+<tr><td style="padding:4px 10px 4px 0;color:#5b6675">Toolbox talk</td><td style="padding:4px 0;color:#0f2542">${hx((sheet.workforce || {}).toolbox === 'yes' ? ((sheet.workforce || {}).topic || 'Yes') : 'No')}</td></tr>
+</table>
+<p style="font-size:14px;color:#0f2542;margin-top:16px">The full weekly sheet (day-by-day grid, plant checks, hours lost and signed stand-downs) is attached as a PDF.${link ? ` <a href="${hx(link)}" style="color:#c26a00">Open it in the app</a>.` : ''}</p>
+</div>
+<div style="background:#f2f4f7;color:#5b6675;font-size:12px;padding:12px 20px">${hx(company)} &middot; sent automatically by the ARS Site Audit app</div>
+</div></body></html>`;
+  return { subject, text: T.join('\n'), html, issues: tot, missing: miss };
+}
+void sdStatus;
+
+const isWk = c => !!(c && c.kind === 'weekly');
+const isWkRow = r => !!(r && (r.kind === 'weekly' || (r.data && r.data.kind === 'weekly')));
+function wkTpl() { return dailyTpl().map(s => ({ key: s.key || '', title: s.title, items: (s.items || []).map(t => typeof t === 'string' ? t : t.text) })); }
+const wkPlantRef = p => ({ id: uid(), type: p.type, typeName: p.typeName, custom: !!p.custom, name: p.name || '', meter: !!p.meter, ident: p.ident || '', hire: p.hire || '' });
+const wkMine = () => Ops.list.filter(c => isWk(c) && c.owner === me());
+const wkSheetFor = (jobId, ws) => wkMine().find(c => c.jobId === jobId && c.week === ws);
+function wkPrev(jobId, ws) { return wkMine().filter(c => c.jobId === jobId && c.week < ws).sort((a, b) => b.week.localeCompare(a.week))[0]; }
+function newWeekly(job, ws, prev) {
+  prev = prev === undefined ? wkPrev(job.id, ws) : prev; const wf0 = { count: '', names: '', toolbox: '', topic: '' };
+  return { v: 3, kind: 'weekly', id: 'wk-' + uid(), jobId: job.id, jobRef: job.ref || '', site: job.site_name || '', address: [job.site_address, job.postcode].filter(Boolean).join(', '), cm: job.contracts_manager_name || '',
+    owner: me(), by: myName(), week: ws, date: ws, created: Date.now(), updated: Date.now(), status: 'open', tpl: wkTpl(),
+    plant: prev ? (prev.plant || []).map(wkPlantRef) : [], workforce: prev ? Object.assign(wf0, clone(prev.workforce || {})) : wf0, carried: prev ? prev.week : '',
+    days: {}, signoff: { name: myName(), sig: '', at: 0 }, alertQ: [], dirty: true };
+}
+function wkNewDay(sheet, date) {
+  return { date, done: false, off: false, savedAt: 0, firstSavedAt: 0, late: false,
+    sections: (sheet.tpl || wkTpl()).map(s => ({ id: uid(), key: s.key, title: s.title, status: '', items: (s.items || []).map(t => ({ id: uid(), text: t, answer: '', comment: '', photos: [] })) })),
+    plant: {}, weather: { conditions: [], windAM: '', windPM: '', tempAM: '', tempPM: '', lostAny: '', lost: [] }, sd: [], incident: { any: '', detail: '' }, progress: { note: '', photos: [] }, extra: {} };
+}
+function wkDay(sheet, date, create) {
+  let d = sheet.days[date]; if (!d && create) d = sheet.days[date] = wkNewDay(sheet, date);
+  if (d) Object.defineProperty(d, '_sheet', { get: () => sheet, enumerable: false, configurable: true });
+  return d;
+}
+const wkRows = sheet => wkDayRows(sheet, dcIssues);
+const wkPending = () => wkMine().filter(c => c.dirty || (c.alertQ || []).length || c.finalPending);
+const wkSigned = c => !!(c.signoff && c.signoff.at);
+
+/* ---------- demo / sample sheet (tests, screenshots, sample PDF) ---------- */
+function demoWeekly(opts = {}) {
+  const ws = opts.week || wkStartOf(todayISO()); const sig = demoSignature(3), sig2 = demoSignature(4);
+  const job = { id: 'job-demo', ref: 'ARS-2610-DEMO', site_name: 'Unit 4, Hams Hall Distribution Park', site_address: 'Faraday Avenue, Coleshill, Birmingham', postcode: 'B46 1AL', contracts_manager_name: 'Sam Turner (example)' };
+  const s = newWeekly(job, ws, null); s.by = 'Dan Price (example)'; s.owner = s.owner || 'demo'; s.signoff.name = s.by;
+  const T = plantTypes(); const add = (key, f) => { const t = T.find(x => x.key === key); const p = wkPlantRef({ type: t.key, typeName: t.name, meter: t.meter, ident: f.ident, hire: f.hire }); s.plant.push(p); return p; };
+  const th = add('telehandler', { ident: 'TH-07 (JCB 535-95)', hire: 'GAP Hire (example)' }), sc = add('mewp-scissor', { ident: 'SL-12' }); add('harness', { ident: 'H-03 / H-04' });
+  Object.assign(s.workforce, { count: '4', names: 'Dan Price, Lee Ward, Tom Hart, Ben Cole (examples)', toolbox: 'yes', topic: 'Fragile roofs and rooflights' });
+  const D = wkDates(ws); const at = (date, hm) => new Date(`${date}T${hm}:00`).getTime();
+  const tick = (i, f = {}) => { const date = D[i]; const d = wkDay(s, date, true); d.sections.forEach(x => { x.status = 'ok'; x.items.forEach(it => { it.answer = 'ok'; }); });
+    s.plant.forEach(p => { d.plant[p.id] = { ans: 'ok', note: '', hours: p.id === th.id ? String(2481 + i * 7) : p.id === sc.id ? String(611 + i * 4) : '' }; });
+    d.weather.conditions = f.wx || ['Dry']; d.weather.lostAny = 'no'; d.incident.any = 'no'; d.progress.note = f.note || ''; if (f.more) f.more(d);
+    d.done = true; d.savedAt = d.firstSavedAt = at(date, f.time || '07:40'); d.plantSnap = clone(s.plant); return d; };
+  tick(0, { note: 'Set up, sheeted bays 1-2 north elevation.' });
+  tick(1, { time: '07:35', wx: ['Showers', 'Wind'], note: 'Bays 3-4.', more: d => { const acc = d.sections[0]; acc.status = 'issue'; const it = acc.items.find(x => x.text === 'Access routes clear') || acc.items[0]; it.answer = 'issue'; it.comment = 'Pallets blocking the ladder access at the gable end - moved by 08:15';
+    d.plant[th.id] = { ans: 'out', note: 'Tilt ram weeping hydraulic oil - tagged out, keys removed, GAP Hire called', hours: '2488', items: (T.find(x => x.key === 'telehandler').items).map((t, n) => ({ id: uid(), text: t, answer: n === 4 ? 'defect' : 'ok', comment: n === 4 ? 'Tilt ram weeping hydraulic oil' : '', photos: [] })) };
+    Object.assign(d.weather, { windAM: '18', windPM: '34', lostAny: 'yes', lost: [{ id: uid(), reason: 'High wind', from: '13:30', to: '15:30', hours: '', note: 'Gusts over 30 mph - sheets unsafe to handle', sign: { status: 'signed', name: 'Gary Holt (example)', position: 'Site manager, Midland Build Ltd (example)', sig, at: at(D[1], '13:35') } }] }); d.extra = { wx: true }; } });
+  tick(2, { wx: ['Rain'], note: 'Bays 5-6 once dry.', more: d => { d.plant[th.id] = { ans: 'ok', note: 'Replacement telehandler delivered', hours: '120' };
+    d.weather.lostAny = 'yes'; d.weather.lost = [{ id: uid(), reason: 'Rain', from: '08:00', to: '09:45', hours: '', note: 'Heavy rain - sheets too slippery' }];
+    d.sd = [{ id: uid(), who: 'Principal contractor', byName: 'Gary Holt, Midland Build (example)', reason: 'Crane lift over our work area', from: '11:00', to: '12:30', hours: '', note: 'Steel delivery lift', sign: { status: 'signed', name: 'Gary Holt (example)', position: 'Site manager, Midland Build Ltd (example)', sig: sig2, at: at(D[2], '12:35') } }]; d.extra = { wx: true, sd: true }; } });
+  // Thursday is left blank on purpose: flagged as missing
+  tick(4, { note: 'Ridge and flashings, snag walk with the site manager.', more: d => { d.incident = { any: 'yes', detail: 'Near miss: offcut of sheet blown off the roof edge into the exclusion zone (nobody hurt). Exclusion zone widened, offcuts bagged.' }; d.extra = { inc: true }; } });
+  if (opts.signed !== false) { s.signoff = { name: s.by, sig, at: at(D[4], '15:55') }; s.status = 'signed'; }
+  return s;
+}
+
+/* ---------- operative: home ---------- */
+function wkStripHTML(sheet, ws, o = {}) {
+  const today = todayISO(); const miss = sheet ? wkMissing(sheet, today) : wkDates(ws).filter((x, i) => i < 5 && x < today);
+  return `<div class="wkstrip">${wkDates(ws).map(date => { const d = sheet && sheet.days[date]; const iss = d && d.done && !d.off ? dcIssues(dayAsCheck(sheet, date)).length : 0;
+    const cls = d && d.off ? 'off' : d && d.done ? (iss ? 'bad' : 'ok') : miss.includes(date) ? 'miss' : date > today ? 'fut' : 'due';
+    const mark = d && d.off ? '–' : d && d.done ? (iss ? '!' : '✓') : miss.includes(date) ? '✗' : '·';
+    const inner = `<span>${wkDayName(date)}</span><b>${mark}</b><span class="n">${date.slice(8)}</span>`;
+    const c2 = `wkd ${cls}${date === today ? ' today' : ''}${o.sel === date ? ' sel' : ''}`;
+    return o.href && date <= today ? `<a class="${c2}" href="${o.href}/${date}" aria-label="${wkDayName(date)} ${fmtDate(date)}">${inner}</a>` : o.act && date <= today ? `<button type="button" class="${c2}" data-act="wk-open" data-job="${o.act}" data-date="${date}">${inner}</button>` : `<span class="${c2}">${inner}</span>`; }).join('')}</div>`;
+}
+const wkMissTxt = l => l.map(x => `${wkDayName(x)} ${fmtDate(x).slice(0, 5)}`).join(', ');
+function wkStatusTag(c) {
+  if (c.status === 'sent') return '<span class="tag green">Signed off & emailed</span>';
+  if (wkSigned(c)) return `<span class="tag amber">Signed off${c.finalPending || c.dirty ? ' - waiting for signal' : ''}</span>`;
+  if (c.dirty) return '<span class="tag amber">Waiting for signal to upload</span>';
+  return '<span class="tag navy">Open - uploaded</span>';
+}
+viewOpHome = function () {
+  const jobs = Ops.jobs || []; const today = todayISO(), ws = wkStartOf(today);
+  const cards = jobs.map(j => { const sh = wkSheetFor(j.id, ws); const d = sh && sh.days[today]; const miss = sh ? wkMissing(sh, today) : wkDates(ws).filter((x, i) => i < 5 && x < today);
+    return `<div class="card wkjob"><h2>${esc(j.ref)} · ${esc(j.site_name || '')}</h2><p class="hint">${esc([j.site_address, j.postcode].filter(Boolean).join(', '))}${j.contracts_manager_name ? ` · CM: ${esc(j.contracts_manager_name)}` : ''}</p>
+      <p class="small" style="margin:8px 0 4px"><b>This week</b> (w/c ${fmtDate(ws)})${sh && wkSigned(sh) ? ' <span class="tag green">Signed off</span>' : ''}</p>${wkStripHTML(sh, ws, sh ? { href: '#/week/' + sh.id } : { act: j.id })}
+      ${miss.length && !(sh && wkSigned(sh)) ? `<div class="lg-msg warn" style="margin:8px 0">Not ticked off: ${esc(wkMissTxt(miss))}. Tap the day to fill it in.</div>` : ''}
+      ${sh && wkSigned(sh) ? `<a class="btn block" href="#/week/${sh.id}">View this week's sheet</a>` : `<button class="btn ${d && d.done ? '' : 'primary'} block dc-big wk-big" data-act="wk-open" data-job="${j.id}">${d && d.done ? `✓ Today ticked off · view or change` : `${I.shield.replace('<svg', '<svg width="28" height="28"')}<span>Tick off today (${wkDayName(today)} ${fmtDate(today).slice(0, 5)})</span>`}</button>`}</div>`; }).join('');
+  const sheets = wkMine().sort((a, b) => b.week.localeCompare(a.week) || (a.jobRef || '').localeCompare(b.jobRef || '')).slice(0, 12);
+  const singles = Ops.list.filter(c => !isWk(c) && c.owner === me()).sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 10);
+  const srow = c => { const rows = wkRows(c); const n = rows.reduce((a, r) => a + r.issues, 0), dn = rows.filter(r => r.done).length, ms = wkMissing(c, todayISO()).length;
+    return `<a class="item" href="#/week/${c.id}"><div class="th dcth ${n ? 'bad' : 'good'}">${n || '✓'}</div><div class="bd"><div class="t1">${esc(c.jobRef || '')} · w/c ${fmtDate(c.week)}</div><div class="t2">${dn} day${dn === 1 ? '' : 's'} ticked off${ms ? ` · ${ms} missing` : ''}</div><div class="meta">${wkStatusTag(c)}${n ? `<span class="tag red">${n} issue${n > 1 ? 's' : ''}</span>` : ''}${ms ? `<span class="tag red">${ms} day${ms > 1 ? 's' : ''} missing</span>` : ''}</div></div>${I.chev}</a>`; };
+  const orow = c => `<a class="item" href="#/daily/${c.id}"><div class="th dcth ${dcIssues(c).length ? 'bad' : 'good'}">${dcIssues(c).length || '✓'}</div><div class="bd"><div class="t1">${esc(c.jobRef || '')} · ${fmtDate(c.date)}</div><div class="t2">Single daily check${c.status === 'draft' ? ' (draft)' : ''}</div><div class="meta">${dcStatusTag(c)}</div></div>${I.chev}</a>`;
+  return {
+    head: header({ title: 'Weekly site sheets', sub: (Cloud.profile && Cloud.profile.full_name) || '' }),
+    body: `${!online() ? '<div class="lg-msg warn" style="margin:0 0 12px">No signal - you can still tick off today. It uploads and alerts your contracts manager automatically when you are back online.</div>' : ''}
+    ${cards || `<div class="card"><h2>My jobs</h2><p class="hint">You have no jobs assigned yet. Ask your manager or contracts manager to add you to a job.${Ops.err ? ' (' + esc(Ops.err) + ')' : ''}</p></div>`}
+    <div class="card"><h2>My weekly sheets</h2>${sheets.map(srow).join('') || '<p class="hint">Your weekly sheets will appear here.</p>'}</div>
+    ${singles.length ? `<div class="card"><h2>Earlier single daily checks</h2>${singles.map(orow).join('')}</div>` : ''}
+    <p class="small" style="text-align:center">Site Audit v${APP_VERSION}${BUILD.beta ? ' BETA' : ''} · <button class="linkbtn" data-act="syncinfo">Account & sign out</button></p>`
+  };
+};
+
+/* ---------- operative: the day column ---------- */
+function wkSecHTML(d, s) {
+  const st = s.status || ''; const btn = (v, l) => `<button type="button" class="${st === v ? 'on' : ''}" data-v="${v}" data-act="wk-sec" data-s="${s.id}" aria-pressed="${st === v}">${l}</button>`;
+  return `<div class="card wksec ${st}" id="sec_${s.id}"><h2>${esc(s.title)} <span class="small" style="margin-left:auto">${s.items.length} checks</span></h2>
+    <div class="seg dcs wk3">${btn('ok', '✓ All OK')}${btn('issue', 'Issue')}${btn('na', 'N/A')}</div>
+    ${st === 'issue' ? `<p class="hint" style="margin:8px 0">Mark the item(s) with the issue and say what is wrong.</p><button class="btn block dc-allok" data-act="dc-allok" data-s="${s.id}">✓ Rest OK (fill unanswered)</button>${s.items.map(i => dcItemHTML(d, s, i)).join('')}` : st === 'ok' ? `<p class="small" style="margin:8px 0 0">${s.items.map(i => esc(i.text)).join(' · ')}</p>` : ''}</div>`;
+}
+function wkPlantItemHTML(p, i) {
+  const b = `plant.${p.id}.items#${i.id}`, ans = i.answer || '';
+  return `<div class="dck ${ans}" id="dck_${i.id}"><div class="dq">${esc(i.text)}</div><div class="seg dcs pl" data-b="${b}.answer">${[['ok', 'OK'], ['defect', 'Defect'], ['na', 'N/A']].map(([v, l]) => `<button type="button" data-v="${v}" class="${ans === v ? 'on' : ''}" aria-pressed="${ans === v}">${l}</button>`).join('')}</div>
+    ${ans === 'defect' ? `<div class="dci"><textarea data-b="${b}.comment" rows="2" placeholder="What is the defect? (required)">${esc(i.comment)}</textarea>${dcPhotos(b + '.photos', i.photos, 'Photo (optional)')}</div>` : ''}</div>`;
+}
+function wkPlantRowHTML(d, p) {
+  const t = (d.plant || {})[p.id] || {}, b = `plant.${p.id}`, ans = t.ans || ''; const f = mk(d); const ty = plantTypes().find(x => x.key === p.type) || {};
+  const nf = Array.isArray(t.items) ? t.items.length : (ty.items || []).length;
+  return `<div class="wkpl ${ans}" id="wkpl_${p.id}"><div class="wkplh"><span class="t1">${esc(plantLabel(p))}</span><span class="small">${esc([p.custom ? p.typeName : '', p.hire].filter(Boolean).join(' · '))}</span></div>
+    <div class="seg dcs pl wk3" data-b="${b}.ans">${[['ok', 'OK'], ['defect', 'Defect'], ['out', 'Out of use']].map(([v, l]) => `<button type="button" data-v="${v}" class="${ans === v ? 'on' : ''}" aria-pressed="${ans === v}">${l}</button>`).join('')}</div>
+    ${ans === 'defect' || ans === 'out' ? `<div class="dci"><textarea data-b="${b}.note" rows="2" placeholder="${ans === 'out' ? 'Why is it out of use / who was told? (required)' : 'What is the defect? (required)'}">${esc(t.note || '')}</textarea>${dcPhotos(b + '.photos', t.photos, 'Photo (optional)')}</div>` : ''}
+    ${p.meter ? f.text('Hours / meter reading (optional)', b + '.hours', { type: 'number' }) : ''}
+    <button type="button" class="linkbtn" data-act="wk-full" data-p="${p.id}">${t.showFull ? 'Hide full checklist' : `Full pre-use checklist (${nf} checks)`}</button>
+    ${t.showFull && Array.isArray(t.items) ? `<div class="wkfull"><button class="btn block dc-allok" data-act="wk-fullok" data-p="${p.id}">✓ All OK (fill unanswered)</button>${t.items.map(i => wkPlantItemHTML(p, i)).join('')}</div>` : ''}</div>`;
+}
+function wkSdRowHTML(d, e) {
+  const f = mk(d), b = `sd#${e.id}`;
+  return `<div class="dcl" id="dcl_${e.id}"><div class="r2">${f.select('Stood down by', b + '.who', WK_SD_WHO)}<div class="f"><span class="lbl">Hours</span><div class="lh" id="lh_${e.id}">${fmtH(lostHours(e))} h</div></div></div>
+    ${f.text('Their name / company (optional)', b + '.byName', { ph: 'e.g. Gary Holt, Midland Build' })}${f.text('Reason', b + '.reason', { ph: 'e.g. Crane lift over our work area' })}
+    <div class="r2">${f.text('From', b + '.from', { type: 'time' })}${f.text('To', b + '.to', { type: 'time' })}</div>${f.text('Or hours (if no times)', b + '.hours', { type: 'number', ph: 'e.g. 1.5' })}${f.text('Note', b + '.note')}
+    ${sdBlockHTML(e)}<button class="btn danger" data-act="wk-delsd" data-e="${e.id}">${I.trash} Remove</button></div>`;
+}
+function wkDayHTML(sheet, d) {
+  const f = mk(d); const ex = d.extra || {}; const date = d.date;
+  const has = { wx: ex.wx || (d.weather.conditions || []).length || d.weather.lostAny === 'yes', sd: ex.sd || (d.sd || []).length, inc: ex.inc || d.incident.any === 'yes', prog: ex.prog || d.progress.note || (d.progress.photos || []).length };
+  const xb = (k, l) => `<button type="button" class="btn ${has[k] ? 'on' : ''}" data-act="wk-extra" data-k="${k}">${has[k] ? '✓ ' : '+ '}${l}</button>`;
+  if (d.off) return `<div class="card"><h2>${wkDayName(date)} ${fmtDate(date)}</h2><div class="lg-msg" style="margin:0 0 10px">Marked <b>not on site / no work</b> at ${esc(wkClock(d.savedAt))}.</div><button class="btn block" data-act="wk-unoff">Undo - I was on site</button></div>`;
+  return `<div class="card wkdayhd"><h2>${wkDayName(date)} ${fmtDate(date)}${date === todayISO() ? ' <span class="tag amber">Today</span>' : ''}</h2>
+    ${d.done ? `<div class="lg-msg ok" style="margin:0 0 8px">Ticked off at ${esc(wkClock(d.savedAt))}${d.late ? ' (filled in late)' : ''}${sheet.dirty ? ' - waiting for signal to upload' : ' - uploaded'}.${d.edited ? ' <b>You have changed it since - tap Save changes.</b>' : ''}</div>` : date < todayISO() ? '<div class="lg-msg warn" style="margin:0 0 8px">This day was not ticked off on the day. Filling it in now marks it as <b>filled in late</b>.</div>' : ''}
+    <p class="hint">Tap <b>All OK</b> for each section. Only tap <b>Issue</b> if something is wrong. Then tick each machine.</p></div>
+  ${d.sections.map(s => wkSecHTML(d, s)).join('')}
+  <div class="card" id="plantcard"><h2>${I.wrench.replace('<svg', '<svg width="22" height="22"')} Plant pre-use - today</h2>
+    ${(sheet.plant || []).length ? (sheet.plant || []).map(p => wkPlantRowHTML(d, p)).join('') : '<p class="hint">No plant on this week\'s list. Add each machine or tool you use - it stays on the list for the week (and next week).</p>'}
+    <div class="btns" style="margin-top:8px"><button class="btn" data-act="wk-addplant">${I.plus} Add plant / equipment</button>${(sheet.plant || []).length ? '<button class="btn" data-act="wk-plantok">✓ All plant OK</button><button class="btn" data-act="wk-plantlist">Edit list</button>' : ''}</div></div>
+  <div class="card"><h2>Anything else today?</h2><p class="hint" style="margin-bottom:8px">Only if there was any.</p><div class="btns wkx">${xb('wx', 'Weather / time lost')}${xb('sd', 'Stood down')}${xb('inc', 'Incident / near miss')}${xb('prog', 'Progress note / photos')}</div></div>
+  ${has.wx ? weatherCardHTML(d) : ''}
+  ${has.sd ? `<div class="card" id="sdcard"><h2>Stood down</h2><p class="hint" style="margin-bottom:8px">Who stood you down, why and for how long. Ask them to sign on your phone.</p>${(d.sd || []).map(e => wkSdRowHTML(d, e)).join('')}<button class="btn block" data-act="wk-addsd">${I.plus} Add stand-down</button><div class="losttot">Stood down today: <b id="sdtot">${fmtH(wkSdHours(d))} h</b></div></div>` : ''}
+  ${has.inc ? `<div class="card"><h2>Incidents / near misses</h2>${f.seg('Any incident or near miss today?', 'incident.any', [['yes', 'Yes', 'bad'], ['no', 'No', 'ok']], { cls: 'yn' })}<div data-when="incident.any=yes" ${d.incident.any === 'yes' ? '' : 'hidden'}>${f.area('What happened? (required)', 'incident.detail', { rows: 3 })}</div></div>` : ''}
+  ${has.prog ? `<div class="card"><h2>Progress note</h2>${f.area('What was done today (optional)', 'progress.note', { rows: 3 })}${dcPhotos('progress.photos', d.progress.photos, 'Add progress photo')}</div>` : ''}
+  <button class="btn primary block dc-big" data-act="wk-saveday">${d.done ? 'Save changes' : `✓ Save ${date === todayISO() ? 'today' : wkDayName(date)}`}</button>
+  ${d.done ? '' : '<button class="btn block" data-act="wk-off" style="margin:-4px 0 14px">Not on site / no work this day</button>'}`;
+}
+function wkWeekTableHTML(sheet, rows, miss) {
+  return `<table class="wktbl"><thead><tr><th>Day</th><th>Status</th><th>Issues</th><th>Lost</th></tr></thead><tbody>${rows.map(r => `<tr class="${miss.includes(r.date) ? 'miss' : ''}"><td>${r.day} ${fmtDate(r.date).slice(0, 5)}</td><td>${r.off ? 'Not on site' : r.done ? `✓ ${esc(wkClock(r.savedAt))}${r.late ? ' (late)' : ''}` : miss.includes(r.date) ? '<b class="bad">MISSING</b>' : '-'}</td><td>${r.issues ? `<b class="bad">${r.issues}</b>` : r.done ? '0' : ''}</td><td>${r.wx + r.sd ? `${fmtH(r.wx + r.sd)} h` : ''}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="2">Week</td><td>${rows.reduce((a, r) => a + r.issues, 0)}</td><td>${fmtH(rows.reduce((a, r) => a + r.wx + r.sd, 0))} h</td></tr></tfoot></table>`;
+}
+function wkSheetCardsHTML(sheet, d) {
+  const f = mk(d); const rows = wkRows(sheet); const miss = wkMissing(sheet, todayISO());
+  return `<div class="card"><h2>Workforce & toolbox talk <span class="small" style="margin-left:auto">for the week</span></h2>
+    ${f.text('Number on site (incl. you)', '_sheet.workforce.count', { type: 'number' })}${f.area('Names (optional)', '_sheet.workforce.names', { rows: 2 })}
+    ${f.seg('Toolbox talk given this week?', '_sheet.workforce.toolbox', [['yes', 'Yes', 'ok'], ['no', 'No', '']], { cls: 'yn' })}${f.text('Toolbox talk topic', '_sheet.workforce.topic', { ph: 'e.g. Fragile roofs, manual handling' })}</div>
+  <div class="card"><h2>This week</h2>${wkWeekTableHTML(sheet, rows, miss)}</div>
+  <div class="card" id="wksign"><h2>End of week sign-off</h2><p class="hint" style="margin-bottom:8px">On your last day: sign once to send the whole week to ${esc(sheet.cm || 'your contracts manager')} as one PDF.</p>
+    ${f.text('Your name', '_sheet.signoff.name')}${sheet.signoff.sig ? `<img class="dcsig" src="${sheet.signoff.sig}" alt="Signature">` : ''}
+    <div class="btns"><button class="btn" data-act="wk-sign">${I.pen} ${sheet.signoff.sig ? 'Sign again' : 'Sign'}</button><button class="btn primary" data-act="wk-signoff">Sign off week & send</button></div></div>`;
+}
+function wkDayProblems(sheet, d) {
+  const p = []; if (d.off) return p;
+  d.sections.forEach(s => {
+    if (!s.status) p.push(`${s.title}: tap All OK, Issue or N/A`);
+    else if (s.status === 'issue') { const un = s.items.filter(i => !i.answer).length; if (un) p.push(`${s.title}: ${un} item${un > 1 ? 's' : ''} not answered (tap Rest OK)`); if (!s.items.some(i => i.answer === 'issue')) p.push(`${s.title}: mark which item is the issue`); const nc = s.items.filter(i => i.answer === 'issue' && !String(i.comment || '').trim()).length; if (nc) p.push(`${s.title}: ${nc} issue${nc > 1 ? 's' : ''} without a comment`); }
+  });
+  (sheet.plant || []).forEach(x => { const t = (d.plant || {})[x.id] || {}; const l = plantLabel(x);
+    if (!t.ans) p.push(`${l}: tap OK, Defect or Out of use`);
+    if ((t.ans === 'defect' || t.ans === 'out') && !String(t.note || '').trim()) p.push(`${l}: say what is wrong`);
+    if (Array.isArray(t.items)) { const nc = t.items.filter(i => i.answer === 'defect' && !String(i.comment || '').trim()).length; if (nc) p.push(`${l}: ${nc} defect${nc > 1 ? 's' : ''} without a comment`); } });
+  if (d.weather.lostAny === 'yes') (d.weather.lost || []).forEach((e, n) => { if (!e.reason) p.push(`Time lost ${n + 1}: reason`); if (!(lostHours(e) > 0)) p.push(`Time lost ${n + 1}: from / to times or hours`); });
+  (d.sd || []).forEach((e, n) => { if (!e.who) p.push(`Stand-down ${n + 1}: who stood you down`); if (!(lostHours(e) > 0)) p.push(`Stand-down ${n + 1}: from / to times or hours`); });
+  if (d.incident.any === 'yes' && !String(d.incident.detail || '').trim()) p.push('Incident: say what happened');
+  return p;
+}
+function wkMarkSaved(sheet, d) {
+  const now = Date.now(); d.done = true; d.firstSavedAt = d.firstSavedAt || now; d.savedAt = now; d.late = d.late || d.date < todayISO(); d.edited = false; d.plantSnap = clone(sheet.plant || []);
+  if (d.weather.lostAny === '' && !(d.weather.lost || []).length) d.weather.lostAny = 'no'; if (!d.incident.any) d.incident.any = 'no';
+  const iss = dcIssues(dayAsCheck(sheet, d.date)); const sig = wkIssueSig(iss);
+  if (iss.length && sig !== d.alertSig) { d.alertSig = sig; sheet.alertQ = sheet.alertQ || []; if (!sheet.alertQ.includes(d.date)) sheet.alertQ.push(d.date); }
+  sheet.updated = now; sheet.dirty = true; return iss;
+}
+
+/* ---------- read views (operative after sign-off, staff) ---------- */
+function wkGridHTML(sheet, link) {
+  const rows = wkRows(sheet); const miss = wkMissing(sheet, todayISO()); const D = rows.map(r => ({ r, d: sheet.days[r.date] || {}, c: r.c }));
+  const cell = (txt, cls) => `<td class="${cls || ''}">${txt}</td>`;
+  const secCell = (x, title) => { if (!x.r.done) return cell(miss.includes(x.r.date) ? '✗' : '', miss.includes(x.r.date) ? 'miss' : ''); if (x.r.off) return cell('off', 'off'); const s = (x.d.sections || []).find(y => y.title === title); if (!s) return cell('-'); const bad = s.items.some(i => i.answer === 'issue'); return cell(bad ? '!' : s.status === 'na' ? 'N/A' : '✓', bad ? 'bad' : s.status === 'na' ? 'na' : 'ok'); };
+  const plants = []; D.forEach(x => (x.c.plant || []).forEach(p => { if (!plants.some(q => q.id === p.id)) plants.push(p); })); (sheet.plant || []).forEach(p => { if (!plants.some(q => q.id === p.id)) plants.push(p); });
+  const plBad = q => q.dayAns === 'out' || q.dayAns === 'defect' || q.items.some(i => i.answer === 'defect');
+  const plCell = (x, p) => { if (!x.r.done || x.r.off) return cell(x.r.off ? 'off' : '', x.r.off ? 'off' : ''); const q = (x.c.plant || []).find(y => y.id === p.id); if (!q) return cell(''); return cell(q.dayAns === 'out' ? 'OUT' : plBad(q) ? 'DEF' : q.dayAns === 'ok' ? '✓' : '-', plBad(q) ? 'bad' : q.dayAns === 'ok' ? 'ok' : ''); };
+  const hd = D.map(x => `<th>${link && x.r.done ? `<a href="${link}/${x.r.date}">${x.r.day}<br>${x.r.date.slice(8)}</a>` : `${x.r.day}<br>${x.r.date.slice(8)}`}</th>`).join('');
+  const line = (lbl, fn) => `<tr><th class="l">${esc(lbl)}</th>${D.map(fn).join('')}</tr>`;
+  return `<div class="wkgridw"><table class="wkgrid"><thead><tr><th></th>${hd}</tr></thead><tbody>
+    ${(sheet.tpl || []).map(s => line(s.title, x => secCell(x, s.title))).join('')}
+    ${plants.map(p => line(plantLabel(p), x => plCell(x, p))).join('')}
+    ${line('Weather lost (h)', x => cell(x.r.wx ? fmtH(x.r.wx) : '', x.r.wx ? 'bad' : ''))}${line('Stood down (h)', x => cell(x.r.sd ? fmtH(x.r.sd) : '', x.r.sd ? 'bad' : ''))}
+    ${line('Incident', x => cell(x.r.done && (x.c.incident || {}).any === 'yes' ? 'YES' : '', 'bad'))}${line('Ticked at', x => cell(x.r.done && !x.r.off ? esc(wkClock(x.r.savedAt)) + (x.r.late ? '*' : '') : ''))}
+  </tbody></table></div>${rows.some(r => r.late) ? '<p class="small">* filled in late (after the day)</p>' : ''}`;
+}
+function wkSdReadHTML(c) {
+  const l = c.sd || []; if (!l.length) return '';
+  return `<div class="card"><h2>Stood down</h2>${l.map(e => { const g = e.sign || {}, st = sdStatus(e); return `<div class="dcr"><span>${esc(e.who || '')}${e.byName ? ' - ' + esc(e.byName) : ''}${e.reason || e.note ? `<br><span class="small">${esc(e.reason || '')}${e.from && e.to ? ` ${esc(e.from)}-${esc(e.to)}` : ''}${e.note ? ' - ' + esc(e.note) : ''}</span>` : ''}<br><span class="tag ${sdTagCls(st)}">${st}</span> ${st !== 'Unsigned' ? esc(sdText(e).replace(/^Signed: |^Refused \/ not available:? ?/, '')) : ''}${st === 'Signed' && g.sig && /^data:/.test(g.sig) ? `<img class="dcsig sm" src="${g.sig}" alt="Signature">` : ''}</span><b>${fmtH(lostHours(e))} h</b></div>`; }).join('')}</div>`;
+}
+function viewWeekRead(sheet, o = {}) {
+  const rows = wkRows(sheet); const miss = wkMissing(sheet, todayISO()); const tot = rows.reduce((a, r) => a + r.issues, 0);
+  const wx = rows.reduce((a, r) => a + r.wx, 0), sd = rows.reduce((a, r) => a + r.sd, 0); const log = (o.row && o.row.day_log) || {};
+  const sel = o.date && (sheet.days[o.date] || {}).done && !(sheet.days[o.date] || {}).off ? o.date : '';
+  const dayHtml = sel ? viewDailyRead(dayAsCheck(sheet, sel), `<span class="tag ${(sheet.days[sel] || {}).late ? 'amber' : 'green'}">Ticked off ${esc(wkClock(sheet.days[sel].savedAt))}${(sheet.days[sel] || {}).late ? ' (filled in late)' : ''}</span>`).replace(/<div class="card"><h2>Sign-off<\/h2>[\s\S]*$/, '') + wkSdReadHTML(dayAsCheck(sheet, sel)) : '';
+  return `<div class="card"><h2>${esc(sheet.jobRef || '')} · ${esc(sheet.site || '')}</h2><p class="hint">Week commencing ${fmtDate(sheet.week)} · ${esc(sheet.by || '')}</p>
+    <div class="meta">${o.tag || wkStatusTag(sheet)}${tot ? `<span class="tag red">${tot} issue${tot > 1 ? 's' : ''}</span>` : '<span class="tag green">No issues</span>'}${wx ? `<span class="tag amber">${fmtH(wx)} h weather</span>` : ''}${sd ? `<span class="tag amber">${fmtH(sd)} h stood down</span>` : ''}${miss.length ? `<span class="tag red">${miss.length} day${miss.length > 1 ? 's' : ''} missing</span>` : ''}</div>
+    ${miss.length ? `<div class="lg-msg warn" style="margin:10px 0 0">Missing: ${esc(wkMissTxt(miss))}</div>` : ''}</div>
+  ${sel ? `<h3 style="margin:16px 0 8px">${wkDayName(sel)} ${fmtDate(sel)}</h3>${dayHtml}<a class="btn block" href="${o.link}" style="margin-bottom:12px">Back to the whole week</a>` : `
+  <div class="card"><h2>Day by day</h2>${wkGridHTML(sheet, o.link)}<p class="small" style="margin-top:6px">Tap a day for its details.</p></div>
+  ${tot ? `<div class="card dciss"><h2>${I.warn.replace('<svg', '<svg width="22" height="22"')} ${tot} issue${tot > 1 ? 's' : ''} this week</h2>${rows.map(r => r.iss.map(i => `<div class="item"><div class="bd"><div class="t1">${r.day}: ${esc(i.text)}</div><div class="t2">${esc(i.section)}${i.comment ? ' - ' + esc(i.comment) : ''}</div></div></div>`).join('')).join('')}</div>` : ''}
+  <div class="card"><h2>Hours lost</h2>${wkWeekTableHTML(sheet, rows, miss)}${Object.keys(log).length ? `<p class="small" style="margin-top:6px">Received by the server: ${rows.filter(r => log[r.date]).map(r => `${r.day} ${esc(wkStamp(Date.parse(log[r.date].first)))}`).join(' · ')}</p>` : ''}</div>
+  <div class="card"><h2>Workforce & sign-off</h2><div class="dcr"><span>Number on site</span><b>${esc((sheet.workforce || {}).count || '-')}</b></div>${(sheet.workforce || {}).names ? `<div class="dcr"><span>Names</span><b>${esc(sheet.workforce.names)}</b></div>` : ''}<div class="dcr"><span>Toolbox talk</span><b>${(sheet.workforce || {}).toolbox === 'yes' ? 'Yes' + (sheet.workforce.topic ? ' - ' + esc(sheet.workforce.topic) : '') : esc((sheet.workforce || {}).toolbox || '-')}</b></div>
+    <div class="dcr"><span>Signed off</span><b>${wkSigned(sheet) ? esc(`${sheet.signoff.name || ''} - ${wkStamp(sheet.signoff.at)}`) : 'Not yet'}</b></div>${sheet.signoff && sheet.signoff.sig && /^data:/.test(sheet.signoff.sig) ? `<img class="dcsig" src="${sheet.signoff.sig}" alt="Signature">` : ''}</div>`}`;
+}
+function viewWeekOp(sheet, date) {
+  const today = todayISO(); const D = wkDates(sheet.week);
+  if (wkSigned(sheet)) return `<div class="btns" style="margin-bottom:12px"><a class="btn primary" href="#/">Done</a><button class="btn" data-act="wk-pdf" data-id="${sheet.id}">${I.pdf} PDF</button></div>${viewWeekRead(sheet, { link: '#/week/' + sheet.id, date })}`;
+  if (!date || !D.includes(date)) date = D.includes(today) ? today : D.filter(x => x <= today).pop() || D[0];
+  const d = date <= today ? wkDay(sheet, date, true) : null; const miss = wkMissing(sheet, today);
+  S.ctx = d ? { obj: d, daily: d, week: sheet, date, save: () => wkSaveField(sheet, d) } : null;
+  return `<div class="card"><h2>${esc(sheet.jobRef)} · ${esc(sheet.site)}</h2><p class="hint">${esc(sheet.address || '')}${sheet.cm ? ` · Contracts manager: ${esc(sheet.cm)}` : ''}</p>
+    ${sheet.carried ? `<p class="small" style="margin:6px 0 0">Plant list, workforce and toolbox talk carried over from w/c ${fmtDate(sheet.carried)}.</p>` : ''}
+    <div style="margin-top:10px">${wkStripHTML(sheet, sheet.week, { href: '#/week/' + sheet.id, sel: date })}</div>
+    ${miss.length ? `<div class="lg-msg warn" style="margin:10px 0 0">Not ticked off: ${esc(wkMissTxt(miss))}. Tap a day to fill it in.</div>` : ''}</div>
+  ${d ? wkDayHTML(sheet, d) + wkSheetCardsHTML(sheet, d) : `<div class="card"><p class="hint">${wkDayName(date)} ${fmtDate(date)} hasn't happened yet.</p></div>`}`;
+}
+function wkSaveField(sheet, d) { sheet.updated = Date.now(); if (d && d.done && !d.edited) { d.edited = true; d._editNew = true; } dcSave(); }
+{ const _osf = opSaveField; opSaveField = function () { const x = S.ctx; if (x && x.week) return x.save(); return _osf(); }; }
+
+/* ---------- weekly PDF ---------- */
+function buildWeeklyPDF(sheet, o = {}) {
+  const k = dcPdfKit('Weekly Site Sheet'); const { doc, tx } = k; const rows = wkRows(sheet); const miss = wkMissing(sheet, o.today || todayISO());
+  const tot = rows.reduce((a, r) => a + r.issues, 0), wx = rows.reduce((a, r) => a + r.wx, 0), sd = rows.reduce((a, r) => a + r.sd, 0);
+  const sm = { font: 'helvetica', fontSize: 8.5, cellPadding: 1.5, textColor: k.TXT, lineColor: k.LINE, lineWidth: 0.2 };
+  k.letterhead(`${sheet.jobRef ? sheet.jobRef + ' - ' : ''}${sheet.site || ''}`);
+  const wf = sheet.workforce || {};
+  k.kv([['Week', `Mon ${fmtDate(sheet.week)} to Sun ${fmtDate(wkAddDays(sheet.week, 6))}`], ['Job', [sheet.jobRef, sheet.site].filter(Boolean).join(' - ')], ['Site address', sheet.address], ['Operative', sheet.by], ['Contracts manager', sheet.cm],
+    ['Workforce', `${wf.count || '-'} on site${wf.names ? ' (' + wf.names + ')' : ''}`], ['Toolbox talk', wf.toolbox === 'yes' ? `Yes${wf.topic ? ' - ' + wf.topic : ''}` : wf.toolbox === 'no' ? 'No' : '-'],
+    ['Days ticked off', `${rows.filter(r => r.done && !r.off).length} on site · ${rows.filter(r => r.off).length} not on site · ${miss.length} missing`], ['Hours lost', `${fmtH(wx)} h weather · ${fmtH(sd)} h stood down · ${fmtH(wx + sd)} h total`], ['Signed off', wkSigned(sheet) ? `${sheet.signoff.name || ''} - ${wkStamp(sheet.signoff.at)}` : 'NOT SIGNED OFF YET']]);
+  if (miss.length) { k.need(12); doc.setFillColor(255, 237, 213); doc.rect(k.M, k.y - 5, k.CW, 9, 'F'); k.font(10, 'bold', [154, 52, 18]); doc.text(tx(`MISSING DAYS (nothing ticked off): ${miss.map(x => `${wkDayName(x)} ${fmtDate(x)}`).join(', ')}`), k.M + 3, k.y + 0.8); k.y += 10; }
+  if (tot) {
+    k.need(14); k.font(11, 'bold', k.RED); doc.text(`${tot} ISSUE${tot > 1 ? 'S' : ''} THIS WEEK`, k.M + 1, k.y); k.y += 3;
+    const body = []; rows.forEach(r => r.iss.forEach(i => body.push({ r, i })));
+    k.table({ head: [['Day', 'Section', 'Item', 'Comment']], body: body.map(({ r, i }) => [`${r.day} ${fmtDate(r.date).slice(0, 5)}`, tx(i.section), tx(i.text), tx(i.comment)]), headStyles: { fillColor: k.RED, textColor: [255, 255, 255], fontStyle: 'bold' }, styles: sm, columnStyles: { 0: { cellWidth: 18 }, 1: { cellWidth: 38 }, 2: { cellWidth: 60, fontStyle: 'bold' } },
+      didParseCell: d => { if (d.section === 'body' && body[d.row.index] && body[d.row.index].i.kind === 'quarantine') { d.cell.styles.fillColor = [254, 202, 202]; d.cell.styles.textColor = k.RED; d.cell.styles.fontStyle = 'bold'; } } });
+  } else { k.need(12); doc.setFillColor(220, 252, 231); doc.rect(k.M, k.y - 5, k.CW, 9, 'F'); k.font(11, 'bold', k.GREEN); doc.text('No issues this week', k.M + 3, k.y + 0.8); k.y += 10; }
+  // day-by-day grid
+  k.h2('Day by day');
+  const D = rows.map(r => ({ r, d: sheet.days[r.date] || {}, c: r.c })); const G = [];
+  (sheet.tpl || []).forEach(s => G.push([s.title, ...D.map(x => { if (!x.r.done) return miss.includes(x.r.date) ? 'MISSING' : ''; if (x.r.off) return 'OFF'; const q = (x.d.sections || []).find(y => y.title === s.title); if (!q) return '-'; return q.items.some(i => i.answer === 'issue') ? 'ISSUE' : q.status === 'na' ? 'N/A' : 'OK'; })]));
+  const plants = []; D.forEach(x => (x.c.plant || []).forEach(p => { if (!plants.some(q => q.id === p.id)) plants.push(p); }));
+  plants.forEach(p => G.push([plantLabel(p), ...D.map(x => { if (!x.r.done || x.r.off) return x.r.off ? 'OFF' : ''; const q = (x.c.plant || []).find(y => y.id === p.id); if (!q) return ''; return q.dayAns === 'out' ? 'OUT' : (q.dayAns === 'defect' || q.items.some(i => i.answer === 'defect')) ? 'DEFECT' : q.dayAns === 'ok' ? 'OK' : '-'; })]));
+  G.push(['Weather lost (h)', ...D.map(x => x.r.wx ? fmtH(x.r.wx) : '')]); G.push(['Stood down (h)', ...D.map(x => x.r.sd ? fmtH(x.r.sd) : '')]);
+  G.push(['Incident / near miss', ...D.map(x => x.r.done && !x.r.off ? ((x.c.incident || {}).any === 'yes' ? 'YES' : 'No') : '')]);
+  G.push(['Ticked off at', ...D.map(x => x.r.done ? wkClock(x.r.savedAt) + (x.r.late ? '*' : '') : '')]);
+  k.table({ head: [['', ...D.map(x => `${x.r.day} ${fmtDate(x.r.date).slice(0, 5)}`)]], body: G.map(r => r.map(tx)), styles: { font: 'helvetica', fontSize: 7.6, cellPadding: 1.3, textColor: k.TXT, lineColor: k.LINE, lineWidth: 0.2, halign: 'center' }, headStyles: { fillColor: k.NAVY, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: 7.6 }, columnStyles: { 0: { cellWidth: 52, halign: 'left', fontStyle: 'bold' } },
+    didParseCell: d => { if (d.section !== 'body' || d.column.index === 0) return; const v = String(d.cell.raw || ''); if (/^(ISSUE|DEFECT|OUT|MISSING|YES)$/.test(v) || (/\(h\)$/.test(G[d.row.index][0]) && v)) { d.cell.styles.textColor = k.RED; d.cell.styles.fontStyle = 'bold'; d.cell.styles.fillColor = [254, 226, 226]; } else if (v === 'OK') d.cell.styles.textColor = k.GREEN; else if (v === 'OFF' || v === 'N/A') d.cell.styles.textColor = k.GREY; } });
+  k.para(`${rows.some(r => r.late) ? '* filled in late (after the day). ' : ''}Each day is timestamped on the phone when it is ticked off${o.dayLog && Object.keys(o.dayLog).length ? ' and again by the server when it arrives' : ''}.`, 7.5, 'normal', k.GREY);
+  if (o.dayLog && Object.keys(o.dayLog).length) k.kv(rows.filter(r => o.dayLog[r.date]).map(r => [`${r.day} ${fmtDate(r.date)}`, `Phone: ${wkStamp(r.savedAt)}   ·   Server received: ${wkStamp(Date.parse(o.dayLog[r.date].first))}`]));
+  // hours lost per day
+  k.h2('Hours lost per day');
+  k.table({ head: [['Day', 'Weather (h)', 'Weather reasons', 'Stood down (h)', 'Stood down by', 'Total (h)']], body: [...rows.map(r => { const L = dcLost(r.c); return [`${r.day} ${fmtDate(r.date)}`, r.wx ? fmtH(r.wx) : '-', tx(L.reasons.join(', ')), r.sd ? fmtH(r.sd) : '-', tx((r.c.sd || []).map(e => e.who).filter(Boolean).join(', ')), r.wx + r.sd ? fmtH(r.wx + r.sd) : '-']; }), [{ content: 'Week total', styles: { fontStyle: 'bold' } }, { content: fmtH(wx), styles: { fontStyle: 'bold' } }, '', { content: fmtH(sd), styles: { fontStyle: 'bold' } }, '', { content: fmtH(wx + sd) + ' h', styles: { fontStyle: 'bold', textColor: k.RED } }]],
+    styles: sm, columnStyles: { 0: { cellWidth: 26 }, 1: { halign: 'center', cellWidth: 20 }, 3: { halign: 'center', cellWidth: 24 }, 5: { halign: 'center', cellWidth: 18 } } });
+  // stand-downs and time lost, with sign-offs
+  const sdl = []; rows.forEach(r => { const L = dcLost(r.c); (L.legacy ? [] : L.list).forEach(e => sdl.push({ r, e, kind: 'Weather' })); (r.c.sd || []).forEach(e => sdl.push({ r, e, kind: 'Stood down' })); });
+  if (sdl.length) {
+    k.h2('Stand-downs & time lost - sign-offs');
+    k.table({ head: [['Day', 'Type', 'By / reason', 'From-To', 'Hours', 'Sign-off', 'Name / position']], body: sdl.map(({ r, e, kind }) => { const g = e.sign || {}; return [`${r.day} ${fmtDate(r.date).slice(0, 5)}`, kind, tx(kind === 'Weather' ? e.reason : [e.who, e.byName, e.reason].filter(Boolean).join(' - ')), tx(e.from && e.to ? `${e.from}-${e.to}` : ''), fmtH(lostHours(e)), sdStatus(e).toUpperCase(), tx([g.name, g.position].filter(Boolean).join(', '))]; }),
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.4, textColor: k.TXT, lineColor: k.LINE, lineWidth: 0.2 }, columnStyles: { 0: { cellWidth: 17 }, 1: { cellWidth: 18 }, 3: { cellWidth: 19 }, 4: { cellWidth: 12, halign: 'center' }, 5: { cellWidth: 20, fontStyle: 'bold' } },
+      didParseCell: d => { if (d.section === 'body' && d.column.index === 5) { const st = sdStatus(sdl[d.row.index].e); d.cell.styles.textColor = st === 'Signed' ? k.GREEN : st === 'Refused' ? k.RED : [180, 83, 9]; } } });
+    sdl.forEach(({ r, e, kind }) => k.sdSigns([e], `${r.day} ${fmtDate(r.date).slice(0, 5)}${kind === 'Weather' ? '' : ' (' + (e.who || 'stood down') + ')'}`));
+  }
+  // day details
+  rows.filter(r => r.done && !r.off).forEach(r => {
+    const c = r.c; k.h2(`${r.day} ${fmtDate(r.date)} - ticked off ${wkClock(r.savedAt)}${r.late ? ' (filled in late)' : ''}`);
+    const w = c.weather || {}; const L = dcLost(c);
+    k.kv([['Checks', (c.sections || []).map(s => `${s.title}: ${s.items.some(i => i.answer === 'issue') ? 'ISSUE' : s.status === 'na' ? 'N/A' : 'All OK'}`).join('  ·  ')], ['Plant', (c.plant || []).map(p => `${plantLabel(p)}: ${p.dayAns === 'out' ? 'OUT OF USE' : p.dayAns === 'defect' ? 'DEFECT' : p.dayAns === 'ok' ? 'OK' : '-'}${p.hours ? ' (' + p.hours + ' h)' : ''}`).join('  ·  ')], ['Weather', [(w.conditions || []).join(', '), ...readings(w)].filter(Boolean).join(' - ')], ['Time lost', L.hours ? `${fmtH(L.hours)} h (${L.reasons.join(', ')})` : ''], ['Stood down', r.sd ? `${fmtH(r.sd)} h` : ''], ['Incident', (c.incident || {}).any === 'yes' ? 'YES - ' + (c.incident.detail || '') : ''], ['Progress', (c.progress || {}).note]]);
+    (c.sections || []).forEach(s => { const bad = s.items.filter(i => i.answer === 'issue'); if (bad.length) { k.table({ head: [[tx(s.title + ' - issues'), 'Comment']], body: bad.map(i => [tx(i.text), tx(i.comment)]), headStyles: { fillColor: k.RED, textColor: [255, 255, 255] }, columnStyles: { 0: { cellWidth: 80, fontStyle: 'bold' } } }); bad.forEach(i => k.photos(i.photos, i.text)); } });
+    (c.plant || []).filter(p => p.quarantine === 'yes' || p.items.some(i => i.answer === 'defect') || p.full).forEach(p => {
+      const q = p.quarantine === 'yes'; k.need(16); k.font(10, 'bold', q ? k.RED : k.NAVY); doc.text(tx(plantLabel(p) + (q ? '  -  OUT OF USE (quarantined / tagged)' : '')), k.M, k.y + 1); k.y += 4;
+      if (q && p.qNote) { k.para('Out of use: ' + p.qNote, 8.5, 'normal', k.RED); k.photos(p.qPhotos, ''); }
+      k.table({ head: [['Pre-use check', 'Result', 'Comment']], body: p.items.map(i => [tx(i.text), i.answer === 'defect' ? 'DEFECT' : ANS_TXT[i.answer || ''] || '-', tx(i.comment)]), styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.3, textColor: k.TXT, lineColor: k.LINE, lineWidth: 0.2 }, columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 18, halign: 'center', fontStyle: 'bold' } },
+        didParseCell: d => { if (d.section === 'body' && d.column.index === 1 && (p.items[d.row.index] || {}).answer === 'defect') { d.cell.styles.textColor = k.RED; d.cell.styles.fillColor = [254, 226, 226]; } } });
+      p.items.forEach(i => { if (i.photos && i.photos.length) k.photos(i.photos, i.text); });
+    });
+    k.photos((c.progress || {}).photos, 'Progress');
+  });
+  k.h2('Sign-off'); k.need(34); k.font(9.5, 'normal'); doc.text(tx(`Name: ${(sheet.signoff || {}).name || sheet.by || ''}`), k.M, k.y); doc.text(tx(`Signed off: ${wkSigned(sheet) ? wkStamp(sheet.signoff.at) : 'not yet'}`), k.M + 95, k.y); k.y += 3;
+  const sig = (sheet.signoff || {}).sig; if (sig && sig.startsWith('data:image/')) { try { doc.addImage(sig, k.fmtImg(sig), k.M, k.y, 60, 24, undefined, 'FAST'); } catch (e) { } k.y += 26; }
+  return k.finish(`Weekly site sheet - ${sheet.jobRef || ''} - w/c ${fmtDate(sheet.week)} - ${sheet.by || ''}`);
+}
+
+/* ---------- sync (operative) ---------- */
+function wkSerialize(c) { const d = dcSerialize(c); ['dirty', 'alertQ', 'alerted', 'finalPending', 'syncedAt', 'remote', 'emailPending', 'pendingAt', '_norm'].forEach(x => delete d[x]); Object.values(d.days || {}).forEach(x => { delete x.edited; delete x._editNew; }); return d; }
+async function pushWeekly(c) {
+  const gen = c.updated; await dcUploadBlobs(c);
+  let pdfPath = null;
+  if (wkSigned(c)) { pdfPath = `${c.owner}/${c.id}/week.pdf`; if (!c.pdfUp) { const blob = buildWeeklyPDF(c).output('blob'); await sbFetch(`/storage/v1/object/${DC_BUCKET}/${encPath(pdfPath)}`, { method: 'POST', body: blob, headers: { 'Content-Type': 'application/pdf', 'x-upsert': 'true' } }); c.pdfUp = true; } }
+  const row = { id: c.id, job_id: c.jobId, owner: c.owner, owner_name: c.by || myName(), check_date: c.week, data: wkSerialize(c), issues: wkIssueCount(c, dcIssues), pdf_path: pdfPath, submitted_at: new Date((c.signoff && c.signoff.at) || c.created || Date.now()).toISOString(), updated_at: new Date(c.updated || Date.now()).toISOString() };
+  try { await sbFetch('/rest/v1/daily_checks', { method: 'POST', body: row, headers: { Prefer: 'return=minimal' } }); }
+  catch (e) { if (e.status !== 409) throw e; const p = Object.assign({}, row); delete p.id; delete p.job_id; delete p.owner; await sbFetch(`/rest/v1/daily_checks?id=eq.${encodeURIComponent(c.id)}`, { method: 'PATCH', body: p, headers: { Prefer: 'return=minimal' } }); }
+  if (c.updated === gen) c.dirty = false; c.syncedAt = Date.now(); dcSave();
+}
+{
+  const _os = opSync;
+  opSync = async function () {
+    const errs = await _os();
+    wkMine().forEach(c => { if (c.remote && !c._norm) { c.status = c.status === 'sent' ? 'sent' : wkSigned(c) ? 'signed' : 'open'; c.alertQ = c.alertQ || []; c._norm = 1; } });
+    for (const c of wkMine()) {
+      if ((c.tries || 0) >= 20) continue;
+      try {
+        if (c.dirty) await pushWeekly(c);
+        while ((c.alertQ || []).length && !c.dirty) { const day = c.alertQ[0]; const r = await fnCall('daily-check-notify', { id: c.id, day }); (c.alerted = c.alerted || {})[day] = { at: Date.now(), to: (r && (r.to || r.would_send_to)) || '', pending: !!(r && r.pending) }; c.alertQ.shift(); dcSave(); }
+        if (c.finalPending && !c.dirty && !(c.emailPending && Date.now() - (c.pendingAt || 0) < 3600e3)) { const r = await fnCall('daily-check-notify', { id: c.id, final: true }); if (r && r.pending) { c.emailPending = true; c.pendingAt = Date.now(); } else { c.finalPending = false; c.status = 'sent'; c.emailedTo = (r && r.to) || ''; delete c.emailPending; } dcSave(); }
+      } catch (e) { if (e.offline || e.status === 401) throw e; c.tries = (c.tries || 0) + 1; dcSave(); errs.push(`${c.jobRef} w/c ${fmtDate(c.week)}: ${e.message}`); }
+    }
+    return errs;
+  };
+  const _pc = pendingCount; pendingCount = function () { const n = _pc(); return signedIn() && isOp() ? n + wkPending().length : n; };
+  const _sn = syncNow; syncNow = async function (reason) { const r = await _sn(reason); try { const rt = route(); const typing = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName); if (signedIn() && isOp() && (rt[0] === 'week' || !rt.length) && !typing && !document.querySelector('.modal-bg')) render(true); } catch (e) { } return r; };
+}
+
+/* ---------- operative actions ---------- */
+function wkCtx() { const x = S.ctx; return x && x.week ? x : null; }
+Object.assign(ACTIONS, {
+  async 'wk-open'(a) {
+    const jobId = a.dataset.job; const j = opJob(jobId); if (!j) return toast('Job not found'); const date = a.dataset.date || todayISO(); const ws = wkStartOf(date);
+    let s = wkSheetFor(jobId, ws); if (!s) { s = newWeekly(j, ws); Ops.list.push(s); await dcSave(true); kick(300); }
+    go(`#/week/${s.id}/${date}`);
+  },
+  'wk-sec'(a) {
+    const x = wkCtx(); if (!x) return; const s = x.obj.sections.find(y => y.id === a.dataset.s); if (!s) return; const v = a.dataset.v;
+    s.status = v; if (v === 'ok') s.items.forEach(i => { i.answer = 'ok'; i.comment = ''; }); else if (v === 'na') s.items.forEach(i => { i.answer = 'na'; }); else s.items.forEach(i => { if (i.answer !== 'issue') i.answer = ''; });
+    x.save(); rerender();
+    if (v === 'ok') { const nx = $('#sec_' + s.id); if (nx && nx.nextElementSibling) nx.nextElementSibling.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  },
+  async 'wk-addplant'() {
+    const x = wkCtx(); if (!x) return; const r = await addPlantModal(); if (!r) return;
+    const p = wkPlantRef({ type: r.t.key, typeName: r.t.name, custom: r.t.custom, name: r.name, meter: r.t.meter, ident: r.ident, hire: r.hire }); x.week.plant = x.week.plant || []; x.week.plant.push(p);
+    x.obj.plant[p.id] = { ans: '', note: '', hours: r.hours || '' }; x.save(); rerender();
+    setTimeout(() => { const el = $('#wkpl_' + p.id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60);
+  },
+  'wk-plantok'() { const x = wkCtx(); if (!x) return; (x.week.plant || []).forEach(p => { const t = x.obj.plant[p.id] = x.obj.plant[p.id] || {}; if (!t.ans) t.ans = 'ok'; }); x.save(); rerender(); },
+  async 'wk-plantlist'() {
+    const x = wkCtx(); if (!x) return; const pl = x.week.plant || [];
+    const keep = await modal(`<h3>This week's plant list</h3><p>Untick anything that has left site. Days already saved keep their record.</p>${pl.map(p => `<label class="ckl"><input type="checkbox" class="wk-keep" value="${p.id}" checked> ${esc(plantLabel(p))}</label>`).join('')}<button class="btn primary" id="wkpok">Save list</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#wkpok').addEventListener('click', () => close([...bg.querySelectorAll('.wk-keep')].filter(c => c.checked).map(c => c.value))));
+    if (!keep) return; x.week.plant = pl.filter(p => keep.includes(p.id)); x.save(); rerender();
+  },
+  'wk-full'(a) {
+    const x = wkCtx(); if (!x) return; const p = (x.week.plant || []).find(y => y.id === a.dataset.p); if (!p) return; const t = x.obj.plant[p.id] = x.obj.plant[p.id] || {};
+    if (!Array.isArray(t.items)) { const ty = plantTypes().find(y => y.key === p.type) || plantTypes().find(y => y.custom) || { items: [] }; t.items = (ty.items || []).map(s => ({ id: uid(), text: s, answer: '', comment: '', photos: [] })); }
+    t.showFull = !t.showFull; x.save(); rerender();
+  },
+  'wk-fullok'(a) { const x = wkCtx(); const t = x && x.obj.plant[a.dataset.p]; if (!t || !Array.isArray(t.items)) return; t.items.forEach(i => { if (!i.answer) i.answer = 'ok'; }); if (!t.ans) t.ans = t.items.some(i => i.answer === 'defect') ? 'defect' : 'ok'; x.save(); rerender(); },
+  'wk-extra'(a) {
+    const x = wkCtx(); if (!x) return; const d = x.obj, k2 = a.dataset.k; d.extra = d.extra || {};
+    const on = { wx: (d.weather.conditions || []).length || d.weather.lostAny === 'yes', sd: (d.sd || []).length, inc: d.incident.any === 'yes', prog: d.progress.note || (d.progress.photos || []).length };
+    d.extra[k2] = !(d.extra[k2] || on[k2]);
+    if (d.extra[k2]) { if (k2 === 'sd' && !(d.sd || []).length) d.sd = [{ id: uid(), who: '', byName: '', reason: '', from: '', to: '', hours: '', note: '' }]; if (k2 === 'inc' && !d.incident.any) d.incident.any = 'yes'; }
+    else { if (k2 === 'sd' && !(d.sd || []).some(e => lostHours(e) > 0 || e.who)) d.sd = []; if (k2 === 'inc' && !String(d.incident.detail || '').trim()) d.incident.any = ''; if (k2 === 'wx' && !(d.weather.lost || []).some(e => lostHours(e) > 0)) { d.weather.conditions = []; d.weather.lostAny = ''; d.weather.lost = []; } }
+    x.save(); rerender();
+  },
+  'wk-addsd'() { const x = wkCtx(); if (!x) return; (x.obj.sd = x.obj.sd || []).push({ id: uid(), who: '', byName: '', reason: '', from: '', to: '', hours: '', note: '' }); x.save(); rerender(); },
+  'wk-delsd'(a) { const x = wkCtx(); if (!x) return; x.obj.sd = (x.obj.sd || []).filter(e => e.id !== a.dataset.e); x.save(); rerender(); },
+  async 'wk-saveday'() {
+    const x = wkCtx(); if (!x) return; const p = wkDayProblems(x.week, x.obj);
+    if (p.length) { await modal(`<h3>Almost done</h3><p>Please complete:</p><ul class="dcmiss">${p.map(y => `<li>${esc(y)}</li>`).join('')}</ul><button class="btn primary" data-r="">OK</button>`); const first = $$('.wksec').find(el => !el.querySelector('.wk3 button.on')) || $$('.wkpl').find(el => !el.querySelector('.wk3 button.on')) || $('.dck:not(.ok):not(.na):not(.issue):not(.defect)'); if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    const iss = wkMarkSaved(x.week, x.obj); await dcSave(true);
+    toast(iss.length ? `Saved - ${iss.length} issue${iss.length > 1 ? 's' : ''} sent to ${x.week.cm || 'your contracts manager'}${online() ? ' now' : ' when you have signal'}` : `Saved - ${wkDayName(x.date)} ticked off${online() ? '' : ' (uploads when you have signal)'}`, 4000);
+    window.scrollTo(0, 0); render(); kick(200);
+  },
+  async 'wk-off'() { const x = wkCtx(); if (!x) return; if (!await confirmBox('Not on site?', `${wkDayName(x.date)} ${fmtDate(x.date)} will be recorded as not on site / no work for this job.`, 'Not on site', false)) return; x.obj.off = true; wkMarkSaved(x.week, x.obj); await dcSave(true); render(); kick(200); },
+  async 'wk-unoff'() { const x = wkCtx(); if (!x) return; x.obj.off = false; x.obj.done = false; x.week.dirty = true; x.save(); rerender(); kick(200); },
+  async 'wk-sign'() { const x = wkCtx(); if (!x) return; const d = await signaturePad(); if (!d) return; x.week.signoff.sig = d; x.week.updated = Date.now(); dcSave(); rerender(); },
+  async 'wk-signoff'() {
+    const x = wkCtx(); if (!x) return; const s = x.week; const p = [];
+    if (!String(s.signoff.name || '').trim()) p.push('Your name'); if (!s.signoff.sig) p.push('Signature (tap Sign)');
+    if (!String((s.workforce || {}).count || '').trim()) p.push('Workforce: number on site');
+    Object.values(s.days).filter(d => !d.done && d.sections.some(y => y.status)).forEach(d => p.push(`${wkDayName(d.date)}: started but not saved`));
+    Object.values(s.days).filter(d => d.done && d.edited).forEach(d => p.push(`${wkDayName(d.date)}: changed since it was saved - tap Save changes`));
+    if (p.length) { await modal(`<h3>Before you sign off</h3><ul class="dcmiss">${p.map(y => `<li>${esc(y)}</li>`).join('')}</ul><button class="btn primary" data-r="">OK</button>`); const el = $('#wksign'); if (el) el.scrollIntoView({ behavior: 'smooth' }); return; }
+    const miss = wkMissing(Object.assign({}, s, { signoff: { at: 1 } }), todayISO()); const tot = wkIssueCount(s, dcIssues);
+    if (!await confirmBox('Sign off this week?', `${miss.length ? `Nothing ticked off for ${wkMissTxt(miss)} - flagged as missing. ` : ''}The whole week (${tot} issue${tot === 1 ? '' : 's'}) goes to ${s.cm || 'your managers'} as one PDF. You can't change it after.`, 'Sign off & send', false)) return;
+    s.signoff.at = Date.now(); s.status = 'signed'; s.finalPending = true; s.pdfUp = false; s.dirty = true; s.updated = Date.now(); await dcSave(true);
+    toast(online() ? 'Signed off - sending…' : 'Signed off - it sends when you have signal', 3500); window.scrollTo(0, 0); render(); kick(200);
+  },
+  async 'wk-pdf'(a) {
+    let s = dcGet(a.dataset.id); const st = Ops.staffView && Ops.staffView.id === a.dataset.id ? Ops.staffView : null;
+    if (!s && st && st.sheet) { if (st.row.pdf_path && st.row.email_status === 'sent') { try { const b = await sbBlob(`/storage/v1/object/authenticated/${DC_BUCKET}/${encPath(st.row.pdf_path)}`); return download(b, `Weekly-sheet_${st.sheet.jobRef}_${st.sheet.week}.pdf`); } catch (e) { if (e.offline) return toast('Offline'); } } s = st.sheet; }
+    if (!s) return; if (s.remote || st) { toast('Downloading photos…'); await dcHydrate(s); }
+    download(buildWeeklyPDF(s, { dayLog: st && st.row && st.row.day_log }).output('blob'), `Weekly-sheet_${s.jobRef}_${s.week}.pdf`);
+  },
+  async 'wk-resend'(a) {
+    if (!await confirmBox('Resend weekly email?', 'The signed-off weekly sheet will be emailed again to the contracts manager (or managers).', 'Resend', false)) return;
+    try { const r = await fnCall('daily-check-notify', { id: a.dataset.id, final: true, resend: true }); toast(r && r.pending ? 'Email is not set up on the server yet' : 'Sent to ' + ((r && r.to) || 'recipients'), 4500); Ops.staffView = null; for (const k2 in Ops.dc) delete Ops.dc[k2]; render(true); }
+    catch (e) { toast(e.message || String(e), 5000); }
+  },
+  'dc-view'(a) { dcFilters().view = a.dataset.v; render(true); },
+});
+// live updates inside the weekly day column
+{
+  const _d = derive;
+  derive = function (path, el) {
+    _d(path, el); const x = wkCtx(); if (!x) return;
+    if (path.startsWith('_sheet.')) { x.week.dirty = true; if (x.obj._editNew) { x.obj.edited = false; } }
+    delete x.obj._editNew;
+    if (/^plant\.[^.]+\.ans$/.test(path) || /^plant\.[^.]+\.items#[^.]+\.answer$/.test(path)) { rerender(); return; }
+    if (/^sd#/.test(path)) { const id = path.split('#')[1].split('.')[0]; const e = (x.obj.sd || []).find(y => y.id === id); const lh = $('#lh_' + id); if (lh && e) lh.textContent = fmtH(lostHours(e)) + ' h'; const t = $('#sdtot'); if (t) t.textContent = fmtH(wkSdHours(x.obj)) + ' h'; }
+  };
+}
+
+/* ---------- staff: Daily tab weekly view, expanded rows, summary ---------- */
+const rowToSheet = r => Object.assign({}, clone(r.data || {}), { id: r.id, jobId: r.job_id, owner: r.owner, by: (r.data || {}).by || r.owner_name, week: (r.data || {}).week || r.check_date, status: r.email_status === 'sent' ? 'sent' : ((r.data || {}).signoff || {}).at ? 'signed' : 'open' });
+// weekly rows -> one pseudo daily-check row per ticked day (date range applied), for the day list and the summary PDF
+function dcExpandRows(rows, f = {}) {
+  const out = [];
+  rows.forEach(r => {
+    if (!isWkRow(r)) { if ((!f.from || r.check_date >= f.from) && (!f.to || r.check_date <= f.to)) out.push(r); return; }
+    const s = rowToSheet(r);
+    wkDates(s.week).forEach(date => { const d = (s.days || {})[date]; if (!d || !d.done || d.off) return; if ((f.from && date < f.from) || (f.to && date > f.to)) return; const c = dayAsCheck(s, date);
+      out.push({ id: `${r.id}~${date}`, weekly: r.id, job_id: r.job_id, owner: r.owner, owner_name: r.owner_name, check_date: date, issues: dcIssues(c).length, data: c, email_status: (r.day_alerts || {})[date] ? 'sent' : '', submitted_at: new Date(d.savedAt || 0).toISOString() }); });
+  });
+  return out.sort((a, b) => b.check_date.localeCompare(a.check_date));
+}
+{
+  const _ld = loadDaily; loadDaily = function (pid, f = {}) { return _ld(pid, Object.assign({}, f, { from: f.from ? wkAddDays(f.from, -6) : '' })); };
+  const _vdl = viewDailyList;
+  viewDailyList = function (job) {
+    const f = dcFilters(); if (!f.view) f.view = 'weekly'; const pid = job.projectId;
+    const tabs = `<div class="filters" role="tablist" style="margin:0 0 12px"><button type="button" data-act="dc-view" data-v="weekly" class="${f.view === 'weekly' ? 'on' : ''}">Weekly sheets</button><button type="button" data-act="dc-view" data-v="daily" class="${f.view === 'daily' ? 'on' : ''}">Day by day</button></div>`;
+    if (f.view === 'weekly') return tabs + viewWeeklyList(job);
+    const raw = Ops.dc[pid]; if (raw) Ops.dc[pid] = dcExpandRows(raw, f); let h;
+    try { h = _vdl(job); } finally { if (raw) Ops.dc[pid] = raw; }
+    return tabs + h.replace(/#\/daily\/(wk-[^"~]+)~(\d{4}-\d\d-\d\d)/g, '#/weekly/$1/$2');
+  };
+}
+function viewWeeklyList(job) {
+  const p = projOf(job); const pid = job.projectId; const f = dcFilters();
+  if (!Ops.dc[pid] && !Ops.dcLoading) { Ops.dcLoading = true; loadDaily(pid, f).finally(() => { Ops.dcLoading = false; if (route()[2] === 'daily') render(true); }); }
+  const all = Ops.dc[pid] || []; const ownersAll = [...new Map(all.map(r => [r.owner, r.owner_name])).entries()];
+  let rows = all.filter(isWkRow).filter(r => (!f.from || wkAddDays(r.check_date, 6) >= f.from) && (!f.to || r.check_date <= f.to)); if (f.op) rows = rows.filter(r => r.owner === f.op); if (f.iss) rows = rows.filter(r => r.issues > 0);
+  const today = todayISO(), ws = wkStartOf(today); const assigned = p ? operatives().filter(o => (p.operatives || []).includes(o.id) && o.active !== false) : [];
+  const noSheet = ws < today ? assigned.filter(o => !all.some(r => isWkRow(r) && r.owner === o.id && r.check_date === ws)) : [];
+  const weeks = [...new Set(rows.map(r => r.check_date))].sort().reverse(); const singles = all.filter(r => !isWkRow(r)).length;
+  const sheetRow = r => { const s = rowToSheet(r); const rs = wkRows(s); const miss = wkMissing(s, today); const n = rs.reduce((a, x) => a + x.issues, 0), wx = rs.reduce((a, x) => a + x.wx, 0), sd = rs.reduce((a, x) => a + x.sd, 0); const pq = rs.reduce((a, x) => a + (x.c.plant || []).filter(q => q.quarantine === 'yes').length, 0); const na = Object.keys(r.day_alerts || {}).length;
+    return `<a class="item wkitem" href="#/weekly/${r.id}"><div class="th dcth ${n || miss.length ? 'bad' : 'good'}">${n || (miss.length ? '!' : '✓')}</div><div class="bd"><div class="t1">${esc(r.owner_name || '')}</div>${wkStripHTML(s, s.week)}<div class="meta">${r.email_status === 'sent' ? '<span class="tag green">Signed off & emailed</span>' : wkSigned(s) ? '<span class="tag amber">Signed off - email pending</span>' : '<span class="tag navy">Open</span>'}${n ? `<span class="tag red">${n} issue${n > 1 ? 's' : ''}</span>` : ''}${miss.length ? `<span class="tag red">Missing: ${esc(wkMissTxt(miss))}</span>` : ''}${wx ? `<span class="tag amber">${fmtH(wx)} h weather</span>` : ''}${sd ? `<span class="tag amber">${fmtH(sd)} h stood down</span>` : ''}${pq ? '<span class="tag red">Plant OUT OF USE</span>' : ''}${na ? `<span class="tag">${na} same-day alert${na > 1 ? 's' : ''}</span>` : ''}</div></div>${I.chev}</a>`; };
+  return `<div class="card"><h2>Weekly sheets${p ? ' · ' + esc(p.ref) : ''}</h2>
+    <div class="row"><div class="f"><label for="dcf-from">From</label><input type="date" id="dcf-from" value="${f.from}"></div><div class="f"><label for="dcf-to">To</label><input type="date" id="dcf-to" value="${f.to}"></div></div>
+    <div class="row"><div class="f"><label for="dcf-op">Operative</label><select id="dcf-op"><option value="">All</option>${ownersAll.map(([id, n]) => `<option value="${id}" ${f.op === id ? 'selected' : ''}>${esc(n || personName(id) || 'Unknown')}</option>`).join('')}</select></div><div class="f"><span class="lbl">&nbsp;</span><label class="ckl" style="margin:0"><input type="checkbox" id="dcf-iss" ${f.iss ? 'checked' : ''}> Issues only</label></div></div>
+    <div class="btns"><button class="btn primary" data-act="dc-sumpdf" ${all.length ? '' : 'disabled'}>${I.pdf} Summary PDF</button><button class="btn" data-act="dc-reload">Refresh</button></div>${Ops.dcErr ? `<p class="hint" style="margin-top:8px">${esc(Ops.dcErr)}</p>` : ''}</div>
+  ${noSheet.length ? `<div class="lg-msg warn" style="margin:0 0 12px">No sheet started this week (w/c ${fmtDate(ws)}): ${esc(noSheet.map(o => o.full_name).join(', '))}</div>` : ''}
+  ${Ops.dcLoading && !Ops.dc[pid] ? '<div class="card"><p class="hint">Loading…</p></div>' : weeks.map(w => `<div class="card"><h2>Week commencing ${fmtDate(w)}</h2>${rows.filter(r => r.check_date === w).map(sheetRow).join('')}</div>`).join('') || '<div class="card"><p class="hint">No weekly sheets for this period yet.</p></div>'}
+  ${singles ? `<p class="hint" style="text-align:center">${singles} single daily check${singles > 1 ? 's' : ''} from before weekly sheets - see <button class="linkbtn" data-act="dc-view" data-v="daily">Day by day</button>.</p>` : ''}`;
+}
+function viewWeeklyStaff(id, date) {
+  const st = Ops.staffView;
+  if (!st || st.id !== id) {
+    Ops.staffView = { id, loading: true };
+    staffDaily(id).then(async r => { if (!r) Ops.staffView = { id, err: 'Weekly sheet not found.' }; else { const s = rowToSheet(r); Ops.staffView = { id, row: r, sheet: s, hyd: true }; if (route()[1] === id) render(true); await dcHydrate(s); Ops.staffView.hyd = false; } if (route()[1] === id) render(true); }).catch(e => { Ops.staffView = { id, err: e.message }; if (route()[1] === id) render(true); });
+    return '<div class="card"><p class="hint">Loading…</p></div>';
+  }
+  if (st.loading) return '<div class="card"><p class="hint">Loading…</p></div>'; if (st.err) return `<div class="card"><p class="hint">${esc(st.err)}</p></div>`;
+  const r = st.row; const tag = r.email_status === 'sent' ? `<span class="tag green">Signed off & emailed ${r.emailed_at ? new Date(r.emailed_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : ''}</span>` : wkSigned(st.sheet) ? `<span class="tag amber">Signed off${r.email_status ? ' - ' + esc(r.email_status) : ''}</span>` : '<span class="tag navy">Open</span>';
+  return `<div class="btns" style="margin-bottom:12px"><button class="btn primary" data-act="wk-pdf" data-id="${r.id}">${I.pdf} Weekly PDF</button>${wkSigned(st.sheet) ? `<button class="btn" data-act="wk-resend" data-id="${r.id}">Resend email</button>` : ''}</div>${st.hyd ? '<p class="hint">Downloading photos…</p>' : ''}${viewWeekRead(st.sheet, { row: r, tag, link: '#/weekly/' + r.id, date })}`;
+}
+
+/* ---------- routes ---------- */
+{
+  const _r = render;
+  render = function (keep) {
+    const rt = route();
+    if (Cloud.enabled && me() && !Cloud.showLogin && isOp() && rt[0] === 'week') {
+      if (!Ops.loaded) { $('#app').innerHTML = header({ title: 'Weekly sheet' }) + '<main><p class="hint">Loading…</p></main>'; dcLoad().then(() => render(keep)); return; }
+      const s = dcGet(rt[1]); if (!s || !isWk(s)) { go('#/'); return; }
+      S.ctx = null; const body = viewWeekOp(s, rt[2]); const y = window.scrollY; document.body.classList.remove('hasnav');
+      $('#app').innerHTML = header({ title: 'Weekly sheet', sub: `${s.jobRef} · w/c ${fmtDate(s.week)}`, back: '#/' }) + `<main>${body}</main>`;
+      if (keep) window.scrollTo(0, y); else if (lastHash !== location.hash) window.scrollTo(0, 0); lastHash = location.hash; cloudPostRender(); return;
+    }
+    if (signedIn() && !isOp() && rt[0] === 'weekly') {
+      document.body.classList.remove('hasnav'); S.ctx = null; const y = window.scrollY;
+      const st = Ops.staffView && Ops.staffView.id === rt[1] ? Ops.staffView : null; const s = st && st.sheet;
+      const pj = s && Ops.jobsTbl.find(j => j.id === s.jobId); const aud = pj && S.jobs.find(j => j.projectId === pj.id);
+      const body = viewWeeklyStaff(rt[1], rt[2]);
+      $('#app').innerHTML = header({ title: 'Weekly sheet', sub: s ? `${s.jobRef || ''} · w/c ${fmtDate(s.week)} · ${s.by || ''}` : '', back: rt[2] ? `#/weekly/${rt[1]}` : aud ? `#/job/${aud.id}/daily` : '#/' }) + `<main>${body}</main>`;
+      if (keep) window.scrollTo(0, y); else if (lastHash !== location.hash) window.scrollTo(0, 0); lastHash = location.hash; return;
+    }
+    return _r(keep);
+  };
+}
 
 /* ---------- Demo audit (illustrative images drawn on canvas) ---------- */
 function demoPhoto(kind, caption, seed = 1) {
