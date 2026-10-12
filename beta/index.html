@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.6.0">
+<meta name="app-version" content="1.6.1">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -801,7 +801,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -5698,6 +5698,168 @@ function viewWeeklyStaff(id, date) {
     return _r(keep);
   };
 }
+
+/* ===== v1.6.1 weekly-sheet reminders =====
+   - Managers: Settings > Reminders (app_settings key 'reminders'): on/off, manager email time (Mon-Fri 16:00), Monday sign-off email (09:00),
+     operative push time (15:00), working days, skip bank holidays. Sent by the weekly-reminders Edge Function (pg_cron every 15 min).
+   - Operatives: "Turn on reminders" card on the home screen (Web Push; iPhone needs the app added to the Home Screen first).
+   - #/today/<jobId> (from the notification) opens today's column of that job's weekly sheet. */
+// v1.6.1 weekly-sheet reminders: pure logic shared by the Edge Function (weekly-reminders) and the app (inlined by build.js).
+
+const rmEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const RM_DEFAULT = { on: false, mgrTime: '16:00', monTime: '09:00', push: true, opTime: '15:00', days: [1, 2, 3, 4, 5], skipBH: true };
+const RM_WINDOW_MIN = 180;   // a run that is late (cron outage) still goes out within 3 h of the set time, never later
+function rmCfg(v) { const c = Object.assign({}, RM_DEFAULT, v || {}); c.days = (Array.isArray(c.days) ? c.days : RM_DEFAULT.days).map(Number).filter(d => d >= 1 && d <= 7); return c; }
+// Europe/London wall clock for an instant (handles BST/GMT): {date: 'YYYY-MM-DD', dow: 1=Mon..7=Sun, hm: 'HH:MM'}
+function rmLondon(t) {
+  const p = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short', hourCycle: 'h23' }).formatToParts(new Date(t)).forEach(x => { p[x.type] = x.value; });
+  return { date: `${p.year}-${p.month}-${p.day}`, dow: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(p.weekday) + 1, hm: `${p.hour}:${p.minute}` };
+}
+const mins = hm => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hm || '')); return m ? +m[1] * 60 + +m[2] : -1; };
+function rmWorkingDay(cfg, date, dow, bh = []) { return cfg.days.includes(dow) && !(cfg.skipBH && bh.includes(date)); }
+// first working day of this week (Mon, or Tue after a bank-holiday Monday) - when the "last week not signed off" email goes
+function rmFirstWorkingDay(cfg, date, bh = []) { const ws = wkStartOf(date); for (let i = 0; i < 7; i++) { const d = wkAddDays(ws, i); if (rmWorkingDay(cfg, d, i + 1, bh)) return d; } return ''; }
+// kind: 'mgr' (today not recorded), 'mon' (last week not signed off), 'op' (push to operatives)
+function rmDue(cfg, kind, L, bh = []) {
+  if (!cfg.on || (kind === 'op' && !cfg.push)) return false;
+  if (!rmWorkingDay(cfg, L.date, L.dow, bh)) return false;
+  if (kind === 'mon' && rmFirstWorkingDay(cfg, L.date, bh) !== L.date) return false;
+  const t = mins(kind === 'mgr' ? cfg.mgrTime : kind === 'mon' ? cfg.monTime : cfg.opTime), n = mins(L.hm);
+  return t >= 0 && n >= t && n < t + RM_WINDOW_MIN;
+}
+// jobs: [{id, ref, site_name, active, operatives[], contracts_manager}], people: [{id, full_name, role, active}],
+// sheets: weekly daily_checks rows [{owner, job_id, check_date, data}]. Returns [{job, missing: [{id, name, why}]}] (only jobs with someone missing)
+function assigned(job, people) { if (job.active === false) return []; return (job.operatives || []).map(id => people.find(p => p.id === id)).filter(p => p && p.active !== false && p.role === 'operative'); }
+function rmMissingToday(jobs, people, sheets, date) {
+  const ws = wkStartOf(date); const out = [];
+  jobs.forEach(job => { const miss = assigned(job, people).filter(p => { const s = sheets.find(r => r.owner === p.id && r.job_id === job.id && r.check_date === ws); const d = s && ((s.data || {}).days || {})[date]; return !(d && (d.done || d.off)); }).map(p => ({ id: p.id, name: p.full_name || 'Operative', why: sheets.some(r => r.owner === p.id && r.job_id === job.id && r.check_date === ws) ? `${wkDayName(date)} not ticked off` : 'no sheet started this week' }));
+    if (miss.length) out.push({ job, missing: miss }); });
+  return out;
+}
+function rmUnsigned(jobs, people, sheets, date) {
+  const lw = wkAddDays(wkStartOf(date), -7); const out = [];
+  jobs.forEach(job => { const miss = []; assigned(job, people).forEach(p => { const s = sheets.find(r => r.owner === p.id && r.job_id === job.id && r.check_date === lw); if (s && ((s.data || {}).signoff || {}).at) return;
+      const done = s ? Object.values((s.data || {}).days || {}).filter(d => d && d.done && !d.off).length : 0;
+      miss.push({ id: p.id, name: p.full_name || 'Operative', why: s ? `sheet not signed off (${done} day${done === 1 ? '' : 's'} ticked off)` : 'no sheet at all last week' }); });
+    if (miss.length) out.push({ job, missing: miss }); });
+  return out;
+}
+// one digest per recipient: groups [{job, missing}], kind 'mgr' | 'mon'
+function rmEmail(groups, kind, date, link, o = {}) {
+  const n = groups.reduce((a, g) => a + g.missing.length, 0); const lw = wkAddDays(wkStartOf(date), -7);
+  const what = kind === 'mon' ? `Last week's sheets not signed off (w/c ${wkUk(lw)})` : `Not ticked off today - ${wkDayName(date)} ${wkUk(date)}`;
+  const subject = `${o.test ? 'TEST - ' : ''}[${n} ${kind === 'mon' ? 'NOT SIGNED OFF' : 'MISSING'}] Weekly sheet reminder - ${kind === 'mon' ? 'w/c ' + wkUk(lw) : wkDayName(date) + ' ' + wkUk(date)}`;
+  const intro = kind === 'mon' ? 'These operatives have not signed off last week\'s weekly site sheet:' : `As at ${o.at || 'this afternoon'}, these operatives have not recorded today on their weekly site sheet:`;
+  const text = [o.test ? '*** TEST EMAIL - please ignore ***' : '', what, '', intro, ...groups.flatMap(g => ['', `${g.job.ref || ''} - ${g.job.site_name || ''}`, ...g.missing.map(m => `  - ${m.name}: ${m.why}`)]), '', `Open the app: ${link}`, '', 'Automatic reminder from the ARS Site Audit app. Managers can change or turn off reminders in Settings > Reminders.'].filter((x, i) => i || x).join('\n');
+  const html = `<div style="font-family:Arial,sans-serif;max-width:640px;color:#0f172a">${o.test ? '<div style="background:#fde68a;padding:8px 12px;font-weight:bold;margin-bottom:10px">TEST EMAIL - please ignore</div>' : ''}
+<div style="background:#1C2B39;color:#fff;padding:12px 16px;border-bottom:4px solid #F18902"><div style="font-size:12px;color:#F18902;font-weight:bold">WEEKLY SHEET REMINDER</div><div style="font-size:18px;font-weight:bold">${rmEsc(what)}</div></div>
+<p>${rmEsc(intro)}</p>${groups.map(g => `<h3 style="margin:14px 0 4px">${rmEsc(g.job.ref || '')} - ${rmEsc(g.job.site_name || '')}</h3><ul style="margin:0">${g.missing.map(m => `<li><b>${rmEsc(m.name)}</b>: ${rmEsc(m.why)}</li>`).join('')}</ul>`).join('')}
+<p style="margin-top:16px"><a href="${rmEsc(link)}" style="background:#F18902;color:#fff;padding:10px 16px;text-decoration:none;border-radius:6px;font-weight:bold">Open the app</a></p>
+<p style="color:#64748b;font-size:12px">Automatic reminder from the ARS Site Audit app. Managers can change or turn off reminders in Settings &gt; Reminders.</p></div>`;
+  return { subject, html, text, count: n };
+}
+function rmPushPayload(job, date, url) { return { title: 'Weekly sheet: tick off today', body: `You have not ticked off ${wkDayName(date)} on ${job.ref || 'your job'} yet. Tap to open today's column.`, url, tag: 'ars-today-' + date }; }
+
+const RM_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const rmIsIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const rmStandalone = () => !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches));
+const rmPushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && location.protocol === 'https:';
+function rmB64(s) { const p = '='.repeat((4 - s.length % 4) % 4); const b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); }
+Ops.push = Ops.push || { st: '' };
+async function rmPushState() {
+  let st;
+  if (!rmPushSupported()) st = rmIsIOS() && !rmStandalone() ? 'ios-home' : 'unsupported';
+  else if (Notification.permission === 'denied') st = 'denied';
+  else { try { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); st = sub && Notification.permission === 'granted' ? 'on' : 'off';
+    if (sub && st === 'on' && !Ops.push.synced && signedIn()) { Ops.push.synced = true; rmSaveSub(sub).catch(() => { Ops.push.synced = false; }); } } catch (e) { st = 'off'; } }
+  if (st !== Ops.push.st) { Ops.push.st = st; const rt = route(); if (signedIn() && isOp() && !rt.length && !document.querySelector('.modal-bg')) render(true); }
+  return st;
+}
+async function rmSaveSub(sub) { const j = sub.toJSON(); await sbFetch('/rest/v1/rpc/push_subscribe', { method: 'POST', body: { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_ua: navigator.userAgent.slice(0, 200) } }); }
+function rmPromptHTML() {
+  const st = Ops.push.st; if (!st) { setTimeout(rmPushState, 0); return ''; }
+  if (st === 'on') return `<p class="small rmon" style="text-align:center;margin:-4px 0 12px">🔔 Reminders on · <button class="linkbtn" data-act="push-off">Turn off</button></p>`;
+  if (st === 'unsupported') return '';
+  const body = st === 'ios-home' ? `<p class="hint">On iPhone, reminders only work from the Home Screen app: tap <b>Share</b> <span aria-hidden="true">⬆︎</span> then <b>Add to Home Screen</b>, open the app from your Home Screen, sign in and tap <b>Turn on reminders</b> there.</p>`
+    : st === 'denied' ? `<p class="hint">Notifications are blocked for this app. Allow them in your phone's settings (Settings &gt; Notifications, or the browser's site settings), then come back here.</p>`
+    : `<p class="hint">Get a reminder on this phone at ${esc((Ops.remCfg && Ops.remCfg.opTime) || '15:00')} if you haven't ticked off today. Tap it to go straight to today.${rmIsIOS() ? ' (iPhone: works from the Home Screen app, iOS 16.4 or later.)' : ''}</p><button class="btn primary block" data-act="push-on">🔔 Turn on reminders</button>`;
+  return `<div class="card rmcard"><h2>Turn on reminders</h2>${body}</div>`;
+}
+{
+  const _h = viewOpHome; viewOpHome = function () { const v = _h(); v.body = v.body.replace('<div class="card"><h2>My weekly sheets</h2>', rmPromptHTML() + '<div class="card"><h2>My weekly sheets</h2>'); return v; };
+}
+Object.assign(ACTIONS, {
+  async 'push-on'() {
+    try {
+      const perm = await Notification.requestPermission(); if (perm !== 'granted') { await rmPushState(); return toast(perm === 'denied' ? 'Notifications blocked - allow them in your phone settings' : 'Reminders not turned on', 4500); }
+      const r = await fnCall('weekly-reminders', { kind: 'vapid' }); if (!r || !r.key) throw new Error('Reminders are not set up on the server yet');
+      const reg = await navigator.serviceWorker.ready; let sub = await reg.pushManager.getSubscription();
+      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: rmB64(r.key) });
+      await rmSaveSub(sub); Ops.push.synced = true; toast('Reminders on for this phone', 3500); await rmPushState(); render(true);
+    } catch (e) { toast(e.offline ? 'No signal - try again when you are online' : 'Could not turn on reminders: ' + (e.message || e), 5000); }
+  },
+  async 'push-off'() {
+    try { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription();
+      if (sub) { const ep = sub.endpoint; await sub.unsubscribe(); try { await sbFetch('/rest/v1/push_subs?endpoint=eq.' + encodeURIComponent(ep), { method: 'DELETE', headers: { Prefer: 'return=minimal' } }); } catch (e) { } }
+      Ops.push.synced = false; toast('Reminders off for this phone'); await rmPushState(); render(true);
+    } catch (e) { toast(e.message || String(e), 4000); }
+  },
+});
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.type === 'ars-open' && e.data.url) { const i = e.data.url.indexOf('#'); if (i >= 0 && location.hash !== e.data.url.slice(i)) location.hash = e.data.url.slice(i); } });
+
+/* ---------- manager settings ---------- */
+function rmToForm(v) { const c = rmCfg(v); return { on: c.on ? 'yes' : 'no', mgrTime: c.mgrTime, monTime: c.monTime, push: c.push ? 'yes' : 'no', opTime: c.opTime, days: c.days.map(d => RM_DAYS[d - 1]), skipBH: c.skipBH ? 'yes' : 'no' }; }
+function rmFromForm(f) { return { on: f.on === 'yes', mgrTime: f.mgrTime || RM_DEFAULT.mgrTime, monTime: f.monTime || RM_DEFAULT.monTime, push: f.push === 'yes', opTime: f.opTime || RM_DEFAULT.opTime, days: RM_DAYS.map((d, i) => (f.days || []).includes(d) ? i + 1 : 0).filter(Boolean), skipBH: f.skipBH === 'yes' }; }
+async function rmLoad() { const rows = await sbFetch('/rest/v1/app_settings?select=value&key=eq.reminders') || []; Ops.remCfg = rmCfg(rows[0] && rows[0].value); Ops.remForm = rmToForm(Ops.remCfg); }
+function viewRemSettings() {
+  if (!Ops.remForm) { if (!Ops.remLoading) { Ops.remLoading = true; rmLoad().catch(e => { Ops.remErr = e.message; Ops.remForm = rmToForm({}); }).finally(() => { Ops.remLoading = false; if (route()[1] === 'reminders') render(true); }); } return '<div class="card"><p class="hint">Loading…</p></div>'; }
+  const f = mk(Ops.remForm); const yn = [['yes', 'On', 'ok'], ['no', 'Off', '']];
+  return `${Ops.remErr ? `<div class="lg-msg warn">${esc(Ops.remErr)}</div>` : ''}<div class="card"><h2>Weekly sheet reminders</h2><p class="hint" style="margin-bottom:8px">Reminders only go out on working days, and only if someone is missing. Times are UK time (GMT/BST).</p>
+    ${f.seg('Reminders', 'on', yn, { cls: 'yn' })}</div>
+  <div class="card"><h2>Email to contracts managers</h2><p class="hint" style="margin-bottom:8px">One email per contracts manager (or all managers if a job has none), listing operatives on their jobs who have not recorded today.</p>
+    ${f.text('Daily email at', 'mgrTime', { type: 'time' })}${f.text('Start of week email at (last week not signed off)', 'monTime', { type: 'time' })}</div>
+  <div class="card"><h2>Phone reminder to operatives</h2><p class="hint" style="margin-bottom:8px">A notification on their phone if they have not ticked off today. They turn it on once, on the app's home screen.</p>
+    ${f.seg('Phone reminders', 'push', yn, { cls: 'yn' })}${f.text('Remind operatives at', 'opTime', { type: 'time' })}</div>
+  <div class="card"><h2>Working days</h2>${f.chips('', 'days', RM_DAYS)}${f.seg('Skip bank holidays (England & Wales)', 'skipBH', [['yes', 'Yes', 'ok'], ['no', 'No', '']], { cls: 'yn' })}</div>
+  <div class="btns"><button class="btn primary" data-act="rm-save">Save</button><button class="btn" data-act="rm-preview">Who is missing now?</button></div>`;
+}
+Object.assign(ACTIONS, {
+  async 'rm-save'() {
+    const v = rmFromForm(Ops.remForm); if (!v.days.length) return toast('Pick at least one working day');
+    if ([v.mgrTime, v.monTime, v.opTime].some(t => !/^\d\d:\d\d$/.test(t))) return toast('Times must be like 16:00');
+    try { await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'reminders', value: v }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); Ops.remCfg = rmCfg(v); toast(v.on ? 'Reminders saved - on' : 'Reminders saved - off', 3000); }
+    catch (e) { toast(e.offline ? 'No signal - not saved' : e.message, 4500); }
+  },
+  async 'rm-preview'() {
+    try { const r = await fnCall('weekly-reminders', { dry: true }); const R = r.results || {};
+      const sec = (t, x) => `<h4 style="margin:10px 0 4px">${t}</h4>${x && x.groups && x.groups.length ? x.groups.map(g => `<p class="small"><b>${esc(g.job)}</b>: ${esc(g.missing.join(', '))}</p>`).join('') : '<p class="small">Nobody</p>'}`;
+      await modal(`<h3>Who is missing now</h3><p class="small">${esc(fmtDate(r.london.date))} ${esc(r.london.hm)} UK time. Nothing is sent from here.</p>${sec('Not recorded today', R.mgr)}${sec("Last week's sheet not signed off", R.mon)}<button class="btn primary" data-r="">OK</button>`);
+    } catch (e) { toast(e.message || String(e), 4500); }
+  },
+});
+{
+  const _vs = viewSettings; viewSettings = function () { const h = _vs(); if (!signedIn() || !isMgr()) return h;
+    return h.replace('<a class="item" href="#/settings/daily">', `<a class="item" href="#/settings/reminders"><div class="th">🔔</div><div class="bd"><div class="t1">Reminders</div><div class="t2">Weekly sheet reminders: email to contracts managers, phone reminders to operatives</div></div>${I.chev}</a><a class="item" href="#/settings/daily">`); };
+  const _r = render;
+  render = function (keep) {
+    const rt = route();
+    if (rt[0] === 'settings' && rt[1] === 'reminders' && signedIn() && isMgr()) {
+      S.ctx = { obj: Ops.remForm || {}, save: () => {} }; document.body.classList.remove('hasnav'); const y = window.scrollY; const body = viewRemSettings(); S.ctx.obj = Ops.remForm || {};
+      $('#app').innerHTML = header({ title: 'Reminders', back: '#/settings' }) + `<main>${body}</main>`; if (keep) window.scrollTo(0, y); lastHash = location.hash; return;
+    }
+    if (rt[0] === 'today' && Cloud.enabled && me() && !Cloud.showLogin && isOp()) {
+      $('#app').innerHTML = header({ title: 'Weekly sheet' }) + '<main><p class="hint">Opening today…</p></main>';
+      const tries = (Ops.todayTries = (Ops.todayTries || 0) + 1);
+      (Ops.loaded ? Promise.resolve() : dcLoad()).then(() => { const id = decodeURIComponent(rt[1] || ''); const j = opJob(id) || (!id && (Ops.jobs || [])[0]);
+        if (j) { Ops.todayTries = 0; return ACTIONS['wk-open']({ dataset: { job: j.id } }); }
+        if (!Ops.jobsFresh && tries < 20) return setTimeout(() => { if (route()[0] === 'today') render(); }, 500);
+        Ops.todayTries = 0; go('#/'); });
+      return;
+    }
+    return _r(keep);
+  };
+}
+if (typeof window !== 'undefined') window.addEventListener('focus', () => { if (Ops.push && Ops.push.st) rmPushState(); });
 
 /* ---------- Demo audit (illustrative images drawn on canvas) ---------- */
 function demoPhoto(kind, caption, seed = 1) {
