@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.6.3">
+<meta name="app-version" content="1.6.4">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -388,6 +388,15 @@ details.pttype summary{cursor:pointer;min-height:40px;display:flex;align-items:c
 .calc.sm{padding:8px 12px}.calc.sm span{font-size:15px}
 .dz-on{outline:3px dashed #f18902;outline-offset:3px;background:#fff8ee!important}
 img.pdfth{object-fit:contain;background:#f3f6fa}
+/* v1.6.4 contracts copy */
+.cc-banner{border-radius:12px;padding:10px 12px;margin:0 0 12px;border:2px solid #0f2542;background:#eef3fa}
+.cc-banner.orig{border-color:#90a0b7;background:#f4f6f9}
+.cc-banner p{margin:6px 0;font-size:14px}.cc-banner .btns{display:flex;gap:8px;flex-wrap:wrap}
+.cc-badge{display:inline-block;background:#f18902;color:#fff;font-weight:800;border-radius:6px;padding:3px 8px;margin-right:6px;font-size:13px;letter-spacing:.3px}
+.cc-badge.o{background:#5a6678}.cc-v{font-size:13px;margin:4px 0 8px}
+.cc-t{border-collapse:collapse;font-size:13px;width:100%}.cc-t td,.cc-t th{border:1px solid #dde3ec;padding:4px;text-align:left;vertical-align:top}
+body.cc-locked main canvas{pointer-events:none}
+.tag.cc-tag{background:#f18902;color:#fff}
 
 </style>
 </head>
@@ -808,7 +817,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.6.3';
+const APP_VERSION = '1.6.4';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -1216,7 +1225,7 @@ function viewList() {
   const cards = jobs.map(j => {
     const c = priCounts(j); const fl = hsFlags(j);
     return `<div class="job ${j.status}"><a class="main" href="#/job/${j.id}/details"><div class="ref">${esc(j.ref)} · ${fmtDate(j.date)}</div><div class="nm">${esc(j.client.name || j.site.name || 'Untitled audit')}</div><div class="ad">${esc([j.site.name, j.site.address, j.site.postcode].filter(Boolean).join(', ') || 'No site address')}</div>
-    <div class="meta"><span class="tag ${isWorks(j) ? 'type-works' : 'type-survey'}">${isWorks(j) ? 'Works insp. ' + esc(j.works.inspNo || '') : 'Survey'}</span><span class="tag ${j.status === 'Complete' ? 'green' : 'navy'}">${j.status}</span>${cloudTags(j)}${isWorks(j) ? `${worksPct(j) != null ? `<span class="tag">${worksPct(j)}% complete</span>` : ''}<span class="tag rag-t-${ragOf(j)}">${ragOf(j)}</span>${openSnags(j).length ? `<span class="tag red">${openSnags(j).length} open snag${openSnags(j).length > 1 ? 's' : ''}</span>` : ''}` : `<span class="tag">${j.areas.length} area${j.areas.length === 1 ? '' : 's'}</span>${c.P1 ? `<span class="tag P1">${c.P1} × P1</span>` : ''}${c.P2 ? `<span class="tag P2">${c.P2} × P2</span>` : ''}`}${fl.filter(x => x.sev === 'red').map(x => `<span class="tag red">⚠ ${x.label}</span>`).join('')}</div></a>
+    <div class="meta"><span class="tag ${isWorks(j) ? 'type-works' : 'type-survey'}">${isWorks(j) ? 'Works insp. ' + esc(j.works.inspNo || '') : 'Survey'}</span>${j.contracts ? `<span class="tag cc-tag">Contracts Rev ${esc(j.contracts.rev)}</span>` : j.locked ? '<span class="tag">Original 🔒</span>' : ''}<span class="tag ${j.status === 'Complete' ? 'green' : 'navy'}">${j.status}</span>${cloudTags(j)}${isWorks(j) ? `${worksPct(j) != null ? `<span class="tag">${worksPct(j)}% complete</span>` : ''}<span class="tag rag-t-${ragOf(j)}">${ragOf(j)}</span>${openSnags(j).length ? `<span class="tag red">${openSnags(j).length} open snag${openSnags(j).length > 1 ? 's' : ''}</span>` : ''}` : `<span class="tag">${j.areas.length} area${j.areas.length === 1 ? '' : 's'}</span>${c.P1 ? `<span class="tag P1">${c.P1} × P1</span>` : ''}${c.P2 ? `<span class="tag P2">${c.P2} × P2</span>` : ''}`}${fl.filter(x => x.sev === 'red').map(x => `<span class="tag red">⚠ ${x.label}</span>`).join('')}</div></a>
     <button class="more" data-act="jobmenu" data-id="${j.id}" aria-label="Job options">${I.dots}</button></div>`;
   }).join('');
   return {
@@ -1384,7 +1393,7 @@ function viewReport(job) {
   const ready = S.pdf && S.pdf.jobId === job.id;
   return `${hsStrip(job)}<div class="card"><h2>${I.pdf.replace('<svg', '<svg width="22" height="22"')} PDF report</h2>
   <p class="hint" style="margin-bottom:14px">${isWorks(job) ? 'Works Inspection Report: cover, inspection summary with RAG status, site H&S, work-package checklists with pass/fail counts, snag schedule with before/after photos, progress photos, actions for next visit and signatures.' : ''}</p><p class="hint" style="margin-bottom:14px;${isWorks(job) ? 'display:none' : ''}">Branded report with cover page, job & site details, H&S findings, every section's checklist, notes & photos, defects schedule with thumbnails, summary, recommendations and disclaimer.</p>
-  ${tog('photos', 'Include photos')}${tog('hideBlank', 'Hide unanswered checklist items')}${tog('defectPhotos', 'Include large defect photos appendix')}${tog('appendPdfs', 'Append attached PDF documents at the end')}
+  ${tog('photos', 'Include photos')}${tog('hideBlank', 'Hide unanswered checklist items')}${tog('defectPhotos', 'Include large defect photos appendix')}${tog('appendPdfs', 'Append attached PDF documents at the end')}${job.contracts ? tog('ccChanges', 'List changes vs original survey') : ''}
   <button class="btn primary block" data-act="genpdf" id="genpdf">${I.pdf} Generate PDF report</button>
   <div id="pdfout" style="margin-top:12px">${ready ? pdfButtons() : ''}</div></div>
   ${isWorks(job) ? '' : `<div class="card"><h2>Materials &amp; quote requests</h2><p class="hint" style="margin-bottom:12px">The survey report includes the materials schedule. Export it for ordering, or send quote requests to suppliers.</p><button class="btn block" data-act="matcsv" id="matcsvbtn">${I.dl} Export materials schedule as CSV</button><div style="height:10px"></div><a class="btn block" href="#/job/${job.id}/rfq/all">${I.pdf} Quote request - all materials</a><div style="height:10px"></div><a class="btn block" href="#/job/${job.id}/rfq/scaffold">${I.pdf} Scaffold quote request</a></div>`}
@@ -1988,7 +1997,7 @@ async function buildPDF(job, opts) {
   };
   const isW = isWorks(job);
   if (isW) worksBody(); else {
-  drawCover('ROOF CONDITION SURVEY', 'SITE AUDIT REPORT', allPhotos[0], [['Client', job.client.name], ['Site', siteLine], ['Postcode', job.site.postcode.toUpperCase()], ['Job reference', job.ref], ['Date of survey', fmtDate(job.date) + (job.time ? ' at ' + job.time : '')], ['Surveyor', job.surveyor], ['Overall condition', bd ? `${bd.toUpperCase()}  (${sc}/100)` : 'Not rated']], 6, bd ? RC[bd] : null, (fragile || acSusp) ? ['WARNING:', fragile ? 'FRAGILE ROOF' : '', acSusp ? 'SUSPECTED ASBESTOS CEMENT' : ''].filter(Boolean).join('  ') + '  - see Section 3' : '');
+  const CC = job.contracts; drawCover('ROOF CONDITION SURVEY', CC ? `CONTRACTS COPY - REV ${CC.rev}` : 'SITE AUDIT REPORT', allPhotos[0], [...(CC ? [['Contracts copy', `Rev ${CC.rev} - by ${CC.by || '-'}, ${fmtDate(CC.date)}${CC.signoff ? ` - signed off ${CC.signoff.name}, ${fmtDate(CC.signoff.date)}` : ' - NOT YET SIGNED OFF'}`]] : []), ['Client', job.client.name], ['Site', siteLine], ['Postcode', job.site.postcode.toUpperCase()], ['Job reference', job.ref], ['Date of survey', fmtDate(job.date) + (job.time ? ' at ' + job.time : '')], ['Surveyor', job.surveyor], ['Overall condition', bd ? `${bd.toUpperCase()}  (${sc}/100)` : 'Not rated']], CC ? 7 : 6, bd ? RC[bd] : null, (fragile || acSusp) ? ['WARNING:', fragile ? 'FRAGILE ROOF' : '', acSusp ? 'SUSPECTED ASBESTOS CEMENT' : ''].filter(Boolean).join('  ') + '  - see Section 3' : '');
 
   /* ----- 1. Job & site ----- */
   newPage(); let sn = 0;
@@ -2103,6 +2112,14 @@ async function buildPDF(job, opts) {
 
   } // end survey body
 
+  /* v1.6.4: contracts copy - changes vs the estimator's original */
+  if (job.contracts && opts.ccChanges !== false) {
+    const ch = (opts._ccChanges || []); doc.addPage(); y = TOP + 6; h3(`Contracts copy - Rev ${job.contracts.rev}: changes vs original survey`);
+    para(`Original survey ${job.contracts.origRef || ''} (estimator's version, locked). Copy created by ${job.contracts.by || '-'} on ${fmtDate(job.contracts.date)}. ${job.contracts.signoff ? `Changes signed off by ${job.contracts.signoff.name} on ${fmtDate(job.contracts.signoff.date)}.` : 'Changes NOT yet signed off by the contracts manager.'}`, 8.8);
+    if (ch.length) table({ head: [['Item', 'Original', 'Contracts copy']], body: ch.map(c => [tx(c.f), tx(c.was), tx(c.now)]), styles: { fontSize: 8.2 }, columnStyles: { 0: { cellWidth: 62, fontStyle: 'bold' } } });
+    else para('No changes to the key fields (client, site, H&S, roof areas, slopes, pitch, defects, materials, scaffolding).', 8.8, 'italic', GREY);
+    if (job.contracts.notes) { label('Contracts notes'); para(job.contracts.notes); }
+  }
   /* v1.6.2: attached documents (PDFs added in place of photos) */
   const att = (opts && opts._attach) || [];
   if (att.length) {
@@ -2125,7 +2142,7 @@ async function buildPDF(job, opts) {
     if (i === 1) { font(7.8, 'normal', [200, 212, 230]); doc.text(`Page 1 of ${n}`, W - M, H - 5, { align: 'right' }); continue; }
     if (hasLogo) { const lh = 7, lw = lh * st.logoW / st.logoH; doc.addImage(st.logo, fmtImg(st.logo), M, 5, lw, lh, 'logo', 'FAST'); }
     else { font(8.5, 'bold', NAVY); doc.text(tx(st.company), M, 11); }
-    font(7.8, 'bold', NAVY); doc.text(tx(`${isW ? 'Works Inspection ' + (job.works.inspNo || '') : 'Roof Condition Survey'}  |  ${job.ref}`), W - M, 8, { align: 'right' });
+    font(7.8, 'bold', NAVY); doc.text(tx(`${isW ? 'Works Inspection ' + (job.works.inspNo || '') : 'Roof Condition Survey'}${job.contracts ? ' - CONTRACTS COPY REV ' + job.contracts.rev : ''}  |  ${job.ref}`), W - M, 8, { align: 'right' });
     font(7.5, 'normal', GREY); doc.text(tx(`${job.site.name || job.client.name || ''}${job.date ? '  |  ' + fmtDate(job.date) : ''}`).slice(0, 95), W - M, 11.6, { align: 'right' });
     color(OR, 'draw'); doc.setLineWidth(0.6); doc.line(M, 14, W - M, 14);
     color(LINE, 'draw'); doc.setLineWidth(0.2); doc.line(M, H - 11, W - M, H - 11);
@@ -6098,6 +6115,109 @@ function linkButtons(root) {
 }
 new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) linkButtons(n.parentNode || n); }).observe(document.documentElement, { childList: true, subtree: true });
 
+/* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
+   Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
+   the original (and any superseded revision) gets job.locked = { reason, by, at, rev } and becomes read-only. */
+DB.get = DB.get || function (id) { return this.tx('jobs', 'readonly', s => s.get(id)); };
+const ccRoot = j => (j.contracts && j.contracts.root) || j.id;
+const ccFamily = j => { const r = ccRoot(j); return S.jobs.filter(x => x.id === r || (x.contracts && x.contracts.root === r)).sort((a, b) => (a.contracts ? a.contracts.rev : '') < (b.contracts ? b.contracts.rev : '') ? -1 : 1); };
+const ccCopies = j => ccFamily(j).filter(x => x.contracts);
+const ccLatest = j => { const c = ccCopies(j); return c.length ? c[c.length - 1] : null; };
+const ccCanCreate = () => !signedIn() || isMgr();
+const ccName = () => (Cloud.profile && Cloud.profile.full_name) || S.settings.surveyor || 'Contracts manager';
+const ccNextRev = j => { const c = ccCopies(j); if (!c.length) return 'A'; const last = c[c.length - 1].contracts.rev; return String.fromCharCode(last.charCodeAt(0) + 1); };
+// key-field snapshot used for the "changes vs original" list (kept in the copy, so it works even if the original is not on this device)
+function ccSnap(j) {
+  const o = {}; const put = (k, v) => { o[k] = v == null ? '' : String(v); };
+  put('Client', j.client.name); put('Client contact', j.client.contact); put('Site', j.site.name); put('Site address', j.site.address); put('Postcode', j.site.postcode);
+  put('Access', (j.access || []).join(', ')); put('Access notes', j.accessNotes);
+  const h = j.hs || {}; Object.keys(h).sort().forEach(k => { const v = h[k]; if (typeof v === 'string' || typeof v === 'number') put('H&S: ' + k, v); else if (Array.isArray(v) && v.every(x => typeof x !== 'object')) put('H&S: ' + k, v.join(', ')); });
+  if (h.req && typeof h.req === 'object') put('H&S requirements', JSON.stringify(h.req).length);
+  put('Roof areas', j.areas.length);
+  j.areas.forEach((a, i) => { const n = `Area ${i + 1}`; put(`${n} name`, a.name); put(`${n} type / profile`, [a.type, a.profile].filter(Boolean).join(' / ')); put(`${n} pitch (°)`, a.pitch); put(`${n} area (m²)`, areaM2(a));
+    slopesOf(a).forEach((s, k) => put(`${n} slope ${k + 1}`, `${s.name || ''} ${s.length || '-'} x ${s.width || '-'} m${num(s.pitch) ? ' @ ' + s.pitch + '°' : ''}`.trim()));
+    put(`${n} defects`, a.defects.map(d => `${d.ref} ${d.priority || ''}`.trim()).join(', ')); put(`${n} measurements`, (a.measurements || []).length); });
+  try { matLines(j).forEach(l => put(`Material: ${l.m.name || '?'}${l.owner && l.owner.name ? ' (' + l.owner.name + ')' : ''}`, `${l.m.qty || ''} ${l.m.unit || ''}`.trim())); } catch (e) { }
+  if (j.scaffold && j.scaffold.items) put('Scaffold / access items', j.scaffold.items.filter(i => i.req !== 'no').map(i => i.text).join(', '));
+  return o;
+}
+function ccChanges(j) {
+  if (!j.contracts || !j.contracts.base) return []; const a = j.contracts.base, b = ccSnap(j); const out = [];
+  new Set([...Object.keys(a), ...Object.keys(b)]).forEach(k => { const x = a[k] ?? '', y = b[k] ?? ''; if (x !== y) out.push({ f: k, was: x || '(none)', now: y || '(removed)' }); }); return out;
+}
+async function createContractsCopy(src) {
+  const fam = ccFamily(src); const orig = fam.find(x => !x.contracts) || src; const base = ccLatest(src) || orig; const rev = ccNextRev(src);
+  const n = cloudFresh(reId(clone(base))); delete n.locked;
+  const who = ccName(); const now = Date.now();
+  n.ref = `${orig.ref}-C${rev}`; n.status = 'Draft'; n.created = now; n.updated = now;
+  n.contracts = { root: orig.id, origId: orig.id, origRef: orig.ref, from: base.id, fromRev: base.contracts ? base.contracts.rev : '', rev, by: who, date: todayISO(), at: now, base: ccSnap(orig), signoff: null, notes: '' };
+  // lock the estimator's original and any superseded revision
+  [orig, ...ccCopies(src)].forEach(x => { if (!x.locked) { x.locked = { reason: x.contracts ? `Superseded by Rev ${rev}` : "Estimator's original - locked at contracts handover", by: who, at: now }; S._ccLockOK = true; markDirty(x); S._ccLockOK = false; } });
+  S.jobs.push(n); await DB.put(n); markDirty(n); return n;
+}
+// read-only guard for locked audits
+const _ccMarkDirty = markDirty;
+markDirty = function (job) {
+  if (job && job.locked && !S._ccLockOK) { toast('This survey is locked (estimator\'s original). Edit the contracts copy instead.', 3500); DB.get && DB.get(job.id).then(o => { if (o) { const i = S.jobs.indexOf(job); if (i >= 0) S.jobs[i] = o; if (S.ctx && S.ctx.job === job) { S.ctx = { obj: o, save: () => markDirty(o), job: o }; } rerender(); } }).catch(() => {}); return; }
+  if (job && job.contracts && job.contracts.signoff && !S._ccSignOK) job.contracts.signoff.editedAfter = true;
+  return _ccMarkDirty(job);
+};
+const CC_READ_ACTS = /^(jobmenu|genpdf|viewphoto|measpdf|matcsv|exportjob|dlpdf|openpdf|sharepdf|tfilter|filter|ccopen|ccsign|ccnew|cccompare)$/;
+document.addEventListener('click', e => {
+  const job = S.ctx && S.ctx.job; if (!job || !job.locked || !/^#\/job\//.test(location.hash)) return;
+  const t = e.target; const a = t.closest && t.closest('[data-act]');
+  if (t.closest('[data-ro] button')) return;
+  if ((a && !CC_READ_ACTS.test(a.dataset.act)) || t.closest('.seg[data-b] button,.chips[data-bm] button,.lnkbtn,label.btn,label.ck-cam')) { e.preventDefault(); e.stopImmediatePropagation(); toast('Locked - this is the estimator\'s original. Open the contracts copy to make changes.', 3000); }
+}, true);
+['drop', 'paste'].forEach(ev => document.addEventListener(ev, e => { const job = S.ctx && S.ctx.job; if (job && job.locked && /^#\/job\//.test(location.hash)) { e.preventDefault(); e.stopImmediatePropagation(); toast('Locked survey - nothing added'); } }, true));
+function ccBanner(job) {
+  if (!job || isWorks(job)) return '';
+  const fam = ccFamily(job); if (fam.length < 2 && !job.contracts && !job.locked) return '';
+  const vers = fam.map(x => `<a href="#/job/${x.id}/details" class="tag ${x === job ? 'navy' : ''}" style="text-decoration:none">${x.contracts ? 'Rev ' + esc(x.contracts.rev) : 'Original'}${x.locked ? ' 🔒' : ''}</a>`).join(' ');
+  if (job.contracts) { const c = job.contracts; const so = c.signoff;
+    return `<div class="cc-banner cc"><div><span class="cc-badge">Contracts copy · Rev ${esc(c.rev)}</span>${job.locked ? `<span class="tag">🔒 ${esc(job.locked.reason)}</span>` : ''}</div><p>Created by <b>${esc(c.by)}</b> on ${fmtDate(c.date)} from ${c.fromRev ? 'Rev ' + esc(c.fromRev) : 'the original survey'} <b>${esc(c.origRef)}</b>. ${so ? `Changes signed off by <b>${esc(so.name)}</b> on ${fmtDate(so.date)}${so.editedAfter ? ' <b style="color:#b91c1c">(edited since sign-off)</b>' : ''}.` : '<b style="color:#b45309">Changes not yet signed off.</b>'}</p>
+      <div class="cc-v">Versions: ${vers}</div><div class="btns"><button class="btn sm" data-act="cccompare">Changes vs original (${ccChanges(job).length})</button>${!job.locked && ccCanCreate() ? `<button class="btn sm primary" data-act="ccsign">${so && !so.editedAfter ? 'Re-sign' : 'Sign off changes'}</button>` : ''}</div></div>`; }
+  return `<div class="cc-banner orig"><div><span class="cc-badge o">Estimator's original</span>${job.locked ? '<span class="tag">🔒 Locked</span>' : ''}</div><p>${job.locked ? 'Read-only since the contracts handover. ' : ''}Contracts copies: ${ccCopies(job).length}.</p><div class="cc-v">Versions: ${vers}</div>${ccLatest(job) ? `<div class="btns"><a class="btn sm primary" href="#/job/${ccLatest(job).id}/details">Open latest contracts copy (Rev ${esc(ccLatest(job).contracts.rev)})</a></div>` : ''}</div>`;
+}
+// banner on every survey page + read-only inputs
+const _ccRender = render;
+render = function (keep) {
+  _ccRender(keep); const r = route(); if (r[0] !== 'job') return; const job = getJob(r[1]); if (!job || isWorks(job)) return;
+  const b = ccBanner(job); const m = $('#app main'); if (b && m) m.insertAdjacentHTML('afterbegin', b);
+  document.body.classList.toggle('cc-locked', !!job.locked);
+  if (job.locked && m) m.querySelectorAll('input,select,textarea').forEach(el => { if (!el.closest('.cc-banner')) el.disabled = true; });
+};
+Object.assign(ACTIONS, {
+  async ccnew(a, job) {
+    if (!ccCanCreate()) return toast('Only a contracts manager (manager role) can create a contracts copy');
+    const rev = ccNextRev(job); const orig = ccFamily(job).find(x => !x.contracts) || job;
+    if (!await confirmBox(`Create contracts copy Rev ${rev}?`, `A full editable copy of ${ccLatest(job) ? 'Rev ' + ccLatest(job).contracts.rev : 'the survey'} (H&S, measurements, slopes, pitch, materials, attachments, links and quote requests). The estimator's original ${orig.ref}${ccLatest(job) ? ' and the previous revision' : ''} will be locked read-only.`, 'Create copy', false)) return;
+    const n = await createContractsCopy(job); toast(`Contracts copy Rev ${rev} created`); go(`#/job/${n.id}/details`);
+  },
+  async ccsign(a, job) {
+    if (!job.contracts || job.locked) return; const ch = ccChanges(job); let nm, nt;
+    const r = await modal(`<h3>Sign off contracts copy Rev ${esc(job.contracts.rev)}</h3><p>${ch.length} change${ch.length === 1 ? '' : 's'} vs the original survey.</p><label class="lbl" for="ccnm">Contracts manager</label><input type="text" id="ccnm" value="${esc(ccName())}"><div style="height:8px"></div><label class="lbl" for="ccnt">Notes (optional, printed in the report)</label><textarea id="ccnt" rows="3">${esc(job.contracts.notes || '')}</textarea><div style="height:10px"></div><button class="btn primary" data-r="ok">Sign off changes</button><button class="btn" data-r="">Cancel</button>`, bg => { nm = $('#ccnm', bg); nt = $('#ccnt', bg); });
+    if (r !== 'ok' || !nm.value.trim()) return;
+    S._ccSignOK = true; job.contracts.signoff = { name: nm.value.trim(), date: todayISO(), at: Date.now(), changes: ch.length }; job.contracts.notes = nt.value.trim(); markDirty(job); S._ccSignOK = false; rerender(); toast('Contracts copy signed off');
+  },
+  async cccompare(a, job) {
+    const ch = ccChanges(job);
+    await modal(`<h3>Changes vs original</h3><p class="hint">Rev ${esc(job.contracts.rev)} compared with ${esc(job.contracts.origRef)} (key fields).</p>${ch.length ? `<div style="max-height:55vh;overflow:auto"><table class="cc-t"><tr><th>Item</th><th>Original</th><th>Copy</th></tr>${ch.map(c => `<tr><td><b>${esc(c.f)}</b></td><td>${esc(c.was)}</td><td>${esc(c.now)}</td></tr>`).join('')}</table></div>` : '<p>No changes yet.</p>'}<button class="btn" data-r="">Close</button>`);
+  },
+});
+// job menu: add "Create contracts copy" for surveys (manager role)
+{ const _jm = ACTIONS.jobmenu; ACTIONS.jobmenu = async function (a, job0) {
+    const job = getJob(a.dataset.id); if (!job || isWorks(job) || !ccCanCreate()) return _jm.call(this, a, job0);
+    const _m = modal; let swap = true;
+    modal = (html, onMount) => { if (swap) { swap = false; html = html.replace('<button class="btn" data-r="dup">', `<button class="btn navy" data-r="ccnew">Contracts handover: create contracts copy (Rev ${ccNextRev(job)})</button><button class="btn" data-r="dup">`); } return _m(html, onMount).then(r => { if (r === 'ccnew') { setTimeout(() => ACTIONS.ccnew(a, job), 0); return null; } return r; }); };
+    try { return await _jm.call(this, a, job0); } finally { modal = _m; }
+  }; }
+// works inspections start from the latest contracts copy when one exists
+{ const _sw = startWorksFromSurvey; startWorksFromSurvey = src => { const l = ccLatest(src); const n = _sw(l || src); if (l) n.works.linkedRef = l.ref + ` (contracts Rev ${l.contracts.rev})`; return n; };
+  const _cm = copySurveyMaterials; copySurveyMaterials = (src, n) => _cm(ccLatest(src) || src, n); }
+// report: pass the change list
+{ const _b = buildPDF; buildPDF = async function (job, opts = {}) { return _b(job, job.contracts ? Object.assign({}, opts, { _ccChanges: ccChanges(job) }) : opts); }; }
+
 /* ---------- Demo audit (illustrative images drawn on canvas) ---------- */
 function demoPhoto(kind, caption, seed = 1) {
   const w = 1200, h = 900, c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
@@ -6183,7 +6303,7 @@ async function makeDemoJob() {
 }
 
 /* ---------- Init ---------- */
-S.reportOpts = { photos: true, hideBlank: true, defectPhotos: true, appendPdfs: true };
+S.reportOpts = { photos: true, hideBlank: true, defectPhotos: true, appendPdfs: true, ccChanges: true };
 async function init() {
   try { await DB.open(); const s = await DB.getKV('settings'); if (s) S.settings = Object.assign(clone(DEFAULT_SETTINGS), s); S.jobs = ((await DB.all()) || []).map(migrateJob); if (!S.settings.worksDisclaimer) S.settings.worksDisclaimer = DEFAULT_WORKS_DISCLAIMER; }
   catch (e) { console.error(e); toast('Storage unavailable - data will not be saved (private browsing?)', 6000); }
