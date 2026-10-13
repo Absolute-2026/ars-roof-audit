@@ -1,7 +1,7 @@
 /* ARS Site Audit BETA service worker - offline cache */
-const CACHE = 'ars-site-audit-beta-v1.6.1';
+const CACHE = 'ars-site-audit-beta-v1.6.2';
 const PREFIX = 'ars-site-audit-beta-v';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/icon.svg'];
+const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/icon.svg', './pdf-lib.min.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 // only remove this app's own old caches (beta and live share the origin)
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith(PREFIX) && k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

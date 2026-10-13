@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.6.1">
+<meta name="app-version" content="1.6.2">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -381,6 +381,13 @@ details.pttype summary{cursor:pointer;min-height:40px;display:flex;align-items:c
 .wkgridw{overflow-x:auto}.wkgrid th,.wkgrid td{padding:4px 3px;border:1px solid var(--line);text-align:center;font-size:12px}.wkgrid th.l{text-align:left;font-weight:600;max-width:120px;font-size:11.5px}
 .wkgrid td.ok{color:#15803d;font-weight:800}.wkgrid td.bad{background:#fee2e2;font-weight:800}.wkgrid td.miss{color:#b91c1c;font-weight:800;background:#fff5f5}.wkgrid td.off,.wkgrid td.na{color:#64748b}
 .wkgrid th a{color:inherit}.wkitem .wkstrip{margin:6px 0}
+/* v1.6.2 slopes + attachments */
+.slope{border:1px solid #dde3ec;border-radius:12px;padding:10px;margin-bottom:10px;background:#fbfcfe}
+.slope .ck-h{display:flex;gap:6px;align-items:center;margin-bottom:6px}.slope .ck-h .pit-l{flex:1}
+.slope .btn.sm span{margin-left:4px}
+.calc.sm{padding:8px 12px}.calc.sm span{font-size:15px}
+.dz-on{outline:3px dashed #f18902;outline-offset:3px;background:#fff8ee!important}
+img.pdfth{object-fit:contain;background:#f3f6fa}
 
 </style>
 </head>
@@ -801,7 +808,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.6.1';
+const APP_VERSION = '1.6.2';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -1022,15 +1029,25 @@ function newArea(job) {
   const n = job.areas.length + 1;
   return { id: uid(), name: `Roof area ${n}`, type: '', profile: '', pitch: '', length: '', width: '', measured: 'slope', areaOverride: '', colour: '',
     rlType: '', rlCount: '', gutterTypes: [], gutterMat: '', outletCount: '', flashTypes: [], insType: '', overall: '', notes: '',
-    sections: tpls('area').filter(t => t.auto !== false).map(sectionFromTemplate), defects: [], materials: [], measurements: [], pitches: [], pitchSys: '' };
+    sections: tpls('area').filter(t => t.auto !== false).map(sectionFromTemplate), defects: [], materials: [], measurements: [], pitches: [], pitchSys: '', slopes: [{ id: uid(), name: 'Slope 1', length: '', width: '', measured: 'slope', pitch: '', rise: '', notes: '' }] };
 }
 function newDefect(job) {
   const all = job.areas.flatMap(a => a.defects); let n = all.length + 1; const used = new Set(all.map(d => d.ref)); while (used.has('D' + pad(n))) n++;
   return { id: uid(), ref: 'D' + pad(n), element: '', location: '', description: '', priority: '', remedy: '', remedyText: '', qty: '', unit: 'nr', photos: [] };
 }
 const secByKey = (o, k) => (o.sections || []).find(s => s.key === k);
+/* v1.6.2 roof slopes: each area can have several slopes; total true (on-slope) area feeds areaM2 / materials */
+const slopePitch = (a, s) => num(s.pitch) > 0 && num(s.pitch) < 80 ? num(s.pitch) : (num(a.pitch) > 0 && num(a.pitch) < 80 ? num(a.pitch) : 0);
+function slopeAreas(a, s) {
+  const lw = num(s.length) * num(s.width); const c = Math.cos(slopePitch(a, s) * Math.PI / 180) || 1;
+  const plan = s.measured === 'plan' ? lw : lw * c, tru = s.measured === 'plan' ? lw / c : lw;
+  return { plan: Math.round(plan * 10) / 10, slope: Math.round(tru * 10) / 10 };
+}
+const slopesOf = a => Array.isArray(a.slopes) ? a.slopes : [];
+function slopeTotals(a) { const t = slopesOf(a).reduce((o, s) => { const r = slopeAreas(a, s); o.plan += r.plan; o.slope += r.slope; return o; }, { plan: 0, slope: 0 }); return { plan: Math.round(t.plan * 10) / 10, slope: Math.round(t.slope * 10) / 10 }; }
 function areaM2(a) {
   if (num(a.areaOverride) > 0) return num(a.areaOverride);
+  if (slopesOf(a).some(s => num(s.length) * num(s.width) > 0)) return slopeTotals(a).slope;
   let m = num(a.length) * num(a.width);
   if (a.measured === 'plan' && num(a.pitch) > 0 && num(a.pitch) < 80) m = m / Math.cos(num(a.pitch) * Math.PI / 180);
   return Math.round(m * 10) / 10;
@@ -1126,10 +1143,10 @@ async function compressImage(file, max = 1600, q = 0.72) {
 }
 async function filesToPhotos(files) {
   const out = [];
-  for (const f of files) { if (!/^image\//.test(f.type) && !/\.(jpe?g|png|webp|gif|heic)$/i.test(f.name)) continue; try { out.push(await compressImage(f)); } catch (e) { toast(e.message); } }
+  for (const f of files) { if (isPdfFile(f)) { const p = await pdfToItem(f); if (p) out.push(p); continue; } if (!/^image\//.test(f.type) && !/\.(jpe?g|png|webp|gif|heic)$/i.test(f.name)) continue; try { out.push(await compressImage(f)); } catch (e) { toast(e.message); } }
   return out;
 }
-const addPhotoButtons = (key) => `<div class="addph"><label class="btn primary">${I.camera} Take photo<input type="file" accept="image/*" capture="environment" data-photo="${key}"></label><label class="btn">${I.image} From gallery<input type="file" accept="image/*" multiple data-photo="${key}"></label></div>`;
+const addPhotoButtons = (key) => `<div class="addph"><label class="btn primary">${I.camera} Take photo<input type="file" accept="image/*" capture="environment" data-photo="${key}"></label><label class="btn">${I.image} Gallery / files<input type="file" accept="image/*,application/pdf" multiple data-photo="${key}"></label></div>`;
 
 /* ---------- Routing / shell ---------- */
 function route() { const h = location.hash.replace(/^#\/?/, ''); return h.split('/').filter(Boolean); }
@@ -1284,13 +1301,11 @@ function viewArea(job, a) {
     ${f.text('Name / zone', b + '.name', { ph: 'e.g. Main warehouse - north slope' })}
     ${f.select('Roof type', b + '.type', REF.roofType)}
     <div class="row">${f.text('Profile', b + '.profile', { list: 'profiles', ph: 'e.g. Firth N1000R' })}${f.text('Sheet colour', b + '.colour', { list: 'colours' })}</div>
-    <div class="row3">${f.text('Pitch (°)', b + '.pitch', { type: 'number' })}${f.text('Length (m)', b + '.length', { type: 'number' })}${f.text('Width (m)', b + '.width', { type: 'number' })}</div>
-    ${f.seg('Dimensions measured', b + '.measured', [['slope', 'On slope'], ['plan', 'On plan']], { hint: 'On plan: area is corrected for pitch.' })}
-    <div class="f"><span class="lbl">Roof area</span><div class="calc" id="calc"><span>${areaM2(a)} m²</span><small>auto-calculated</small></div></div>
-    ${f.text('Area override (m²) - optional', b + '.areaOverride', { type: 'number' })}
+    ${f.text('Area pitch (degrees °)', b + '.pitch', { type: 'number', hint: 'Used for any slope without its own pitch.' })}
+    <div class="f"><span class="lbl">Roof area</span><div class="calc" id="calc"><span>${areaM2(a)} m²</span><small id="calcsrc">${num(a.areaOverride) > 0 ? 'manual override' : 'total of the slopes'}</small></div></div>
     ${f.rate('Overall area condition', b + '.overall')}
   </div>
-  ${pitchCard(job, a)}${areaExtrasCard(job, a)}
+  ${slopesCard(job, a)}${pitchCard(job, a)}${areaExtrasCard(job, a)}
   <div class="card"><h2>Sections</h2>${secs}<button class="btn block" data-act="addsec" data-scope="area" data-aid="${a.id}">${I.plus} Add section</button></div>
   <div class="card"><h2>Defects <span class="prog" style="margin-left:auto">${a.defects.length}</span></h2>${defectList(job, a)}</div>
   <div class="card">${f.area('General area notes', b + '.notes', { rows: 3 })}<button class="btn danger block" data-act="delarea" data-aid="${a.id}">${I.trash} Delete roof area</button></div>`;
@@ -1369,7 +1384,7 @@ function viewReport(job) {
   const ready = S.pdf && S.pdf.jobId === job.id;
   return `${hsStrip(job)}<div class="card"><h2>${I.pdf.replace('<svg', '<svg width="22" height="22"')} PDF report</h2>
   <p class="hint" style="margin-bottom:14px">${isWorks(job) ? 'Works Inspection Report: cover, inspection summary with RAG status, site H&S, work-package checklists with pass/fail counts, snag schedule with before/after photos, progress photos, actions for next visit and signatures.' : ''}</p><p class="hint" style="margin-bottom:14px;${isWorks(job) ? 'display:none' : ''}">Branded report with cover page, job & site details, H&S findings, every section's checklist, notes & photos, defects schedule with thumbnails, summary, recommendations and disclaimer.</p>
-  ${tog('photos', 'Include photos')}${tog('hideBlank', 'Hide unanswered checklist items')}${tog('defectPhotos', 'Include large defect photos appendix')}
+  ${tog('photos', 'Include photos')}${tog('hideBlank', 'Hide unanswered checklist items')}${tog('defectPhotos', 'Include large defect photos appendix')}${tog('appendPdfs', 'Append attached PDF documents at the end')}
   <button class="btn primary block" data-act="genpdf" id="genpdf">${I.pdf} Generate PDF report</button>
   <div id="pdfout" style="margin-top:12px">${ready ? pdfButtons() : ''}</div></div>
   ${isWorks(job) ? '' : `<div class="card"><h2>Materials &amp; quote requests</h2><p class="hint" style="margin-bottom:12px">The survey report includes the materials schedule. Export it for ordering, or send quote requests to suppliers.</p><button class="btn block" data-act="matcsv" id="matcsvbtn">${I.dl} Export materials schedule as CSV</button><div style="height:10px"></div><a class="btn block" href="#/job/${job.id}/rfq/all">${I.pdf} Quote request - all materials</a><div style="height:10px"></div><a class="btn block" href="#/job/${job.id}/rfq/scaffold">${I.pdf} Scaffold quote request</a></div>`}
@@ -1536,7 +1551,7 @@ function derive(path, el) {
   }
   if (/\.items#[^.]+\.answer$/.test(path) && el && el.tagName === 'INPUT') { const it = getPath(job, path.replace(/\.answer$/, '')); const ns = $('#ns_' + it.id); if (ns) { const st = numStats(it.answer); ns.textContent = st ? `${st.n} reading${st.n > 1 ? 's' : ''} · min ${st.min} · avg ${st.avg} · max ${st.max}` : 'Enter one or more numbers separated by commas'; } }
   if (/^snags#[^.]+\.status$/.test(path)) { const sn = getPath(job, path.replace(/\.status$/, '')); if (sn.status === 'Closed' && !sn.closedDate) { sn.closedDate = todayISO(); rerender(); toast('Snag closed - add an "after" photo'); setTimeout(() => { const c = $('#closeout'); c && c.scrollIntoView({ behavior: 'smooth' }); }, 50); } }
-  if (/^areas#[^.]+\.(length|width|pitch|measured|areaOverride)$/.test(path)) { const a = getPath(job, path.split('.')[0]); const c = $('#calc'); if (c) c.firstElementChild.textContent = areaM2(a) + ' m²'; }
+  if (/^areas#[^.]+\.(length|width|pitch|measured|areaOverride|slopes#[^.]+\.(length|width|pitch|measured|rise))$/.test(path)) { const a = getPath(job, path.split('.')[0]); if (/slopes#/.test(path)) slopeRiseToPitch(a, getPath(job, path.replace(/\.[a-z]+$/, '')), path.split('.').pop(), el); const c = $('#calc'); if (c) c.firstElementChild.textContent = areaM2(a) + ' m²'; const cs = $('#calcsrc'); if (cs) cs.textContent = num(a.areaOverride) > 0 ? 'manual override' : 'total of the slopes'; slopesDOM(a); }
   if (path.startsWith('hs.') || /\.type$/.test(path)) { const h = $('#hsb'); if (h) h.innerHTML = hsBanners(job); }
   if (/^areas#[^.]+\.name$/.test(path) && /\/area\/[^/]+$/.test(location.hash)) { const h1 = $('.hdr h1'); if (h1) h1.textContent = el.value || 'Roof area'; }
   if (path === 'era' && /Pre-1960|1960s|1970s|1980s|1990s/.test(job.era) && !job.hs.pre2000) { job.hs.pre2000 = 'yes'; toast('Pre-2000 building - asbestos flag set in Safety'); }
@@ -1551,11 +1566,15 @@ document.addEventListener('change', e => {
   if (el.id === 'importin') return onImport(el);
 });
 async function onPhotoInput(el) {
-  const files = [...el.files]; el.value = ''; if (!files.length || !S.ctx) return;
-  toast(`Processing ${files.length} photo${files.length > 1 ? 's' : ''}…`, 1200);
-  const ph = await filesToPhotos(files);
-  let arr = getPath(S.ctx.obj, el.dataset.photo); if (!Array.isArray(arr)) { arr = []; setPath(S.ctx.obj, el.dataset.photo, arr); }
-  arr.push(...ph); S.ctx.save(); rerender(); toast(`${ph.length} photo${ph.length === 1 ? '' : 's'} added`);
+  const files = [...el.files]; el.value = ''; return addPhotoFiles(el.dataset.photo, files);
+}
+async function addPhotoFiles(key, files) {
+  if (!files.length || !S.ctx) return;
+  toast(`Processing ${files.length} file${files.length > 1 ? 's' : ''}…`, 1200);
+  const ph = await filesToPhotos(files); if (!ph.length) return toast('Nothing added - use a photo or a PDF');
+  let arr = getPath(S.ctx.obj, key); if (!Array.isArray(arr)) { arr = []; setPath(S.ctx.obj, key, arr); }
+  arr.push(...ph); S.ctx.save(); rerender(); const np = ph.filter(isPdfItem).length, ni = ph.length - np;
+  toast([ni ? `${ni} photo${ni === 1 ? '' : 's'}` : '', np ? `${np} PDF${np === 1 ? '' : 's'}` : ''].filter(Boolean).join(' and ') + ' added');
 }
 async function onLogo(el) {
   const f = el.files[0]; el.value = ''; if (!f) return;
@@ -1670,7 +1689,7 @@ const ACTIONS = {
   },
   async delitem(a, job) { const sec = getPath(job, a.dataset.base); const it = sec.items.find(x => x.id === a.dataset.id); if (await confirmBox('Remove checklist item?', `"${it.text}" will be removed from this audit only.`, 'Remove')) { sec.items = sec.items.filter(x => x !== it); markDirty(job); rerender(); } },
   async delphoto(a) { if (!await confirmBox('Remove photo?', 'This photo will be deleted from the audit.', 'Remove')) return; const arr = getPath(S.ctx.obj, a.dataset.key); const i = arr.findIndex(p => p.id === a.dataset.id); if (i >= 0) arr.splice(i, 1); S.ctx.save(); rerender(); },
-  async viewphoto(a) { const arr = getPath(S.ctx.obj, a.dataset.key); const p = arr.find(x => x.id === a.dataset.id); const r = await modal(`<div class="viewer"><img src="${p.data}" alt=""><p>${esc(p.caption || '')}</p><button class="btn" data-r="">Close</button><button class="btn danger" data-r="del">Remove photo</button></div>`); if (r === 'del') { arr.splice(arr.indexOf(p), 1); S.ctx.save(); rerender(); } },
+  async viewphoto(a) { const arr = getPath(S.ctx.obj, a.dataset.key); const p = arr.find(x => x.id === a.dataset.id); if (isPdfItem(p)) return viewPdfItem(arr, p); const r = await modal(`<div class="viewer"><img src="${p.data}" alt=""><p>${esc(p.caption || '')}</p><button class="btn" data-r="">Close</button><button class="btn danger" data-r="del">Remove photo</button></div>`); if (r === 'del') { arr.splice(arr.indexOf(p), 1); S.ctx.save(); rerender(); } },
   async addsec(a, job) {
     const scope = a.dataset.scope; const owner = a.dataset.aid ? job.areas.find(x => x.id === a.dataset.aid) : job;
     const have = new Set(owner.sections.map(s => s.key)); const avail = tpls(scope).filter(t => !have.has(t.key));
@@ -1742,7 +1761,10 @@ async function buildPDF(job, opts) {
   const tableBase = { margin: { left: M, right: M, top: TOP + 2, bottom: H - BOT + 2 }, styles: { font: 'helvetica', fontSize: 9, cellPadding: 1.8, textColor: TXT, lineColor: LINE, lineWidth: 0.2, overflow: 'linebreak' }, headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', fontSize: 8.5 }, alternateRowStyles: { fillColor: [250, 251, 253] } };
   const table = o => { doc.autoTable(Object.assign({}, tableBase, { startY: y }, o, { styles: Object.assign({}, tableBase.styles, o.styles || {}) })); y = doc.lastAutoTable.finalY + 5; };
   const kv = (rows) => { rows = rows.filter(r => r[1] !== undefined && r[1] !== null && String(r[1]).trim() !== ''); if (!rows.length) return; table({ body: rows.map(r => [tx(r[0]), tx(r[1])]), theme: 'grid', columnStyles: { 0: { cellWidth: 48, fontStyle: 'bold', fillColor: LIGHT, textColor: NAVY } }, alternateRowStyles: {} }); };
+  const linkList = (ls, title) => { if (!ls || !ls.length) return; need(6 + ls.length * 5); font(8.5, 'bold', NAVY); doc.text(tx(title || 'Photo & video links'), M, y + 1); y += 5;
+    ls.forEach(l => { need(6); font(8.5, 'normal', [29, 78, 216]); const t = tx(`${linkSvc(l.url).label}: ${l.label || l.url}`).slice(0, 110); doc.textWithLink(t, M + 3, y + 1, { url: l.url }); const tw = doc.getTextWidth(t); color([29, 78, 216], 'draw'); doc.setLineWidth(0.2); doc.line(M + 3, y + 1.6, M + 3 + tw, y + 1.6); y += 5; }); y += 1; };
   const photoGrid = (photos, lab) => {
+    if (photos && photos._links) linkList(photos._links);
     if (!opts.photos || !photos || !photos.length) return;
     const cols = 3, gap = 4, cw = (CW - gap * (cols - 1)) / cols, ih = cw * 0.75;
     for (let i = 0; i < photos.length; i += cols) {
@@ -1764,12 +1786,20 @@ async function buildPDF(job, opts) {
   const tickBox = (x, yy, on, sz = 3.4) => { color(on ? [21, 128, 61] : [255, 255, 255], 'fill'); color(on ? [21, 128, 61] : GREY, 'draw'); doc.setLineWidth(0.3); doc.roundedRect(x, yy, sz, sz, 0.5, 0.5, 'FD'); if (on) { color([255, 255, 255], 'draw'); doc.setLineWidth(0.5); doc.setLineCap('round'); doc.lines([[sz * 0.22, sz * 0.24], [sz * 0.4, -sz * 0.5]], x + sz * 0.2, yy + sz * 0.5, [1, 1], 'S', false); doc.setLineCap('butt'); } };
   const PCOL = { red: RC.Critical, amber: RC.Fair, green: RC.Good };
   const pitchBlock = a => {
-    const ps = (a.pitches || []).filter(p => String(p.deg ?? '').trim() !== '' || p.rise || p.ratio); if (!ps.length) return;
+    const ps = (a.pitches || []).filter(p => String(p.deg ?? '').trim() !== '' || p.rise); if (!ps.length) return;
     const g = pitchSysOf(a); h3('Roof pitch' + (g ? `   (${g.label}: typical min ${g.min}°${num(g.rec) > num(g.min) ? ', recommended ' + g.rec + '°' : ''})` : ''));
-    const rows = ps.map(p => { const c = pitchCheck(a, p.deg); return [tx(p.label || '-'), tx(p.method || ''), p.deg !== '' ? p.deg + '°' : '-', pitchRatio(p) || '-', p.pct !== '' ? p.pct + '%' : '-', num(p.run) ? `${p.rise} / ${p.run} mm` : '-', c.lvl ? (c.lvl === 'green' ? 'OK' : tx(c.msg)) : '-', tx(p.notes)]; });
-    table({ head: [['Reading', 'Method', 'Degrees', 'Ratio', '%', 'Rise / run', 'Check', 'Notes']], body: rows, styles: { fontSize: 8 }, columnStyles: { 0: { cellWidth: 30, fontStyle: 'bold' }, 1: { cellWidth: 22 }, 2: { cellWidth: 16, halign: 'center', fontStyle: 'bold' }, 3: { cellWidth: 15, halign: 'center' }, 4: { cellWidth: 13, halign: 'center' }, 5: { cellWidth: 22 }, 6: { cellWidth: 30 } },
-      didParseCell: d => { if (d.section === 'body' && d.column.index === 6 && ps[d.row.index]) { const c = pitchCheck(a, ps[d.row.index].deg); if (PCOL[c.lvl]) { d.cell.styles.fillColor = PCOL[c.lvl]; d.cell.styles.textColor = 255; d.cell.styles.fontStyle = 'bold'; } } } });
+    const rows = ps.map(p => { const c = pitchCheck(a, p.deg); return [tx(p.label || '-'), tx(p.method || ''), p.deg !== '' ? p.deg + '°' : '-', num(p.run) ? `${p.rise} / ${p.run} mm` : '-', c.lvl ? (c.lvl === 'green' ? 'OK' : tx(c.msg)) : '-', tx(p.notes)]; });
+    table({ head: [['Reading', 'Method', 'Pitch', 'Rise / run', 'Check', 'Notes']], body: rows, styles: { fontSize: 8 }, columnStyles: { 0: { cellWidth: 32, fontStyle: 'bold' }, 1: { cellWidth: 26 }, 2: { cellWidth: 16, halign: 'center', fontStyle: 'bold' }, 3: { cellWidth: 26 }, 4: { cellWidth: 32 } },
+      didParseCell: d => { if (d.section === 'body' && d.column.index === 4 && ps[d.row.index]) { const c = pitchCheck(a, ps[d.row.index].deg); if (PCOL[c.lvl]) { d.cell.styles.fillColor = PCOL[c.lvl]; d.cell.styles.textColor = 255; d.cell.styles.fontStyle = 'bold'; } } } });
     if (g) para('Pitch guidance is typical only - check the manufacturer\'s minimum pitch for the specific product and lap detail.', 7.8, 'italic', GREY);
+  };
+  const slopesBlock = a => {
+    const ss = slopesOf(a).filter(s => num(s.length) || num(s.width)); if (!ss.length) return;
+    h3('Roof slopes'); const t = slopeTotals(a);
+    const rows = ss.map((s, i) => { const r = slopeAreas(a, s); const pd = slopePitch(a, s); return [tx(s.name || `Slope ${i + 1}`), s.length ? s.length + ' m' : '-', s.width ? s.width + ' m' : '-', s.measured === 'plan' ? 'On plan' : 'On slope', pd ? r1(pd) + '°' + (num(s.pitch) > 0 ? '' : ' (area)') : '-', r.plan + ' m²', r.slope + ' m²']; });
+    rows.push([{ content: 'Total', colSpan: 5, styles: { fontStyle: 'bold', halign: 'right' } }, { content: t.plan + ' m²', styles: { fontStyle: 'bold' } }, { content: t.slope + ' m²', styles: { fontStyle: 'bold' } }]);
+    table({ head: [['Slope', 'Length', 'Width / run', 'Measured', 'Pitch', 'Plan area', 'Slope area']], body: rows, styles: { fontSize: 8 }, columnStyles: { 0: { cellWidth: 40, fontStyle: 'bold' } } });
+    if (num(a.areaOverride) > 0) para(`Area override applied: ${a.areaOverride} m² used for quantities instead of the slope total.`, 7.8, 'italic', GREY);
   };
   const measBlock = (owner, title) => {
     const ms = owner.measurements || []; const tm = ms.filter(m => m.kind === 'text' && (m.label || m.value)); const im = ms.filter(m => m.kind !== 'text' && m.data && !String(m.data).startsWith('sb:'));
@@ -1865,7 +1895,7 @@ async function buildPDF(job, opts) {
       h2(`${sn}.${ai + 1}  ${a.name}${a.pct !== '' && a.pct != null ? '   -   ' + a.pct + '% complete' : ''}`, '');
       kv([['Work packages', a.sections.map(s => s.title).join(', ')], ['Stage', a.stage], ['Roof type / system', [a.type, a.profile].filter(Boolean).join(' - ')], ['Pitch', a.pitch ? a.pitch + '°' + ((a.pitches || []).length > 1 ? ` (${a.pitches.length} readings)` : '') : ''], ['Approx. area', areaM2(a) ? areaM2(a) + ' m²' : '']]);
       if (a.notes) { label('Area notes'); para(a.notes); }
-      pitchBlock(a);
+      slopesBlock(a); pitchBlock(a);
       a.sections.forEach(s => sectionBlock(s, s.title, false));
       if ((a.progress || []).length && opts.photos) { h3('Progress photos'); photoGrid(a.progress, p => `${p.tag ? p.tag.toUpperCase() + ' - ' : ''}Photo ${photoNo}`); }
     });
@@ -1995,9 +2025,9 @@ async function buildPDF(job, opts) {
   job.areas.forEach((a, ai) => {
     if (ai > 0) { need(60); }
     h2(`${sn}.${ai + 1}  ${a.name}`, areaBand(a));
-    kv([['Roof type', a.type], ['Profile', a.profile], ['Sheet colour', a.colour], ['Pitch', a.pitch ? a.pitch + '°' : ''], ['Dimensions', num(a.length) && num(a.width) ? `${a.length} m x ${a.width} m (${a.measured === 'plan' ? 'on plan' : 'on slope'})` : ''], ['Approx. roof area', areaM2(a) ? areaM2(a) + ' m²' : ''], ['Rooflights', [a.rlType, a.rlCount ? a.rlCount + ' nr' : ''].filter(Boolean).join(' - ')], ['Gutters', [(a.gutterTypes || []).join(', '), a.gutterMat, a.outletCount ? a.outletCount + ' outlets/RWPs' : ''].filter(Boolean).join(' - ')], ['Flashings present', (a.flashTypes || []).join(', ')], ['Insulation', a.insType], ['Overall area condition', a.overall === 'NA' ? 'N/A' : a.overall]]);
+    kv([['Roof type', a.type], ['Profile', a.profile], ['Sheet colour', a.colour], ['Pitch', a.pitch ? a.pitch + '°' : ''], ['Dimensions', slopesOf(a).length ? `${slopesOf(a).length} slope${slopesOf(a).length === 1 ? '' : 's'} - see table` : (num(a.length) && num(a.width) ? `${a.length} m x ${a.width} m (${a.measured === 'plan' ? 'on plan' : 'on slope'})` : '')], ['Approx. roof area', areaM2(a) ? areaM2(a) + ' m²' : ''], ['Rooflights', [a.rlType, a.rlCount ? a.rlCount + ' nr' : ''].filter(Boolean).join(' - ')], ['Gutters', [(a.gutterTypes || []).join(', '), a.gutterMat, a.outletCount ? a.outletCount + ' outlets/RWPs' : ''].filter(Boolean).join(' - ')], ['Flashings present', (a.flashTypes || []).join(', ')], ['Insulation', a.insType], ['Overall area condition', a.overall === 'NA' ? 'N/A' : a.overall]]);
     if (a.notes) { label('Area notes'); para(a.notes); }
-    pitchBlock(a);
+    slopesBlock(a); pitchBlock(a);
     a.sections.forEach(s => sectionBlock(s));
     measBlock(a, 'Measurements');
     y += 3;
@@ -2069,6 +2099,20 @@ async function buildPDF(job, opts) {
 
   } // end survey body
 
+  /* v1.6.2: attached documents (PDFs added in place of photos) */
+  const att = (opts && opts._attach) || [];
+  if (att.length) {
+    doc.addPage(); y = TOP + 6; h3('Attached documents');
+    para(opts.appendPdfs ? 'The following PDF documents were attached during the audit and are appended at the end of this report.' : 'The following PDF documents were attached during the audit and are held with the audit record (not reproduced in this report).', 8.5, 'normal', GREY);
+    table({ head: [['No.', 'Document', 'Attached to', 'Size']], body: att.map((d, i) => [String(i + 1), tx(d.name || 'document.pdf'), tx(d.where || ''), d.size ? (d.size / 1048576).toFixed(1) + ' MB' : '']), styles: { fontSize: 8.5 }, columnStyles: { 0: { cellWidth: 12, halign: 'center' }, 1: { cellWidth: 80, fontStyle: 'bold' } } });
+  }
+  const lks = (opts && opts._links) || [];
+  if (lks.length) {
+    doc.addPage(); y = TOP + 6; h3('Additional photos & video links');
+    para('Click a link to open it. Links are hosted outside this report (e.g. OneDrive, SharePoint, Google Drive, YouTube) and must be shared as "Anyone with the link" to open.', 8.5, 'normal', GREY);
+    table({ head: [['No.', 'Link', 'Type', 'Attached to']], body: lks.map((l, i) => [String(i + 1), tx(l.label || l.url), linkSvc(l.url).label, tx(l.where || '')]), styles: { fontSize: 8.5 }, columnStyles: { 0: { cellWidth: 12, halign: 'center' }, 1: { cellWidth: 82, textColor: [29, 78, 216], fontStyle: 'bold' }, 2: { cellWidth: 28 } },
+      didDrawCell: d => { if (d.section === 'body' && d.column.index === 1 && lks[d.row.index]) doc.link(d.cell.x, d.cell.y, d.cell.width, d.cell.height, { url: lks[d.row.index].url }); } });
+  }
   /* ----- headers & footers ----- */
   const n = doc.getNumberOfPages();
   const footLine = tx([st.company, st.phone ? 'Tel: ' + st.phone : '', st.email, st.website].filter(Boolean).join('  |  '));
@@ -2518,13 +2562,13 @@ function walkBlobs(job, fn) {
     for (const k of Object.keys(o)) {
       if (o === job && (k === 'sync' || k === 'conflict')) continue;
       const v = o[k];
-      if (typeof v === 'string') { if (v.startsWith('data:image/') || v.startsWith(SB_PREFIX)) fn(v, nv => { o[k] = nv; }, String(hasId ? b + (k === 'data' ? '' : '-' + k) : (b ? b + '-' : '') + k).replace(/[^A-Za-z0-9_-]/g, '_')); }
+      if (typeof v === 'string') { if (v.startsWith('data:image/') || v.startsWith('data:application/pdf') || v.startsWith(SB_PREFIX)) fn(v, nv => { o[k] = nv; }, String(hasId ? b + (k === 'data' ? '' : '-' + k) : (b ? b + '-' : '') + k).replace(/[^A-Za-z0-9_-]/g, '_')); }
       else if (v && typeof v === 'object') rec(v, hasId ? b : (b ? b + '-' : '') + k);
     }
   };
   rec(job, '');
 }
-const blobExt = v => { const m = /^data:image\/(\w+)/.exec(v); const t = m ? m[1] : 'jpeg'; return t === 'jpeg' ? 'jpg' : t; };
+const blobExt = v => { if (/^data:application\/pdf/.test(v)) return 'pdf'; const m = /^data:image\/(\w+)/.exec(v); const t = m ? m[1] : 'jpeg'; return t === 'jpeg' ? 'jpg' : t; };
 const blobPath = (job, name, v) => `${job.owner || me()}/${job.id}/${name}.${blobExt(v)}`;
 function blobSig(v) { let h = 2166136261; const n = v.length, step = Math.max(1, Math.floor(n / 4000)); for (let i = 0; i < n; i += step) { h ^= v.charCodeAt(i); h = Math.imul(h, 16777619); } for (let i = Math.max(0, n - 256); i < n; i++) { h ^= v.charCodeAt(i); h = Math.imul(h, 16777619); } return n + ':' + (h >>> 0).toString(36); }
 function blobTasks(job) { const out = []; walkBlobs(job, (v, set, name) => { if (v.startsWith('data:')) { const p = blobPath(job, name, v); const g = blobSig(v); if (Cloud.uploaded[p] !== g) out.push({ p, v, g }); } }); return out; }
@@ -2996,7 +3040,7 @@ const DEFAULT_MATLIB = [
 const matLib = () => S.settings.matLib || DEFAULT_MATLIB;
 const MEAS_QUICK = [['Length', 'm'], ['Width', 'm'], ['Eaves height', 'm'], ['Ridge height', 'm'], ['Pitch', 'degrees'], ['Gutter girth', 'mm'], ['Gutter length', 'm'], ['Number of rooflights', 'nr'], ['Rooflight size', 'mm'], ['Purlin centres', 'mm'], ['Overhang', 'mm'], ['Upstand height', 'mm'], ['Sheet lengths', 'm']];
 const MEAS_UNITS = ['mm', 'm', 'm²', 'degrees', 'nr'];
-const PITCH_METHODS = ['Degrees', 'Rise / run', 'Ratio / %', 'Phone (approx.)', 'Inclinometer', 'From drawings'];
+const PITCH_METHODS = ['Degrees', 'Rise / run', 'Slope measurement', 'Phone (approx.)', 'Inclinometer', 'From drawings'];
 const DEFAULT_PITCHMINS = [
   { key: 'trap_nolap', label: 'Profiled metal (trapezoidal) - no end laps', min: 4, rec: 4 },
   { key: 'trap_lap', label: 'Profiled metal (trapezoidal) - sealed end laps', min: 5, rec: 6 },
@@ -3012,13 +3056,19 @@ const pitchMins = () => S.settings.pitchMins || DEFAULT_PITCHMINS;
 /* ---------- Model helpers ---------- */
 function newMat(o = {}) { return Object.assign({ id: uid(), cat: '', name: '', spec: '', colour: '', qty: '', unit: 'nr', waste: '', supplier: '', notes: '', status: 'Required', checked: false, qtyFrom: '', photos: [] }, o); }
 function newMeas(kind, o = {}) { return Object.assign({ id: uid(), kind, label: '', value: '', unit: 'm', loc: '', notes: '', caption: '' }, o); }
-function newPitch(o = {}) { return Object.assign({ id: uid(), label: '', method: 'Degrees', deg: '', rise: '', run: '', ratio: '', pct: '', notes: '', photos: [] }, o); }
+function newPitch(o = {}) { return Object.assign({ id: uid(), label: '', method: 'Degrees', deg: '', rise: '', run: '', notes: '', photos: [] }, o); }
 function migrateExtras(j) {
   j.materials = Array.isArray(j.materials) ? j.materials : []; j.measurements = Array.isArray(j.measurements) ? j.measurements : [];
-  (j.areas || []).forEach(a => { ['materials', 'measurements', 'pitches'].forEach(k => { if (!Array.isArray(a[k])) a[k] = []; }); a.materials.forEach(m => { m.photos = m.photos || []; }); a.pitches.forEach(p => { p.photos = p.photos || []; }); });
+  (j.areas || []).forEach(a => { ['materials', 'measurements', 'pitches'].forEach(k => { if (!Array.isArray(a[k])) a[k] = []; }); a.materials.forEach(m => { m.photos = m.photos || []; }); a.pitches.forEach(p => { p.photos = p.photos || []; pitchToDegrees(p); }); migrateSlopes(a); });
   j.materials.forEach(m => { m.photos = m.photos || []; });
   (j.areas || []).forEach(a => { if (a.pitch !== undefined && String(a.pitch).trim() !== '' && !a.pitches.length) { const p = newPitch({ id: 'p_' + a.id, label: 'Main slope', deg: String(a.pitch) }); if (syncPitch(p, 'deg')) a.pitches.push(p); } });
   return j;
+}
+function newSlope(o = {}) { return Object.assign({ id: uid(), name: '', length: '', width: '', measured: 'slope', pitch: '', rise: '', notes: '' }, o); }
+// v1.6.2: the single length x width of an area becomes Slope 1 (pitch blank = use the area pitch, so the area m² is unchanged)
+function migrateSlopes(a) {
+  if (Array.isArray(a.slopes)) return;
+  a.slopes = (num(a.length) > 0 || num(a.width) > 0) ? [newSlope({ id: 's_' + a.id, name: 'Slope 1', length: String(a.length || ''), width: String(a.width || ''), measured: a.measured === 'plan' ? 'plan' : 'slope' })] : [];
 }
 const ownerOf = (job, o) => o === 'job' ? job : job.areas.find(a => a.id === o);
 const ownerBase = (job, o) => o === 'job' ? '' : `areas#${o}.`;
@@ -3078,14 +3128,10 @@ function measDims(owner) {
 function syncPitch(p, src) {
   let d = null;
   if (src === 'rise' || src === 'run') { if (num(p.run) > 0 && String(p.rise).trim() !== '') d = Math.atan(num(p.rise) / num(p.run)) * 180 / Math.PI; }
-  else if (src === 'ratio') { if (num(p.ratio) > 0) d = Math.atan(1 / num(p.ratio)) * 180 / Math.PI; }
-  else if (src === 'pct') { if (String(p.pct).trim() !== '') d = Math.atan(num(p.pct) / 100) * 180 / Math.PI; }
   else if (String(p.deg ?? '').trim() !== '') d = num(p.deg);
   if (d == null || !isFinite(d) || d < 0 || d >= 90) return false;
   const t = Math.tan(d * Math.PI / 180);
   if (src !== 'deg') p.deg = String(r1(d));
-  if (src !== 'ratio') p.ratio = t > 0 ? String(r1(1 / t)) : '';
-  if (src !== 'pct') p.pct = String(r1(t * 100));
   if (src !== 'rise' && src !== 'run') { const run = num(p.run) > 0 ? num(p.run) : 1000; p.run = String(run); p.rise = String(Math.round(run * t)); }
   return true;
 }
@@ -3098,7 +3144,15 @@ function pitchCheck(a, deg) {
   return { lvl: 'green', msg: 'OK for type' };
 }
 const pitchBadge = (a, deg) => { const c = pitchCheck(a, deg); return c.lvl ? `<span class="tag ${c.lvl}">${c.lvl === 'green' ? '✓ ' : '⚠ '}${esc(c.msg)}</span>` : ''; };
-const pitchRatio = p => num(p.ratio) > 0 ? `1:${p.ratio}` : '';
+// v1.6.2: degrees only. Legacy ratio (1:x) / percent readings are converted to degrees and removed.
+function pitchToDegrees(p) {
+  if (!p) return p; const hasDeg = String(p.deg ?? '').trim() !== '';
+  if (!hasDeg && num(p.ratio) > 0) p.deg = String(r1(Math.atan(1 / num(p.ratio)) * 180 / Math.PI));
+  else if (!hasDeg && String(p.pct ?? '').trim() !== '' && isFinite(num(p.pct))) p.deg = String(r1(Math.atan(num(p.pct) / 100) * 180 / Math.PI));
+  if ((p.ratio !== undefined || p.pct !== undefined) && String(p.deg ?? '').trim() !== '' && !(num(p.run) > 0 && String(p.rise ?? '').trim() !== '')) { const run = 1000; p.run = String(run); p.rise = String(Math.round(run * Math.tan(num(p.deg) * Math.PI / 180))); }
+  if (p.method === 'Ratio / %') p.method = 'Degrees';
+  delete p.ratio; delete p.pct; return p;
+}
 function pitchWarnHTML(a) {
   const g = pitchSysOf(a); const c0 = pitchCheck(a, a.pitch);
   return c0.lvl === 'red' || c0.lvl === 'amber' ? `<div class="warn-banner ${c0.lvl === 'amber' ? 'amber' : ''}">${I.warn}<div><b>LOW PITCH: ${esc(a.pitch)}°</b><p>${esc(c0.msg)} for ${esc(g.label)}. Check laps, sealing and the manufacturer's minimum before specifying. Typical guidance - check manufacturer.</p></div></div>` : '';
@@ -3108,8 +3162,7 @@ function pitchCard(job, a) {
   const rd = a.pitches.map((p, i) => {
     const pb = `${b}.pitches#${p.id}`; const c = pitchCheck(a, p.deg);
     return `<div class="pit ${c.lvl}" data-pid="${p.id}"><div class="ck-h"><input type="text" class="pit-l" data-b="${pb}.label" value="${esc(p.label)}" placeholder="${i === 0 ? 'e.g. Main slope' : 'e.g. Lean-to canopy'}" aria-label="Reading label">${i === 0 ? '<span class="tag navy">Area pitch</span>' : ''}<button type="button" class="ck-x" data-act="pitchdel" data-aid="${a.id}" data-pid="${p.id}" aria-label="Remove reading">×</button></div>
-      <div class="g3">${f.text('Degrees °', pb + '.deg', { type: 'number' })}${f.text('Ratio 1:x', pb + '.ratio', { type: 'number' })}${f.text('Percent %', pb + '.pct', { type: 'number' })}</div>
-      <div class="g2">${f.text('Rise (mm)', pb + '.rise', { type: 'number' })}${f.text('Run (mm)', pb + '.run', { type: 'number' })}</div>
+      <div class="g3">${f.text('Pitch (degrees °)', pb + '.deg', { type: 'number' })}${f.text('Rise (mm)', pb + '.rise', { type: 'number' })}${f.text('Run (mm)', pb + '.run', { type: 'number' })}</div>
       <div class="pit-m"><select data-b="${pb}.method" aria-label="Method">${PITCH_METHODS.map(x => `<option ${p.method === x ? 'selected' : ''}>${x}</option>`).join('')}</select><span id="pst_${p.id}">${pitchBadge(a, p.deg)}</span></div>
       <div class="ck-row"><input type="text" class="ck-c" data-b="${pb}.notes" value="${esc(p.notes)}" placeholder="Notes (optional)"><label class="ck-cam" aria-label="Add photo">${I.camera}<input type="file" accept="image/*" capture="environment" data-photo="${pb}.photos" hidden></label></div>
       ${p.photos.length ? `<div class="ck-ph">${p.photos.map(x => `<img src="${x.data}" alt="" data-act="viewphoto" data-key="${pb}.photos" data-id="${x.id}">`).join('')}</div>` : ''}
@@ -3119,13 +3172,13 @@ function pitchCard(job, a) {
     <div class="f"><label for="ps_${a.id}">Sheet / system (for pitch guidance)</label><select id="ps_${a.id}" data-b="${b}.pitchSys"><option value="">${PITCH_SYS_FOR[a.type] ? 'Auto from roof type' : '— Select —'}</option>${pitchMins().map(x => `<option value="${esc(x.key)}" ${a.pitchSys === x.key ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select>
     <p class="hint" id="pguide">${g ? `Typical minimum <b>${g.min}°</b>${num(g.rec) > num(g.min) ? `, recommended <b>${g.rec}°</b>` : ''} for ${esc(g.label)}. <i>Typical guidance - check manufacturer.</i>` : 'Choose the sheet / system to see the typical minimum pitch.'}</p></div>
     <div id="pitchwarn">${pitchWarnHTML(a)}</div>
-    <p class="hint" style="margin:0 0 10px">Enter degrees, rise &amp; run, or a ratio / % - the others update automatically. The first reading is the area pitch (used for the plan-to-slope area).</p>
+    <p class="hint" style="margin:0 0 10px">Pitch is in degrees. Enter it directly, or a rise &amp; run (the degrees are worked out), or measure with the phone. The first reading is the area pitch (used for the plan-to-slope area).</p>
     ${rd}
     <div class="btns"><button type="button" class="btn" data-act="pitchadd" data-aid="${a.id}">${I.plus} Add pitch reading</button><button type="button" class="btn" data-act="pitchphone" data-aid="${a.id}">${ICX.phone} Measure with phone</button></div></div>`;
 }
 function pitchDOM(job, a, p) {
   const pb = `areas#${a.id}.pitches#${p.id}`;
-  ['deg', 'ratio', 'pct', 'rise', 'run'].forEach(k => { const el = document.getElementById(fid(pb + '.' + k)); if (el && document.activeElement !== el) el.value = p[k]; });
+  ['deg', 'rise', 'run'].forEach(k => { const el = document.getElementById(fid(pb + '.' + k)); if (el && document.activeElement !== el) el.value = p[k]; });
   const st = $('#pst_' + p.id); if (st) st.innerHTML = pitchBadge(a, p.deg);
   const box = document.querySelector(`.pit[data-pid="${p.id}"]`); if (box) { box.classList.remove('red', 'amber', 'green'); const c = pitchCheck(a, p.deg); if (c.lvl) box.classList.add(c.lvl); }
 }
@@ -3317,12 +3370,12 @@ function viewMeasPage(job, o) {
     <button type="button" class="btn block" data-act="measadd" data-o="${o}">${I.plus} Add measurement</button>
     <p class="hint" style="margin-top:8px">Tip: enter a size as "length x width" (e.g. 3050 x 1060 mm) and the area is worked out.</p></div>
   ${d ? `<div class="card"><h2>Auto-calcs</h2><div class="calc" id="measarea"><span>${d.L && d.W ? `${r2(d.L)} × ${r2(d.W)} m = ${r2(d.L * d.W)} m²` : 'Add Length and Width'}</span><small>L × W</small></div>
-    <p class="hint" style="margin:8px 0">Roof area now: <b>${areaM2(owner)} m²</b> (${esc(owner.length || '-')} × ${esc(owner.width || '-')} m, ${owner.measured === 'plan' ? 'on plan' : 'on slope'}, pitch ${esc(owner.pitch || '-')}°). Plan dimensions are corrected for pitch.</p>
-    <button type="button" class="btn block" data-act="measuse" data-aid="${owner.id}" ${d.L && d.W ? '' : 'disabled'}>${I.wand} Use for roof area dimensions</button></div>` : ''}
+    <p class="hint" style="margin:8px 0">Roof area now: <b>${areaM2(owner)} m²</b> from ${slopesOf(owner).length} slope${slopesOf(owner).length === 1 ? '' : 's'} (pitch ${esc(owner.pitch || '-')}°). Plan dimensions are corrected for pitch. <a href="#/job/${job.id}/area/${owner.id}">Edit the slopes</a>.</p>
+    <button type="button" class="btn block" data-act="measuse" data-aid="${owner.id}" ${d.L && d.W ? '' : 'disabled'}>${I.wand} Use for Slope 1 length &amp; width</button></div>` : ''}
   <div class="card"><h2>${I.camera.replace('<svg', '<svg width="22" height="22"')} Photo &amp; sketch measurements <span class="prog" style="margin-left:auto">${im.length}</span></h2>
-    <div class="pgrid">${im.map(m => `<a class="ph" href="#/job/${job.id}/mpad/${o}/${m.id}" style="text-decoration:none;color:inherit">${m.data ? `<img src="${m.data}" alt="">` : `<div style="aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;background:#f3f6fa">${ICX.ruler}</div>`}<div class="pc"><span class="tag ${m.kind === 'photo' ? 'type-survey' : 'navy'}" style="align-self:flex-start">${m.kind === 'photo' ? 'Photo' : 'Sketch'}</span><b>${esc(m.caption || 'No caption')}</b></div></a>`).join('')}</div>
+    <div class="pgrid">${im.map(m => m.kind === 'link' ? `<a class="ph" href="${esc(m.url)}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><img src="${linkIcon(m.url)}" alt=""><div class="pc"><span class="tag navy" style="align-self:flex-start">${linkSvc(m.url).label}</span><b>${esc(m.label || m.url)}</b></div></a>` : m.kind === 'pdf' ? `<a class="ph" href="#" data-act="measpdf" data-o="${o}" data-id="${m.id}" style="text-decoration:none;color:inherit"><img src="${m.data}" alt="" title="${esc(m.name || 'PDF')}"><div class="pc"><span class="tag red" style="align-self:flex-start">PDF</span><b>${esc(m.caption || m.name || 'Document')}</b></div></a>` : `<a class="ph" href="#/job/${job.id}/mpad/${o}/${m.id}" style="text-decoration:none;color:inherit">${m.data ? `<img src="${m.data}" alt="">` : `<div style="aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;background:#f3f6fa">${ICX.ruler}</div>`}<div class="pc"><span class="tag ${m.kind === 'photo' ? 'type-survey' : 'navy'}" style="align-self:flex-start">${m.kind === 'photo' ? 'Photo' : 'Sketch'}</span><b>${esc(m.caption || 'No caption')}</b></div></a>`).join('')}</div>
     ${im.length ? '' : '<p class="hint">Mark up a photo with dimension lines, or draw a dimensioned sketch.</p>'}
-    <div class="addph" style="margin-top:12px"><label class="btn primary">${I.camera} Photo measurement<input type="file" accept="image/*" capture="environment" data-measphoto="${o}"></label><label class="btn">${I.image} From gallery<input type="file" accept="image/*" data-measphoto="${o}"></label></div>
+    <div class="addph" style="margin-top:12px"><label class="btn primary">${I.camera} Photo measurement<input type="file" accept="image/*" capture="environment" data-measphoto="${o}"></label><label class="btn">${I.image} From gallery<input type="file" accept="image/*,application/pdf" multiple data-measphoto="${o}"></label></div>
     <button type="button" class="btn block" style="margin-top:10px" data-act="measketch" data-o="${o}">${I.pen} Sketch measurement</button></div>`;
 }
 function viewMPad(job, o, m) {
@@ -3543,6 +3596,11 @@ async function buildRFQ(job, sc, ref) {
   }
   y = doc.lastAutoTable.finalY;
   font(7.2, 'italic', GREY); doc.text('Shaded columns to be completed by the supplier. Unit price and total excl. VAT.', M, y + 3.6); y += 7;
+  /* v1.6.2: roof slopes for quantity checking */
+  if (!SCF) { const sa = (job.areas || []).filter(a => (!sc || sc === 'all' || sc === a.id) && slopesOf(a).some(s => num(s.length) || num(s.width)));
+    if (sa.length) { const body = []; sa.forEach(a => { slopesOf(a).filter(s => num(s.length) || num(s.width)).forEach((s, i) => { const r = slopeAreas(a, s), pd = slopePitch(a, s); body.push([tx(a.name || ''), tx(s.name || `Slope ${i + 1}`), `${s.length || '-'} x ${s.width || '-'} m (${s.measured === 'plan' ? 'plan' : 'slope'})`, pd ? r1(pd) + '°' : '-', r.slope + ' m²']); }); body.push([{ content: tx(a.name || '') + ' total' + (num(a.areaOverride) > 0 ? ' (override)' : ''), colSpan: 4, styles: { fontStyle: 'bold', halign: 'right' } }, { content: areaM2(a) + ' m²', styles: { fontStyle: 'bold' } }]); });
+      if (y + 30 > BOT) { doc.addPage(); y = TOP + 6; } font(9.5, 'bold', NAVY); doc.text('Roof areas & slopes (for checking quantities)', M, y + 2); y += 4;
+      doc.autoTable(Object.assign({}, tb, { startY: y, theme: 'grid', head: [['Roof area', 'Slope', 'Dimensions', 'Pitch', 'Slope area']], body, styles: Object.assign({}, tb.styles, { fontSize: 7.8 }), headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', fontSize: 7.6 } })); y = doc.lastAutoTable.finalY + 6; } }
   /* supplier totals */
   const need = h => { if (y + h > BOT) { doc.addPage(); y = TOP + 6; } };
   need(36);
@@ -3616,9 +3674,11 @@ Object.assign(ACTIONS, {
   measketch(a, job) { const o = a.dataset.o; const owner = ownerOf(job, o); const m = newMeas('sketch', { caption: `Sketch ${owner.measurements.filter(x => x.kind === 'sketch').length + 1}`, data: '', grid: true }); owner.measurements.push(m); markDirty(job); go(`#/job/${job.id}/mpad/${o}/${m.id}`); },
   async measuse(a, job) {
     const ar = job.areas.find(x => x.id === a.dataset.aid); const d = measDims(ar); if (!d.L || !d.W) return;
-    if ((ar.length || ar.width) && !await confirmBox('Update roof area?', `Replace ${ar.length || '-'} × ${ar.width || '-'} m with ${r2(d.L)} × ${r2(d.W)} m${d.P && !num(ar.pitch) ? ` and pitch ${d.P}°` : ''}?`, 'Update', false)) return;
-    ar.length = String(r2(d.L)); ar.width = String(r2(d.W)); if (d.P && !num(ar.pitch)) { ar.pitch = String(d.P); if (!ar.pitches.length) { const p = newPitch({ label: 'Main slope', deg: String(d.P) }); syncPitch(p, 'deg'); ar.pitches.push(p); } }
-    if (!ar.measured) ar.measured = 'plan'; markDirty(job); rerender(); toast(`Roof area now ${areaM2(ar)} m²`);
+    migrateSlopes(ar); let s1 = ar.slopes[0];
+    if (s1 && (s1.length || s1.width) && !await confirmBox('Update Slope 1?', `Replace ${s1.length || '-'} × ${s1.width || '-'} m with ${r2(d.L)} × ${r2(d.W)} m${d.P && !num(ar.pitch) ? ` and pitch ${d.P}°` : ''}?`, 'Update', false)) return;
+    if (!s1) { s1 = newSlope({ name: 'Slope 1', measured: 'plan' }); ar.slopes.push(s1); }
+    s1.length = String(r2(d.L)); s1.width = String(r2(d.W)); ar.length = s1.length; ar.width = s1.width; if (d.P && !num(ar.pitch)) { ar.pitch = String(d.P); if (!ar.pitches.length) { const p = newPitch({ label: 'Main slope', deg: String(d.P) }); syncPitch(p, 'deg'); ar.pitches.push(p); } }
+    markDirty(job); rerender(); toast(`Roof area now ${areaM2(ar)} m²`);
   },
   rfqnote(a, job) { const r = rfqOf(job); const t = a.dataset.t; if (r.notes.includes(t)) return; r.notes = (r.notes ? r.notes.replace(/\s+$/, '') + '\n' : '') + t; markDirty(job); const el = document.getElementById(fid('rfq.notes')); if (el) el.value = r.notes; },
   async genrfq(a, job) {
@@ -3652,20 +3712,26 @@ document.addEventListener('click', e => {
 /* photo measurement input */
 document.addEventListener('change', async e => {
   const el = e.target; if (!el.matches || !el.matches('input[data-measphoto]') || !S.ctx || !S.ctx.job) return;
-  const job = S.ctx.job; const o = el.dataset.measphoto; const files = [...el.files]; el.value = ''; if (!files.length) return;
-  toast('Processing photo…', 1200); const [ph] = await filesToPhotos(files.slice(0, 1)); if (!ph) return;
-  const owner = ownerOf(job, o); const m = newMeas('photo', { caption: `Photo measurement ${owner.measurements.filter(x => x.kind === 'photo').length + 1}`, orig: ph.data, data: ph.data, ink: '', w: ph.w || 1200, h: ph.h || 900 });
-  owner.measurements.push(m); markDirty(job); go(`#/job/${job.id}/mpad/${o}/${m.id}`);
+  const files = [...el.files]; el.value = ''; return addMeasFiles(el.dataset.measphoto, files);
 });
+async function addMeasFiles(o, files) {
+  const job = S.ctx && S.ctx.job; if (!job || !files.length) return;
+  const owner = ownerOf(job, o); const pdfs = files.filter(isPdfFile); files = files.filter(f => !isPdfFile(f));
+  for (const f of pdfs) { const p = await pdfToItem(f); if (p) owner.measurements.push(newMeas('pdf', { caption: p.name, name: p.name, size: p.size, data: p.data })); }
+  if (pdfs.length) { markDirty(job); if (!files.length) { rerender(); return toast(`${pdfs.length} PDF${pdfs.length === 1 ? '' : 's'} added to measurements`); } }
+  toast('Processing photo…', 1200); const [ph] = await filesToPhotos(files.slice(0, 1)); if (!ph) { rerender(); return; }
+  const m = newMeas('photo', { caption: `Photo measurement ${owner.measurements.filter(x => x.kind === 'photo').length + 1}`, orig: ph.data, data: ph.data, ink: '', w: ph.w || 1200, h: ph.h || 900 });
+  owner.measurements.push(m); markDirty(job); go(`#/job/${job.id}/mpad/${o}/${m.id}`);
+}
 /* live updates for pitch / materials / measurements without re-rendering */
 const _derive0 = derive;
 derive = function (path, el) {
   _derive0(path, el);
   const job = S.ctx && S.ctx.job; if (!job) return;
   let m;
-  if ((m = /^areas#([^.]+)\.pitches#([^.]+)\.(deg|rise|run|ratio|pct)$/.exec(path))) {
+  if ((m = /^areas#([^.]+)\.pitches#([^.]+)\.(deg|rise|run)$/.exec(path))) {
     const a = job.areas.find(x => x.id === m[1]); const p = a && a.pitches.find(x => x.id === m[2]); if (!p) return;
-    if (syncPitch(p, m[3])) { if (m[3] === 'rise' || m[3] === 'run') p.method = 'Rise / run'; else if (m[3] === 'ratio' || m[3] === 'pct') p.method = 'Ratio / %'; const ms = document.querySelector(`[data-b="areas#${a.id}.pitches#${p.id}.method"]`); if (ms) ms.value = p.method; }
+    if (syncPitch(p, m[3])) { if (m[3] === 'rise' || m[3] === 'run') p.method = 'Rise / run'; const ms = document.querySelector(`[data-b="areas#${a.id}.pitches#${p.id}.method"]`); if (ms) ms.value = p.method; }
     if (a.pitches[0] === p) a.pitch = p.deg; pitchDOM(job, a, p); areaPitchDOM(a);
   }
   if ((m = /^areas#([^.]+)\.pitch$/.exec(path))) {
@@ -4011,7 +4077,7 @@ function dcWalk(root, fn) {
     const hasId = typeof o.id === 'string' && o !== root; const b = hasId ? o.id : base;
     for (const k of Object.keys(o)) {
       const v = o[k];
-      if (typeof v === 'string') { if (v.startsWith('data:image/') || v.startsWith(DC_PREFIX)) fn(v, nv => { o[k] = nv; }, String(hasId ? b + (k === 'data' ? '' : '-' + k) : (b ? b + '-' : '') + k).replace(/[^A-Za-z0-9_-]/g, '_')); }
+      if (typeof v === 'string') { if (v.startsWith('data:image/') || v.startsWith('data:application/pdf') || v.startsWith(DC_PREFIX)) fn(v, nv => { o[k] = nv; }, String(hasId ? b + (k === 'data' ? '' : '-' + k) : (b ? b + '-' : '') + k).replace(/[^A-Za-z0-9_-]/g, '_')); }
       else if (v && typeof v === 'object') rec(v, hasId ? b : (b ? b + '-' : '') + k);
     }
   };
@@ -4139,7 +4205,7 @@ function dcPdfKit(title) {
   k.table = o => { doc.autoTable(Object.assign({ startY: k.y, margin: { left: M, right: M, top: TOP + 2, bottom: H - BOT + 2 }, theme: 'grid', styles: { font: 'helvetica', fontSize: 9, cellPadding: 1.8, textColor: TXT, lineColor: LINE, lineWidth: 0.2, overflow: 'linebreak' }, headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold' } }, o)); k.y = doc.lastAutoTable.finalY + 5; };
   k.kv = rows => { rows = rows.filter(r => r[1] !== undefined && r[1] !== null && String(r[1]).trim() !== ''); if (rows.length) k.table({ body: rows.map(r => [tx(r[0]), tx(r[1])]), columnStyles: { 0: { cellWidth: 52, fontStyle: 'bold', fillColor: LIGHT } } }); };
   k.photos = (list, cap) => {
-    list = (list || []).filter(p => p && typeof p.data === 'string' && p.data.startsWith('data:image/')); if (!list.length) return;
+    const lks = (list || []).filter(isLinkItem); if (lks.length) { lks.forEach(l => { k.need(6); k.doc.setFont('helvetica', 'normal'); k.doc.setFontSize(8.5); k.doc.setTextColor(29, 78, 216); const t = k.tx(`${linkSvc(l.url).label}: ${l.label || l.url}`).slice(0, 110); k.doc.textWithLink(t, k.M, k.y + 3, { url: l.url }); k.y += 5; }); k.doc.setTextColor(...k.TXT); k.y += 1; } const pdfs = (list || []).filter(isPdfItem); list = (list || []).filter(p => p && typeof p.data === 'string' && p.data.startsWith('data:image/')); if (pdfs.length) { k.need && k.need(6); try { k.doc.setFont('helvetica', 'italic'); k.doc.setFontSize(8); k.doc.text(k.tx('Attached PDFs: ' + pdfs.map(p => p.name || 'document.pdf').join(', ')), k.M, k.y + 3); k.y += 6; } catch (e) {} } if (!list.length) return;
     const cols = 3, gap = 4, cw = (CW - gap * (cols - 1)) / cols, ih = cw * 0.75;
     for (let i = 0; i < list.length; i += cols) { k.need(ih + 8); list.slice(i, i + cols).forEach((p, j) => { const x = M + j * (cw + gap); doc.setFillColor(...LIGHT); doc.rect(x, k.y, cw, ih, 'F'); const r = Math.min(cw / (p.w || 4), ih / (p.h || 3)); const w = (p.w || 4) * r, h = (p.h || 3) * r; try { doc.addImage(p.data, fmtImg(p.data), x + (cw - w) / 2, k.y + (ih - h) / 2, w, h, undefined, 'FAST'); } catch (e) { } if (cap) { k.font(7.5, 'normal', GREY); doc.text(tx(cap), x, k.y + ih + 3.5); } }); k.y += ih + (cap ? 7 : 4); }
   };
@@ -5861,6 +5927,164 @@ Object.assign(ACTIONS, {
 }
 if (typeof window !== 'undefined') window.addEventListener('focus', () => { if (Ops.push && Ops.push.st) rmPushState(); });
 
+/* ===== v1.6.2: roof slopes + PDF attachments, drag & drop, paste ===== */
+/* ---------- roof slopes ---------- */
+function slopesCard(job, a) {
+  const f = mk(job); const b = `areas#${a.id}`; const ss = slopesOf(a); const t = slopeTotals(a); const ap = num(a.pitch) > 0 ? a.pitch : '';
+  const rows = ss.map((s, i) => { const sb = `${b}.slopes#${s.id}`; const r = slopeAreas(a, s);
+    return `<div class="slope" data-sid="${s.id}"><div class="ck-h"><input type="text" class="pit-l" data-b="${sb}.name" value="${esc(s.name)}" placeholder="Slope ${i + 1} - e.g. North slope, Valley side, Lean-to" aria-label="Slope name">
+      <button type="button" class="btn sm ghost" data-act="slopedup" data-aid="${a.id}" data-sid="${s.id}" title="Duplicate slope" aria-label="Duplicate slope">${I.plus}<span>Copy</span></button>
+      <button type="button" class="ck-x" data-act="slopedel" data-aid="${a.id}" data-sid="${s.id}" title="Delete slope" aria-label="Delete slope">×</button></div>
+      <div class="g3">${f.text('Length (m)', sb + '.length', { type: 'number', ph: 'eaves to ridge' })}${f.text('Width / run (m)', sb + '.width', { type: 'number' })}${f.text('Pitch (°)', sb + '.pitch', { type: 'number', ph: ap ? `${ap} (area)` : 'degrees' })}</div>
+      ${f.seg('', sb + '.measured', [['slope', 'Length on slope'], ['plan', 'Length on plan']])}
+      <div class="g2">${f.text('Rise (m) - optional', sb + '.rise', { type: 'number', ph: 'works out the pitch' })}<div class="f"><span class="lbl">&nbsp;</span><button type="button" class="btn" data-act="slopephone" data-aid="${a.id}" data-sid="${s.id}">${ICX.phone} Phone pitch</button></div></div>
+      <div class="calc sm" id="sl_${s.id}"><span>${r.slope} m² on slope</span><small>${r.plan} m² on plan${slopePitch(a, s) ? ` · ${r1(slopePitch(a, s))}°` : ' · no pitch'}</small></div></div>`; }).join('');
+  return `<div class="card" id="slopescard"><h2>Roof slopes <span class="prog" style="margin-left:auto">${ss.length}</span></h2>
+    <p class="hint" style="margin-bottom:10px">Add each slope of this roof area. Length is eaves to ridge (or the slope length); width is along the eaves. Pitch is in degrees - leave blank to use the area pitch, or enter the rise to work it out.</p>
+    ${rows || '<p class="hint">No slopes yet.</p>'}
+    <button type="button" class="btn block" data-act="slopeadd" data-aid="${a.id}">${I.plus} Add slope</button>
+    <div class="calc" id="slopetot" style="margin-top:12px"><span>${t.slope} m² total on slope</span><small>${t.plan} m² on plan</small></div>
+    ${f.text('Area override (m²) - optional', b + '.areaOverride', { type: 'number', hint: 'If set, this is used for the roof area and materials instead of the slope total.' })}</div>`;
+}
+function slopesDOM(a) {
+  slopesOf(a).forEach(s => { const el = document.getElementById('sl_' + s.id); if (!el) return; const r = slopeAreas(a, s); const pd = slopePitch(a, s); el.innerHTML = `<span>${r.slope} m² on slope</span><small>${r.plan} m² on plan${pd ? ` · ${r1(pd)}°` : ' · no pitch'}</small>`; });
+  const t = slopeTotals(a); const te = $('#slopetot'); if (te) te.innerHTML = `<span>${t.slope} m² total on slope</span><small>${t.plan} m² on plan</small>`;
+}
+// rise (m) + length gives the pitch in degrees: on slope asin(rise/L), on plan atan(rise/L)
+function slopeRiseToPitch(a, s, key, el) {
+  if (!s || !['rise', 'length', 'measured'].includes(key) || !(num(s.rise) > 0) || !(num(s.length) > 0)) return;
+  const L = num(s.length), R = num(s.rise); if (s.measured !== 'plan' && R >= L) return;
+  const d = s.measured === 'plan' ? Math.atan(R / L) : Math.asin(R / L); s.pitch = String(r1(d * 180 / Math.PI));
+  const pe = document.getElementById(fid(`areas#${a.id}.slopes#${s.id}.pitch`)); if (pe && pe !== el) pe.value = s.pitch;
+}
+const slopeFind = (job, a) => { const ar = job.areas.find(x => x.id === a.dataset.aid); return [ar, ar && slopesOf(ar).find(x => x.id === a.dataset.sid)]; };
+Object.assign(ACTIONS, {
+  slopeadd(a, job) { const ar = job.areas.find(x => x.id === a.dataset.aid); migrateSlopes(ar); const last = ar.slopes[ar.slopes.length - 1]; ar.slopes.push(newSlope({ name: `Slope ${ar.slopes.length + 1}`, measured: last ? last.measured : 'slope' })); markDirty(job); rerender(); setTimeout(() => { const el = document.querySelector(`.slope[data-sid="${ar.slopes[ar.slopes.length - 1].id}"] input`); el && el.focus(); }, 30); },
+  slopedup(a, job) { const [ar, s] = slopeFind(job, a); if (!s) return; const c = Object.assign(JSON.parse(JSON.stringify(s)), { id: uid(), name: (s.name || 'Slope') + ' (copy)' }); ar.slopes.splice(ar.slopes.indexOf(s) + 1, 0, c); markDirty(job); rerender(); toast('Slope duplicated'); },
+  async slopedel(a, job) { const [ar, s] = slopeFind(job, a); if (!s) return; if (!await confirmBox('Delete slope?', `"${s.name || 'Slope'}" will be removed from this roof area.`, 'Delete')) return; ar.slopes.splice(ar.slopes.indexOf(s), 1); markDirty(job); rerender(); },
+  async slopephone(a, job) { const [ar, s] = slopeFind(job, a); if (!s) return; const d = await measurePitchWithPhone(); if (d == null) return; s.pitch = String(r1(d)); markDirty(job); rerender(); toast(`Pitch ${s.pitch}° saved for ${s.name || 'slope'} (approx.)`); },
+  async measpdf(a, job) { const ow = ownerOf(job, a.dataset.o); const m = ow.measurements.find(x => x.id === a.dataset.id); if (m) viewPdfItem(ow.measurements, m, () => markDirty(job)); },
+});
+
+/* ---------- PDF attachments ---------- */
+const PDF_MAX = 10 * 1024 * 1024;
+const isPdfFile = f => f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+const isPdfItem = p => !!p && typeof p.data === 'string' && (p.kind === 'pdf' || p.data.startsWith('data:application/pdf') || (p.data.startsWith('sb:') && /\.pdf$/i.test(p.data)));
+const PDF_ICON = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90"><rect width="120" height="90" fill="#f3f6fa"/><path d="M44 12h24l14 14v52H44z" fill="#fff" stroke="#b91c1c" stroke-width="3"/><path d="M68 12v14h14" fill="none" stroke="#b91c1c" stroke-width="3"/><rect x="36" y="46" width="40" height="18" rx="3" fill="#b91c1c"/><text x="56" y="60" font-family="Arial" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">PDF</text></svg>');
+function pdfToItem(f) {
+  if (f.size > PDF_MAX) { toast(`${f.name} is ${(f.size / 1048576).toFixed(1)} MB - PDFs must be 10 MB or less`, 4000); return Promise.resolve(null); }
+  return new Promise(res => { const r = new FileReader(); r.onload = () => { let d = String(r.result); if (!d.startsWith('data:application/pdf')) d = d.replace(/^data:[^;,]*/, 'data:application/pdf'); res({ id: uid(), kind: 'pdf', data: d, name: f.name || 'document.pdf', size: f.size, caption: (f.name || 'Document').replace(/\.pdf$/i, ''), ts: Date.now() }); }; r.onerror = () => { toast('Could not read ' + f.name); res(null); }; r.readAsDataURL(f); });
+}
+function pdfBlob(p) { const [h, b] = p.data.split(','); const bin = atob(b); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: 'application/pdf' }); }
+async function viewPdfItem(arr, p, saved) {
+  const ok = p.data.startsWith('data:'); const size = p.size ? ` · ${(p.size / 1048576).toFixed(1)} MB` : '';
+  const r = await modal(`<div class="viewer"><img src="${PDF_ICON}" alt="" style="max-height:140px"><p><b>${esc(p.name || 'document.pdf')}</b>${size}</p>${ok ? '' : '<p class="hint">This PDF is still downloading from the cloud - try again shortly.</p>'}
+    <button class="btn primary" data-r="open" ${ok ? '' : 'disabled'}>Open PDF</button><button class="btn" data-r="dl" ${ok ? '' : 'disabled'}>Download</button><button class="btn" data-r="">Close</button><button class="btn danger" data-r="del">Remove PDF</button></div>`);
+  if (r === 'open' || r === 'dl') { const url = URL.createObjectURL(pdfBlob(p)); if (r === 'open') { const w = window.open(url, '_blank'); if (!w) location.href = url; } else { const l = document.createElement('a'); l.href = url; l.download = p.name || 'document.pdf'; document.body.appendChild(l); l.click(); l.remove(); } setTimeout(() => URL.revokeObjectURL(url), 60000); }
+  if (r === 'del' && await confirmBox('Remove PDF?', `"${p.name || 'document.pdf'}" will be deleted.`, 'Remove')) { arr.splice(arr.indexOf(p), 1); if (saved) saved(); else S.ctx.save(); rerender(); }
+}
+// thumbnails: any <img> pointing at a PDF shows the PDF icon instead
+function pdfThumbs(root) { (root.querySelectorAll ? root : document).querySelectorAll('img[src^="data:application/pdf"]').forEach(im => { im.title = im.title || 'PDF document'; im.src = PDF_ICON; im.classList.add('pdfth'); }); }
+new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.tagName === 'IMG' && /^data:application\/pdf/.test(n.getAttribute('src') || '')) pdfThumbs(n.parentNode); else pdfThumbs(n); } }).observe(document.documentElement, { childList: true, subtree: true });
+
+/* ---------- desktop: files instead of camera; drag & drop; paste ---------- */
+const isDesktop = () => matchMedia('(pointer: fine)').matches && !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+document.addEventListener('click', e => {
+  const el = e.target.closest && e.target.closest('input[data-photo],input[data-measphoto]'); if (!el || !isDesktop()) return;
+  el.removeAttribute('capture'); if (!/pdf/.test(el.accept)) el.accept = 'image/*,application/pdf'; el.multiple = true;
+}, true);
+let dzLast = null;
+const dzInput = t => { let n = t && t.nodeType === 1 ? t : t && t.parentElement; while (n && n !== document.body) { const i = n.querySelector && n.querySelector('input[data-photo],input[data-measphoto]'); if (i) return { zone: n, input: i }; n = n.parentElement; } const all = document.querySelectorAll('input[data-photo],input[data-measphoto]'); const keys = new Set([...all].map(i => i.dataset.photo || 'm:' + i.dataset.measphoto)); return keys.size === 1 ? { zone: document.querySelector('main') || document.body, input: all[0] } : null; };
+const dzClear = () => document.querySelectorAll('.dz-on').forEach(x => x.classList.remove('dz-on'));
+async function dropFiles(input, files) {
+  files = files.filter(f => isPdfFile(f) || /^image\//.test(f.type)); if (!files.length) return toast('Only photos and PDFs can be added');
+  if (input.dataset.measphoto) return addMeasFiles(input.dataset.measphoto, files);
+  return addPhotoFiles(input.dataset.photo, files);
+}
+document.addEventListener('dragover', e => { if (!e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return; const z = dzInput(e.target); e.preventDefault(); e.dataTransfer.dropEffect = z ? 'copy' : 'none'; if (z && z.zone !== dzLast) { dzClear(); z.zone.classList.add('dz-on'); dzLast = z.zone; } });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) { dzClear(); dzLast = null; } });
+document.addEventListener('drop', e => { if (!e.dataTransfer || !e.dataTransfer.files.length) return; e.preventDefault(); dzClear(); dzLast = null; const z = dzInput(e.target); if (!z) return toast('Drop onto a photo area'); dropFiles(z.input, [...e.dataTransfer.files]); });
+let pasteZone = null; document.addEventListener('pointerover', e => { const z = e.target.closest && e.target.closest('.card'); if (z) pasteZone = z; });
+document.addEventListener('paste', e => {
+  const files = [...(e.clipboardData && e.clipboardData.files || [])]; if (!files.length) return;
+  const ae = document.activeElement; const z = dzInput(ae && ae !== document.body ? ae : pasteZone); if (!z) return; e.preventDefault(); dropFiles(z.input, files);
+});
+
+/* ---------- reports: list attached PDFs and optionally append them (pdf-lib) ---------- */
+function stripPdfs(job) {
+  const j = JSON.parse(JSON.stringify(job)); const att = [], lk = [];
+  const where = path => path.filter(Boolean).join(' > ');
+  const walk = (o, ctx) => { if (Array.isArray(o)) { for (let i = o.length - 1; i >= 0; i--) { const p = o[i]; if (isLinkItem(p)) { lk.unshift({ url: p.url, label: p.label, where: where(ctx) }); (o._links = o._links || []).unshift({ url: p.url, label: p.label }); o.splice(i, 1); } else if (p && typeof p === 'object' && isPdfItem(p) && (p.kind === 'pdf' || 'data' in p)) { att.unshift({ name: p.name || 'document.pdf', size: p.size || 0, where: where(ctx), data: p.data }); o.splice(i, 1); } else walk(p, ctx); } return; }
+    if (o && typeof o === 'object') { const lab = o.name || o.title || o.text || o.label || ''; const c = lab && typeof lab === 'string' ? ctx.concat(lab.slice(0, 40)) : ctx; for (const k in o) if (o[k] && typeof o[k] === 'object') walk(o[k], c); } };
+  walk(j, []); return { job: j, att, links: lk };
+}
+let _pdfLib = null;
+function loadPdfLib() { if (window.PDFLib) return Promise.resolve(window.PDFLib); return _pdfLib || (_pdfLib = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'pdf-lib.min.js'; s.onload = () => res(window.PDFLib); s.onerror = () => { _pdfLib = null; rej(new Error('pdf-lib not available offline yet')); }; document.head.appendChild(s); })); }
+const _buildPDF0 = buildPDF;
+buildPDF = async function (job, opts = {}) {
+  const { job: j, att, links } = stripPdfs(job); const o = Object.assign({}, opts, { _attach: att, _links: links });
+  const out = await _buildPDF0(j, o); const ready = att.filter(a => a.data.startsWith('data:'));
+  if (!att.length || !opts.appendPdfs || !ready.length) return out;
+  try {
+    const { PDFDocument } = await loadPdfLib(); const base = await PDFDocument.load(await out.blob.arrayBuffer()); let added = 0;
+    for (const a of ready) { try { const src = await PDFDocument.load(await pdfBlob(a).arrayBuffer(), { ignoreEncryption: true }); const pg = await base.copyPages(src, src.getPageIndices()); pg.forEach(p => base.addPage(p)); added += pg.length; } catch (e) { console.warn('skip pdf', a.name, e); toast(`Could not append ${a.name}`); } }
+    const bytes = await base.save(); return Object.assign({}, out, { blob: new Blob([bytes], { type: 'application/pdf' }), pages: out.pages + added, appended: added });
+  } catch (e) { console.warn(e); toast('Attached PDFs listed but not appended: ' + e.message, 3500); return out; }
+};
+
+/* ---------- v1.6.2: links (OneDrive / SharePoint / Google Drive / YouTube / video) alongside photos ---------- */
+const isLinkItem = p => !!p && p.kind === 'link' && typeof p.url === 'string';
+function linkSvc(url) {
+  let h = ''; try { h = new URL(url).hostname.toLowerCase(); } catch (e) {}
+  if (/(^|\.)(1drv\.ms|onedrive\.live\.com|onedrive\.com)$/.test(h)) return { k: 'onedrive', label: 'OneDrive', c: '#0364b8' };
+  if (/sharepoint\.com$/.test(h)) return { k: 'sharepoint', label: 'SharePoint', c: '#038387' };
+  if (/(^|\.)(drive|docs|photos)\.google\.com$|^photos\.app\.goo\.gl$/.test(h)) return { k: 'gdrive', label: 'Google Drive', c: '#1a73e8' };
+  if (/(^|\.)(youtube\.com|youtu\.be)$/.test(h)) return { k: 'youtube', label: 'YouTube', c: '#e00000' };
+  if (/(^|\.)(vimeo\.com|loom\.com|stream\.microsoft\.com)$/.test(h) || /\.(mp4|mov|m4v|webm)(\?|$)/i.test(url)) return { k: 'video', label: 'Video', c: '#7c3aed' };
+  return { k: 'web', label: 'Link', c: '#0f2542' };
+}
+function linkIcon(url) {
+  const s = linkSvc(url); const glyph = s.k === 'youtube' || s.k === 'video' ? '<path d="M52 30v30l26-15z" fill="#fff"/>' : s.k === 'onedrive' || s.k === 'sharepoint' ? '<path d="M38 60h44a10 10 0 0 0 0-20 16 16 0 0 0-30-4 12 12 0 0 0-14 24z" fill="#fff"/>' : s.k === 'gdrive' ? '<path d="M50 26h20l16 28-10 16H44L34 54z" fill="none" stroke="#fff" stroke-width="5"/>' : '<path d="M52 52l16-16M46 46l-6 6a8 8 0 0 0 12 12l6-6M74 44l6-6a8 8 0 0 0-12-12l-6 6" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>';
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90"><rect width="120" height="90" fill="${s.c}"/>${glyph}<text x="60" y="84" font-family="Arial" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle">${s.label}</text></svg>`);
+}
+function validLink(u) { u = String(u || '').trim(); if (!/^https:\/\//i.test(u)) return null; try { const x = new URL(u); return x.protocol === 'https:' && x.hostname.includes('.') ? x.href : null; } catch (e) { return null; } }
+// link items sit in the same arrays as photos; data holds a non-image marker so sync and image code leave it alone
+function newLink(url, label) { return { id: uid(), kind: 'link', url, label: label || '', caption: label || '', data: 'data:text/uri-list,' + encodeURIComponent(url), svc: linkSvc(url).k, ts: Date.now() }; }
+async function askLink(old) {
+  let u, l; const r = await modal(`<h3>${old ? 'Edit link' : 'Add photo / video link'}</h3><label class="lbl" for="lnku">Link (https://)</label><input type="url" id="lnku" placeholder="https://1drv.ms/... or https://youtu.be/..." value="${esc(old ? old.url : '')}"><div style="height:8px"></div><label class="lbl" for="lnkl">Label</label><input type="text" id="lnkl" placeholder="e.g. More photos - north slope" value="${esc(old ? old.label : '')}">
+    <p class="hint" style="margin:8px 0">OneDrive, SharePoint, Google Drive, YouTube or any https link. Share it as <b>"Anyone with the link"</b> so the client can open it from the report.</p><p class="hint" id="lnkerr" style="color:#b91c1c"></p><button class="btn primary" data-r="ok">${old ? 'Save link' : 'Add link'}</button><button class="btn" data-r="">Cancel</button>`, bg => { u = $('#lnku', bg); l = $('#lnkl', bg); setTimeout(() => u.focus(), 30); });
+  if (r !== 'ok') return null; const url = validLink(u.value);
+  if (!url) { toast('Link not added - it must start with https://', 3500); return null; }
+  return { url, label: l.value.trim() };
+}
+async function viewLinkItem(arr, p, saved) {
+  const s = linkSvc(p.url);
+  const r = await modal(`<div class="viewer"><img src="${linkIcon(p.url)}" alt="" style="max-height:120px"><p><b>${esc(p.label || s.label)}</b><br><small style="word-break:break-all">${esc(p.url)}</small></p><a class="btn primary" href="${esc(p.url)}" target="_blank" rel="noopener" data-r="">Open link</a><button class="btn" data-r="edit">Edit</button><button class="btn" data-r="">Close</button><button class="btn danger" data-r="del">Remove link</button></div>`);
+  if (r === 'edit') { const n = await askLink(p); if (n) { Object.assign(p, newLink(n.url, n.label), { id: p.id, ts: p.ts }); saved ? saved() : S.ctx.save(); rerender(); } }
+  if (r === 'del') { arr.splice(arr.indexOf(p), 1); saved ? saved() : S.ctx.save(); rerender(); }
+}
+Object.assign(ACTIONS, {
+  async addlink(a, job) {
+    const n = await askLink(); if (!n || !S.ctx) return;
+    if (a.dataset.mkey) { const ow = ownerOf(job, a.dataset.mkey); ow.measurements.push(newMeas('link', { url: n.url, label: n.label, caption: n.label })); markDirty(job); rerender(); return toast('Link added'); }
+    let arr = getPath(S.ctx.obj, a.dataset.key); if (!Array.isArray(arr)) { arr = []; setPath(S.ctx.obj, a.dataset.key, arr); }
+    arr.push(newLink(n.url, n.label)); S.ctx.save(); rerender(); toast(`${linkSvc(n.url).label} link added`);
+  },
+});
+{ const _vp = ACTIONS.viewphoto; ACTIONS.viewphoto = async function (a, job) { const arr = getPath(S.ctx.obj, a.dataset.key); const p = arr && arr.find(x => x.id === a.dataset.id); if (isLinkItem(p)) return viewLinkItem(arr, p); return _vp.call(this, a, job); }; }
+// an "Add link" button sits beside every photo input; link thumbnails show the service icon
+function linkButtons(root) {
+  (root.querySelectorAll ? root : document).querySelectorAll('input[data-photo],input[data-measphoto]').forEach(inp => {
+    const lab = inp.closest('label'); if (!lab || !lab.parentNode) return; const key = inp.dataset.photo, mk = inp.dataset.measphoto;
+    const host = lab.parentNode; if (host.querySelector(`.lnkbtn[data-key="${key || ''}"][data-mkey="${mk || ''}"]`)) return;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'lnkbtn ' + (lab.classList.contains('ck-cam') ? 'ck-cam' : 'btn'); b.dataset.act = 'addlink'; b.dataset.key = key || ''; b.dataset.mkey = mk || ''; b.title = 'Add a photo / video link'; b.setAttribute('aria-label', 'Add link');
+    b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>' + (lab.classList.contains('ck-cam') ? '' : ' Add link');
+    const last = [...host.querySelectorAll(':scope > label')].filter(x => x.querySelector('input[data-photo],input[data-measphoto]')).pop() || lab; last.after(b);
+  });
+  (root.querySelectorAll ? root : document).querySelectorAll('img[src^="data:text/uri-list"]').forEach(im => { const u = decodeURIComponent(im.getAttribute('src').split(',')[1] || ''); im.src = linkIcon(u); im.title = u; im.classList.add('pdfth'); });
+}
+new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) linkButtons(n.parentNode || n); }).observe(document.documentElement, { childList: true, subtree: true });
+
 /* ---------- Demo audit (illustrative images drawn on canvas) ---------- */
 function demoPhoto(kind, caption, seed = 1) {
   const w = 1200, h = 900, c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
@@ -5914,10 +6138,13 @@ async function makeDemoJob() {
   gen.notes = 'The building is a steel portal frame warehouse constructed c.1996 with built-up twin-skin metal roof sheeting and in-plane GRP rooflights at approximately 10% of the roof area.';
   const A1 = newArea(j); Object.assign(A1, { name: 'Main warehouse - north slope', type: 'Built-up metal', profile: 'Firth N1000R', colour: 'Goosewing Grey', pitch: '6', length: '84', width: '22.5', measured: 'plan', rlType: 'GRP in-plane (triple skin)', rlCount: '42', gutterTypes: ['Trimline', 'Valley'], gutterMat: 'Galvanised steel', outletCount: '8', flashTypes: ['Ridge', 'Verge / barge', 'Eaves'], insType: 'Spacer system (built-up)', overall: 'Fair' });
   const A2 = newArea(j); Object.assign(A2, { name: 'Office link - south slope', type: 'Composite panel', profile: 'Kingspan KS1000RW', colour: 'Merlin Grey', pitch: '4', length: '30', width: '12', measured: 'slope', rlType: 'None', gutterTypes: ['Eaves'], gutterMat: 'Plastisol-coated steel', outletCount: '3', flashTypes: ['Ridge', 'Abutment'], insType: 'Composite core (PIR)', overall: 'Good' });
+  /* v1.6.2 demo: slopes, a photo link */
+  A1.slopes = [newSlope({ name: 'North slope', length: '84', width: '11.25', measured: 'plan' }), newSlope({ name: 'South slope', length: '84', width: '11.25', measured: 'plan' }), newSlope({ name: 'Loading bay lean-to', length: '18', width: '4.5', measured: 'slope', pitch: '10' })];
+  A2.slopes = [newSlope({ name: 'Slope 1', length: '30', width: '12', measured: 'slope' })];
   j.areas.push(A1, A2);
   const s1 = k => secByKey(A1, k), s2 = k => secByKey(A2, k);
   s1('sheets').rating = 'Fair'; ans(s1('sheets'), 'Overall sheet', 'Fair'); ans(s1('sheets'), 'Coating condition', 'Poor', 'Chalking across south face'); ans(s1('sheets'), 'Cut-edge', 'Yes', 'Eaves & end laps, all bays'); ans(s1('sheets'), 'Coating delamination', 'Yes', 'Localised at eaves'); ans(s1('sheets'), 'Chalking', 'Yes'); ans(s1('sheets'), 'Surface rust', 'No'); ans(s1('sheets'), 'Damaged', 'No'); ans(s1('sheets'), 'Debris', 'Yes', 'Moss at eaves');
-  s1('sheets').photos.push(demoPhoto('cutedge', 'Cut-edge corrosion at eaves, gridline A-C', 2)); s1('sheets').notes = 'Plastisol coating generally sound in field of sheets. Cut-edge corrosion has progressed 20-40 mm at the majority of eaves and end laps.';
+  s1('sheets').photos.push(demoPhoto('cutedge', 'Cut-edge corrosion at eaves, gridline A-C', 2), newLink('https://1drv.ms/f/s!example-north-slope', 'More photos - north slope (example)')); s1('sheets').notes = 'Plastisol coating generally sound in field of sheets. Cut-edge corrosion has progressed 20-40 mm at the majority of eaves and end laps.';
   s1('fixings').rating = 'Poor'; ans(s1('fixings'), 'Primary fixings', 'Poor', 'Heads corroded'); ans(s1('fixings'), 'Stitcher', 'Fair'); ans(s1('fixings'), 'Loose', 'Yes', 'Approx. 5%'); ans(s1('fixings'), 'Corroded', 'Yes'); ans(s1('fixings'), 'Missing', 'Yes', 'Isolated'); ans(s1('fixings'), 'Washers', 'Yes'); ans(s1('fixings'), 'Fastener caps', 'Yes', 'Most caps missing'); ans(s1('fixings'), 'Hook bolts', 'N/A');
   s1('fixings').photos.push(demoPhoto('fixings', 'Corroded primary fixings, caps missing', 3));
   s1('laps').rating = 'Fair'; ans(s1('laps'), 'Side laps', 'Fair'); ans(s1('laps'), 'End laps', 'Poor', 'Sealant failed at 3 runs'); ans(s1('laps'), 'Lap sealant', 'Yes'); ans(s1('laps'), 'Open', 'No'); ans(s1('laps'), 'Corrosion at laps', 'Yes'); s1('laps').photos.push(demoPhoto('lap', 'End lap corrosion and failed sealant, bay 5', 4));
@@ -5943,7 +6170,7 @@ async function makeDemoJob() {
 }
 
 /* ---------- Init ---------- */
-S.reportOpts = { photos: true, hideBlank: true, defectPhotos: true };
+S.reportOpts = { photos: true, hideBlank: true, defectPhotos: true, appendPdfs: true };
 async function init() {
   try { await DB.open(); const s = await DB.getKV('settings'); if (s) S.settings = Object.assign(clone(DEFAULT_SETTINGS), s); S.jobs = ((await DB.all()) || []).map(migrateJob); if (!S.settings.worksDisclaimer) S.settings.worksDisclaimer = DEFAULT_WORKS_DISCLAIMER; }
   catch (e) { console.error(e); toast('Storage unavailable - data will not be saved (private browsing?)', 6000); }
