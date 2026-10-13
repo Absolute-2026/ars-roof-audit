@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.6.2">
+<meta name="app-version" content="1.6.3">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -808,7 +808,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.6.2';
+const APP_VERSION = '1.6.3';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -1803,8 +1803,9 @@ async function buildPDF(job, opts) {
   };
   const measBlock = (owner, title) => {
     const ms = owner.measurements || []; const tm = ms.filter(m => m.kind === 'text' && (m.label || m.value)); const im = ms.filter(m => m.kind !== 'text' && m.data && !String(m.data).startsWith('sb:'));
-    if (!tm.length && !im.length) return;
-    h3(title || 'Measurements');
+    const ml = ms._links || [];
+    if (!tm.length && !im.length && !ml.length) return;
+    h3(title || 'Measurements'); linkList(ml, 'Measurement links');
     if (tm.length) table({ head: [['Measurement', 'Value', 'Location / grid ref', 'Notes']], body: tm.map(m => [tx(m.label || '-'), tx(`${m.value || '-'}${m.unit ? ' ' + (m.unit === 'degrees' ? 'deg' : m.unit) : ''}${measCalc(m) ? '  (' + measCalc(m).replace('= ', '') + ')' : ''}`), tx(m.loc), tx(m.notes)]), styles: { fontSize: 8.5 }, columnStyles: { 0: { cellWidth: 48, fontStyle: 'bold' }, 1: { cellWidth: 42 }, 2: { cellWidth: 40 } } });
     if (im.length) { const cols = 2, gap = 5, cw = (CW - gap) / cols, ih = cw * 0.75;
       for (let i = 0; i < im.length; i += cols) { const row = im.slice(i, i + cols); need(ih + 10);
@@ -1849,6 +1850,7 @@ async function buildPDF(job, opts) {
     photoGrid(sec.photos);
     const iph = items.flatMap(i => (i.photos || []).map(p => Object.assign({}, p, { caption: p.caption || i.text })));
     if (iph.length && opts.photos) { label('Checklist item photos'); photoGrid(iph); }
+    items.forEach(i => { if (i.photos && i.photos._links) linkList(i.photos._links, 'Links - ' + i.text); });
     if (!items.length && !sec.notes && !sec.photos.length && !sec.rating) { para('No observations recorded.', 8.5, 'italic', GREY); }
     y += 1;
   };
@@ -1915,6 +1917,7 @@ async function buildPDF(job, opts) {
         didParseCell: d => { if (d.section === 'body' && d.column.index === 5) { const st = String(d.cell.raw).split('\n')[0]; d.cell.styles.fillColor = SC[st]; d.cell.styles.textColor = 255; } },
         didDrawCell: d => { if (opts.photos && d.section === 'body' && d.column.index === 1) { const ref = String((d.row.raw || [])[0] || '').split('\n')[0]; const r = sn_.find(x => x.ref === ref); const p = r && r.photos[0]; if (p) try { fit(p, d.cell.x + 1, d.cell.y + 1, d.cell.width - 2, d.cell.height - 2); } catch (e) { } } },
       });
+      sn_.forEach(x => { const l = [...((x.photos || {})._links || []), ...((x.closePhotos || {})._links || [])]; if (l.length) linkList(l, `Links - snag ${x.ref}`); });
       const ba = closed.filter(x => x.photos.length || x.closePhotos.length);
       if (ba.length && opts.photos) {
         h3('Closed snags - before & after');
@@ -2051,6 +2054,7 @@ async function buildPDF(job, opts) {
     });
   }
 
+  ds.forEach(d => { if (d.photos && d.photos._links) linkList(d.photos._links, `Links - defect ${d.ref}`); });
   /* ----- Materials schedule ----- */
   const allMat = matLines(job);
   if (allMat.length && opts.materials !== false) {
@@ -3596,6 +3600,13 @@ async function buildRFQ(job, sc, ref) {
   }
   y = doc.lastAutoTable.finalY;
   font(7.2, 'italic', GREY); doc.text('Shaded columns to be completed by the supplier. Unit price and total excl. VAT.', M, y + 3.6); y += 7;
+  /* v1.6.3: reference links attached to materials or measurements in scope */
+  if (!SCF) { const owners = [job, ...(job.areas || [])].filter(o => o === job ? (!sc || sc === 'all' || sc === 'job') : (!sc || sc === 'all' || sc === o.id)); const RL = [];
+    owners.forEach(o => { const on = o === job ? 'Site-wide' : (o.name || 'Roof area'); (o.measurements || []).filter(isLinkItem).forEach(m => RL.push({ url: m.url, label: m.label, where: on + ' > Measurements' })); (o.materials || []).forEach(m => (m.photos || []).filter(isLinkItem).forEach(l => RL.push({ url: l.url, label: l.label, where: on + ' > ' + (m.name || 'Material') }))); });
+    if (RL.length) { if (y + 20 + RL.length * 7 > BOT) { doc.addPage(); y = TOP + 6; } font(9.5, 'bold', NAVY); doc.text('Reference links (photos, drawings, video)', M, y + 2); y += 4;
+      doc.autoTable(Object.assign({}, tb, { startY: y, theme: 'grid', head: [['Link', 'Type', 'Attached to']], body: RL.map(l => [tx(l.label || l.url), linkSvc(l.url).label, tx(l.where)]), styles: Object.assign({}, tb.styles, { fontSize: 7.8 }), headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', fontSize: 7.6 }, columnStyles: { 0: { textColor: [29, 78, 216], fontStyle: 'bold' } },
+        didDrawCell: d => { if (d.section === 'body' && d.column.index === 0 && RL[d.row.index]) doc.link(d.cell.x, d.cell.y, d.cell.width, d.cell.height, { url: RL[d.row.index].url }); } })); y = doc.lastAutoTable.finalY + 2;
+      font(7.2, 'italic', GREY); doc.text('Links must be shared as "Anyone with the link" to open.', M, y + 3); y += 7; } }
   /* v1.6.2: roof slopes for quantity checking */
   if (!SCF) { const sa = (job.areas || []).filter(a => (!sc || sc === 'all' || sc === a.id) && slopesOf(a).some(s => num(s.length) || num(s.width)));
     if (sa.length) { const body = []; sa.forEach(a => { slopesOf(a).filter(s => num(s.length) || num(s.width)).forEach((s, i) => { const r = slopeAreas(a, s), pd = slopePitch(a, s); body.push([tx(a.name || ''), tx(s.name || `Slope ${i + 1}`), `${s.length || '-'} x ${s.width || '-'} m (${s.measured === 'plan' ? 'plan' : 'slope'})`, pd ? r1(pd) + '°' : '-', r.slope + ' m²']); }); body.push([{ content: tx(a.name || '') + ' total' + (num(a.areaOverride) > 0 ? ' (override)' : ''), colSpan: 4, styles: { fontStyle: 'bold', halign: 'right' } }, { content: areaM2(a) + ' m²', styles: { fontStyle: 'bold' } }]); });
@@ -4205,7 +4216,7 @@ function dcPdfKit(title) {
   k.table = o => { doc.autoTable(Object.assign({ startY: k.y, margin: { left: M, right: M, top: TOP + 2, bottom: H - BOT + 2 }, theme: 'grid', styles: { font: 'helvetica', fontSize: 9, cellPadding: 1.8, textColor: TXT, lineColor: LINE, lineWidth: 0.2, overflow: 'linebreak' }, headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold' } }, o)); k.y = doc.lastAutoTable.finalY + 5; };
   k.kv = rows => { rows = rows.filter(r => r[1] !== undefined && r[1] !== null && String(r[1]).trim() !== ''); if (rows.length) k.table({ body: rows.map(r => [tx(r[0]), tx(r[1])]), columnStyles: { 0: { cellWidth: 52, fontStyle: 'bold', fillColor: LIGHT } } }); };
   k.photos = (list, cap) => {
-    const lks = (list || []).filter(isLinkItem); if (lks.length) { lks.forEach(l => { k.need(6); k.doc.setFont('helvetica', 'normal'); k.doc.setFontSize(8.5); k.doc.setTextColor(29, 78, 216); const t = k.tx(`${linkSvc(l.url).label}: ${l.label || l.url}`).slice(0, 110); k.doc.textWithLink(t, k.M, k.y + 3, { url: l.url }); k.y += 5; }); k.doc.setTextColor(...k.TXT); k.y += 1; } const pdfs = (list || []).filter(isPdfItem); list = (list || []).filter(p => p && typeof p.data === 'string' && p.data.startsWith('data:image/')); if (pdfs.length) { k.need && k.need(6); try { k.doc.setFont('helvetica', 'italic'); k.doc.setFontSize(8); k.doc.text(k.tx('Attached PDFs: ' + pdfs.map(p => p.name || 'document.pdf').join(', ')), k.M, k.y + 3); k.y += 6; } catch (e) {} } if (!list.length) return;
+    const lks = (list || []).filter(isLinkItem); if (lks.length) { lks.forEach(l => k._links.push({ url: l.url, label: l.label, where: cap || '' })); lks.forEach(l => { k.need(6); k.doc.setFont('helvetica', 'normal'); k.doc.setFontSize(8.5); k.doc.setTextColor(29, 78, 216); const t = k.tx(`${linkSvc(l.url).label}: ${l.label || l.url}`).slice(0, 110); k.doc.textWithLink(t, k.M, k.y + 3, { url: l.url }); k.y += 5; }); k.doc.setTextColor(...k.TXT); k.y += 1; } const pdfs = (list || []).filter(isPdfItem); list = (list || []).filter(p => p && typeof p.data === 'string' && p.data.startsWith('data:image/')); if (pdfs.length) { k.need && k.need(6); try { k.doc.setFont('helvetica', 'italic'); k.doc.setFontSize(8); k.doc.text(k.tx('Attached PDFs: ' + pdfs.map(p => p.name || 'document.pdf').join(', ')), k.M, k.y + 3); k.y += 6; } catch (e) {} } if (!list.length) return;
     const cols = 3, gap = 4, cw = (CW - gap * (cols - 1)) / cols, ih = cw * 0.75;
     for (let i = 0; i < list.length; i += cols) { k.need(ih + 8); list.slice(i, i + cols).forEach((p, j) => { const x = M + j * (cw + gap); doc.setFillColor(...LIGHT); doc.rect(x, k.y, cw, ih, 'F'); const r = Math.min(cw / (p.w || 4), ih / (p.h || 3)); const w = (p.w || 4) * r, h = (p.h || 3) * r; try { doc.addImage(p.data, fmtImg(p.data), x + (cw - w) / 2, k.y + (ih - h) / 2, w, h, undefined, 'FAST'); } catch (e) { } if (cap) { k.font(7.5, 'normal', GREY); doc.text(tx(cap), x, k.y + ih + 3.5); } }); k.y += ih + (cap ? 7 : 4); }
   };
@@ -4229,7 +4240,9 @@ function dcPdfKit(title) {
       k.y = y0 + bh + 2;
     });
   };
-  k.finish = (footL) => { const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.line(M, H - 11, W - M, H - 11); k.font(7.5, 'normal', GREY); doc.text(tx(footL), M, H - 7); doc.text(`Page ${i} of ${n}`, W - M, H - 7, { align: 'right' }); } return doc; };
+  k._links = [];
+  k.finish = (footL) => { if (k._links.length) { doc.addPage(); k.y = TOP; k.h2('Additional photos & video links'); k.para('Click a link to open it. Links must be shared as "Anyone with the link" to open.', 8.5, 'normal', GREY); const L = k._links; k.table({ head: [['No.', 'Link', 'Type', 'Attached to']], body: L.map((l, i) => [String(i + 1), tx(l.label || l.url), linkSvc(l.url).label, tx(l.where)]), columnStyles: { 0: { cellWidth: 12 }, 1: { cellWidth: 80, textColor: [29, 78, 216], fontStyle: 'bold' } }, didDrawCell: d => { if (d.section === 'body' && d.column.index === 1 && L[d.row.index]) doc.link(d.cell.x, d.cell.y, d.cell.width, d.cell.height, { url: L[d.row.index].url }); } }); }
+    const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.line(M, H - 11, W - M, H - 11); k.font(7.5, 'normal', GREY); doc.text(tx(footL), M, H - 7); doc.text(`Page ${i} of ${n}`, W - M, H - 7, { align: 'right' }); } return doc; };
   return k;
 }
 const ANS_TXT = { ok: 'OK', issue: 'ISSUE', na: 'N/A', '': '-' };
