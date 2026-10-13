@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.6.4">
+<meta name="app-version" content="1.7.0">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -397,6 +397,13 @@ img.pdfth{object-fit:contain;background:#f3f6fa}
 .cc-t{border-collapse:collapse;font-size:13px;width:100%}.cc-t td,.cc-t th{border:1px solid #dde3ec;padding:4px;text-align:left;vertical-align:top}
 body.cc-locked main canvas{pointer-events:none}
 .tag.cc-tag{background:#f18902;color:#fff}
+/* v1.7.0 quotes */
+.cc-banner.q{border-color:#f18902;background:#fff8ee}
+.tag.q-draft{background:#e3e8ef;color:#0f2542}.tag.q-awaiting{background:#fde68a;color:#7c4a03}.tag.q-issued{background:#0f2542;color:#fff}.tag.q-won{background:#15803d;color:#fff}.tag.q-lost{background:#b91c1c;color:#fff}
+table.qt{width:100%;border-collapse:collapse;margin:4px 0 6px}table.qt th{font-size:12px;text-align:left;color:#5a6678;font-weight:700;padding:2px}table.qt td{padding:2px}table.qt input{width:100%;min-height:38px;padding:6px 8px;font-size:15px}
+.qarea{border:1px solid #dde3ec;border-radius:10px;padding:8px;margin:6px 0}.qopt h2 input{flex:1;font-size:17px;font-weight:800}
+.ph.qsel{outline:3px solid #f18902;outline-offset:-3px}.qbu summary .tag{margin-left:6px}
+table.qt{table-layout:fixed}table.qt input{min-width:0!important;padding:6px 5px!important}
 
 </style>
 </head>
@@ -817,7 +824,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.6.4';
+const APP_VERSION = '1.7.0';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -1243,6 +1250,7 @@ function viewDetails(job) {
   return `${hsStrip(job)}
   <div class="card"><h2><span class="n">1</span> Survey</h2>
     <div class="row">${f.text('Job reference', 'ref')}${f.text('Surveyor', 'surveyor', { ph: 'Name' })}</div>
+    ${isWorks(job) ? '' : f.text('RP number (from the lead system)', 'rp', { ph: 'e.g. RP5046', hint: 'Used as the quote reference. Revisions print as "RP5046 Revised 1".' })}
     <div class="row">${f.text('Date', 'date', { type: 'date' })}${f.text('Time', 'time', { type: 'time' })}</div>
     ${f.seg('Status', 'status', [['Draft', 'Draft'], ['Complete', 'Complete', 'ok']], { cls: 'yn' })}
   </div>
@@ -1496,6 +1504,7 @@ function render(keepScroll) {
     S.ctx = { obj: S.settings, save: saveSettings };
     if (r[1] === 'library') { head = header({ title: 'Materials, pitch & RFQ', back: '#/settings' }); body = viewLibrary(); }
     else if (r[1] === 'templates') { head = header({ title: 'Checklist templates', back: '#/settings' }); body = viewTemplates(); }
+    else if (r[1] === 'quotes') { head = header({ title: 'Quotes', back: '#/settings' }); body = viewQuoteSettings(); }
     else { head = header({ title: 'Settings', back: '#/' }); body = viewSettings(); after = showStorage; }
   } else if (r[0] === 'job') {
     const job = getJob(r[1]); if (!job) { go('#/'); return; }
@@ -6115,6 +6124,514 @@ function linkButtons(root) {
 }
 new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) linkButtons(n.parentNode || n); }).observe(document.documentElement, { childList: true, subtree: true });
 
+/* Default quote wording - from Absolute Roofing Solutions' own quotes (editable by managers in Settings > Quotes) */
+const QUOTE_TEXTS = {
+ "intro": "Absolute Roofing Solutions Ltd are industrial and commercial roofing experts offering a nationwide coverage.\n\nWe specialise in all aspects of roofing refurbishments including, asbestos replacement, roof sheeting comprising of built up and composite panel systems, built up felt roofing, gutter maintenance and re lining, reactive roof maintenance and more.\n\nAbsolute Group of companies can also off the following services:\n\nAbsolute Scaffold Ltd operations cover all ranges of scaffolding from domestic projects through to commercial and industrial ones. We pride ourselves on the highest possible standard of work, this drives us to keep health and safety at the core of our principles.\n\nAbsolute Waterproofing Ltd, your one stop shop for flat roofing solutions. Nationwide coverage with expert knowledge. Liquid Applied Waterproof Systems, Felt Flat Roofs, Health and Safety\n\nAbsolute Solar Solutions, it is our main priority to provide our clients with the complete package when they choose to install our solar solutions. Our Management, technical and installation teams have over 10 years of experience within the solar industry.\n\nAbsolute Building and Maintenance cover all forms of Construction, our professional and qualified management team have over 40 years of experience. We pride ourselves on excellent communication, workmanship, and customer service. We offer new build, refurbishment, and all levels of commercial works. We also offer a consultant and design service to assist with our client’s needs.\n\nAbsolute Roof Tiling are industrial and commercial roofing experts offering a nationwide coverage.",
+ "library": {
+  "coating": {
+   "title": "Metal Roof Coat",
+   "text": "Prepare the surface of the areas to be treated by means of jetwashing.\nA spray will be used to apply one coat of basecoat ensuring complete coverage to all affected roof sheets. \nCure time upto 24 hours depending on time of year.\nGun apply silicon to the joint to form a bridged seal, then tool with one coat of liquid coating, brush applied wet on wet to achieve a smooth filet. \nOverlap base coat by approx. 12mm either side of the joint, in a neat band at least 75mm wide.\nOn completion of the above steps, apply one coat of Liquid coating by spray, roller, or brush.\n\nOur proposal is for an area of {{m2}} square metres including the profile of the sheet."
+  },
+  "cutedge": {
+   "title": "Cut Edge Treatment",
+   "text": "Prepare the surface of the areas to be treated with the cut edge treatment. Removing any loose and flaking coatings to a firm edge, removing all non-adherent rust staining, swarf, and debris. The cost provided assumes that there are no paint products currently on the roof. \nIf areas are discovered to have undergone previous treatments to the laps, additional costs may be incurred to remove the paint before application.\nMechanical brushing may be required to remove flaking plastisol. Once it is removed, the surface should be cleaned with isopropyl alcohol cleaner.\nA brush or roller will be used to apply one coat of a base treatment to a firm edge ensuring complete coverage of all exposed and prepared metalwork.\nApply to either side of the overlap, at overhangs, achieve contact with the sheet underside to ensure edge encapsulation. Allow to cure, depending on time of year the times can vary considerably. \nGun apply the sealant to the joint to form a bridged seal, then tool off before applying a further coat, brush applied wet on wet to achieve a smooth filet. \nOverlap the base coat to either side of the joint with the topcoat, in a neat band at least 75mm – 150mm wide.\n\nWe have allowed for a total of {{lm}} linear metres which includes the profile of the sheet."
+  },
+  "fixings": {
+   "title": "Fixing Replacement",
+   "text": "Systematically remove existing roof fixings, lower to ground level and remove from site.                                                                                                                                       Supply and fix new drill fast tec fasteners, self-drilling and tapping roof fixings. These to be fixed where the existing roof sheet fixings have been removed. They are to be colour coded to the existing roof sheets and to match existing fixings. Poppy red fixings will be installed to the new roof lights.\n\nWe have allowed for approximately {{fixings}} fixings to be replaced."
+  },
+  "overclad": {
+   "title": "Over Cladding Roof",
+   "text": "The proposal is to install an Insulated Roofing System over the top of the existing roof. \nFollowing the existing purlins supply and install a new railing system to metal roof sheets or z bars to asbestos cement roof sheets. The new rails or bars are to be fastened through the existing roof sheets to support the new roof system. \nSupply and install a maximum thickness of 280mm wool insulation on top of the existing roof. The insulation is to be sandwiched between the existing and new area, leaving the roof light area clear from insulation. \nDuring the installation carefully remove the fixings to the existing roof lights leaving the existing roof lights in-situ. Once the new roof lights are in position, we will remove the existing roof lights and lower to ground level and place into the waste skip. The proposal is to supply and install a GRP Class 1 Fire Rating Standard weight, securely fixed, tape and seal. \nSupply and install a 32/1000 0.7mm steel plastisol trapezoidal sheets, these are to be manufactured from alloy coated flat steel sheet manufactured to EN 01147:1992. \nThe new system is to incorporate Class 3 roof lights, these are to be fixed directly above the Class 1 roof lights. \nTo the perimeter of the roof lights supply and install a closure flashing’s, this is to prevent the wool insulation moving.\nThe sheets will be fully taped, sealed, and fastened at the end and side laps and Goosewing Grey in colour.\nSupply and install purpose made detail flashings to the ridge, barge, and eave. The new flashings will be designed, fabricated to suit the new roof system, and securely fastened with new fixings colour coded to match the sheets. \nAll gutters are to be cleaned of debris, the debris is to be bagged and lowered to ground level and placed in waste skips. Upon completion of the cleaning the gutters are to be prepared to manufacture recommendations prior to supplying and installing the membrane liners. All associated outlets, weirs and stop-ends are included.\n\nOur proposal is for an area of {{m2}} square metres."
+  },
+  "structural": {
+   "title": "Structural Survey",
+   "text": "The existing roof was not originally designed to have an additional weight upon them. We therefore have included to appoint a Structural Engineer to conduct a site visit to calculate, report, and confirm that the additional loadings which will not impose on the existing structure and are acceptable for the proposed Insulated System.\nOver Cladding of roofs is a common practice in the Industrial Sector, with the majority only requiring confirmation of the additional loadings. On some occasions there has been a minor minority needing a small amount of additional bracing which is why we a Structural Assessment is required. The report from the Structural Engineer will be forwarded upon completion with the O&M File."
+  },
+  "composite": {
+   "title": "Composite Roof Replacement",
+   "text": "The proposal is to install an Insulated Panel Roofing System to the roof and walls. Reassurance Air Tests for Asbestos cement roof sheet will be included. We would include to have a test carried out at the start and on completion.\n\nCarefully remove the existing roof coverings, associated flashings, these will be lowered to ground level in a careful manner. All waste is to be segregated into individual skips and removed from site in the appropriate manner, waste consignment notes will be provided upon request.\n\nOnce the existing roof is removed the area in question would be opened for the shortest period before the new sheeting is fixed thus not leaving the roof area open to the elements for long periods of time. Roof areas would not be removed if there was very poor weather. \nSupply and install new Trapezoidal Insulated Roof Panels with a minimum thickness of {{thickness}}mm to the roof and 80mm to the wall. The panels are manufactured with an ECOsafe and FIREsafe Insulation core and a plastisol coated external finish in {{colour}}. The new panels will be securely fixed to the existing purlins with new fixings colour coded to match the panels. The panels will be fully fastened at the end and side lap. The panels will be provided with a tape to the underside of the end and side lap.\n\nThe new sheeting system includes all relevant steel 0.7mm steel plastisol coated eaves, ridge and barge flashings and details to suite the new roof/walls. The new flashings are to be designed, fabricated to suit the new roof/wall system, and securely fastened with new fixings colour coded to match the panels.\n\nThe necessary RWG are included in the proposal, it may be necessary to install additional RWP’s, Weirs and outlets. These are to be agreed and confirmed prior to starting any works.\n\nThe proposal is for a total area of {{m2}} square metres."
+  },
+  "overlay": {
+   "title": "Overlay Sheet Installation",
+   "text": "Carefully remove the fixings to the roof area to receive the overlay sheet. Any loose debris will be softly brushed, bagged and removed from site in a controlled manner. Reassurance Air Tests for Asbestos cement roof sheet will be included if necessary. We would include to have one test carried out on the completion of the works.\n\nSupply and install an Opaque GRP Overlay sheet to match the profile of the existing sheet. The overlay will be securely fastened with new fixings through the original fixing holes of the existing sheet.\n\nIt is necessary to install the overlay sheet to a larger area than the initial leak as water can travel and with the use of the crawl boards this can put stress on the existing sheet. Therefore, when using the crawl board, the procedure is to start at the apex and work down the slope.\n\nWe have allowed for {{qty}} no. overlay sheets."
+  },
+  "gutter": {
+   "title": "Gutter Clean & Lining",
+   "text": "Clean out the existing gutters to current industrial standards using soft brushes, non-abrasive measures will be used during the cleaning. All debris from the gutters is to be bagged up and carefully lowered to ground level disposing of the debris in the correct and relevant manner into waste skips. A waste disposal consignment note can be provided upon request.\n\nAs a responsible contractor our trained technicians will ensure no debris has the potential to fall into the outlet and existing rainwater pipe. Precautions will be placed to prevent any debris falling into the outlets.\n\nWe would recommend that if there are issues following the gutter clean, that you instruct a specialist drainage contractor.\n\nGutter Lining\n\nPrepare the existing gutter by removing all loose debris, corrosion and failed sealants to a sound substrate. Supply and install a reinforced single-ply gutter lining system, fully bonded and dressed into all outlets, stop ends and joints in accordance with the manufacturer's recommendations, providing a continuous watertight lining. We have allowed for {{lm}} linear metres of gutter."
+  },
+  "flashing": {
+   "title": "Flashing Replacement",
+   "text": "Carefully remove the existing flashing from the designated areas, taking care to avoid damage to the surrounding roof coverings and supporting structure. All redundant materials will be collected and disposed of in the appropriate manner in accordance with current waste management regulations.\n\nSupply and install new purpose-made flashings, manufactured to suit the existing roof profile and site-specific details. All flashings will be installed in accordance with the manufacturer's recommendations and current industry standards to provide a durable, weatherproof finish.\n\nThe new flashings will be securely fixed using new corrosion-resistant fixings appropriate for the roof construction, ensuring a secure installation and long-term performance.\n\nWe have allowed for {{lm}} linear metres of flashing."
+  },
+  "rooflight": {
+   "title": "Rooflight Replacement",
+   "text": "Carefully remove the existing roof light(s) by releasing the fixings and glazing bars, lowering each unit safely to ground level, and disposing of the redundant materials in an appropriate waste skip.\n\nSupply and install new GRP Polycarb Sheet. The new GRP Polycarb Sheet will be securely fixed and sealed to provide a weathertight installation.\n\nWe have allowed for {{rooflights}} no. rooflights."
+  },
+  "mansafe": {
+   "title": "Mansafe System, Access Hatch & Ladder",
+   "text": "MSA Latchways ManSafe CFP\nTo supply, install, inspect & certify 2 No. runs of MSA Latchways® ManSafe® totalling\napproximately {{lm}}m in length fitted to Constant Force posts Stitch Screwed to a\nProfile Metal Roof\nThis quote will be subject to a Full Site Survey to confirm ALL Details before works commence. All works to be carried out in accordance with the recommendations of\nBS7883\nUser Equipment\nTo supply only 1 No. set of the following user equipment:\n1 No. Removable Transfastener\n1 No. Full Body Harness to BS EN 361\n1 No. 1.75m Shock Absorbing Lanyard to BS EN 354 & 355\nAccess Hatch\nPrepare the area to receive the hatch\nSupply and install 1 no. access hatch\nLadder.\nSupply, Install, Inspect and Certify 1 No Galvanised Steel Ladder Kit to clear 3000mm it comes with fixed feet at the base, extended stays into masonry and a standard top step with a ladder up post through the hatch. This ladder will be subject to a Full Site Survey to confirm all details before any works commence."
+  }
+ },
+ "prelims": {
+  "scaffold": {
+   "title": "Independent Scaffolding",
+   "text": "Included within the proposal is for the erection of an Independent Scaffold for the duration of the contract. This will consist of all tubing, clips, boarding and bracing to form the Scaffold for the use and protection of our technicians to Safely carry out the proposed work.\nThe scaffolding will be lowered and removed from site once the Roof Refurbishment has been completed. The scaffolding will be installed to current Scaffolding Regulations.\nWeekly inspections are to be carried out from a competent person, this will be performed by either Absolute Scaffolding Limited or our SMSTS Manager as training has been provided.\nThe scaffolding to be installed by Absolute Scaffolding Limited (part of the Absolute Group)."
+  },
+  "edge": {
+   "title": "Scaffolding Edge Protection",
+   "text": "Included within the proposal is for the erection of all necessary Edge protection Handrail Scaffolding for the duration of the contract. it may be required to install an Access Tower for accessing the roof area, this will be included.\nThis will consist of all tubing, clips, boarding and bracing to form the scaffold for the use and protection of our technicians to Safely carry out the relevant work. For the purpose of this quote the Edge Protection will be installed from ground level, on some occasions and with limited access the Edge Protection will be considered for Roof Mounted.\nThe scaffolding will be lowered and removed from site once the roofing works have been completed. The scaffolding will be installed to current Scaffolding Regulations.\nWeekly inspections are to be carried out from a competent person, this will be performed by either Absolute Scaffolding Limited or our SMSTS Manager as training has been provided.\nThe scaffolding to be installed by Absolute Scaffolding Limited (part of the Absolute Group)."
+  },
+  "netting": {
+   "title": "Safety & Debris Netting",
+   "text": "We have allowed within the proposal to install internal Fall and Arrest Safety Netting to the underside of the existing roof.\nThe Safety Netting will be tied to the structure of the building to provide Safety for our technicians working on Fragile Roofs.\nIncorporated within the Safety Netting is a fine Debris Netting.\nDebris Netting is required as loose particles of debris and dust may fall from above when removing the roof or Roof Lights.\nPlease be aware that the fine Debris Netting will catch majority of the debris and dust, it cannot be guaranteed to catch all debris or dust from falling."
+  },
+  "telehandler": {
+   "title": "Telehandler",
+   "text": "To carry out the proposed refurbishment of the roof we require the use of a Telehandler. A Telehandler, also known as a boom lift, telescopic handler or a forklift is a machine which has a boom that can extend forwards and upwards from the vehicle.\nThe Telehandler will lift materials to roof level, this will be coordinated with the site.\nTelehandler delivery and collection to and from site, this will be liaised with the appropriate person when it will be delivered and collected from site."
+  },
+  "mewp": {
+   "title": "MEWP",
+   "text": "To carry out the necessary installation of the Safety Netting to the underside of the roof we require the use of a MEWP (Mobile Elevating Work Platform). The MEWP will be utilised to lift our highly trained operatives to the roof level to install the Safety Netting.\nAt all times the operatives will remain in the basket. A full harness restraint system will be worn and attached the docking points of the MEWP.\nMEWP delivery and collection to and from site, this will be liaised with the appropriate person when it will be delivered and collected from site."
+  },
+  "skips": {
+   "title": "Waste Removal",
+   "text": "Waste Skips will be provided to accept all materials for the repairs or roofs refurbishment. This will be supplied by our Absolute from our chosen Approved Waste Management Contractor.\nAll skips to be dropped and collected from designated areas agreed with the client.\nConsignment notes will be provided for any waste removed from the site if requested."
+  },
+  "asbestos": {
+   "title": "Asbestos Waste & Air Tests",
+   "text": "Asbestos Waste Skip will be provided for the roof refurbishment. This will be supplied by our Absolute from our chosen Approved Waste Management Contractor.\nReassurance Air Tests for Asbestos cement roof sheet will be included. We would include to have a test carried out at the start and on completion."
+  },
+  "crawl": {
+   "title": "Crawl Boards",
+   "text": "Crawl Boards are necessary to carry out the repairs or refurbishments, we will provide the required amount to deliver the repairs or refurbishment. \nA Crawl Board is a plank with cleats spaced and secured at equal intervals, for use on working on a Fragile Roof."
+  }
+ },
+ "warranties": "For all repair work that does not consist of a full roof refurbish of the total roof area, it will not be possible to offer a guarantee on these works. With carrying out repair work there is always a possibility that leaks can track from one area of the roof to another and the ingress into the building.\nUpon completion any applicable manufacturers warranties will be provided for your records.",
+ "disclaimer": "For all repair work that does not consist of a full roof refurbish of the total roof area, it will not be possible to offer a guarantee on these works. With carrying out repair work there is always a possibility that leaks can track from one area of the roof to another and then ingress into the building.\nThe current lead time can be up to 8 weeks from receipt of purchase order.",
+ "tcsShort": "The normal working hours of Absolute Roofing Solutions are Monday – Friday, 0800-1700. Any works required outside of these times may be at an additional cost unless previously agreed.\nAbsolute Roofing Solutions Ltd reserves the right to remeasurement upon receipt of a Purchase Order prior to contract acceptance.\nThe cost offered is strictly for the items with a cost provided and does not include any other works. Our cost does not include VAT, which will be added to invoices at the normal rate.\nThis quotation is valid for {{validity}} days from the date of issue.\nPayment is required 14 days from date of invoice. On larger projects, an interim payment schedule will be required and may also require a deposit. In the event of invoices not being paid, guarantees for the work will be either suspended or cancelled.\nIf payment of invoices is not received by its due date, we reserve the right to recover all and any costs, commissions, fees or disbursements incurred for the collection of the outstanding payment including those which may be incurred by using a debt collection agency, howsoever incurred\nAny pipe work, extrusions, air conditioning units and electrical cables on or underneath the area to be refurbished are the responsibility of the customer. These should be temporarily removed whilst Absolute Roofing Solutions Limited operatives undertake the work.\nThe customer is advised to take necessary steps to protect the inside of the building and its contents whilst we are stripping the roof. Whilst our operatives will take every reasonable precaution to ensure a sound temporary seal is achieved during inclement weather, overnight and at weekends, such seals cannot be certified as fully waterproof and therefore we cannot be held liable for any damage caused by water ingress.\nAbsolute Roofing Solutions Limited cannot be held responsible for any damage caused to ceilings, fittings and/or decorations by vibration whilst we are working on the roof if these items are not removed by the customer prior to the commencement of works.\nAn area for the safe storage of materials will be required to deliver this contract.",
+ "dataProtection": "Absolute Roofing Solutions Ltd takes your privacy seriously. We will use information about you and your organisation to process orders and manage your account.\nDuring delivery of works, we may need to share this information with our subcontractors and members of our supply chain. Our supply chain will never contact you directly except when it is relevant to the delivery of works.\nFrom time to time, we would like to keep in contact with you regarding products and services that may be of interest. Although you have already consented to this during your interactions with us to date, you can withdraw this consent at any time by emailing sales@absoluteroofingsolutions.co.uk or calling 0121 268 3213.",
+ "tcsFull": "ABSOLUTE ROOFING SOLUTIONS LIMITED\nThe following Terms & Conditions shall apply to all orders placed with Absolute, and any stipulations or conditions in a Customer’s order which conflict with, qualify or seek to negate any of these Terms & Conditions shall be inapplicable to any order placed with us and have no force or effect, unless otherwise specifically agreed by a Director of the Absolute, in writing, when acknowledging the order in question.\n1. Definitions\n(a) “Absolute” means Absolute Roofing Solutions Limited.\n(b) “Customer” means Absolute’s customer for the Works.\n(c) “Works” means the work to be carried out by Absolute as described in the Quotation.\n(d) “Quotation” means the quotation issued by Absolute.\n(e) “Contract Price” means the price agreed between Absolute and the Customer for the Works.\n(f)  \"HGCRA\" means the Housing Grants, Construction and Regeneration Act 1996 as amended by the Local Democracy, Economic Development and Construction Act 2009.\n(g)  \"The Scheme\" means The Scheme for Construction Contracts (England and Wales) Regulations 1998 (Amendment)(England) Regulations 2011.\n(h)  \"Notified Sum\" means, in a case where a payment notice complying with Condition 7(e) of this contract has been given by the Customer or the Specified Person, the amount specified in that notice or, where such payment notice has not been given, the amount specified in Absolute's application for payment.\n(I)  \"Specified Person\" means a person agreed in writing between Absolute and the Customer who is authorised to give payment notices complying with Condition 7(e) of this contract and/or notices of intention to pay less complying with Condition 7(f).\n(j)   \"Variation\" means any change to the Works arising from an instruction or direction from the Customer or any revised drawing or revised specification, including those set out under Clause 5.1.1 of the JCT Design and Build Contract 2011 ('DB 2011'), together with any impositions by the Customer as set out in Clause 5.1.2 of DB 2011.\n2. The Works\n(a) Absolute will carry out and complete the Works in accordance with the Quotation in a good and workmanlike manner.\n(b) The Customer will provide unrestricted and safe access to the site during site working hours so that Absolute may adopt its preferred sequence of operations. Access roads shall be hard standing.\n(c) The Customer will be responsible for obtaining (if applicable) at its own cost and in a timely fashion, so as not to delay or interrupt the regular progress of the Works any consent, permission or approval required.\n(d) Pipe work, extrusions, A/C Units and cabling close to the work area are the responsibility of the Customer and where necessary, the Customer must ensure their removal prior to commencement of the works. Failure to do so may give rise to entitlement by Absolute to recover any reasonable additional costs.\n(e) Absolute has allowed for providing a person-in-charge as one of its working operatives.  Unless expressly stated otherwise no allowance has been made for a non-working supervisor.\n(f) The Customer shall be responsible for watching and security.\n(g) The Customer shall provide without charge to Absolute suitable designated areas within the reasonable proximity of points of work for the cutting of materials.\n(h) The Customer shall provide without charge to Absolute electrical power in the proximity of points of work, safety lighting and adequate water supply.\n(i) The Customer shall provide without charge to Absolute Roofing Solutions suitably protected and freely available hoisting/lifting facilities.\n(j) The Customer shall be responsible for the timely provision of setting-out marks and/or level data as reasonably required by Absolute Roofing Solutions.\n(k) The Customer shall provide welfare facilities without charge to Absolute.\n(l) Except as provided under Condition 2(n) and unless expressly agreed in writing Absolute will not carry out any form of design or working drawings or other drawings for these Works. Insofar as Absolute will use best endeavours to comply with current legislation, Building Regulations and best practice, no warranty or other liability on the part of Absolute shall be created or implied regarding the suitability or fitness for purpose of components or systems recommended.\n(m)The structural integrity of the existing roof and/or sub-structure dictates the structural integrity of all works by Absolute. Unless otherwise agreed in writing, structural, weight and wind-load calculations for all existing, new, or over-clad structures will be undertaken by a structural engineer employed by the Customer.\n(n) Where Absolute is not the sole contractor it does not accept or assume the roles or responsibilities of Principal Designer or Principal Contractor under the CDM regulations unless expressly requested prior to Quotation.\n(o) Following explanation by the Customer of its health and safety arrangements Absolute will submit its health and safety proposals for the Works.\n3. Materials\n(a) Samples submitted for approval show substance and general character only. Colour, size, thickness, or shape cannot be guaranteed.\n(b) Technical information quoted is based on information generally distributed by manufacturers and we cannot warrant the accuracy of such.\n(c) Where existing materials are to be removed and set aside for re-use, Absolute will take reasonable care but will not be liable for any breakages. Breakages will be replaced by the best alternative materials reasonably available and charged as an addition to the contract price.\n4. Title\nAll materials delivered to site will remain the Absolute’s property with title fully vested in Absolute until the Customer has paid for the Works in full and if the Customer defaults in respect of any obligations to make payments under the contract Absolute may enter the site and repossess and remove the materials until such time as all sums due have been paid in full, even if the materials have been installed, connected or incorporated into the Works, in which case Absolute may dis-install, disconnect and remove the same.\n5. Price\n(a) The price or prices quoted are net and are not subject to discount.\n(b) The Quotation is open for acceptance for a period of {{validity}} days from the date of issue.\n(c) Where the Quotation is on a fixed price basis the price or prices will remain fixed for a period of {{validity}} days from the date of the Quotation.  If completion of the Works is delayed beyond that period Absolute shall be entitled to recover any reasonable increased costs of labour, materials, plant, taxes, or levies etc.  Such increased costs shall be in addition to any other entitlements for recovery of damages for delays and/or disruption.\n6. Variations and Extras\n(a) The prices quoted are based upon dimensions, quantities, drawings, and specifications given at the time of tender. Absolute reserves the right to require re-calculation and apply supplemental charges if any of these parameters change or to increase the contract price to reflect increases in the cost of materials or labour between the date of the Quotation or the end of the fixed price period specified in the Quotation and the date of completion.\n(b) Unless expressly stated otherwise the Quotation is made as a lump sum; quantities are not subject to remeasurement except in the case of Variations.\n(c) Where Absolute is invited to quote based on quantities provided by the Customer, and where it emerges that such quantities have been understated, the difference between the Customer's quantities and the actual quantities of work done shall be adjusted as if it were a Variation.\n(d) Any instruction from the Customer to provide design or drawings as referred to in Condition 2(d) shall be treated as a Variation.\n(e) If additional or varied work is requested by the Customer a further quotation will be submitted and the additional or varied work will not be started until the Customer has placed an order and Absolute has accepted it. Absolute shall not be liable if late acceptance delays the original Works.\n(f) Variations shall be valued in accordance with the Valuation Rules set out at Clauses 5.4, 5.6 & 5.7 of DB 2011.\n7. Payment\n(a) The following terms will apply unless notified otherwise in writing by a Director of Absolute.\n(b) This contract permits Absolute to notify the Customer of sums that Absolute considers will become due on the payment due dates.  Such notices may take the form of invoices or applications for payment or payment notices and are referred to hereinafter as Absolute's applications for payment.\n(c) The first payment due date shall be one month after the date on which Absolute commences work on this contract or shall be the date of Absolute's application for payment, whichever occurs earlier.  Subsequent payment due dates shall be at intervals of one month or the date of Absolute's application for payment, whichever occurs earlier.\n(d) The final date for the making of any payment shall be 17 days from the payment due date.\n(e) Not later than 5 days after the payment due date the Customer or the Specified Person may give to Absolute a payment notice specifying the sum that it considers to be due and the basis on which that sum is calculated.\n(f) Not later than 7 days before the final date for payment the Customer may give to Absolute a notice of intention to pay less than the notified sum specifying the sum that it considers to be due and the basis on which that sum is calculated.\n(g) In the absence of any valid payment notices or valid notices of intention to pay less being given by the Customer to Absolute the amount specified in Absolute's application for payment shall become the Notified Sum and shall be paid by the Customer on or before the final date for payment.\n(h) The value of unfixed materials brought on to site for incorporation in the Works may be included in Absolute's applications for payment.\n(i) Where Absolute incurs liability for payment for materials of an unusual or bespoke nature or size for incorporation in the Works, and where the Works are delayed by causes other than Absolute's default, a fair value may be included in Absolute's applications for payment.  Where Absolute is instructed or directed to store such materials off-site the fair value may be increased to include reasonable costs of storage and any additional handling, transport, and administration.  Where the Customer omits or cancels in whole or in part a requirement for such materials a fair value for the same may be included in Absolute's applications for payment.\n(j) Absolute's applications for payment shall not be subject to retention unless provided for in the Quotation or otherwise agreed in writing by a director of Absolute.  50% of any such retention shall become due for release upon practical completion of the Works and the balance shall become due six months thereafter.  The final date for payment shall in each case be 17 days from the dates on which the retention becomes due for release.\n(k) No set off or abatement shall be permitted by reference to any sum due under one or more other contracts.\n(l) If any payment, including retention, is not made by the Customer by the expiry of its respective final date for payment Absolute will be entitled to statutory interest and compensation and reasonable costs of recovering the debt pursuant to the Late Payment of Commercial Debts Act 1998 and subsequent Orders and Regulations. The applicable rate is 8% per annum above Bank of England base rate from time to time. In addition, Absolute will, after the expiry of seven days from the giving of written notice to this effect to the Customer, have the right (without prejudice to any other right or remedy) to suspend performance of all or any of its obligations under this or any other contract with the Customer (including the provision or execution of guarantees and/or warranties) until such outstanding sum, including the said interest, compensation, and costs, is paid.\n(m) Where the right referred to in Condition 7(l) is exercised in respect of this contract, the Customer shall be liable to pay to Absolute a reasonable amount in respect of costs and expenses reasonable incurred by Absolute in the exercise of the right.\n(n) Any period during which performance is suspended in pursuance of, or in consequence of the exercise of, the right referred to in Condition 7(l) shall be disregarded in computing for the purposes of any contractual time limit the time taken by Absolute or by a third party, to complete any work directly or indirectly affected by the exercise of the right.  Where the contractual time limit is set by reference to a date rather than a period, the date shall be adjusted accordingly.\n(o) Absolute reserves the right to refuse to execute any order or contract if the arrangements for payment of the Customer’s credit are not satisfactory. In the case of non-payment of any account by its Final date for Payment or in the case of death, incapacity, bankruptcy or insolvency of the Customer or when the Customer is a Limited Company, in the case of liquidation or the appointment of a receiver, the purchase price of all goods delivered to date and/or any sums already due from the Customer shall become due and payable immediately from the Customer and in addition the Contractor has the right to cancel every contract made with the Customer or to cancel, suspend or discontinue delivery of goods and materials for same. This provision acts without prejudice to the Contractor’s right to recover any loss sustained, caused by the above circumstances.\n(p) VAT shall be added to all payments (except in respect of interest) at the rate current at the tax point.\n8. Insurance\nBoth Absolute and the Customer will arrange and keep in force insurance sufficient to cover their respective risks and liabilities in respect of all damage and injuries to property and persons on site from the commencement of the Works. Without limiting the above, although Absolute will take reasonable care to prevent damage by rain, wind, etc., Absolute will not be liable for any loss or damage caused by any such risk.\n9. Time for Completion\n(a) Absolute will use reasonable endeavours to ensure that the Works are completed within the time (if any) stated in the Quotation, otherwise within a reasonable time. Quotations are based on normal working hours Monday – Friday 8am – 5pm.\n(b) Work carried out at other times shall give rise to entitlement by Absolute to recover the reasonable additional costs of overtime.\n(c) Absolute shall be entitled to recover loss and/or expense if the regular progress of the Works is materially affected due to a deferment in giving possession of the site or a relevant part of it, or to the postponement by the Customer of any work, or to the Customer's instructions regarding the expenditure of provisional sums, or to variations, or to any impediment, prevention, or default by the Customer.  The amount of any such loss and/or expenses shall be added to the contract sum and may be included in applications for payment/invoices/payee payment notices given by Absolute.\n(d) Time for completion shall be subject to adjustment as provided by Condition 7(n) of this contract.\n10. Defects\nAbsolute will rectify at its own cost any defects or faults which appear and are notified by the Customer to Absolute in writing within 12 months of completion of the Works and which are due to defective workmanship by Absolute or defective materials supplied by Absolute. Absolute shall be afforded reasonable opportunity and facilities to investigate such claims.\n11. Consequential Damage\nAbsolute will take reasonable care to specify and supply materials of adequate quality and to complete the Works in a good and workmanlike manner but will not be liable for any consequential loss or damage suffered by the Customer however arising. Due to the nature of the Works, it is impossible for Absolute to guarantee that the site or the Customer’s property will always during the Works be wind and watertight and/or protected from the elements. Absolute will always use his best endeavours to ensure that the works are as watertight as possible.\n12. Liability\nAbsolute’s liability for death or personal injury to any individual caused by negligence of Absolute or its subcontractors or agents is not limited. Without prejudice to the above, the maximum liability of Absolute for all other events shall not exceed the contract price.\n13. Cancellation\nThe Customer shall not be entitled to cancel any order once a contract with Absolute has been formed save where the Customer pays Absolute its reasonable costs incurred and its loss of profit arising from such cancellation.\n14. Disputes\n(a) This is a construction contract within the meaning of s.104(1)(a) of HGCRA.\n(b) Whether or not the Works relate to operations on a dwelling which the Customer occupies, or intends to occupy, as his or her residence any dispute arising from this contract may be referred by either party for adjudication under a procedure complying with ss.108 & 108A of HGCRA and/or the adjudication provisions of The Scheme.\n(c) Either party may refer a dispute to adjudication at any time under the HGCRA following the rules and procedures of The Scheme. The Decision of the Adjudicator shall be binding on the parties until the dispute is finally resolved by way of agreement or by Arbitration under the CIMAR rules.\n15. Jurisdiction\nThis contract is governed by the law of England and Wales.\n16. E&OE",
+ "closing": "We trust the above meets with your approval. Should you require further information please contact the undersigned. We want to thank you for the opportunity and look forward to hearing from you",
+ "noAllowance": "We have made no allowance for the cranage of materials to & from our area of works, or for access to our place of work i.e. Internal/External Scaffold or temporary edge protection and safety netting which is to be provided by others at no cost to Absolute Roofing Solutions."
+};
+
+/* ===== v1.7.0: client Quote Builder =====
+   Quotes live inside the survey record (job.quotes[]), so they sync with the audit - no DB change.
+   Shared wording / T&Cs / permissions live in app_settings key 'quotes' (managers edit them in Settings > Quotes).
+   Layouts: 'letter' (short letter), 'standard' (standard quotation), 'full' (full report with Options 1-3).
+   Pricing: final price lines per option (per item / per area / total) and an optional internal build-up that never prints on the client quote. */
+const Q_STATUS = [['draft', 'Draft'], ['awaiting', 'Awaiting sign-off'], ['issued', 'Issued'], ['won', 'Won'], ['lost', 'Lost']];
+const Q_LAYOUTS = [['letter', 'Short letter'], ['standard', 'Standard quote'], ['full', 'Full report']];
+const GBP = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 2 });
+const fmtGBP = n => GBP.format(Math.round((+n || 0) * 100) / 100);
+const qNum = v => { const n = parseFloat(String(v ?? '').replace(/[£,\s]/g, '')); return isFinite(n) ? n : 0; };
+const qDate = iso => fmtDate(iso).replace(/\//g, '-');
+function qSettings() {
+  const s = S.settings.quotes || {}; const D = QUOTE_TEXTS;
+  const lib = {}; Object.keys(D.library).forEach(k => { lib[k] = Object.assign({}, D.library[k], (s.library || {})[k] || {}); }); Object.keys(s.library || {}).forEach(k => { if (!lib[k]) lib[k] = s.library[k]; });
+  const pre = {}; Object.keys(D.prelims).forEach(k => { pre[k] = Object.assign({}, D.prelims[k], (s.prelims || {})[k] || {}); });
+  const pick = k => (s[k] != null && String(s[k]).trim() !== '' ? s[k] : D[k]);
+  return { validity: qNum(s.validity) || 28, restrict: !!s.restrict, allowed: s.allowed || '', signoffReq: !!s.signoffReq, intro: pick('intro'), tcsShort: pick('tcsShort'), tcsFull: pick('tcsFull'), dataProtection: pick('dataProtection'), warranties: pick('warranties'), disclaimer: pick('disclaimer'), closing: pick('closing'), noAllowance: pick('noAllowance'), leadTime: s.leadTime || 'The current lead time can be up to 8 weeks from receipt of purchase order.', library: lib, prelims: pre };
+}
+const qMe = () => ({ name: (Cloud.profile && Cloud.profile.full_name) || S.settings.surveyor || '', email: (Cloud.session && Cloud.session.user && Cloud.session.user.email) || '' });
+function qCanCreate(signed = signedIn(), mgr = isMgr(), me = qMe()) {
+  if (!signed || mgr) return true; const s = qSettings(); if (!s.restrict) return true; const allow = s.allowed.split(/[\n,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
+  return allow.includes(me.name.toLowerCase()) || (me.email && allow.includes(me.email.toLowerCase()));
+}
+const qCanSign = () => !signedIn() || isMgr();
+const qSrc = job => (typeof ccLatest === 'function' && ccLatest(job)) || job;
+const qRef = q => [q.rp || 'RP____', q.rev ? `Revised ${q.rev}` : ''].filter(Boolean).join(' ');
+const qFill = (t, vars) => String(t || '').replace(/\{\{(\w+)\}\}/g, (m, k) => (vars[k] != null && vars[k] !== '' ? vars[k] : '[__]'));
+function qVars(src) {
+  const m2 = Math.round(src.areas.reduce((s, a) => s + areaM2(a), 0)); const rl = src.areas.reduce((s, a) => s + qNum(a.rlCount), 0);
+  return { m2: m2 || '', rooflights: rl || '', colour: (src.areas.find(a => a.colour) || {}).colour || 'Goosewing Grey', thickness: '115', lm: '', fixings: '', qty: '', validity: qSettings().validity };
+}
+function qLinksOf(src) { const out = []; const w = o => { if (Array.isArray(o)) o.forEach(w); else if (o && typeof o === 'object') { if (o.kind === 'link' && o.url) out.push({ url: o.url, label: o.label || o.url }); else Object.values(o).forEach(w); } }; w(src.areas); w(src.sections); return out; }
+function qPhotosOf(src) { const out = []; const w = (o, cap) => { if (Array.isArray(o)) o.forEach(x => w(x, cap)); else if (o && typeof o === 'object') { if (typeof o.data === 'string' && o.data.startsWith('data:image/') && o.id && !o.kind) out.push({ id: o.id, caption: o.caption || cap || '' }); else Object.entries(o).forEach(([k, v]) => { if (v && typeof v === 'object') w(v, o.name || o.title || cap); }); } }; w(src.sections); w(src.areas); return out; }
+function qPhotoData(job, id) { let r = null; const w = o => { if (r) return; if (Array.isArray(o)) o.forEach(w); else if (o && typeof o === 'object') { if (o.id === id && typeof o.data === 'string' && o.data.startsWith('data:image/')) r = o; else Object.values(o).forEach(v => v && typeof v === 'object' && w(v)); } }; w(qSrc(job)); if (!r) w(job); return r; }
+function qGuessTypes(src) {
+  const t = JSON.stringify(src.areas.map(a => a.defects.map(d => [d.remedy, d.remedyText, d.element, d.description]))).toLowerCase(); const out = [];
+  if (/over-?clad/.test(t)) out.push('overclad'); if (/re-?roof|re-?sheet|replace (the )?roof|strip and replace|composite/.test(t)) out.push('composite');
+  if (/coat/.test(t)) out.push('coating'); if (/cut.?edge/.test(t)) out.push('cutedge'); if (/fixing/.test(t)) out.push('fixings'); if (/overlay/.test(t)) out.push('overlay');
+  if (/rooflight|roof light/.test(t)) out.push('rooflight'); if (/gutter/.test(t)) out.push('gutter'); if (/flashing/.test(t)) out.push('flashing'); if (/mansafe|hatch|ladder|fall arrest/.test(t)) out.push('mansafe');
+  return out.length ? [...new Set(out)].slice(0, 2) : ['composite'];
+}
+function qGuessPrelims(src) {
+  const sc = (typeof scafLines === 'function' ? scafLines(src) : []).map(i => i.text + ' ' + (i.mewpType || '')).join(' ').toLowerCase(); const hs = src.hs || {}; const H = JSON.stringify(hs).toLowerCase(); const k = [];
+  if (/independent/.test(sc)) k.push('scaffold'); if (/edge protection|handrail|edge prot/.test(sc + H)) k.push('edge');
+  if (hs.fragility === 'fragile' || /netting/.test(sc + H)) k.push('netting'); if (/telehandler/.test(sc + H)) k.push('telehandler');
+  if (/mewp|boom|scissor|cherry/.test(sc + H)) k.push('mewp'); k.push('skips');
+  if (hs.acSuspected === 'yes' || /asbestos|fibre cement|\bac\b/.test(JSON.stringify(src.areas.map(a => [a.type, a.profile])).toLowerCase())) k.push('asbestos');
+  if (hs.fragility === 'fragile') k.push('crawl');
+  return [...new Set(k)];
+}
+const qId = () => uid();
+function qOption(src, n, types) {
+  const L = qSettings().library; const v = qVars(src); const title = types.map(t => (L[t] || {}).title).filter(Boolean).join(', ');
+  return { id: qId(), title: `Option ${n} - ${title}`, types: types.slice(), spec: types.map(t => L[t] ? `${L[t].title}\n${qFill(L[t].text, v)}` : '').filter(Boolean).join('\n\n'),
+    summary: src.areas.map(a => `${a.name} - ${title} ${Math.round(areaM2(a))}m²`).join('\n'), prices: [{ id: qId(), label: title, amount: '' }],
+    bu: { mats: [], labour: [{ id: qId(), desc: 'Roofing gang', men: '4', days: '', rate: '220' }], plant: [], access: [], other: [], margin: '25' } };
+}
+function newQuote(job, layout = 'standard') {
+  const src = qSrc(job); const c = src.client || {}; const site = src.site || {}; const first = String(c.contact || '').trim().split(/\s+/)[0] || 'Sir/Madam';
+  const desc = src.areas.map(a => `${a.name}: ${[a.type, a.profile].filter(Boolean).join(' - ') || 'roof'}${num(a.pitch) ? `, ${a.pitch}° pitch` : ''}${a.colour ? `, ${a.colour}` : ''}`).join('; ');
+  const prev = (job.quotes || []).filter(q => q.rp === (src.rp || job.rp));
+  const q = { id: qId(), layout, pricing: 'price', status: 'draft', rp: src.rp || job.rp || '', rev: 0, date: todayISO(), visitDate: src.date || '', inspectedBy: src.surveyor || '', author: qMe().name || src.surveyor || '', dear: first,
+    clientName: c.name || '', siteAddress: [c.name, site.name !== c.name ? site.name : '', site.address, (site.postcode || '').toUpperCase()].filter(Boolean).join(', '), srcRef: src.ref, srcId: src.id,
+    intro: `Following my site visit on ${qDate(src.date)}, I have provided below the cost${'s'} to carry out the following works. The existing roof consists of ${desc || '[__]'}.`,
+    areas: src.areas.map(a => ({ id: qId(), name: a.name, lines: [{ id: qId(), label: /wall|clad/i.test(a.type + ' ' + a.name) ? 'Walls' : 'Roof Replace', m2: String(Math.round(areaM2(a)) || '') }] })),
+    defects: allDefects(src).filter(d => /P1|P2/.test(d.priority || '')).map(d => `${d.ref} ${d.element ? d.element + ': ' : ''}${d.description || ''} (${d.priority})`).join('\n'), showDefects: false,
+    options: [qOption(src, 1, qGuessTypes(src))], prelims: qGuessPrelims(src), links: qLinksOf(src).map(l => Object.assign({ id: qId(), on: true }, l)), photoIds: qPhotosOf(src).slice(0, 2).map(p => p.id),
+    noAllowance: false, notes: '', signoff: null, issued: null, outcome: '', history: [{ at: Date.now(), by: qMe().name, what: 'Created' + (src !== job ? ` from contracts copy ${src.ref}` : '') }] };
+  return q;
+}
+const qTotals = o => { const p = o.prices.reduce((s, l) => s + qNum(l.amount), 0); return p; };
+function qBuild(o) {
+  const b = o.bu || {}; const mats = (b.mats || []).reduce((s, m) => s + qNum(m.qty) * qNum(m.rate), 0); const lab = (b.labour || []).reduce((s, l) => s + qNum(l.men) * qNum(l.days) * qNum(l.rate), 0);
+  const sum = k => (b[k] || []).reduce((s, r) => s + qNum(r.cost), 0); const plant = sum('plant'), access = sum('access'), other = sum('other');
+  const cost = mats + lab + plant + access + other; const m = Math.min(90, qNum(b.margin)); const sell = m ? cost / (1 - m / 100) : cost;
+  return { mats, lab, plant, access, other, cost, margin: m, sell: Math.round(sell * 100) / 100, profit: Math.round((sell - cost) * 100) / 100 };
+}
+const qOptPrice = (q, o) => { const p = qTotals(o); return p || (q.pricing === 'buildup' ? qBuild(o).sell : 0); };
+const qStatusLabel = s => (Q_STATUS.find(x => x[0] === s) || [, s])[1];
+
+/* ---------- views ---------- */
+function viewQuotes(job) {
+  const qs = job.quotes || []; const src = qSrc(job);
+  return `<div class="card"><h2>Client quotes <span class="prog" style="margin-left:auto">${qs.length}</span></h2>
+    <p class="hint" style="margin-bottom:10px">Quotes are built from ${src !== job ? `the latest contracts copy <b>${esc(src.ref)}</b>` : 'this survey'}: client, site, visit, roof areas (m²), defects, photo links and preliminaries fill in for you. Nothing is emailed - you get a PDF and an editable Word file to send.</p>
+    ${qs.map(q => `<a class="item" href="#/job/${job.id}/quote/${q.id}"><div class="bd"><div class="t1">${esc(qRef(q))} · ${esc((Q_LAYOUTS.find(x => x[0] === q.layout) || [, ''])[1])}</div><div class="t2">${qDate(q.date)} · ${q.options.length} option${q.options.length === 1 ? '' : 's'} · ${q.options.map(o => fmtGBP(qOptPrice(q, o))).join(' / ')} ex VAT</div></div><span class="tag q-${q.status}">${qStatusLabel(q.status)}</span>${I.chev}</a>`).join('') || '<p class="hint">No quotes yet.</p>'}
+    ${qCanCreate() ? `<div class="btns" style="margin-top:10px">${Q_LAYOUTS.map(([k, l]) => `<button class="btn ${k === 'standard' ? 'primary' : ''}" data-act="qnew" data-layout="${k}">${I.plus} ${l}</button>`).join('')}</div>` : '<p class="hint">Your manager has restricted who can create quotes.</p>'}</div>`;
+}
+function qRows(base, arr, cols, add) {
+  const rest = cols.length > 1 ? (cols.length > 2 ? 56 : 40) / (cols.length - 1) : 0;
+  return `<table class="qt"><colgroup><col style="width:${cols.length > 2 ? 40 : 56}%">${cols.slice(1).map(() => `<col style="width:${rest}%">`).join('')}<col style="width:28px"></colgroup><tr>${cols.map(c => `<th>${c[1]}</th>`).join('')}<th></th></tr>${arr.map(r => `<tr>${cols.map(c => `<td><input data-b="${base}#${r.id}.${c[0]}" value="${esc(r[c[0]] ?? '')}" ${c[2] ? `type="number" step="any" inputmode="decimal"` : ''} aria-label="${esc(c[1])}"></td>`).join('')}<td><button type="button" class="ck-x" data-act="qrowdel" data-base="${base}" data-id="${r.id}" aria-label="Remove">×</button></td></tr>`).join('')}</table>
+    <button type="button" class="btn sm" data-act="qrowadd" data-base="${base}" data-tpl='${JSON.stringify(add)}'>${I.plus} Add line</button>`;
+}
+function viewQuote(job, q) {
+  const f = mk(job); const b = `quotes#${q.id}`; const s = qSettings(); const locked = ['issued', 'won', 'lost'].includes(q.status);
+  const L = s.library, P = s.prelims; const srcJob = getJob(q.srcId) || qSrc(job);
+  const opt = (o, i) => { const ob = `${b}.options#${o.id}`; const B = qBuild(o);
+    return `<div class="card qopt" id="qo_${o.id}"><h2><input class="pit-l" data-b="${ob}.title" value="${esc(o.title)}" aria-label="Option title">${q.options.length > 1 ? `<button type="button" class="ck-x" data-act="qoptdel" data-id="${o.id}" aria-label="Remove option">×</button>` : ''}</h2>
+      <span class="lbl">Job type wording</span><div class="chips">${Object.keys(L).map(k => `<button type="button" data-act="qtype" data-oid="${o.id}" data-k="${k}" class="${o.types.includes(k) ? 'on' : ''}">${esc(L[k].title)}</button>`).join('')}</div>
+      <p class="hint">Tap a job type to add its wording below (quantities fill in from the survey; anything shown as <b>[__]</b> still needs a figure).</p>
+      ${f.area('Specification (prints on the quote)', ob + '.spec', { rows: 10 })}
+      ${q.layout === 'letter' ? f.area('Items (short list for the letter)', ob + '.summary', { rows: 4 }) : ''}
+      <span class="lbl">Price (ex VAT) - one line for a total, or a line per item / roof area</span>${qRows(ob + '.prices', o.prices, [['label', 'Item / area'], ['amount', '£ ex VAT', 1]], { label: '', amount: '' })}
+      <button type="button" class="btn sm ghost" data-act="qperarea" data-oid="${o.id}">One line per roof area</button>
+      <div class="calc" style="margin-top:8px" id="qp_${o.id}"><span>${fmtGBP(qOptPrice(q, o))} ex VAT</span><small>${qTotals(o) ? 'from the price lines' : q.pricing === 'buildup' ? 'from the build-up' : 'enter a price'}</small></div>
+      ${q.pricing === 'buildup' ? `<details class="sec qbu" open><summary>Internal build-up <span class="tag">never printed on the client quote</span></summary>
+        <span class="lbl">Materials</span>${qRows(ob + '.bu.mats', o.bu.mats, [['name', 'Material'], ['qty', 'Qty', 1], ['unit', 'Unit'], ['rate', '£/unit', 1]], { name: '', qty: '', unit: 'm²', rate: '' })}
+        <button type="button" class="btn sm ghost" data-act="qmats" data-oid="${o.id}">Fill from the survey materials list</button>
+        <span class="lbl">Labour</span>${qRows(ob + '.bu.labour', o.bu.labour, [['desc', 'Gang / trade'], ['men', 'Men', 1], ['days', 'Days', 1], ['rate', '£/man-day', 1]], { desc: '', men: '2', days: '', rate: '220' })}
+        <span class="lbl">Plant</span>${qRows(ob + '.bu.plant', o.bu.plant, [['desc', 'Plant (MEWP, telehandler...)'], ['cost', '£', 1]], { desc: '', cost: '' })}
+        <span class="lbl">Access / scaffold</span>${qRows(ob + '.bu.access', o.bu.access, [['desc', 'Scaffold, edge protection, netting...'], ['cost', '£', 1]], { desc: '', cost: '' })}
+        <span class="lbl">Other (skips, air tests, structural survey...)</span>${qRows(ob + '.bu.other', o.bu.other, [['desc', 'Item'], ['cost', '£', 1]], { desc: '', cost: '' })}
+        ${f.text('Margin % (of the selling price)', ob + '.bu.margin', { type: 'number' })}
+        <div class="calc" id="qb_${o.id}">${qBuildHTML(B)}</div>
+        <button type="button" class="btn sm primary" data-act="qapply" data-oid="${o.id}">Use ${fmtGBP(B.sell)} as the quote price</button></details>` : ''}
+    </div>`; };
+  return `${quoteBanner(job, q)}
+  <div class="card"><h2>Quote details</h2>
+    ${f.seg('Layout', b + '.layout', Q_LAYOUTS)}${f.seg('Pricing', b + '.pricing', [['price', 'Final price only'], ['buildup', 'With internal build-up']])}
+    <div class="row">${f.text('RP number', b + '.rp', { ph: 'RP5046' })}${f.text('Revision', b + '.rev', { type: 'number', hint: '0 = first issue. Prints as "RP5046 Revised 1".' })}</div>
+    <div class="row">${f.text('Quote date', b + '.date', { type: 'date' })}${f.text('Date of visit', b + '.visitDate', { type: 'date' })}</div>
+    <div class="row">${f.text('Inspected by', b + '.inspectedBy')}${f.text('Quote from (signature name)', b + '.author')}</div>
+    ${f.text('Client', b + '.clientName')}${f.text('Site address', b + '.siteAddress')}${f.text('Dear', b + '.dear', { hint: 'First name, e.g. Bruce' })}
+    <p class="hint">Built from ${esc(q.srcRef || '')}${srcJob && srcJob.contracts ? ` (contracts copy Rev ${esc(srcJob.contracts.rev)})` : ''}. <button type="button" class="btn sm ghost" data-act="qrefresh">Refresh from survey</button></p></div>
+  <div class="card"><h2>Inspection &amp; report</h2>${f.area('Opening text / existing roof description', b + '.intro', { rows: 5 })}
+    <span class="lbl">Roof areas</span>${q.areas.map(a => `<div class="qarea"><input class="pit-l" data-b="${b}.areas#${a.id}.name" value="${esc(a.name)}" aria-label="Area name">${qRows(`${b}.areas#${a.id}.lines`, a.lines, [['label', 'Line (Roof Replace, Walls...)'], ['m2', 'm²', 1]], { label: 'Roof', m2: '' })}</div>`).join('')}
+    ${f.seg('Show defects found', b + '.showDefects', [[true, 'Yes'], [false, 'No']].map(x => [String(x[0]), x[1]]))}${f.area('Defects (P1 / P2 from the survey)', b + '.defects', { rows: 3 })}
+    <span class="lbl">Photo links (print as clickable links)</span>${q.links.length ? q.links.map(l => `<label class="ckl"><input type="checkbox" data-act="qlink" data-id="${l.id}" ${l.on ? 'checked' : ''}> ${esc(l.label)}</label>`).join('') : '<p class="hint">No links on the survey.</p>'}
+    <span class="lbl">Photos on the quote</span><div class="pgrid">${qPhotosOf(srcJob).slice(0, 12).map(p => { const d = qPhotoData(job, p.id); return d ? `<a class="ph ${q.photoIds.includes(p.id) ? 'qsel' : ''}" href="#" data-act="qphoto" data-id="${p.id}"><img src="${d.data}" alt=""><div class="pc"><b>${esc(p.caption || '')}</b></div></a>` : ''; }).join('')}</div></div>
+  ${q.options.map(opt).join('')}
+  ${q.options.length < 3 || q.layout === 'full' ? `<button type="button" class="btn block" data-act="qoptadd">${I.plus} Add option ${q.options.length + 1}</button><div style="height:12px"></div>` : ''}
+  <div class="card"><h2>Preliminaries</h2><p class="hint">Ticked from the H&amp;S checklist and scaffold / access list. Edit the wording in Settings &gt; Quotes.</p>
+    ${Object.keys(P).map(k => `<label class="ckl"><input type="checkbox" data-act="qprelim" data-k="${k}" ${q.prelims.includes(k) ? 'checked' : ''}> ${esc(P[k].title)}</label>`).join('')}
+    ${f.seg('Add "no allowance for access / cranage by others" wording', b + '.noAllowance', [['true', 'Yes'], ['false', 'No']])}
+    ${f.area('Extra notes / exclusions (optional)', b + '.notes', { rows: 3 })}</div>
+  <div class="card"><h2>Quote documents</h2><p class="hint">Validity ${s.validity} days. The full company terms &amp; conditions are included on the standard quote and the full report.${q.pricing === 'buildup' ? ' The internal costing sheet is for ARS only.' : ''}</p>
+    <div class="btns"><button class="btn primary" data-act="qpdf">${I.pdf} Quote PDF</button><button class="btn" data-act="qdocx">${I.dl} Word (.docx)</button>${q.pricing === 'buildup' ? `<button class="btn" data-act="qcost">${I.pdf} Internal costing sheet</button>` : ''}</div><div id="qout" style="margin-top:10px"></div></div>
+  <div class="card"><h2>History</h2>${(q.history || []).map(h => `<p class="small">${new Date(h.at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })} - ${esc(h.what)}${h.by ? ' (' + esc(h.by) + ')' : ''}</p>`).join('')}
+    <div class="btns"><button class="btn sm" data-act="qrevise">New revision (Revised ${(+q.rev || 0) + 1})</button><button class="btn sm danger" data-act="qdel">Delete quote</button></div></div>`;
+}
+const qBuildHTML = B => `<span>${fmtGBP(B.sell)}</span><small>cost ${fmtGBP(B.cost)} (materials ${fmtGBP(B.mats)}, labour ${fmtGBP(B.lab)}, plant ${fmtGBP(B.plant)}, access ${fmtGBP(B.access)}, other ${fmtGBP(B.other)}) + margin ${B.margin}% = ${fmtGBP(B.profit)}</small>`;
+function quoteBanner(job, q) {
+  const s = qSettings(); const st = q.status; const so = q.signoff;
+  const btn = (act, l, cls = '') => `<button class="btn sm ${cls}" data-act="${act}">${l}</button>`;
+  let acts = '';
+  if (st === 'draft') acts = s.signoffReq ? btn('qsubmit', 'Send for manager sign-off', 'primary') : btn('qissue', 'Mark as issued', 'primary');
+  if (st === 'awaiting') acts = (qCanSign() ? btn('qsign', 'Manager sign-off', 'primary') : '<span class="small">Waiting for a manager to sign off</span>') + btn('qback', 'Back to draft');
+  if (st === 'issued') acts = btn('qwon', 'Won', 'primary') + btn('qlost', 'Lost') + btn('qback', 'Back to draft');
+  if (st === 'won') acts = `${btn('qhandover', 'Contracts handover', 'primary')}`;
+  if (st === 'awaiting' && so) acts = btn('qissue', 'Mark as issued', 'primary');
+  return `<div class="cc-banner q"><div><span class="cc-badge">Quote ${esc(qRef(q))}</span><span class="tag q-${st}">${qStatusLabel(st)}</span></div>
+    <p>${so ? `Signed off by <b>${esc(so.name)}</b> on ${qDate(so.date)}. ` : s.signoffReq ? 'Manager sign-off is required before issue. ' : ''}${q.issued ? `Issued ${qDate(q.issued.date)} by ${esc(q.issued.by)}. ` : ''}${q.outcome ? esc(q.outcome) : ''}</p><div class="btns">${acts}</div></div>`;
+}
+/* ---------- actions ---------- */
+const qOf = (job) => { const r = route(); return (job.quotes || []).find(x => x.id === r[3]); };
+const qLog = (q, what) => { (q.history = q.history || []).push({ at: Date.now(), by: qMe().name, what }); };
+Object.assign(ACTIONS, {
+  qnew(a, job) { if (!qCanCreate()) return toast('Quotes are restricted - ask a manager'); const q = newQuote(job, a.dataset.layout); (job.quotes = job.quotes || []).push(q); markDirty(job); go(`#/job/${job.id}/quote/${q.id}`); },
+  qrowadd(a, job) { let arr = getPath(job, a.dataset.base); if (!Array.isArray(arr)) { arr = []; setPath(job, a.dataset.base, arr); } arr.push(Object.assign({ id: qId() }, JSON.parse(a.dataset.tpl))); markDirty(job); rerender(); },
+  qrowdel(a, job) { const arr = getPath(job, a.dataset.base); const i = arr.findIndex(x => x.id === a.dataset.id); if (i >= 0) arr.splice(i, 1); markDirty(job); rerender(); },
+  qtype(a, job) { const q = qOf(job); const o = q.options.find(x => x.id === a.dataset.oid); const k = a.dataset.k; const L = qSettings().library[k]; const src = getJob(q.srcId) || qSrc(job);
+    if (o.types.includes(k)) { o.types = o.types.filter(x => x !== k); toast('Removed from the list - edit the specification text if needed'); }
+    else { o.types.push(k); o.spec = (o.spec ? o.spec + '\n\n' : '') + `${L.title}\n${qFill(L.text, qVars(src))}`; }
+    markDirty(job); rerender(); },
+  qperarea(a, job) { const q = qOf(job); const o = q.options.find(x => x.id === a.dataset.oid); o.prices = q.areas.map(ar => ({ id: qId(), label: `${ar.name} - ${ar.lines.map(l => `${l.label} ${l.m2}m²`).join(', ')}`, amount: '' })); markDirty(job); rerender(); },
+  qmats(a, job) { const q = qOf(job); const o = q.options.find(x => x.id === a.dataset.oid); const src = getJob(q.srcId) || qSrc(job); const ls = matLines(src);
+    if (!ls.length) return toast('No materials on the survey'); o.bu.mats = ls.map(l => ({ id: qId(), name: [l.m.name, l.m.spec].filter(Boolean).join(' - '), qty: String(l.m.qty || ''), unit: l.m.unit || '', rate: '' })); markDirty(job); rerender(); toast(`${ls.length} material lines added - enter the rates`); },
+  qapply(a, job) { const q = qOf(job); const o = q.options.find(x => x.id === a.dataset.oid); const B = qBuild(o); if (o.prices.length > 1) o.prices = [o.prices[0]]; o.prices[0].amount = String(B.sell); markDirty(job); rerender(); },
+  qoptadd(a, job) { const q = qOf(job); const src = getJob(q.srcId) || qSrc(job); q.options.push(qOption(src, q.options.length + 1, [])); q.options[q.options.length - 1].title = `Option ${q.options.length} - `; markDirty(job); rerender(); },
+  async qoptdel(a, job) { const q = qOf(job); if (!await confirmBox('Remove option?', 'The option and its prices will be removed from this quote.', 'Remove')) return; q.options = q.options.filter(x => x.id !== a.dataset.id); markDirty(job); rerender(); },
+  qprelim(a, job) { const q = qOf(job); const k = a.dataset.k; q.prelims = q.prelims.includes(k) ? q.prelims.filter(x => x !== k) : [...q.prelims, k]; markDirty(job); },
+  qlink(a, job) { const q = qOf(job); const l = q.links.find(x => x.id === a.dataset.id); l.on = !l.on; markDirty(job); },
+  qphoto(a, job) { const q = qOf(job); const id = a.dataset.id; q.photoIds = q.photoIds.includes(id) ? q.photoIds.filter(x => x !== id) : [...q.photoIds, id].slice(-4); markDirty(job); rerender(); },
+  async qrefresh(a, job) { const q = qOf(job); if (!await confirmBox('Refresh from survey?', 'Client, site, visit, roof areas, defects, links and preliminaries are re-read from the latest survey / contracts copy. Prices and specifications are kept.', 'Refresh', false)) return;
+    const n = newQuote(job, q.layout); ['clientName', 'siteAddress', 'visitDate', 'inspectedBy', 'dear', 'areas', 'defects', 'prelims', 'links', 'srcRef', 'srcId'].forEach(k => { q[k] = n[k]; }); qLog(q, 'Refreshed from ' + n.srcRef); markDirty(job); rerender(); },
+  qsubmit(a, job) { const q = qOf(job); q.status = 'awaiting'; qLog(q, 'Sent for manager sign-off'); markDirty(job); rerender(); },
+  async qsign(a, job) { if (!qCanSign()) return toast('Only a manager can sign off quotes'); const q = qOf(job); let nm;
+    const r = await modal(`<h3>Sign off quote ${esc(qRef(q))}</h3><p>${q.options.map(o => `${esc(o.title)}: <b>${fmtGBP(qOptPrice(q, o))}</b> ex VAT`).join('<br>')}</p><label class="lbl" for="qsnm">Manager</label><input id="qsnm" value="${esc(qMe().name)}"><div style="height:10px"></div><button class="btn primary" data-r="ok">Sign off</button><button class="btn" data-r="">Cancel</button>`, bg => { nm = $('#qsnm', bg); });
+    if (r !== 'ok' || !nm.value.trim()) return; q.signoff = { name: nm.value.trim(), date: todayISO(), at: Date.now(), total: q.options.map(o => qOptPrice(q, o)) }; qLog(q, 'Signed off by ' + q.signoff.name); markDirty(job); rerender(); toast('Quote signed off - you can now issue it'); },
+  qissue(a, job) { const q = qOf(job); if (!qCanCreate()) return toast('Quotes are restricted - ask a manager'); if (qSettings().signoffReq && !q.signoff) return toast('Manager sign-off is required first');
+    if (q.options.some(o => !qOptPrice(q, o))) return toast('Enter a price for every option first'); q.status = 'issued'; q.issued = { date: todayISO(), at: Date.now(), by: qMe().name }; qLog(q, 'Marked as issued'); markDirty(job); rerender(); toast('Issued - download the PDF / Word file to send'); },
+  qback(a, job) { const q = qOf(job); q.status = 'draft'; q.signoff = null; qLog(q, 'Back to draft'); markDirty(job); rerender(); },
+  qwon(a, job) { const q = qOf(job); q.status = 'won'; q.outcome = 'Won ' + qDate(todayISO()); qLog(q, 'Won'); markDirty(job); rerender(); setTimeout(() => ACTIONS.qhandover(a, job), 50); },
+  async qlost(a, job) { const q = qOf(job); let rs; const r = await modal(`<h3>Quote lost</h3><label class="lbl" for="qlr">Reason (optional)</label><input id="qlr" placeholder="e.g. price, timing, went elsewhere"><div style="height:10px"></div><button class="btn primary" data-r="ok">Mark as lost</button><button class="btn" data-r="">Cancel</button>`, bg => { rs = $('#qlr', bg); });
+    if (r !== 'ok') return; q.status = 'lost'; q.outcome = 'Lost ' + qDate(todayISO()) + (rs.value.trim() ? ' - ' + rs.value.trim() : ''); qLog(q, q.outcome); markDirty(job); rerender(); },
+  async qhandover(a, job) { const root = ccFamily(job).find(x => !x.contracts) || job;
+    if (!ccCanCreate()) return toast('A contracts manager (manager role) does the contracts handover'); return ACTIONS.ccnew({ dataset: {} }, root); },
+  async qrevise(a, job) { const q = qOf(job); const n = JSON.parse(JSON.stringify(q)); Object.assign(n, { id: qId(), rev: (+q.rev || 0) + 1, status: 'draft', date: todayISO(), signoff: null, issued: null, outcome: '', history: [{ at: Date.now(), by: qMe().name, what: `Revision of ${qRef(q)}` }] });
+    job.quotes.push(n); qLog(q, `Superseded by ${qRef(n)}`); markDirty(job); go(`#/job/${job.id}/quote/${n.id}`); toast(`${qRef(n)} created`); },
+  async qdel(a, job) { const q = qOf(job); if (!await confirmBox('Delete quote?', `${qRef(q)} will be removed from this job.`, 'Delete')) return; job.quotes = job.quotes.filter(x => x !== q); markDirty(job); go(`#/job/${job.id}/quotes`); },
+  async qpdf(a, job) { const q = qOf(job); toast('Building quote PDF…', 1500); const r = await buildQuotePDF(job, q); qOut(r.blob, r.name); },
+  async qdocx(a, job) { const q = qOf(job); toast('Building Word file…', 1500); const r = await buildQuoteDocx(job, q); qOut(r.blob, r.name); },
+  async qcost(a, job) { const q = qOf(job); const r = await buildCostingPDF(job, q); qOut(r.blob, r.name); },
+});
+function qOut(blob, name) {
+  const url = URL.createObjectURL(blob); const el = $('#qout'); if (el) el.innerHTML = `<a class="btn block" href="${url}" download="${esc(name)}">${I.dl} Download ${esc(name)}</a>`;
+  const l = document.createElement('a'); l.href = url; l.download = name; document.body.appendChild(l); l.click(); l.remove();
+}
+// routes + live totals
+{ const _ve = viewExtra; viewExtra = function (job, r) {
+    if (!isWorks(job) && r[2] === 'quotes') return { body: viewQuotes(job), title: 'Client quotes', tab: 'report', back: `#/job/${job.id}/report` };
+    if (!isWorks(job) && r[2] === 'quote') { const q = (job.quotes || []).find(x => x.id === r[3]); if (!q) return { redirect: `#/job/${job.id}/quotes` }; return { body: viewQuote(job, q), title: qRef(q), tab: 'report', back: `#/job/${job.id}/quotes` }; }
+    return _ve(job, r); }; }
+{ const _vr = viewReport; viewReport = function (job) { const h = _vr(job); if (isWorks(job)) return h; const n = (job.quotes || []).length;
+    return h + `<div class="card"><h2>Client quotes</h2><p class="hint" style="margin-bottom:12px">Build the client quotation from this survey (or its latest contracts copy): short letter, standard quote or full report, as PDF and Word.</p><a class="btn block primary" href="#/job/${job.id}/quotes">${I.pdf} Quotes${n ? ` (${n})` : ''}</a></div>`; }; }
+{ const _d = derive; derive = function (path, el) { _d(path, el); const m = /^quotes#([^.]+)\.(.*)$/.exec(path); if (!m) return; const job = S.ctx && S.ctx.job; const q = job && (job.quotes || []).find(x => x.id === m[1]); if (!q) return;
+    if (/^(layout|pricing)$/.test(m[2])) return rerender();
+    q.options.forEach(o => { const p = $('#qp_' + o.id); if (p) p.innerHTML = `<span>${fmtGBP(qOptPrice(q, o))} ex VAT</span><small>${qTotals(o) ? 'from the price lines' : q.pricing === 'buildup' ? 'from the build-up' : 'enter a price'}</small>`; const bb = $('#qb_' + o.id); if (bb) bb.innerHTML = qBuildHTML(qBuild(o)); }); }; }
+// job menu shortcut
+{ const _jm = ACTIONS.jobmenu; ACTIONS.jobmenu = async function (a, job0) {
+    const job = getJob(a.dataset.id); if (!job || isWorks(job)) return _jm.call(this, a, job0);
+    const _m = modal; let swap = true;
+    modal = (html, onMount) => { if (swap) { swap = false; html = html.replace('<button class="btn" data-r="dup">', `<button class="btn" data-r="quotes">Client quotes${(job.quotes || []).length ? ` (${job.quotes.length})` : ''}</button><button class="btn" data-r="dup">`); } return _m(html, onMount).then(r => { if (r === 'quotes') { go(`#/job/${job.id}/quotes`); return null; } return r; }); };
+    try { return await _jm.call(this, a, job0); } finally { modal = _m; } }; }
+
+/* ---------- settings (managers) ---------- */
+function viewQuoteSettings() {
+  const s = qSettings(); const mgr = qCanSign(); const v = S.settings.quotes = S.settings.quotes || {}; const dis = mgr ? '' : 'disabled';
+  const ta = (k, l, rows = 6) => `<div class="f"><label for="qs_${k}">${l}</label><textarea id="qs_${k}" data-qs="${k}" rows="${rows}" ${dis}>${esc(s[k])}</textarea></div>`;
+  return `<div class="card"><h2>Who can create quotes</h2>${mgr ? '' : '<p class="warn-banner amber">Only managers can change these settings.</p>'}
+    <label class="ckl"><input type="checkbox" data-qs="restrict" ${s.restrict ? 'checked' : ''} ${dis}> Restrict quote creation / issue to the people below (managers always can)</label>
+    <div class="f"><label for="qs_allowed">Allowed people (names or emails, one per line)</label><textarea id="qs_allowed" data-qs="allowed" rows="3" ${dis}>${esc(s.allowed)}</textarea></div>
+    <label class="ckl"><input type="checkbox" data-qs="signoffReq" ${s.signoffReq ? 'checked' : ''} ${dis}> Manager sign-off required before a quote is issued</label>
+    <div class="f"><label for="qs_validity">Quote validity (days)</label><input id="qs_validity" type="number" data-qs="validity" value="${s.validity}" ${dis}><p class="hint">Used in the short terms and the full terms &amp; conditions.</p></div></div>
+  <div class="card"><h2>Company wording</h2>${ta('intro', 'Company introduction (full report)', 8)}${ta('closing', 'Closing paragraph', 3)}${ta('disclaimer', 'Disclaimer (repairs)', 4)}${ta('warranties', 'Warranties', 4)}${ta('noAllowance', '"No allowance" wording', 3)}${ta('leadTime', 'Lead time', 2)}</div>
+  <div class="card"><h2>Terms</h2>${ta('tcsShort', 'Short terms & conditions ({{validity}} = validity days)', 10)}${ta('dataProtection', 'Data protection statement', 5)}${ta('tcsFull', 'Full company terms & conditions', 14)}</div>
+  <div class="card"><h2>Job-type wording library</h2><p class="hint">Placeholders fill from the survey: {{m2}} roof area, {{rooflights}}, {{colour}}, {{thickness}}; {{lm}}, {{fixings}} and {{qty}} show as [__] to complete.</p>
+    ${Object.keys(s.library).map(k => `<details class="sec"><summary>${esc(s.library[k].title)}</summary><div class="f"><input data-qslib="${k}.title" value="${esc(s.library[k].title)}" ${dis}></div><div class="f"><textarea data-qslib="${k}.text" rows="10" ${dis}>${esc(s.library[k].text)}</textarea></div></details>`).join('')}
+    ${mgr ? '<button type="button" class="btn sm" data-act="qslibadd">+ Add job type</button>' : ''}</div>
+  <div class="card"><h2>Preliminaries wording</h2>${Object.keys(s.prelims).map(k => `<details class="sec"><summary>${esc(s.prelims[k].title)}</summary><div class="f"><textarea data-qspre="${k}" rows="7" ${dis}>${esc(s.prelims[k].text)}</textarea></div></details>`).join('')}</div>
+  ${mgr ? '<button type="button" class="btn primary block" data-act="qssave">Save quote settings</button><button type="button" class="btn block" data-act="qsreset">Reset wording to the ARS defaults</button>' : ''}`;
+}
+function qsCollect() {
+  const v = S.settings.quotes = S.settings.quotes || {};
+  $$('[data-qs]').forEach(el => { v[el.dataset.qs] = el.type === 'checkbox' ? el.checked : el.value; });
+  v.library = v.library || {}; $$('[data-qslib]').forEach(el => { const [k, f] = el.dataset.qslib.split('.'); (v.library[k] = v.library[k] || {})[f] = el.value; });
+  v.prelims = v.prelims || {}; $$('[data-qspre]').forEach(el => { (v.prelims[el.dataset.qspre] = v.prelims[el.dataset.qspre] || {}).text = el.value; });
+}
+async function qsPush() { if (!signedIn() || !isMgr()) return; try { await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'quotes', value: S.settings.quotes || {} }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); } catch (e) { toast(e.offline ? 'Saved on this device - will share when online' : e.message, 4000); } }
+Object.assign(ACTIONS, {
+  async qssave() { if (!qCanSign()) return; qsCollect(); saveSettings(); await qsPush(); toast('Quote settings saved'); },
+  async qsreset() { if (!await confirmBox('Reset quote wording?', 'Company wording, terms, job-type library and preliminaries go back to the ARS defaults. Permissions are kept.', 'Reset')) return; const v = S.settings.quotes || {}; S.settings.quotes = { restrict: v.restrict, allowed: v.allowed, signoffReq: v.signoffReq, validity: v.validity }; saveSettings(); await qsPush(); rerender(); },
+  async qslibadd() { let t; const r = await modal('<h3>New job type</h3><input id="qslt" placeholder="e.g. Liquid roof coating"><div style="height:10px"></div><button class="btn primary" data-r="ok">Add</button><button class="btn" data-r="">Cancel</button>', bg => { t = $('#qslt', bg); }); if (r !== 'ok' || !t.value.trim()) return; qsCollect(); const k = 'c_' + uid(); S.settings.quotes.library[k] = { title: t.value.trim(), text: '' }; saveSettings(); rerender(); },
+});
+{ const _pl = pullSettings; pullSettings = async function () { await _pl(); try { const rows = await sbFetch('/rest/v1/app_settings?select=value&key=eq.quotes') || []; if (rows[0] && rows[0].value) { S.settings.quotes = rows[0].value; await DB.setKV('settings', S.settings); } } catch (e) { if (e.offline) throw e; } }; }
+{ const _vs = viewSettings; viewSettings = function () { const h = _vs(); const link = `<a class="item" href="#/settings/quotes"><div class="th">${I.pdf.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">Quotes</div><div class="t2">Who can quote, manager sign-off, wording library, company intro and T&amp;Cs</div></div>${I.chev}</a>`; return h.replace('<a class="item" href="#/settings/library">', link + '<a class="item" href="#/settings/library">'); }; }
+
+/* ---------- documents ---------- */
+let _qa = null;
+function loadQuoteAssets() { if (window.QUOTE_ASSETS) return Promise.resolve(window.QUOTE_ASSETS); return _qa || (_qa = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'quote-assets.js'; s.onload = () => res(window.QUOTE_ASSETS); s.onerror = () => { _qa = null; rej(new Error('Quote letterhead not available offline yet - open once with signal')); }; document.head.appendChild(s); })); }
+// the quote content as a neutral list of blocks, rendered to PDF and to Word
+function quoteBlocks(job, q) {
+  const s = qSettings(); const P = s.prelims; const V = { validity: s.validity }; const B = []; const add = (t, x, o = {}) => B.push(Object.assign({ t, x }, o));
+  const opts = q.options; const priceLines = o => { const ls = o.prices.filter(l => qNum(l.amount)); return ls.length ? ls : [{ label: o.title.replace(/^Option \d+\s*-\s*/, ''), amount: String(qOptPrice(q, o)) }]; };
+  const costBlock = () => { add('label', 'Cost'); opts.forEach(o => { const ls = priceLines(o); if (opts.length > 1) add('b', o.title);
+      ls.forEach(l => add('price', `${ls.length > 1 || opts.length === 1 ? l.label + ' - ' : ''}${fmtGBP(qNum(l.amount))} ex VAT`));
+      if (ls.length > 1) add('price', `Total${opts.length > 1 ? ' for ' + o.title.replace(/\s*-.*$/, '') : ''} - ${fmtGBP(qOptPrice(q, o))} ex VAT`, { strong: 1 }); }); };
+  const areas = () => q.areas.forEach(a => { add('b', a.name); a.lines.filter(l => l.label || l.m2).forEach(l => add('p', `${l.label} ${l.m2 ? l.m2 + 'm²' : ''}`.trim())); });
+  const links = q.links.filter(l => l.on); const linkBlock = () => { if (links.length) { add('p', 'You can view images taken from the survey here:'); links.forEach(l => add('link', l.label, { url: l.url })); } };
+  const photos = () => { const ph = q.photoIds.map(id => qPhotoData(job, id)).filter(Boolean); if (ph.length) { add('label', 'Overall Photo'); add('photos', '', { photos: ph }); } };
+  const prelims = () => { const ks = q.prelims.filter(k => P[k]); if (!ks.length) return; add('p', 'To carry out the above recommendation we have included the following Preliminaries.'); ks.forEach(k => { add('h3', P[k].title); add('p', P[k].text); }); };
+  const extra = () => { if (q.noAllowance === 'true' || q.noAllowance === true) add('p', s.noAllowance); if (q.notes) add('p', q.notes); };
+  const sign = () => { add('p', 'Kind regards,'); add('sig', q.author || ''); add('p', 'On behalf of Absolute Roofing Solutions Ltd'); };
+  const terms = full => { add('h2', 'Terms & Conditions', { brk: 1 }); add('small', qFill(s.tcsShort, V)); add('h3', 'Data Protection Statement'); add('small', s.dataProtection);
+    if (full) { add('h2', 'Absolute Roofing Solutions Limited - Terms & Conditions', { brk: 1 }); add('tiny', qFill(s.tcsFull, V)); } };
+  const head = () => { add('date', 'Date: ' + qDate(q.date)); add('title', 'Quotation from Absolute Roofing Solutions Limited'); add('hb', `Site Address: ${q.siteAddress}`); add('hb', `Quote Reference: ${qRef(q)}`); add('gap');
+    if (q.visitDate) add('hb', 'Date of Visit: ' + qDate(q.visitDate)); if (q.inspectedBy) add('hb', 'Inspected by: ' + q.inspectedBy); add('gap'); add('p', `Dear ${q.dear},`); };
+  if (q.layout === 'letter') {
+    head(); add('label', 'Inspection & Report'); add('p', q.intro);
+    opts.forEach((o, i) => { add('b', opts.length > 1 ? `Item ${i + 1} - ${o.title.replace(/^Option \d+\s*-\s*/, '')}` : o.title.replace(/^Option \d+\s*-\s*/, '')); String(o.summary || '').split('\n').filter(Boolean).forEach(l => add('li', l)); });
+    extra(); linkBlock(); costBlock(); if (opts.length > 1) add('price', `Total - ${fmtGBP(opts.reduce((t, o) => t + qOptPrice(q, o), 0))} ex VAT`, { strong: 1 }); sign();
+    if (opts.some(o => o.spec)) { add('label', 'Recommendations', { brk: 1 }); add('h2', 'Recommendations'); opts.forEach(o => specBlocks(o.spec, add)); }
+    terms(false);
+  } else if (q.layout === 'standard') {
+    head(); add('label', 'Inspection & Report'); add('p', q.intro); areas(); if (q.showDefects === 'true' && q.defects) { add('b', 'Defects noted'); q.defects.split('\n').forEach(l => add('li', l)); }
+    linkBlock(); photos(); add('label', 'Recommendations', { brk: 1 }); opts.forEach(o => { if (opts.length > 1) add('h2', o.title); specBlocks(o.spec, add); }); prelims(); extra();
+    add('label', 'Cost', { brk: 1 }); areas(); costBlock(); add('p', s.closing); sign(); terms(true);
+  } else {
+    add('cover', 'Roof Report & Quotation'); add('toc', '');
+    add('h1', 'Introduction', { brk: 1, toc: 1 }); String(s.intro).split('\n').filter(Boolean).forEach(l => add('p', l));
+    add('h1', 'Report', { brk: 1, toc: 1 }); add('p', `Dear ${q.dear},`); add('p', q.intro); if (opts.length > 1) { add('p', `I have quoted as requested ${opts.length} separate options below.`); opts.forEach(o => add('li', o.title)); }
+    areas(); if (q.showDefects === 'true' && q.defects) { add('b', 'Defects noted'); q.defects.split('\n').forEach(l => add('li', l)); } linkBlock(); photos(); sign();
+    add('h1', 'Cost', { brk: 1, toc: 1 }); opts.forEach(o => add('price', `${o.title} - ${fmtGBP(qOptPrice(q, o))} ex VAT`, { strong: 1 })); add('h3', 'Disclaimer'); add('p', s.disclaimer); add('p', s.leadTime); extra();
+    add('h1', 'Specifications', { brk: 1, toc: 1 }); opts.forEach(o => { add('h2', o.title); specBlocks(o.spec, add); });
+    add('h1', 'Health and Safety', { brk: 1, toc: 1 }); prelims();
+    add('h1', 'Warranties', { toc: 1 }); add('p', s.warranties); add('p', 'Upon completion any applicable manufacturers warranties will be provided for your records.');
+    add('p', s.closing); terms(true);
+  }
+  return B;
+}
+function specBlocks(spec, add) { const lib = Object.values(qSettings().library).map(x => x.title); String(spec || '').split('\n').forEach(l => { const t = l.trim(); if (!t) return; if (lib.includes(t) || (t.length < 48 && !/[.,:;]$/.test(t) && /^[A-Z]/.test(t) && !/\d{3,}/.test(t))) add('h3', t); else add('p', t); }); }
+async function buildQuotePDF(job, q) {
+  const A = await loadQuoteAssets(); const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = 210, X = 54, R = 184, CW = R - X, TOP1 = 28, TOP = 36, BOT = 262; const ORA = [240, 134, 5], TXT = [38, 38, 38], GREY = [110, 110, 110];
+  const tx = s => String(s ?? '').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/\u2026/g, '...').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
+  let pg = 1, y = TOP1; const bg = first => doc.addImage(first ? A.lh1 : A.lh2, 'JPEG', 0, 0, 210, 297, first ? 'lh1' : 'lh2', 'FAST');
+  const draft = !['issued', 'won', 'lost'].includes(q.status);
+  const newPage = () => { doc.addPage(); pg++; bg(false); y = TOP; };
+  const need = h => { if (y + h > BOT) newPage(); };
+  const font = (sz, st = 'normal', c = TXT) => { doc.setFont('helvetica', st); doc.setFontSize(sz); doc.setTextColor(...c); };
+  const lines = (t, sz, st, c, w = CW, lh) => { font(sz, st, c); const L = doc.splitTextToSize(tx(t), w); lh = lh || sz * 0.43; L.forEach(l => { need(lh); doc.text(l, X, y + lh * 0.8); y += lh; }); };
+  const label = t => { const ly = pg === 1 ? Math.max(y, 82) : y; font(10, 'normal', [255, 255, 255]); doc.setFillColor(90, 90, 90); doc.rect(8, ly - 0.5, 41, 5.6, 'F'); doc.text(tx(t), 46.5, ly + 3.6, { align: 'right' }); };
+  const toc = []; let tocPage = 0;
+  bg(true);
+  for (const b of quoteBlocks(job, q)) {
+    if (b.brk && b.t !== 'label' && !(y <= TOP + 1)) newPage(); else if (b.brk && b.t === 'label' && y > TOP + 60) newPage();
+    switch (b.t) {
+      case 'cover': { font(30, 'bold', ORA); doc.text('ROOF REPORT', X, 70); doc.text('& QUOTATION', X, 82); font(13, 'bold', TXT); doc.text(doc.splitTextToSize(tx(q.siteAddress), CW), X, 98);
+        font(11, 'normal', TXT); doc.text(tx(`Quote reference: ${qRef(q)}`), X, 120); doc.text(tx(`Date: ${qDate(q.date)}`), X, 127); doc.text(tx(`Prepared by: ${q.author}`), X, 134); if (q.visitDate) doc.text(tx(`Date of visit: ${qDate(q.visitDate)}   Inspected by: ${q.inspectedBy}`), X, 141);
+        const ph = q.photoIds.map(id => qPhotoData(job, id)).filter(Boolean)[0]; if (ph) { const r = Math.min(CW / (ph.w || 4), 90 / (ph.h || 3)); try { doc.addImage(ph.data, /png/.test(ph.data.slice(0, 20)) ? 'PNG' : 'JPEG', X, 152, (ph.w || 4) * r, (ph.h || 3) * r); } catch (e) { } }
+        break; }
+      case 'toc': newPage(); tocPage = pg; font(16, 'bold', ORA); doc.text('Contents', X, y + 6); y += 14; break;
+      case 'date': font(10, 'bold'); doc.text(tx(b.x), R, y + 3, { align: 'right' }); y += 6; break;
+      case 'title': lines(b.x, 14, 'normal', ORA); y += 1; break;
+      case 'hb': lines(b.x, 10, 'bold', TXT); break;
+      case 'gap': y += 3; break;
+      case 'label': label(b.x); break;
+      case 'h1': need(16); if (b.toc) toc.push([b.x, pg]); font(18, 'bold', ORA); doc.text(tx(b.x), X, y + 7); y += 13; break;
+      case 'h2': need(14); lines(b.x, 12.5, 'bold', ORA); y += 1.5; break;
+      case 'h3': need(12); y += 1.5; lines(b.x, 10.5, 'bold', TXT); y += 0.5; break;
+      case 'b': need(10); y += 1.5; lines(b.x, 10, 'bold', TXT); break;
+      case 'p': lines(b.x, 10, 'normal', TXT); y += 2.2; break;
+      case 'li': font(10); need(5); doc.text('•', X + 1, y + 3.4); { const L = doc.splitTextToSize(tx(b.x), CW - 6); L.forEach(l => { need(4.4); doc.text(l, X + 5, y + 3.4); y += 4.4; }); } y += 0.6; break;
+      case 'price': need(7); font(10.5, b.strong ? 'bold' : 'bold', b.strong ? ORA : TXT); doc.text(tx(b.x), X, y + 4); y += 6.4; break;
+      case 'link': need(6); font(10, 'normal', [29, 78, 216]); { const t = tx(b.x).slice(0, 95); doc.textWithLink(t, X + 3, y + 3.6, { url: b.url }); doc.setDrawColor(29, 78, 216); doc.setLineWidth(0.2); doc.line(X + 3, y + 4.2, X + 3 + doc.getTextWidth(t), y + 4.2); } y += 5.6; break;
+      case 'photos': { const n = b.photos.length; const w = n > 1 ? (CW - 4) / 2 : CW; b.photos.forEach((p, i) => { const r = Math.min(w / (p.w || 4), 62 / (p.h || 3)); const h = (p.h || 3) * r; if (i % 2 === 0) need(h + 8); const xx = X + (n > 1 ? (i % 2) * (w + 4) : 0); try { doc.addImage(p.data, /png/.test(p.data.slice(0, 20)) ? 'PNG' : 'JPEG', xx, y, (p.w || 4) * r, h); } catch (e) { } font(7.8, 'italic', GREY); doc.text(doc.splitTextToSize(tx(p.caption || ''), w)[0] || '', xx, y + h + 3.5); if (i % 2 === 1 || i === n - 1) y += h + 7; }); break; }
+      case 'sig': font(11, 'bolditalic', TXT); need(8); doc.text(tx(b.x), X, y + 5); y += 8; break;
+      case 'small': String(b.x).split('\n').filter(Boolean).forEach(l => { lines(l, 8.6, 'normal', TXT, CW, 3.7); y += 1.4; }); break;
+      case 'tiny': String(b.x).split('\n').filter(Boolean).forEach(l => { const hd = /^\d+\.\s/.test(l.trim()) || /^ABSOLUTE ROOFING/.test(l); if (hd) y += 1; lines(l, hd ? 8.2 : 7.4, hd ? 'bold' : 'normal', TXT, CW, hd ? 3.6 : 3.2); y += 0.6; }); break;
+    }
+  }
+  if (tocPage) { doc.setPage(tocPage); let yy = TOP + 16; toc.forEach(([t, p]) => { font(11, 'normal', TXT); doc.text(tx(t), X, yy); doc.text(String(p), R, yy, { align: 'right' }); doc.setDrawColor(200, 200, 200); doc.setLineDashPattern([0.6, 0.8], 0); doc.line(X + doc.getTextWidth(tx(t)) + 2, yy, R - 6, yy); doc.setLineDashPattern([], 0); yy += 8; }); }
+  const n = doc.getNumberOfPages();
+  for (let i = 1; i <= n; i++) { doc.setPage(i); font(7.5, 'normal', GREY); doc.text(tx(`${qRef(q)}  |  Page ${i} of ${n}`), R, 268, { align: 'right' });
+    if (draft) { doc.setTextColor(232, 232, 232); doc.setFont('helvetica', 'bold'); doc.setFontSize(64); doc.text('DRAFT', 105, 170, { align: 'center', angle: 35 }); } }
+  doc.setProperties({ title: tx(`Quotation ${qRef(q)}`), author: 'Absolute Roofing Solutions Ltd', creator: 'ARS Site Audit' });
+  return { blob: doc.output('blob'), name: `${safeName(qRef(q))}_Quotation_${safeName(q.clientName || 'client')}${draft ? '_DRAFT' : ''}.pdf`, pages: n };
+}
+async function buildCostingPDF(job, q) {
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4' }); const M = 14, W = 210; const NAVY = [15, 37, 66], OR = [241, 137, 2];
+  const tx = s => String(s ?? '').replace(/[\u2018\u2019]/g, "'").replace(/[\u2013\u2014]/g, '-').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
+  doc.setFillColor(...NAVY); doc.rect(0, 0, W, 24, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(255, 255, 255); doc.text('INTERNAL COSTING SHEET', M, 11); doc.setFontSize(9); doc.setTextColor(...OR); doc.text('ARS INTERNAL - NOT FOR THE CLIENT', M, 18);
+  doc.setTextColor(255, 255, 255); doc.text(tx(`${qRef(q)}  |  ${q.clientName}`), W - M, 11, { align: 'right' }); doc.text(tx(`${qDate(q.date)}  |  ${q.author}`), W - M, 18, { align: 'right' });
+  let y = 32; const tb = { margin: { left: M, right: M }, theme: 'grid', styles: { font: 'helvetica', fontSize: 8.4, cellPadding: 1.6 }, headStyles: { fillColor: NAVY, textColor: 255 } };
+  doc.setFontSize(9); doc.setTextColor(40, 40, 40); doc.setFont('helvetica', 'normal'); doc.text(doc.splitTextToSize(tx(`Site: ${q.siteAddress}`), W - 2 * M), M, y); y += 8;
+  const summary = [];
+  q.options.forEach(o => { const B = qBuild(o); const b = o.bu;
+    if (y > 240) { doc.addPage(); y = 20; } doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...NAVY); doc.text(tx(o.title), M, y); y += 3;
+    const rows = []; (b.mats || []).forEach(m => rows.push(['Materials', tx(m.name), `${m.qty} ${m.unit}`, fmtGBP(qNum(m.rate)), fmtGBP(qNum(m.qty) * qNum(m.rate))]));
+    (b.labour || []).forEach(l => rows.push(['Labour', tx(l.desc), `${l.men} men x ${l.days} days`, fmtGBP(qNum(l.rate)) + '/man-day', fmtGBP(qNum(l.men) * qNum(l.days) * qNum(l.rate))]));
+    [['plant', 'Plant'], ['access', 'Access / scaffold'], ['other', 'Other']].forEach(([k, l]) => (b[k] || []).forEach(r => rows.push([l, tx(r.desc), '', '', fmtGBP(qNum(r.cost))])));
+    doc.autoTable(Object.assign({}, tb, { startY: y, head: [['Type', 'Description', 'Quantity', 'Rate', 'Cost']], body: rows, columnStyles: { 0: { cellWidth: 26, fontStyle: 'bold' }, 4: { halign: 'right', cellWidth: 26 }, 3: { halign: 'right', cellWidth: 30 } } })); y = doc.lastAutoTable.finalY + 2;
+    const price = qOptPrice(q, o); const real = price ? price - B.cost : 0;
+    doc.autoTable(Object.assign({}, tb, { startY: y, margin: { left: W - M - 90, right: M }, body: [['Materials', fmtGBP(B.mats)], ['Labour', fmtGBP(B.lab)], ['Plant', fmtGBP(B.plant)], ['Access / scaffold', fmtGBP(B.access)], ['Other', fmtGBP(B.other)], ['Total cost', fmtGBP(B.cost)], [`Margin ${B.margin}% (calculated sell)`, fmtGBP(B.sell)], ['Quoted price ex VAT', fmtGBP(price)], ['Profit on quoted price', `${fmtGBP(real)} (${price ? Math.round(real / price * 1000) / 10 : 0}%)`]],
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 52 }, 1: { halign: 'right' } }, didParseCell: d => { if (d.row.index >= 5) { d.cell.styles.fillColor = d.row.index === 7 ? [255, 243, 224] : [241, 244, 248]; d.cell.styles.fontStyle = 'bold'; } } })); y = doc.lastAutoTable.finalY + 10;
+    summary.push([tx(o.title), fmtGBP(B.cost), fmtGBP(price), fmtGBP(real)]); });
+  if (summary.length > 1) { if (y > 240) { doc.addPage(); y = 20; } doc.autoTable(Object.assign({}, tb, { startY: y, head: [['Option', 'Cost', 'Quoted ex VAT', 'Profit']], body: summary })); }
+  const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setFontSize(7.5); doc.setTextColor(150, 30, 30); doc.text('INTERNAL - commercially confidential. Do not send to the client.', M, 290); doc.setTextColor(120, 120, 120); doc.text(`Page ${i} of ${n}`, W - M, 290, { align: 'right' }); }
+  return { blob: doc.output('blob'), name: `${safeName(qRef(q))}_INTERNAL-Costing.pdf`, pages: n };
+}
+/* Word (.docx): Matt's letterhead template (headers/footers/styles) + generated body */
+const xesc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+async function buildQuoteDocx(job, q) {
+  const A = await loadQuoteAssets(); const files = {}; Object.entries(A.docx).forEach(([k, v]) => { files[k] = Uint8Array.from(atob(v), c => c.charCodeAt(0)); });
+  const run = (t, o = {}) => `<w:r><w:rPr>${o.font ? `<w:rFonts w:ascii="${o.font}" w:hAnsi="${o.font}"/>` : ''}${o.b ? '<w:b/>' : ''}${o.i ? '<w:i/>' : ''}${o.u ? '<w:u w:val="single"/>' : ''}<w:color w:val="${o.color || '262626'}"/><w:sz w:val="${o.sz || 20}"/></w:rPr><w:t xml:space="preserve">${xesc(t)}</w:t></w:r>`;
+  const para = (inner, o = {}) => `<w:p><w:pPr>${o.brk ? '<w:pageBreakBefore/>' : ''}${o.style ? `<w:pStyle w:val="${o.style}"/>` : ''}<w:spacing w:before="${o.before || 0}" w:after="${o.after ?? 120}"/>${o.jc ? `<w:jc w:val="${o.jc}"/>` : ''}${o.ind ? `<w:ind w:left="${o.ind}" w:hanging="${o.hang || 0}"/>` : ''}</w:pPr>${inner}</w:p>`;
+  const rels = []; let rid = 100; const media = []; const lid = url => { const id = 'rId' + (rid++); rels.push(`<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${xesc(url)}" TargetMode="External"/>`); return id; };
+  const img = (p, wmm) => { const id = 'rId' + (rid++); const ext = /png/.test(p.data.slice(0, 20)) ? 'png' : 'jpeg'; const name = `media/q_${media.length + 1}.${ext}`; media.push(name); files['word/' + name] = Uint8Array.from(atob(p.data.split(',')[1]), c => c.charCodeAt(0));
+    rels.push(`<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${name}"/>`); const cx = Math.round(wmm * 36000), cy = Math.round(cx * (p.h || 3) / (p.w || 4)); const n = media.length;
+    return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${900 + n}" name="Photo ${n}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${n}" name="Photo ${n}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`; };
+  const ORA = 'F08605'; let body = ''; let pendingBrk = false;
+  for (const b of quoteBlocks(job, q)) {
+    const brk = (b.brk || pendingBrk) && body !== ''; pendingBrk = false;
+    switch (b.t) {
+      case 'cover': body += para(run('ROOF REPORT & QUOTATION', { b: 1, sz: 48, color: ORA, font: 'Gill Sans MT' }), { before: 1600 }) + para(run(q.siteAddress, { b: 1, sz: 26 })) + para(run(`Quote reference: ${qRef(q)}`, { sz: 22 })) + para(run(`Date: ${qDate(q.date)}`, { sz: 22 })) + para(run(`Prepared by: ${q.author}`, { sz: 22 })); { const ph = q.photoIds.map(id => qPhotoData(job, id)).filter(Boolean)[0]; if (ph) body += para(img(ph, 120)); } break;
+      case 'toc': pendingBrk = true; body += ''; break;
+      case 'date': body += para(run(b.x, { b: 1 }), { jc: 'right', brk }); break;
+      case 'title': body += para(run(b.x, { sz: 28, color: ORA, font: 'Gill Sans MT' }), { after: 40, brk }); break;
+      case 'hb': body += para(run(b.x, { b: 1 }), { after: 20, brk }); break;
+      case 'gap': body += para('', { after: 60 }); break;
+      case 'label': body += para(run(b.x.toUpperCase(), { b: 1, sz: 18, color: '7F7F7F' }), { before: 120, after: 60, brk }); break;
+      case 'h1': body += para(run(b.x, { b: 1, sz: 36, color: ORA, font: 'Gill Sans MT' }), { brk, after: 200 }); break;
+      case 'h2': body += para(run(b.x, { b: 1, sz: 26, color: ORA }), { brk, before: 160 }); break;
+      case 'h3': case 'b': body += para(run(b.x, { b: 1, sz: 21 }), { brk, before: 100, after: 60 }); break;
+      case 'p': body += para(run(b.x), { brk }); break;
+      case 'li': body += para(run('•\t' + b.x), { ind: 360, hang: 360, after: 40 }); break;
+      case 'price': body += para(run(b.x, { b: 1, sz: 22, color: b.strong ? ORA : '262626' }), { after: 80 }); break;
+      case 'link': body += `<w:p><w:pPr><w:spacing w:after="60"/><w:ind w:left="200"/></w:pPr><w:hyperlink r:id="${lid(b.url)}">${run(b.x, { u: 1, color: '1D4ED8' })}</w:hyperlink></w:p>`; break;
+      case 'photos': body += para(b.photos.map(p => img(p, b.photos.length > 1 ? 62 : 110)).join(run('  ')), { after: 60 }) + para(run(b.photos.map(p => p.caption).filter(Boolean).join('  |  '), { i: 1, sz: 16, color: '6E6E6E' })); break;
+      case 'sig': body += para(run(b.x, { b: 1, i: 1, sz: 24 }), { after: 20 }); break;
+      case 'small': if (brk) body += para('', { brk: 1, after: 0 }); String(b.x).split('\n').filter(Boolean).forEach(l => { body += para(run(l, { sz: 17 }), { after: 80 }); }); break;
+      case 'tiny': String(b.x).split('\n').filter(Boolean).forEach((l, i) => { const hd = /^\d+\.\s/.test(l.trim()) || /^ABSOLUTE ROOFING/.test(l); body += para(run(l, { sz: hd ? 16 : 14, b: hd }), { after: 40, brk: brk && i === 0 }); }); break;
+    }
+  }
+  const sect = '<w:sectPr><w:headerReference w:type="default" r:id="rId10"/><w:footerReference w:type="default" r:id="rId11"/><w:headerReference w:type="first" r:id="rId12"/><w:footerReference w:type="first" r:id="rId13"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1300" w:bottom="1900" w:left="3060" w:header="708" w:footer="708" w:gutter="0"/><w:cols w:space="708"/><w:titlePg/><w:docGrid w:linePitch="360"/></w:sectPr>';
+  files['word/document.xml'] = new TextEncoder().encode(A.docHead + '<w:body>' + body + sect + '</w:body></w:document>');
+  const R = t => `<Relationship Id="rId${t[0]}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${t[1]}" Target="${t[2]}"/>`;
+  files['word/_rels/document.xml.rels'] = new TextEncoder().encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + [[1, 'numbering', 'numbering.xml'], [2, 'styles', 'styles.xml'], [3, 'settings', 'settings.xml'], [4, 'webSettings', 'webSettings.xml'], [5, 'footnotes', 'footnotes.xml'], [6, 'endnotes', 'endnotes.xml'], [10, 'header', 'header1.xml'], [11, 'footer', 'footer1.xml'], [12, 'header', 'header2.xml'], [13, 'footer', 'footer2.xml'], [14, 'fontTable', 'fontTable.xml'], [15, 'theme', 'theme/theme1.xml']].map(R).join('') + rels.join('') + '</Relationships>');
+  const blob = new Blob([zipStore(files)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  return { blob, name: `${safeName(qRef(q))}_Quotation_${safeName(q.clientName || 'client')}.docx` };
+}
+// minimal ZIP writer (stored entries) for the .docx
+const _crcT = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = u => { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = _crcT[(c ^ u[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipStore(files) {
+  const enc = new TextEncoder(); const parts = [], cen = []; let off = 0;
+  const names = Object.keys(files).sort((a, b) => (a === '[Content_Types].xml' ? -1 : b === '[Content_Types].xml' ? 1 : 0));
+  for (const n of names) { const d = files[n], nm = enc.encode(n), c = crc32(d);
+    const h = new DataView(new ArrayBuffer(30)); h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(8, 0, true); h.setUint32(14, c, true); h.setUint32(18, d.length, true); h.setUint32(22, d.length, true); h.setUint16(26, nm.length, true);
+    parts.push(new Uint8Array(h.buffer), nm, d);
+    const ch = new DataView(new ArrayBuffer(46)); ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint32(16, c, true); ch.setUint32(20, d.length, true); ch.setUint32(24, d.length, true); ch.setUint16(28, nm.length, true); ch.setUint32(42, off, true);
+    cen.push(new Uint8Array(ch.buffer), nm); off += 30 + nm.length + d.length; }
+  const cs = cen.reduce((s, x) => s + x.length, 0); const e = new DataView(new ArrayBuffer(22)); e.setUint32(0, 0x06054b50, true); e.setUint16(8, names.length, true); e.setUint16(10, names.length, true); e.setUint32(12, cs, true); e.setUint32(16, off, true);
+  return new Blob([...parts, ...cen, new Uint8Array(e.buffer)]);
+}
+
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
    the original (and any superseded revision) gets job.locked = { reason, by, at, rev } and becomes read-only. */
@@ -6158,13 +6675,13 @@ async function createContractsCopy(src) {
 // read-only guard for locked audits
 const _ccMarkDirty = markDirty;
 markDirty = function (job) {
-  if (job && job.locked && !S._ccLockOK) { toast('This survey is locked (estimator\'s original). Edit the contracts copy instead.', 3500); DB.get && DB.get(job.id).then(o => { if (o) { const i = S.jobs.indexOf(job); if (i >= 0) S.jobs[i] = o; if (S.ctx && S.ctx.job === job) { S.ctx = { obj: o, save: () => markDirty(o), job: o }; } rerender(); } }).catch(() => {}); return; }
+  if (job && job.locked && !S._ccLockOK && !/\/quotes?(\/|$)/.test(location.hash)) { toast('This survey is locked (estimator\'s original). Edit the contracts copy instead.', 3500); DB.get && DB.get(job.id).then(o => { if (o) { const i = S.jobs.indexOf(job); if (i >= 0) S.jobs[i] = o; if (S.ctx && S.ctx.job === job) { S.ctx = { obj: o, save: () => markDirty(o), job: o }; } rerender(); } }).catch(() => {}); return; }
   if (job && job.contracts && job.contracts.signoff && !S._ccSignOK) job.contracts.signoff.editedAfter = true;
   return _ccMarkDirty(job);
 };
 const CC_READ_ACTS = /^(jobmenu|genpdf|viewphoto|measpdf|matcsv|exportjob|dlpdf|openpdf|sharepdf|tfilter|filter|ccopen|ccsign|ccnew|cccompare)$/;
 document.addEventListener('click', e => {
-  const job = S.ctx && S.ctx.job; if (!job || !job.locked || !/^#\/job\//.test(location.hash)) return;
+  const job = S.ctx && S.ctx.job; if (!job || !job.locked || !/^#\/job\//.test(location.hash) || /\/quotes?(\/|$)/.test(location.hash)) return;
   const t = e.target; const a = t.closest && t.closest('[data-act]');
   if (t.closest('[data-ro] button')) return;
   if ((a && !CC_READ_ACTS.test(a.dataset.act)) || t.closest('.seg[data-b] button,.chips[data-bm] button,.lnkbtn,label.btn,label.ck-cam')) { e.preventDefault(); e.stopImmediatePropagation(); toast('Locked - this is the estimator\'s original. Open the contracts copy to make changes.', 3000); }
@@ -6185,7 +6702,7 @@ render = function (keep) {
   _ccRender(keep); const r = route(); if (r[0] !== 'job') return; const job = getJob(r[1]); if (!job || isWorks(job)) return;
   const b = ccBanner(job); const m = $('#app main'); if (b && m) m.insertAdjacentHTML('afterbegin', b);
   document.body.classList.toggle('cc-locked', !!job.locked);
-  if (job.locked && m) m.querySelectorAll('input,select,textarea').forEach(el => { if (!el.closest('.cc-banner')) el.disabled = true; });
+  if (job.locked && m && !/\/quotes?(\/|$)/.test(location.hash)) m.querySelectorAll('input,select,textarea').forEach(el => { if (!el.closest('.cc-banner')) el.disabled = true; });
 };
 Object.assign(ACTIONS, {
   async ccnew(a, job) {
