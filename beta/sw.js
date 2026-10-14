@@ -1,5 +1,5 @@
 /* ARS Site Audit BETA service worker - offline cache */
-const CACHE = 'ars-site-audit-beta-v1.7.11';
+const CACHE = 'ars-site-audit-beta-v1.7.12';
 const PREFIX = 'ars-site-audit-beta-v';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/icon.svg', './pdf-lib.min.js', './quote-assets.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
