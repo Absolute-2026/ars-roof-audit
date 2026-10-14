@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.7.16">
+<meta name="app-version" content="1.8.0">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -430,6 +430,19 @@ body.fl-lock{overflow:hidden;position:fixed;width:100%}
 .fl-splitov .fl-splitb{background:#fff;border-radius:14px;padding:14px 16px;margin:2vh auto;max-height:96vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3)}
 .fl-splitw{max-height:none;overflow:visible;text-align:center}.fl-splitc{width:auto!important;max-width:100%;max-height:58vh;margin:0 auto}
 .fl-splitb h3{margin:0 0 4px}.fl-scount{font-weight:700;margin:6px 0}
+/* v1.8.0 site plan + photo markup */
+.sp-ov{position:fixed;inset:0;z-index:300;background:#0f2542;display:flex;flex-direction:column;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.sp-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;background:#fff;border-bottom:1px solid #cbd5e1}
+.sp-bar b{margin-right:6px;color:#0f2542}.sp-bar .seg{display:flex;flex-wrap:wrap;gap:4px}.sp-bar .seg button{min-height:40px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;font-size:14px}
+.sp-bar .seg button.on{background:#0f2542;color:#fff;border-color:#0f2542}.sp-bar select{min-height:40px;font-size:14px;border-radius:8px;max-width:260px}
+.sp-q{flex:1;min-width:180px;min-height:40px;font-size:16px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px}.sp-sp{flex:1}
+.sp-wrap{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}.sp-cv{display:block;touch-action:none}
+.sp-cross{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #000;pointer-events:none}
+.sp-attr{margin:0;padding:6px 10px;background:#fff;font-size:12px;color:#475569}
+.sp-thumb{width:100%;border-radius:10px;display:block;margin-bottom:8px;cursor:pointer}.sp-tab{width:100%;border-collapse:collapse;margin-bottom:10px}.sp-tab td,.sp-tab th{border-bottom:1px solid #e2e8f0;padding:6px;text-align:left}
+.sp-key{list-style:none;padding:0;margin:0}.sp-key li{padding:5px 0;display:flex;gap:8px;align-items:center}.sp-key i{font-style:normal;color:#fff;font-weight:700;font-size:11px;min-width:26px;height:22px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center}
+.pm-cols button{padding:4px 6px!important}.ba2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ba2 figure{margin:0}.ba2 img{width:100%;border-radius:8px;display:block}.ba2 figcaption{font-weight:700;font-size:12px;text-align:center;margin-top:4px}
+.modal-bg{z-index:400}
 
 </style>
 </head>
@@ -850,7 +863,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.7.16';
+const APP_VERSION = '1.8.0';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -1784,6 +1797,7 @@ document.addEventListener('toggle', e => { if (e.target.matches && e.target.matc
 /* ---------- PDF report ---------- */
 async function buildPDF(job, opts) {
   const { jsPDF } = window.jspdf;
+  const SPI = job.sitePlan && job.sitePlan.img ? await spRenderPNG(job.sitePlan).catch(() => null) : null; // v1.8.0 site plan image
   const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
   const st = S.settings;
   const W = 210, H = 297, M = 14, CW = W - 2 * M, TOP = 22, BOT = H - 16;
@@ -1792,6 +1806,7 @@ async function buildPDF(job, opts) {
   const tx = s => String(s ?? '').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/\u2026/g, '...').replace(/[\u2022\u25CF]/g, '-').replace(/\u00D7/g, 'x').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
   const fmtImg = d => /^data:image\/png/.test(d) ? 'PNG' : 'JPEG';
   let y = TOP; let photoNo = 0;
+  const spH = H1 => ({ doc, M, CW, h1: H1, para, table, need, font, tx, GREY, NAVY, getY: () => y, setY: v => { y = v; } });
   const color = (c, kind = 'text') => kind === 'text' ? doc.setTextColor(...c) : kind === 'fill' ? doc.setFillColor(...c) : doc.setDrawColor(...c);
   const font = (size, style = 'normal', c = TXT) => { doc.setFont('helvetica', style); doc.setFontSize(size); color(c); };
   const newPage = () => { doc.addPage(); y = TOP; };
@@ -1928,6 +1943,7 @@ async function buildPDF(job, opts) {
     if (job.areas.length) table({ head: [['Roof area', 'Work packages', 'Stage', '% complete', 'Pass', 'Fail']], body: job.areas.map(a => { const c = a.sections.reduce((t, s) => { const p = pfCounts(s); t.P += p.Pass; t.F += p.Fail; return t; }, { P: 0, F: 0 }); return [tx(a.name), tx(a.sections.map(s => s.title).join(', ') || '-'), tx(a.stage || '-'), a.pct !== '' && a.pct != null ? a.pct + '%' : '-', String(c.P), String(c.F)]; }), columnStyles: { 3: { halign: 'center', cellWidth: 20 }, 4: { halign: 'center', cellWidth: 13 }, 5: { halign: 'center', cellWidth: 13, fontStyle: 'bold' } }, didParseCell: d => { if (d.section === 'body' && d.column.index === 5 && +d.cell.raw > 0) { d.cell.styles.fillColor = RC.Critical; d.cell.styles.textColor = 255; } } });
     if (job.summary.exec) { label('Inspector comments'); para(job.summary.exec, 10); }
     const dsec = secByKey(job, 'details'); if (dsec) sectionBlock(dsec, dsec.title, false);
+    spPdfSection(job, spH(t => h1(++sn, t)), SPI);
 
     h1(++sn, 'Site Health & Safety During Works');
     if (fragile) { font(9, 'normal'); const lines = doc.splitTextToSize('The roof is fragile (or of unconfirmed fragility). Collective protection (netting, edge protection, rooflight covers) must be maintained at all times during the works (HSE HSG33).', CW - 10); const hh = 10 + lines.length * 4; need(hh + 3); color(RC.Critical, 'fill'); doc.roundedRect(M, y, CW, hh, 2, 2, 'F'); font(11, 'bold', [255, 255, 255]); doc.text('!  FRAGILE ROOF', M + 5, y + 6.5); font(9, 'normal', [255, 255, 255]); doc.text(lines, M + 5, y + 11.5); y += hh + 4; }
@@ -1956,21 +1972,21 @@ async function buildPDF(job, opts) {
       const SC = { Open: RC.Critical, 'In progress': RAGC.Amber, Closed: RC.Good };
       table({
         head: [['Ref', 'Photo', 'Area / location', 'Description', 'Assigned / due', 'Status']],
-        body: sn_.map(x => { const ar = job.areas.find(q => q.id === x.areaId); return [x.ref + (x.priority ? '\n' + x.priority : ''), '', tx([ar ? ar.name : 'Site-wide', ar && x.location ? x.location.replace(ar.name, '').replace(/^\s*-\s*/, '') : x.location].filter(Boolean).join('\n')), tx(x.description + (x.closeNote ? '\nClose-out: ' + x.closeNote : '')), tx([x.assignedTo, x.due ? 'Due ' + fmtDate(x.due) : ''].filter(Boolean).join('\n')), x.status + (x.status === 'Closed' && x.closedDate ? '\n' + fmtDate(x.closedDate) : '')]; }),
+        body: sn_.map(x => { const ar = job.areas.find(q => q.id === x.areaId); return [x.ref + (x.priority ? '\n' + x.priority : '') + (spPinNo(job, x.id) ? '\nPin ' + spPinNo(job, x.id) : ''), '', tx([ar ? ar.name : 'Site-wide', ar && x.location ? x.location.replace(ar.name, '').replace(/^\s*-\s*/, '') : x.location].filter(Boolean).join('\n')), tx(x.description + (x.closeNote ? '\nClose-out: ' + x.closeNote : '')), tx([x.assignedTo, x.due ? 'Due ' + fmtDate(x.due) : ''].filter(Boolean).join('\n')), x.status + (x.status === 'Closed' && x.closedDate ? '\n' + fmtDate(x.closedDate) : '')]; }),
         styles: { fontSize: 8, valign: 'middle' },
         columnStyles: { 0: { cellWidth: 12, fontStyle: 'bold' }, 1: { cellWidth: 27, minCellHeight: 21 }, 2: { cellWidth: 32 }, 4: { cellWidth: 30 }, 5: { cellWidth: 22, halign: 'center', fontStyle: 'bold' } },
         didParseCell: d => { if (d.section === 'body' && d.column.index === 5) { const st = String(d.cell.raw).split('\n')[0]; d.cell.styles.fillColor = SC[st]; d.cell.styles.textColor = 255; } },
         didDrawCell: d => { if (opts.photos && d.section === 'body' && d.column.index === 1) { const ref = String((d.row.raw || [])[0] || '').split('\n')[0]; const r = sn_.find(x => x.ref === ref); const p = r && r.photos[0]; if (p) try { fit(p, d.cell.x + 1, d.cell.y + 1, d.cell.width - 2, d.cell.height - 2); } catch (e) { } } },
       });
       sn_.forEach(x => { const l = [...((x.photos || {})._links || []), ...((x.closePhotos || {})._links || [])]; if (l.length) linkList(l, `Links - snag ${x.ref}`); });
-      const ba = closed.filter(x => x.photos.length || x.closePhotos.length);
+      const ba = job.snags.filter(x => x.status === 'Closed' ? (x.photos.length || x.closePhotos.length) : (x.photos.length && x.closePhotos.length)); // v1.8.0: any snag with before + after
       if (ba.length && opts.photos) {
-        h3('Closed snags - before & after');
+        h3('Snags - before & after');
         const bw = (CW - 6) / 2, bh = bw * 0.75;
         ba.forEach(x => {
           need(bh + 22); font(9.5, 'bold', NAVY); doc.text(tx(`${x.ref} - ${x.description}`).slice(0, 110), M, y); y += 2.5;
           [['BEFORE', x.photos[0], RC.Critical], ['AFTER', x.closePhotos[0], RC.Good]].forEach(([lb, p, c], k) => { const xx = M + k * (bw + 6); color(LIGHT, 'fill'); color(LINE, 'draw'); doc.rect(xx, y, bw, bh, 'FD'); if (p) { try { fit(p, xx + 0.6, y + 0.6, bw - 1.2, bh - 1.2); } catch (e) { } } else { font(9, 'italic', GREY); doc.text('No photo', xx + bw / 2, y + bh / 2, { align: 'center' }); } badge(lb, xx + 2, y + 6, c); });
-          y += bh + 4; font(8, 'normal', GREY); doc.text(tx(`Closed ${fmtDate(x.closedDate)}${x.closeNote ? ' - ' + x.closeNote : ''}`).slice(0, 140), M, y); y += 7;
+          y += bh + 4; font(8, 'normal', GREY); doc.text(tx(x.status === 'Closed' ? `Closed ${fmtDate(x.closedDate)}${x.closeNote ? ' - ' + x.closeNote : ''}` : `${x.status}${x.closeNote ? ' - ' + x.closeNote : ''}`).slice(0, 140), M, y); y += 7;
         });
       }
     }
@@ -2040,6 +2056,7 @@ async function buildPDF(job, opts) {
   h1(++sn, 'Job & Site Details');
   kv([['Client', job.client.name], ['Client contact', [job.client.contact, job.client.phone, job.client.email].filter(Boolean).join('  |  ')], ['Site', job.site.name], ['Site address', [job.site.address.replace(/\n/g, ', '), job.site.postcode.toUpperCase()].filter(Boolean).join(', ')], ['Building use', job.buildingUse], ['Approx. building age', job.era], ['Job reference', job.ref], ['Date / time of survey', fmtDate(job.date) + (job.time ? ' ' + job.time : '')], ['Surveyor', job.surveyor], ['Weather', [job.weather.join(', '), job.temp].filter(Boolean).join(' - ')], ['Access arrangements', job.access.join(', ')], ['Access notes', job.accessNotes], ['Limitations of access', job.limitations]]);
   const dsec = secByKey(job, 'details'); if (dsec) sectionBlock(dsec, 'Job checklist', false);
+  spPdfSection(job, spH(t => h1(++sn, t)), SPI);
 
   /* ----- 2. Executive summary ----- */
   h1(++sn, 'Executive Summary');
@@ -2134,7 +2151,7 @@ async function buildPDF(job, opts) {
   const dph = ds.filter(d => d.photos.length);
   if (opts.photos && opts.defectPhotos && dph.length) {
     h1(++sn, 'Defect Photographs');
-    dph.forEach(d => { need(60); h3(`${d.ref} - ${d.area.name}${d.location ? ' - ' + d.location : ''}`, ''); if (d.priority) badge(d.priority, W - M - 2, y - 6.8, RC[d.priority], 'right'); if (d.description) para(d.description, 8.5, 'normal', GREY); photoGrid(d.photos, (p, i) => `${d.ref}.${i + 1}`); });
+    dph.forEach(d => { need(60); h3(`${d.ref} - ${d.area.name}${d.location ? ' - ' + d.location : ''}${spPinNo(job, d.id) ? '   (site plan pin ' + spPinNo(job, d.id) + ')' : ''}`, ''); if (d.priority) badge(d.priority, W - M - 2, y - 6.8, RC[d.priority], 'right'); if (d.description) para(d.description, 8.5, 'normal', GREY); photoGrid(d.photos, (p, i) => `${d.ref}.${i + 1}`); });
   }
 
   /* ----- 9. Limitations ----- */
@@ -2347,6 +2364,7 @@ function viewSnag(job, s) {
     ${f.seg('Status', b + '.status', [['Open', 'Open', 'bad'], ['In progress', 'In progress', 'warn'], ['Closed', 'Closed', 'ok']], { cls: 'yn' })}
   </div>
   <div class="card"><h2>${I.camera.replace('<svg', '<svg width="22" height="22"')} Photos (before) <span class="prog" style="margin-left:auto">${s.photos.length}</span></h2>${photoGrid(b + '.photos', s.photos)}</div>
+  ${s.photos.length && s.closePhotos.length ? `<div class="card"><h2>Before &amp; after</h2><div class="ba2"><figure><img src="${s.photos[0].data}" alt="Before"><figcaption>BEFORE</figcaption></figure><figure><img src="${s.closePhotos[0].data}" alt="After"><figcaption>AFTER</figcaption></figure></div></div>` : ''}
   <div class="card" id="closeout"><h2>Close-out</h2>${f.text('Date closed', b + '.closedDate', { type: 'date' })}${f.area('Close-out notes', b + '.closeNote', { rows: 2, ph: 'Work done to resolve…' })}
     <span class="lbl">Close-out photo (after)</span>${photoGrid(b + '.closePhotos', s.closePhotos, { empty: 'Add an "after" photo when the snag is closed.' })}</div>
   <div class="btns"><a class="btn primary" href="#/job/${job.id}/snags">Done</a><button class="btn danger" data-act="delsnag" data-id="${s.id}">${I.trash} Delete</button></div>`;
@@ -7399,6 +7417,309 @@ async function buildFlashRFQ(r) {
   doc.setProperties({ title: tx(`Flashings RFQ ${r.ref || ''}`), author: st.company || 'Absolute Roofing Solutions Ltd' });
   return { blob: doc.output('blob'), name: `Flashings-RFQ_${safeName(r.ref || r.project || 'request')}_${r.date || todayISO()}.pdf`, pages: n };
 }
+
+/* ===== v1.8.0: SITE PLAN (satellite base map + roof outlines + logistics markup + defect/snag pins) and PHOTO MARKUP =====
+   Imagery: Esri World Imagery (ArcGIS Online basemap) with the attribution printed on every capture. Address search: postcodes.io (UK postcodes),
+   otherwise OpenStreetMap Nominatim (1 request per search, attribution shown). A captured plan is a plain image stored with the job (works offline). */
+const SP_ATTR = 'Imagery: Esri, Maxar, Earthstar Geographics, and the GIS User Community. Search: OpenStreetMap contributors / postcodes.io';
+const SP_TILE = (z, x, y) => { const k = (S.settings && S.settings.esriKey) || ''; return (window.SP_TILE_URL || 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').replace('{z}', z).replace('{y}', y).replace('{x}', x) + (k ? '?token=' + encodeURIComponent(k) : ''); };
+// categories: kind = point | line | area; dash for routes; hatch for zones
+const SP_CATS = [
+  ['scaffold', 'Scaffold (run)', 'line', '#2563eb', 'S'], ['edge', 'Edge protection', 'line', '#f59e0b', 'EP'], ['compound', 'Compound', 'area', '#16a34a', 'C'],
+  ['welfare', 'Welfare', 'point', '#0891b2', 'W'], ['skip', 'Skips / waste', 'point', '#92400e', 'SK'], ['unload', 'Deliveries / unloading', 'point', '#7c3aed', 'D'],
+  ['delroute', 'Delivery route', 'line', '#7c3aed', '', 'dash'], ['access', 'Access route', 'line', '#059669', '', 'dash'], ['fireroute', 'Fire route', 'line', '#dc2626', '', 'dash'],
+  ['assembly', 'Assembly point', 'point', '#16a34a', 'AP'], ['firept', 'Fire point / extinguishers', 'point', '#dc2626', 'F'], ['exclusion', 'Exclusion zone', 'area', '#dc2626', 'X', 'hatch'],
+  ['plant', 'Crane / MEWP / telehandler', 'point', '#ea580c', 'M'], ['fragile', 'Fragile roof / rooflights', 'area', '#b91c1c', 'FR', 'hatch'], ['services', 'Power / water', 'point', '#0ea5e9', 'PW'],
+  ['parking', 'Parking', 'area', '#6b7280', 'P'], ['other', 'Other', 'point', '#111827', '?']
+].map(([id, name, kind, col, ic, sty]) => ({ id, name, kind, col, ic, sty: sty || '' }));
+const spCat = id => SP_CATS.find(c => c.id === id) || SP_CATS[SP_CATS.length - 1];
+const spPlan = job => job.sitePlan || null;
+const spM = (plan, px) => px * (plan.mpp || 0);
+function spPolyArea(P) { let a = 0; for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length]; a += p[0] * q[1] - q[0] * p[1]; } return Math.abs(a) / 2; }
+function spLen(P, closed) { let t = 0; for (let i = 1; i < P.length; i++) t += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); if (closed && P.length > 2) t += Math.hypot(P[0][0] - P[P.length - 1][0], P[0][1] - P[P.length - 1][1]); return t; }
+function spRoofStats(plan, r) { const m2 = Math.round(spPolyArea(r.pts) * plan.mpp * plan.mpp); const edges = r.pts.map((p, i) => { const q = r.pts[(i + 1) % r.pts.length]; return Math.round(Math.hypot(q[0] - p[0], q[1] - p[1]) * plan.mpp * 10) / 10; }); return { m2, edges, perim: Math.round(edges.reduce((t, e) => t + e, 0) * 10) / 10 }; }
+// every defect (survey) / snag (works) that can be pinned
+function spPinTargets(job) { const out = []; (job.areas || []).forEach(a => (a.defects || []).forEach(d => out.push({ id: d.id, ref: d.ref, kind: 'Defect', text: [a.name, d.location, d.description || d.element].filter(Boolean).join(' - '), pri: d.priority, photos: d.photos || [] })));
+  (job.snags || []).forEach(s => { const a = (job.areas || []).find(q => q.id === s.areaId); out.push({ id: s.id, ref: s.ref, kind: 'Snag', text: [a ? a.name : 'Site-wide', s.location, s.description].filter(Boolean).join(' - '), pri: s.priority, status: s.status, photos: s.photos || [] }); }); return out; }
+function spPinNo(job, id) { const p = spPlan(job); if (!p || !p.pins) return 0; const i = p.pins.findIndex(x => x.ref === id); return i < 0 ? 0 : i + 1; }
+
+/* ---------- rendering (image coordinates; s = image px per output px for line widths) ---------- */
+function spDraw(g, plan, o = {}) { const s = o.s || 1, lw = Math.max(2, 3 * s), fs = Math.max(13, 15 * s);
+  const tag = (x, y, t, col, big) => { g.save(); g.font = `bold ${big ? fs * 1.05 : fs * 0.85}px sans-serif`; const w = g.measureText(t).width + fs * 0.8, h = fs * (big ? 1.5 : 1.3); g.fillStyle = col; g.strokeStyle = '#fff'; g.lineWidth = Math.max(1.5, 2 * s);
+    g.beginPath(); if (g.roundRect) g.roundRect(x - w / 2, y - h / 2, w, h, h / 2.4); else g.rect(x - w / 2, y - h / 2, w, h); g.fill(); g.stroke(); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, x, y + 0.5); g.restore(); };
+  const path = (P, close) => { g.beginPath(); P.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); if (close) g.closePath(); };
+  const hatch = (P, col) => { g.save(); path(P, true); g.clip(); g.strokeStyle = col; g.globalAlpha = 0.55; g.lineWidth = Math.max(1.5, 2 * s); const xs = P.map(p => p[0]), ys = P.map(p => p[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), st = 14 * s;
+    for (let k = x0 - (y1 - y0); k < x1; k += st) { g.beginPath(); g.moveTo(k, y1); g.lineTo(k + (y1 - y0), y0); g.stroke(); } g.restore(); };
+  const cen = P => { let x = 0, y = 0; P.forEach(p => { x += p[0]; y += p[1]; }); return [x / P.length, y / P.length]; };
+  // roofs
+  (plan.roofs || []).forEach((r, i) => { if (r.pts.length < 2) return; g.save(); path(r.pts, r.pts.length > 2); g.fillStyle = 'rgba(241,137,2,.22)'; if (r.pts.length > 2) g.fill(); g.strokeStyle = '#f18902'; g.lineWidth = lw * 1.2; g.setLineDash([]); g.stroke(); g.restore();
+    if (plan.mpp && r.pts.length > 2) { const st = spRoofStats(plan, r); r.pts.forEach((p, k) => { const q = r.pts[(k + 1) % r.pts.length], L = Math.hypot(q[0] - p[0], q[1] - p[1]); if (L < 40 * s) return; g.save(); g.font = `bold ${fs * 0.75}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; const t = st.edges[k] + ' m', mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2, w = g.measureText(t).width + 8 * s; g.fillStyle = 'rgba(255,255,255,.85)'; g.fillRect(mx - w / 2, my - fs * 0.5, w, fs); g.fillStyle = '#9a3412'; g.fillText(t, mx, my); g.restore(); });
+      const c = cen(r.pts); tag(c[0], c[1], `${r.name || 'Roof ' + (i + 1)}  ~${st.m2} m²`, '#c2410c', true); }
+    if (o.sel && o.sel.t === 'roof' && o.sel.i === i) r.pts.forEach(p => { g.beginPath(); g.arc(p[0], p[1], 9 * s, 0, 7); g.fillStyle = '#fff'; g.fill(); g.strokeStyle = '#ea580c'; g.lineWidth = 3 * s; g.stroke(); }); });
+  // marks
+  (plan.marks || []).forEach((m, i) => { const c = spCat(m.cat), sel = o.sel && o.sel.t === 'mark' && o.sel.i === i; g.save(); g.strokeStyle = c.col; g.fillStyle = c.col; g.lineCap = g.lineJoin = 'round';
+    if (m.kind === 'point') { const p = m.pts[0]; g.beginPath(); g.arc(p[0], p[1], 15 * s, 0, 7); g.fill(); g.lineWidth = 3 * s; g.strokeStyle = '#fff'; g.stroke(); g.fillStyle = '#fff'; g.font = `bold ${c.ic.length > 1 ? fs * 0.7 : fs * 0.9}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(c.ic, p[0], p[1] + 0.5); if (m.label) tag(p[0], p[1] + 30 * s, m.label, c.col); }
+    else { if (m.kind === 'area' && m.pts.length > 2) { path(m.pts, true); g.globalAlpha = 0.22; g.fill(); g.globalAlpha = 1; if (c.sty === 'hatch') hatch(m.pts, c.col); }
+      path(m.pts, m.kind === 'area' && m.pts.length > 2); g.lineWidth = m.kind === 'line' ? lw * 1.6 : lw; if (c.sty === 'dash') g.setLineDash([16 * s, 10 * s]); g.stroke(); g.setLineDash([]);
+      if (m.kind === 'line' && m.pts.length > 1 && c.sty === 'dash') { const a = m.pts[m.pts.length - 2], b = m.pts[m.pts.length - 1], an = Math.atan2(b[1] - a[1], b[0] - a[0]), L = 18 * s; g.beginPath(); g.moveTo(b[0], b[1]); g.lineTo(b[0] - L * Math.cos(an - 0.45), b[1] - L * Math.sin(an - 0.45)); g.lineTo(b[0] - L * Math.cos(an + 0.45), b[1] - L * Math.sin(an + 0.45)); g.closePath(); g.fill(); }
+      const lp = m.kind === 'area' ? cen(m.pts) : m.pts[Math.floor((m.pts.length - 1) / 2)]; const lq = m.kind === 'line' && m.pts.length > 1 ? [(m.pts[Math.floor((m.pts.length - 1) / 2)][0] + m.pts[Math.floor((m.pts.length - 1) / 2) + 1][0]) / 2, (m.pts[Math.floor((m.pts.length - 1) / 2)][1] + m.pts[Math.floor((m.pts.length - 1) / 2) + 1][1]) / 2] : lp;
+      if (lq) tag(lq[0], lq[1], m.label || c.name, c.col); }
+    if (sel) m.pts.forEach(p => { g.beginPath(); g.arc(p[0], p[1], 9 * s, 0, 7); g.fillStyle = '#fff'; g.fill(); g.strokeStyle = '#ea580c'; g.lineWidth = 3 * s; g.stroke(); });
+    g.restore(); });
+  // pins
+  (plan.pins || []).forEach((p, i) => { const sel = o.sel && o.sel.t === 'pin' && o.sel.i === i; g.save(); g.beginPath(); g.moveTo(p.x, p.y); g.arc(p.x, p.y - 26 * s, 14 * s, Math.PI * 0.75, Math.PI * 2.25); g.closePath(); g.fillStyle = sel ? '#ea580c' : '#1e3a8a'; g.fill(); g.lineWidth = 2.5 * s; g.strokeStyle = '#fff'; g.stroke();
+    g.fillStyle = '#fff'; g.font = `bold ${fs * 0.85}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(i + 1), p.x, p.y - 26 * s); g.restore(); });
+  // in-progress drawing
+  if (o.draft && o.draft.pts.length) { g.save(); g.strokeStyle = o.draft.col || '#ea580c'; g.lineWidth = lw; g.setLineDash([8 * s, 6 * s]); path(o.draft.pts, false); g.stroke(); g.setLineDash([]); o.draft.pts.forEach((p, k) => { g.beginPath(); g.arc(p[0], p[1], (k ? 6 : 10) * s, 0, 7); g.fillStyle = k ? '#fff' : '#ea580c'; g.fill(); g.stroke(); }); g.restore(); }
+}
+async function spRenderPNG(plan, maxW = 1800) { const im = await loadImg(plan.img); const W = im.naturalWidth, H = im.naturalHeight, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.drawImage(im, 0, 0); spDraw(g, plan, { s: Math.max(1, W / 1400) });
+  // attribution + scale bar burned in
+  g.fillStyle = 'rgba(255,255,255,.8)'; g.fillRect(0, H - 22, W, 22); g.fillStyle = '#111'; g.font = '12px sans-serif'; g.textBaseline = 'middle'; g.fillText(SP_ATTR.split('. Search')[0] + '  |  Approx. - verify on site', 8, H - 11);
+  if (plan.mpp) { const nice = [5, 10, 20, 25, 50, 100, 200, 250, 500].find(m => m / plan.mpp > W / 10) || 500, L = nice / plan.mpp; g.fillStyle = 'rgba(255,255,255,.85)'; g.fillRect(W - L - 36, H - 58, L + 28, 32); g.fillStyle = '#111'; g.fillRect(W - L - 22, H - 38, L, 6); g.fillStyle = '#fff'; g.fillRect(W - L - 22 + L / 2, H - 37, L / 2, 4); g.fillStyle = '#111'; g.font = 'bold 12px sans-serif'; g.textAlign = 'center'; g.fillText(nice + ' m', W - L / 2 - 22, H - 48); }
+  return { data: c.toDataURL('image/jpeg', 0.85), w: W, h: H }; }
+function spKey(job) { const p = spPlan(job); if (!p) return []; const rows = []; SP_CATS.forEach(c => { const ms = (p.marks || []).filter(m => m.cat === c.id); if (!ms.length) return;
+  const ext = c.kind === 'line' ? `${Math.round(ms.reduce((t, m) => t + spLen(m.pts) * p.mpp, 0))} m approx` : c.kind === 'area' ? `${Math.round(ms.reduce((t, m) => t + spPolyArea(m.pts) * p.mpp * p.mpp, 0))} m² approx` : `${ms.length} no`;
+  rows.push({ cat: c, n: ms.length, ext, labels: ms.map(m => m.label).filter(Boolean).join('; ') }); }); return rows; }
+
+/* ---------- PDF section (called from buildPDF with its helpers) ---------- */
+function spPdfSection(job, H, im) { const p = spPlan(job); if (!p || !p.img || !im) return false; const { doc, M, CW, h1, para, table, need, font, tx, GREY, NAVY } = H;
+  h1('Site Plan'); para('Satellite base map captured in the app. Roof areas and distances are approximate (measured from the map scale) - verify on site.', 8.8, 'normal', GREY);
+  const bw = CW, bh = Math.min(150, bw * im.h / im.w), w = bh * im.w / im.h; H.need(bh + 8); const y0 = H.getY(); doc.addImage(im.data, 'JPEG', M + (CW - w) / 2, y0, w, bh, 'siteplan-' + job.id, 'FAST'); H.setY(y0 + bh + 3);
+  font(7, 'normal', GREY); doc.text(tx(SP_ATTR + (p.captured ? ' - captured ' + fmtDate(p.captured) : '')), M, H.getY()); H.setY(H.getY() + 5);
+  const K = spKey(job); if (K.length) table({ head: [['Key', 'Item', 'No', 'Extent', 'Labels']], body: K.map(k => [k.cat.ic || '-', tx(k.cat.name), String(k.n), k.ext, tx(k.labels)]), styles: { fontSize: 8 }, columnStyles: { 0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' } },
+    didParseCell: d => { if (d.section === 'body' && d.column.index === 0) { const c = K[d.row.index].cat.col; d.cell.styles.fillColor = [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]; d.cell.styles.textColor = 255; } } });
+  if ((p.roofs || []).length && p.mpp) table({ head: [['Roof outline', 'Approx. plan area', 'Perimeter', 'Edge lengths (m)']], body: p.roofs.map((r, i) => { const s = spRoofStats(p, r); return [tx(r.name || 'Roof ' + (i + 1)), s.m2 + ' m²', s.perim + ' m', s.edges.join(', ')]; }), styles: { fontSize: 8 } });
+  if ((p.pins || []).length) { const T = spPinTargets(job); table({ head: [['Pin', 'Ref', 'Type', 'Location / description', 'Priority / status']], body: p.pins.map((q, i) => { const t = T.find(x => x.id === q.ref) || { ref: '?', kind: '', text: q.note || '' }; return [String(i + 1), t.ref, t.kind, tx(t.text), [t.pri, t.status].filter(Boolean).join(' / ')]; }), styles: { fontSize: 8 }, columnStyles: { 0: { cellWidth: 11, halign: 'center', fontStyle: 'bold' }, 1: { cellWidth: 14, fontStyle: 'bold' } } }); }
+  return true; }
+
+/* ---------- H&S + roof areas from the plan ---------- */
+function spApplyHS(job) { const p = spPlan(job); if (!p) return 0; const fr = (p.marks || []).filter(m => m.cat === 'fragile'); if (!fr.length) return 0; let n = 0;
+  const sec = secByKey(job, 'safety'); const note = `Site plan: ${fr.length} fragile roof / rooflight zone${fr.length === 1 ? '' : 's'} marked${fr.map(m => m.label).filter(Boolean).length ? ' (' + fr.map(m => m.label).filter(Boolean).join('; ') + ')' : ''}`;
+  if (sec) sec.items.forEach(i => { if (i.type !== 'req') return; if (/^Fragile roof controls|^Rooflight protection/i.test(i.text) && !i.answer) { i.answer = 'Required'; n++; } if (/^Fragile roof controls|^Rooflight protection|^RAMS/i.test(i.text) && !String(i.comment || '').includes('Site plan:')) { i.comment = [i.comment, /^RAMS/i.test(i.text) ? note + ' - include in the method statement' : note].filter(Boolean).join('. '); } });
+  job.hs = job.hs || {}; if (!job.hs.fragility || job.hs.fragility === 'unknown') { if (job.hs.fragility !== 'fragile') n++; job.hs.fragility = 'fragile'; }
+  if (!String(job.hs.fragilityNotes || '').includes('Site plan:')) job.hs.fragilityNotes = [job.hs.fragilityNotes, note].filter(Boolean).join('. ');
+  return n; }
+function spPushRoofs(job) { const p = spPlan(job); if (!p || !p.mpp) return 0; let n = 0;
+  (p.roofs || []).forEach((r, i) => { if (r.pts.length < 3) return; const st = spRoofStats(p, r), name = r.name || 'Roof ' + (i + 1); let a = job.areas.find(x => x.planRoof === r.id) || job.areas.find(x => x.name === name);
+    if (!a) { a = newArea(job); a.name = name; a.slopes = []; job.areas.push(a); } a.planRoof = r.id;
+    const longest = Math.max(...st.edges), L = Math.round(longest * 10) / 10, Wd = Math.round(st.m2 / longest * 100) / 100;
+    const sl = { name: 'From site plan (approx.)', length: String(L), width: String(Wd), measured: 'plan', notes: `Site plan outline ~${st.m2} m² on plan, perimeter ${st.perim} m - approx, verify on site` };
+    const ex = slopesOf(a).find(s => /^From site plan/.test(s.name || '')); if (ex) Object.assign(ex, sl); else { a.slopes = slopesOf(a).filter(s => num(s.length) * num(s.width) > 0); a.slopes.push(newSlope(sl)); } n++; });
+  return n; }
+
+/* ---------- satellite map: search, pan/zoom, capture ---------- */
+const spLL2px = (lat, lon, z) => { const n = 256 * Math.pow(2, z), s = Math.sin(lat * Math.PI / 180); return [(lon + 180) / 360 * n, (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n]; };
+const spPx2LL = (x, y, z) => { const n = 256 * Math.pow(2, z), lon = x / n * 360 - 180, t = Math.PI - 2 * Math.PI * y / n; return [180 / Math.PI * Math.atan(0.5 * (Math.exp(t) - Math.exp(-t))), lon]; };
+async function spGeocode(q) { q = String(q || '').trim(); if (!q) return null; const pc = /\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i.exec(q);
+  if (pc) { try { const r = await fetch('https://api.postcodes.io/postcodes/' + encodeURIComponent(pc[1].replace(/\s+/g, ''))); const j = await r.json(); if (j && j.result) return { lat: j.result.latitude, lon: j.result.longitude, src: 'postcodes.io' }; } catch (e) { } }
+  const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&q=' + encodeURIComponent(q)); const j = await r.json(); return j && j[0] ? { lat: +j[0].lat, lon: +j[0].lon, src: 'OpenStreetMap' } : null; }
+function spMap(job) { return new Promise(resolve => { const P = spPlan(job) || {}, site = job.site || {};
+  const st = { lat: P.lat || site.lat || 54.0, lon: P.lon || site.lon || -2.0, z: P.z || (P.lat || site.lat ? 18 : 6), tiles: new Map(), drag: null, tp: new Map(), pinch: null };
+  const ov = document.createElement('div'); ov.className = 'sp-ov';
+  ov.innerHTML = `<div class="sp-bar"><b>Satellite map</b><input class="sp-q" placeholder="Address or postcode" value="${esc([site.address, site.postcode].filter(Boolean).join(', ').replace(/\n/g, ', '))}"><button type="button" class="btn sm" data-m="find">Search</button><button type="button" class="btn sm" data-m="gps">📍 My location</button><button type="button" class="btn sm" data-m="out" aria-label="Zoom out">－</button><button type="button" class="btn sm" data-m="in" aria-label="Zoom in">＋</button><span class="sp-sp"></span><button type="button" class="btn sm" data-m="x">Cancel</button><button type="button" class="btn sm primary" data-m="cap">Capture this view</button></div>
+    <div class="sp-wrap"><canvas class="sp-cv"></canvas><div class="sp-cross"></div></div><p class="sp-attr">${esc(SP_ATTR)}. Zoom right in on the building, then <b>Capture</b>: the image is stored with the job and works offline.</p>`;
+  document.body.appendChild(ov); document.body.classList.add('fl-lock'); const cv = $('.sp-cv', ov), g = cv.getContext('2d'), dpr = Math.min(2, devicePixelRatio || 1);
+  const size = () => { const r = $('.sp-wrap', ov).getBoundingClientRect(); cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px'; cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); draw(); };
+  const tile = (z, x, y) => { const k = z + '/' + x + '/' + y; let t = st.tiles.get(k); if (!t) { t = new Image(); t.crossOrigin = 'anonymous'; t.onload = () => draw(); t.onerror = () => { t.bad = 1; draw(); }; t.src = SP_TILE(z, x, y); st.tiles.set(k, t); } return t; };
+  const drawTo = (gg, W, H, sc) => { const z = Math.round(st.z), [cx, cy] = spLL2px(st.lat, st.lon, z), x0 = cx - W / 2 / sc, y0 = cy - H / 2 / sc; gg.fillStyle = '#1f2937'; gg.fillRect(0, 0, W, H); let ok = true;
+    for (let tx_ = Math.floor(x0 / 256); tx_ <= Math.floor((x0 + W / sc) / 256); tx_++) for (let ty = Math.floor(y0 / 256); ty <= Math.floor((y0 + H / sc) / 256); ty++) { const n = Math.pow(2, z); if (ty < 0 || ty >= n) continue; const t = tile(z, ((tx_ % n) + n) % n, ty); if (t.complete && t.naturalWidth) gg.drawImage(t, (tx_ * 256 - x0) * sc, (ty * 256 - y0) * sc, 256 * sc + 0.5, 256 * sc + 0.5); else ok = false; } return ok; };
+  const draw = () => { drawTo(g, cv.width, cv.height, dpr); };
+  const close = v => { ov.remove(); document.body.classList.remove('fl-lock'); window.removeEventListener('resize', size); resolve(v); };
+  window.addEventListener('resize', size); size();
+  const zoom = (d) => { st.z = Math.max(3, Math.min(20, Math.round(st.z) + d)); draw(); };
+  const find = async () => { const q = $('.sp-q', ov).value; toast('Searching…', 1200); try { const r = await spGeocode(q); if (!r) return toast('Address not found - try the postcode'); st.lat = r.lat; st.lon = r.lon; st.z = 18; draw(); } catch (e) { toast('Search needs a connection: ' + e.message); } };
+  ov.addEventListener('click', async e => { const b = e.target.closest('[data-m]'); if (!b) return; const m = b.dataset.m;
+    if (m === 'x') close(null); if (m === 'in') zoom(1); if (m === 'out') zoom(-1); if (m === 'find') find();
+    if (m === 'gps') { if (!navigator.geolocation) return toast('No location on this device'); navigator.geolocation.getCurrentPosition(p => { st.lat = p.coords.latitude; st.lon = p.coords.longitude; st.z = 19; draw(); }, er => toast('Location not available: ' + er.message), { enableHighAccuracy: true, timeout: 10000 }); }
+    if (m === 'cap') { const W = Math.min(1800, Math.round(cv.width / dpr * 1.5)), H = Math.round(W * cv.height / cv.width); const c = document.createElement('canvas'); c.width = W; c.height = H; const sc = W / (cv.width / dpr);
+      // capture at 1.5x the screen at the next zoom level for sharper imagery when available
+      const z0 = st.z; let ok = drawTo(c.getContext('2d'), W, H, sc); for (let k = 0; !ok && k < 40; k++) { await new Promise(r => setTimeout(r, 150)); ok = drawTo(c.getContext('2d'), W, H, sc); }
+      if (!ok) return toast('Map tiles still loading - try again in a moment (needs a connection)');
+      let data; try { data = c.toDataURL('image/jpeg', 0.85); } catch (er) { return toast('This imagery cannot be captured: ' + er.message); }
+      const z = Math.round(z0), mpp = 156543.03392 * Math.cos(st.lat * Math.PI / 180) / Math.pow(2, z) / sc;
+      close({ img: data, w: W, h: H, mpp, lat: st.lat, lon: st.lon, z, captured: todayISO(), attr: SP_ATTR }); } });
+  $('.sp-q', ov).addEventListener('keydown', e => { if (e.key === 'Enter') find(); });
+  cv.addEventListener('wheel', e => { e.preventDefault(); zoom(e.deltaY < 0 ? 1 : -1); }, { passive: false });
+  const pan = (dx, dy) => { const z = Math.round(st.z), [cx, cy] = spLL2px(st.lat, st.lon, z), ll = spPx2LL(cx - dx, cy - dy, z); st.lat = ll[0]; st.lon = ll[1]; draw(); };
+  cv.addEventListener('pointerdown', e => { st.tp.set(e.pointerId, [e.clientX, e.clientY]); try { cv.setPointerCapture(e.pointerId); } catch (_) { } if (st.tp.size === 2) { const v = [...st.tp.values()]; st.pinch = Math.hypot(v[0][0] - v[1][0], v[0][1] - v[1][1]); } });
+  cv.addEventListener('pointermove', e => { const l = st.tp.get(e.pointerId); if (!l) return; if (st.tp.size === 1) pan(e.clientX - l[0], e.clientY - l[1]); st.tp.set(e.pointerId, [e.clientX, e.clientY]);
+    if (st.tp.size === 2 && st.pinch) { const v = [...st.tp.values()], d = Math.hypot(v[0][0] - v[1][0], v[0][1] - v[1][1]); if (d / st.pinch > 1.6) { zoom(1); st.pinch = d; } else if (d / st.pinch < 0.62) { zoom(-1); st.pinch = d; } } });
+  const up = e => { st.tp.delete(e.pointerId); if (st.tp.size < 2) st.pinch = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  ov._st = st; ov._find = find; }); }
+
+/* ---------- plan editor ---------- */
+function spEdit(job) { return new Promise(resolve => { const plan = JSON.parse(JSON.stringify(spPlan(job))); plan.roofs = plan.roofs || []; plan.marks = plan.marks || []; plan.pins = plan.pins || [];
+  const T = spPinTargets(job); const st = { tool: 'select', cat: 'scaffold', draft: null, sel: null, undo: [], V: { s: 1, x: 0, y: 0 }, tp: new Map(), pinch: null, cur: null, pin: '' };
+  const ov = document.createElement('div'); ov.className = 'sp-ov sp-ed';
+  ov.innerHTML = `<div class="sp-bar"><b>Site plan</b>
+    <div class="seg sp-tools">${[['select', '☝ Select / move'], ['roof', '⬠ Roof outline'], ['mark', '✚ Markup'], ['pin', '📍 Pin defect']].map(([k, l]) => `<button type="button" data-t="${k}" class="${k === 'select' ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <select class="sp-cat" aria-label="Markup category">${SP_CATS.map(c => `<option value="${c.id}">${esc(c.name)} (${c.kind})</option>`).join('')}</select>
+    <select class="sp-pin" aria-label="Defect or snag to pin" hidden><option value="">Choose defect / snag…</option>${T.map(t => `<option value="${t.id}">${esc(t.ref + ' - ' + t.text).slice(0, 70)}</option>`).join('')}</select>
+    <button type="button" class="btn sm" data-x="finish" hidden>✓ Finish shape</button><button type="button" class="btn sm" data-x="undo">↶ Undo</button><button type="button" class="btn sm" data-x="fit">Fit</button>
+    <span class="sp-sp"></span><button type="button" class="btn sm" data-x="cancel">Cancel</button><button type="button" class="btn sm primary" data-x="done">Save plan</button></div>
+    <div class="sp-wrap"><canvas class="sp-cv"></canvas></div><p class="sp-attr sp-hint"></p>`;
+  document.body.appendChild(ov); document.body.classList.add('fl-lock'); const cv = $('.sp-cv', ov), g = cv.getContext('2d'), dpr = Math.min(2, devicePixelRatio || 1); let img = null; const V = st.V;
+  const hint = () => { $('.sp-hint', ov).innerHTML = { select: 'Tap an item to select it, drag to move it, drag a white handle to reshape. One finger on empty map pans, two fingers zoom.', roof: 'Tap each corner of the roof, then <b>Finish shape</b> (or tap the first corner). Area and edge lengths are approximate - verify on site.', mark: 'Choose the item, then tap: one tap for points, several taps + <b>Finish shape</b> for routes, runs and zones.', pin: 'Choose a defect or snag, then tap where it is.' }[st.tool]; $('[data-x="finish"]', ov).hidden = !st.draft; $('.sp-cat', ov).hidden = st.tool !== 'mark'; $('.sp-pin', ov).hidden = st.tool !== 'pin'; };
+  const fit = () => { if (!img) return; V.s = Math.min(cv.width / plan.w, cv.height / plan.h); V.x = (cv.width - plan.w * V.s) / 2; V.y = (cv.height - plan.h * V.s) / 2; paint(); };
+  const size = () => { const r = $('.sp-wrap', ov).getBoundingClientRect(); cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px'; cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); fit(); };
+  const paint = () => { g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#1f2937'; g.fillRect(0, 0, cv.width, cv.height); if (!img) return; g.setTransform(V.s, 0, 0, V.s, V.x, V.y); g.drawImage(img, 0, 0); spDraw(g, plan, { s: 1 / V.s * dpr, sel: st.sel, draft: st.draft }); g.setTransform(1, 0, 0, 1, 0, 0); };
+  const pos = e => { const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * cv.width / r.width, y = (e.clientY - r.top) * cv.height / r.height; return [Math.round((x - V.x) / V.s * 10) / 10, Math.round((y - V.y) / V.s * 10) / 10]; };
+  const snap = () => { st.undo.push(JSON.stringify({ roofs: plan.roofs, marks: plan.marks, pins: plan.pins })); if (st.undo.length > 80) st.undo.shift(); };
+  const R = () => 26 * dpr / V.s;
+  const hit = p => { const r = R(); for (let i = plan.pins.length - 1; i >= 0; i--) { const q = plan.pins[i]; if (Math.hypot(q.x - p[0], q.y - 26 / V.s * dpr - p[1]) < r || Math.hypot(q.x - p[0], q.y - p[1]) < r) return { t: 'pin', i }; }
+    for (let i = plan.marks.length - 1; i >= 0; i--) { const m = plan.marks[i]; if (m.kind === 'point' && Math.hypot(m.pts[0][0] - p[0], m.pts[0][1] - p[1]) < r) return { t: 'mark', i }; if (m.kind !== 'point') { for (let k = 0; k < m.pts.length - (m.kind === 'line' ? 1 : 0); k++) if (flSegD(p, m.pts[k], m.pts[(k + 1) % m.pts.length]) < r * 0.7) return { t: 'mark', i }; if (m.kind === 'area' && spInside(p, m.pts)) return { t: 'mark', i }; } }
+    for (let i = plan.roofs.length - 1; i >= 0; i--) { const q = plan.roofs[i]; for (let k = 0; k < q.pts.length; k++) if (flSegD(p, q.pts[k], q.pts[(k + 1) % q.pts.length]) < r * 0.7) return { t: 'roof', i }; if (spInside(p, q.pts)) return { t: 'roof', i }; } return null; };
+  const item = s => s ? (s.t === 'roof' ? plan.roofs[s.i] : s.t === 'mark' ? plan.marks[s.i] : plan.pins[s.i]) : null;
+  const pop = (cx, cy) => { $$('.sp-pop', ov).forEach(x => x.remove()); const it = item(st.sel); if (!it) return; const m = document.createElement('div'); m.className = 'fl-selpop sp-pop'; m.style.cssText = `position:fixed;z-index:99;left:${Math.max(8, Math.min(cx + 12, innerWidth - 300))}px;top:${Math.max(60, Math.min(cy - 60, innerHeight - 160))}px;background:#fff;border:1px solid #ccc;border-radius:10px;padding:8px;box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;flex-wrap:wrap;gap:6px;max-width:290px`;
+    const nm = st.sel.t === 'roof' ? (it.name || 'Roof') : st.sel.t === 'mark' ? spCat(it.cat).name : 'Pin ' + (st.sel.i + 1);
+    const info = st.sel.t === 'roof' && plan.mpp && it.pts.length > 2 ? (s => ` · ~${s.m2} m², perimeter ${s.perim} m`)(spRoofStats(plan, it)) : st.sel.t === 'mark' && it.kind === 'line' ? ` · ~${Math.round(spLen(it.pts) * plan.mpp)} m` : st.sel.t === 'mark' && it.kind === 'area' ? ` · ~${Math.round(spPolyArea(it.pts) * plan.mpp * plan.mpp)} m²` : st.sel.t === 'pin' ? ' · ' + ((T.find(x => x.id === it.ref) || {}).ref || '') : '';
+    m.innerHTML = `<div style="width:100%;font-size:13px"><b>${esc(nm)}</b>${esc(info)}</div>${st.sel.t !== 'pin' ? '<button type="button" class="btn sm" data-p="lab">Label…</button>' : ''}${st.sel.t === 'mark' ? `<select data-p="cat" class="btn sm">${SP_CATS.filter(c => c.kind === it.kind).map(c => `<option value="${c.id}" ${c.id === it.cat ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>` : ''}<button type="button" class="btn sm danger" data-p="del">Delete</button><button type="button" class="btn sm" data-p="x">✕</button>`;
+    m.addEventListener('click', async e2 => { const b = e2.target.closest('[data-p]'); if (!b || b.tagName === 'SELECT') return; const k = b.dataset.p;
+      if (k === 'del') { snap(); (st.sel.t === 'roof' ? plan.roofs : st.sel.t === 'mark' ? plan.marks : plan.pins).splice(st.sel.i, 1); st.sel = null; }
+      if (k === 'lab') { const t = await spAsk(st.sel.t === 'roof' ? 'Roof name' : 'Label', st.sel.t === 'roof' ? it.name || '' : it.label || ''); if (t != null) { snap(); if (st.sel.t === 'roof') it.name = t; else it.label = t; } }
+      if (k === 'x') st.sel = null; m.remove(); paint(); if (st.sel) pop(cx, cy); });
+    m.addEventListener('change', e2 => { if (e2.target.dataset.p === 'cat') { snap(); it.cat = e2.target.value; paint(); } }); ov.appendChild(m); };
+  const finish = () => { const d = st.draft; if (!d) return; st.draft = null; if (d.t === 'roof' && d.pts.length >= 3) { snap(); plan.roofs.push({ id: uid(), name: 'Roof ' + String.fromCharCode(65 + plan.roofs.length), pts: d.pts }); st.sel = { t: 'roof', i: plan.roofs.length - 1 }; }
+    else if (d.t === 'mark' && d.pts.length >= (spCat(d.cat).kind === 'area' ? 3 : 2)) { snap(); plan.marks.push({ id: uid(), cat: d.cat, kind: spCat(d.cat).kind, pts: d.pts, label: '' }); st.sel = { t: 'mark', i: plan.marks.length - 1 }; } else toast('Not enough points - shape discarded'); hint(); paint(); };
+  const close = v => { ov.remove(); document.body.classList.remove('fl-lock'); window.removeEventListener('resize', size); resolve(v); };
+  loadImg(plan.img).then(i => { img = i; size(); hint(); }); window.addEventListener('resize', size);
+  ov.addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.closest('.sp-pop')) return;
+    if (b.dataset.t) { if (st.draft) finish(); st.tool = b.dataset.t; st.sel = null; $$('.sp-pop', ov).forEach(x => x.remove()); $$('[data-t]', ov).forEach(x => x.classList.toggle('on', x === b)); hint(); paint(); return; }
+    const x = b.dataset.x; if (x === 'finish') finish(); if (x === 'fit') fit();
+    if (x === 'undo') { if (st.draft && st.draft.pts.length) { st.draft.pts.pop(); if (!st.draft.pts.length) st.draft = null; hint(); paint(); return; } const u = st.undo.pop(); if (u) Object.assign(plan, JSON.parse(u)); st.sel = null; $$('.sp-pop', ov).forEach(x2 => x2.remove()); paint(); }
+    if (x === 'cancel') close(null); if (x === 'done') { if (st.draft) finish(); close(plan); } });
+  $('.sp-cat', ov).addEventListener('change', e => { st.cat = e.target.value; }); $('.sp-pin', ov).addEventListener('change', e => { st.pin = e.target.value; });
+  cv.addEventListener('wheel', e => { e.preventDefault(); const r = cv.getBoundingClientRect(), cx = (e.clientX - r.left) * dpr, cy = (e.clientY - r.top) * dpr, f = Math.exp(-e.deltaY / 300), n = Math.max(0.05, Math.min(20, V.s * f)); V.x = cx - (cx - V.x) * n / V.s; V.y = cy - (cy - V.y) * n / V.s; V.s = n; paint(); }, { passive: false });
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); const r = cv.getBoundingClientRect(); st.tp.set(e.pointerId, [(e.clientX - r.left) * dpr, (e.clientY - r.top) * dpr]);
+    if (st.tp.size >= 2) { if (st.cur && st.cur.drag) { const u = st.undo.pop(); if (u && st.cur.moved) Object.assign(plan, JSON.parse(u)); } st.cur = null; const v = [...st.tp.values()]; st.pinch = { d: Math.hypot(v[0][0] - v[1][0], v[0][1] - v[1][1]), m: [(v[0][0] + v[1][0]) / 2, (v[0][1] + v[1][1]) / 2], v: Object.assign({}, V) }; return; }
+    try { cv.setPointerCapture(e.pointerId); } catch (_) { } const p = pos(e); $$('.sp-pop', ov).forEach(x => x.remove());
+    if (st.tool === 'select') { const it = item(st.sel); if (it && st.sel.t !== 'pin') { const hv = it.pts.findIndex(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < R()); if (hv >= 0) { snap(); st.cur = { drag: 'vertex', k: hv, id: e.pointerId, last: p, moved: 0, cx: e.clientX, cy: e.clientY }; return; } }
+      const h = hit(p); if (h) { st.sel = h; snap(); st.cur = { drag: 'item', id: e.pointerId, last: p, moved: 0, cx: e.clientX, cy: e.clientY }; paint(); return; } st.sel = null; st.cur = { pan: true, id: e.pointerId, last: [e.clientX, e.clientY], moved: 0 }; paint(); return; }
+    st.cur = { tap: true, id: e.pointerId, p, cx: e.clientX, cy: e.clientY }; });
+  cv.addEventListener('pointermove', e => { const r = cv.getBoundingClientRect(); if (st.tp.has(e.pointerId)) st.tp.set(e.pointerId, [(e.clientX - r.left) * dpr, (e.clientY - r.top) * dpr]);
+    if (st.pinch && st.tp.size >= 2) { const v = [...st.tp.values()], d = Math.hypot(v[0][0] - v[1][0], v[0][1] - v[1][1]), m = [(v[0][0] + v[1][0]) / 2, (v[0][1] + v[1][1]) / 2], v0 = st.pinch.v, n = Math.max(0.05, Math.min(20, v0.s * d / st.pinch.d)); V.s = n; V.x = m[0] - (st.pinch.m[0] - v0.x) * n / v0.s; V.y = m[1] - (st.pinch.m[1] - v0.y) * n / v0.s; paint(); return; }
+    const c = st.cur; if (!c || c.id !== e.pointerId) return;
+    if (c.pan) { V.x += (e.clientX - c.last[0]) * dpr; V.y += (e.clientY - c.last[1]) * dpr; c.last = [e.clientX, e.clientY]; paint(); return; }
+    if (c.drag) { const p = pos(e), dx = p[0] - c.last[0], dy = p[1] - c.last[1]; c.last = p; if (Math.hypot(e.clientX - c.cx, e.clientY - c.cy) > 4) c.moved = 1; if (!c.moved) return; const it = item(st.sel);
+      if (c.drag === 'vertex') { it.pts[c.k] = [it.pts[c.k][0] + dx, it.pts[c.k][1] + dy]; } else if (st.sel.t === 'pin') { it.x += dx; it.y += dy; } else it.pts = it.pts.map(q => [q[0] + dx, q[1] + dy]); paint(); } });
+  const end = e => { st.tp.delete(e.pointerId); if (st.tp.size < 2) st.pinch = null; const c = st.cur; if (!c || c.id !== e.pointerId) return; st.cur = null;
+    if (c.drag) { if (!c.moved) { st.undo.pop(); pop(c.cx, c.cy); } paint(); return; } if (c.pan) return;
+    if (c.tap) { const p = c.p; if (st.tool === 'roof' || st.tool === 'mark') { const cat = spCat(st.cat); if (st.tool === 'mark' && cat.kind === 'point') { snap(); plan.marks.push({ id: uid(), cat: cat.id, kind: 'point', pts: [p], label: '' }); paint(); return; }
+        if (!st.draft) st.draft = { t: st.tool, cat: st.cat, col: st.tool === 'roof' ? '#ea580c' : cat.col, pts: [] }; const d = st.draft; if (d.pts.length >= 3 && Math.hypot(d.pts[0][0] - p[0], d.pts[0][1] - p[1]) < R() && (d.t === 'roof' || cat.kind === 'area')) { finish(); return; } d.pts.push(p); hint(); paint(); return; }
+      if (st.tool === 'pin') { if (!st.pin) return toast('Choose the defect or snag first'); snap(); const ex = plan.pins.findIndex(q => q.ref === st.pin); if (ex >= 0) plan.pins[ex] = Object.assign(plan.pins[ex], { x: p[0], y: p[1] }); else plan.pins.push({ id: uid(), ref: st.pin, x: p[0], y: p[1] }); paint(); toast('Pinned ' + ((T.find(x => x.id === st.pin) || {}).ref || '')); } } };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  ov._plan = plan; ov._st = st; ov._V = V; ov._paint = paint; }); }
+function spInside(p, P) { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { if (((P[i][1] > p[1]) !== (P[j][1] > p[1])) && (p[0] < (P[j][0] - P[i][0]) * (p[1] - P[i][1]) / (P[j][1] - P[i][1] || 1e-9) + P[i][0])) c = !c; } return c; }
+function spAsk(title, cur) { return modal(`<h3>${esc(title)}</h3><input id="spask" value="${esc(cur || '')}" style="width:100%;font-size:18px;padding:10px" autocomplete="off"><div style="height:10px"></div><button class="btn primary" data-r="ok">OK</button><button class="btn" data-r="">Cancel</button>`,
+  bg => { const i = $('#spask', bg); setTimeout(() => i.focus(), 30); i.addEventListener('keydown', e => { if (e.key === 'Enter') bg.querySelector('[data-r="ok"]').click(); }); bg.addEventListener('click', e => { const b = e.target.closest('[data-r="ok"]'); if (b) b.dataset.r = 'ok:' + i.value; }, true); }).then(r => r && r.startsWith('ok:') ? r.slice(3) : null); }
+
+/* ---------- views ---------- */
+function spCard(job) { const p = spPlan(job); return `<div class="card"><h2>🗺 Site plan</h2>${p && p.img ? `<a href="#/job/${job.id}/plan"><img class="sp-thumb" src="${p.thumb || p.img}" alt="Site plan"></a><p class="hint">${(p.roofs || []).length} roof outline${(p.roofs || []).length === 1 ? '' : 's'} · ${(p.marks || []).length} markup item${(p.marks || []).length === 1 ? '' : 's'} · ${(p.pins || []).length} pin${(p.pins || []).length === 1 ? '' : 's'}</p>` : '<p class="hint">Satellite base map with roof outlines (approx. m²), scaffold, compound, welfare, routes, fire points and defect pins. Goes into the report and the site induction sheet.</p>'}<a class="btn block" href="#/job/${job.id}/plan">${p && p.img ? 'Open site plan' : 'Create site plan'}</a></div>`; }
+function viewSitePlan(job) { const p = spPlan(job); const f = mk(job);
+  if (!p || !p.img) return `<div class="card"><h2>Site plan</h2><p class="hint">Search the address (or use your location), zoom right in on the building and capture the satellite view. The captured image is stored with this ${isWorks(job) ? 'inspection' : 'survey'} and works offline.</p><button class="btn primary block" data-act="spcap">🛰 Open satellite map</button><p class="small" style="margin-top:10px">${esc(SP_ATTR)}</p></div>`;
+  const K = spKey(job), Tg = spPinTargets(job);
+  return `<div class="card"><h2>Site plan</h2><img class="sp-thumb" src="${p.thumb || p.img}" alt="Site plan" data-act="spedit"><div class="btns"><button class="btn primary" data-act="spedit">✎ Edit plan</button><button class="btn" data-act="spcap">🛰 Re-capture map</button></div>
+    <p class="small">${esc(SP_ATTR)} · captured ${esc(fmtDate(p.captured))}. Distances and areas are approximate - verify on site.</p></div>
+    <div class="card"><h2>Roof outlines</h2>${(p.roofs || []).length ? `<table class="sp-tab"><tr><th>Roof</th><th>~m² (plan)</th><th>Perimeter</th></tr>${p.roofs.map((r, i) => { const s = spRoofStats(p, r); return `<tr><td>${esc(r.name || 'Roof ' + (i + 1))}</td><td>${s.m2}</td><td>${s.perim} m</td></tr>`; }).join('')}</table>
+      <button class="btn block" data-act="sppush">⇢ Use as roof areas (${isWorks(job) ? 'inspection' : 'survey'} slopes & m²)</button><p class="hint">Adds or updates a roof area per outline with a 'From site plan (approx.)' slope measured on plan, so m², materials and quotes follow. The area pitch converts it to the true roof area.</p>` : '<p class="hint">Draw roof outlines with the <b>Roof outline</b> tool to get approx. m² and edge lengths.</p>'}</div>
+    <div class="card"><h2>Key</h2>${K.length ? `<ul class="sp-key">${K.map(k => `<li><i style="background:${k.cat.col}">${esc(k.cat.ic || '')}</i><b>${esc(k.cat.name)}</b> · ${esc(k.ext)}${k.labels ? ' · ' + esc(k.labels) : ''}</li>`).join('')}</ul>` : '<p class="hint">No markup yet.</p>'}
+      ${(p.pins || []).length ? `<h3>Pins</h3><ol class="sp-pins">${p.pins.map(q => { const t = Tg.find(x => x.id === q.ref); return `<li>${t ? `<b>${esc(t.ref)}</b> ${esc(t.kind)} - ${esc(t.text)}` : 'Removed item'}</li>`; }).join('')}</ol>` : ''}</div>
+    <div class="card"><h2>Site induction sheet</h2><p class="hint">One page for operatives: plan, access & fire routes, assembly point, compound, welfare and key contacts.</p>
+      <div class="row">${f.text('Site contact / manager', 'sitePlan.ind.manager', { ph: (job.works && job.works.siteManager) || job.client.contact || '' })}${f.text('Site contact phone', 'sitePlan.ind.phone', { ph: job.client.phone || '' })}</div>
+      <div class="row">${f.text('First aider(s)', 'sitePlan.ind.firstAid')}${f.text('Nearest A&E', 'sitePlan.ind.ae', { ph: 'e.g. Leeds General Infirmary, LS1 3EX' })}</div>
+      ${f.area('Site rules / notes', 'sitePlan.ind.notes', { rows: 3, ph: 'e.g. Sign in at reception. Hi-vis, hard hat and boots at all times. No hot works without permit.' })}
+      <button class="btn block" data-act="spind">⬇ Site induction sheet (PDF)</button><button class="btn block" data-act="sppdf">⬇ Site plan (PDF)</button></div>
+    <div class="btns"><button class="btn danger" data-act="spdel">Remove site plan</button></div>`; }
+{ const _ve = viewExtra; viewExtra = function (job, r) { if (r[2] === 'plan') return { body: viewSitePlan(job), title: 'Site plan', tab: 'safety', back: `#/job/${job.id}/safety` }; return _ve(job, r); }; }
+{ const _vs = viewSafety; viewSafety = function (job) { return spCard(job) + _vs(job); }; }
+async function spThumb(job) { const p = spPlan(job); if (!p || !p.img) return; const r = await spRenderPNG(p); const im = await loadImg(r.data), W = Math.min(900, r.w), c = document.createElement('canvas'); c.width = W; c.height = Math.round(W * r.h / r.w); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); p.thumb = c.toDataURL('image/jpeg', 0.7); }
+
+/* ---------- stand-alone PDFs: site plan + site induction sheet ---------- */
+async function spPdfDoc(job, kind) { const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true }); const p = spPlan(job); const M = 12, W = 210, CW = W - 2 * M; let y = 14;
+  const NAVY = [15, 37, 66], OR = [241, 137, 2], GREY = [90, 102, 120];
+  const tx = s => String(s ?? '').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
+  const font = (sz, sty = 'normal', c = [22, 30, 42]) => { doc.setFont('helvetica', sty); doc.setFontSize(sz); doc.setTextColor(...c); };
+  const stt = S.settings; try { if (stt.logo && stt.logoW) { const lh = 11, lw = Math.min(45, lh * stt.logoW / stt.logoH); doc.addImage(stt.logo, /^data:image\/png/.test(stt.logo) ? 'PNG' : 'JPEG', M, y - 7, lw, lw * stt.logoH / stt.logoW, 'logo', 'FAST'); } } catch (e) { }
+  font(15, 'bold', NAVY); doc.text(kind === 'ind' ? 'SITE INDUCTION SHEET' : 'SITE PLAN', W - M, y, { align: 'right' }); y += 5; font(9, 'normal', GREY);
+  doc.text(tx([job.site.name || job.client.name, (job.site.address || '').replace(/\n/g, ', '), (job.site.postcode || '').toUpperCase()].filter(Boolean).join(', ')).slice(0, 120), W - M, y, { align: 'right' }); y += 4; doc.text(tx(`${job.ref || ''}${isWorks(job) && job.works.contractRef ? ' · ' + job.works.contractRef : ''} · ${fmtDate(todayISO())}`), W - M, y, { align: 'right' }); y += 3;
+  doc.setDrawColor(...OR); doc.setLineWidth(0.6); doc.line(M, y, W - M, y); y += 4;
+  const im = await spRenderPNG(p); const maxH = kind === 'ind' ? 118 : 175, w0 = CW, h0 = Math.min(maxH, w0 * im.h / im.w), w1 = h0 * im.w / im.h; doc.addImage(im.data, 'JPEG', M + (CW - w1) / 2, y, w1, h0, 'plan', 'FAST'); y += h0 + 2.5;
+  font(6.5, 'normal', GREY); doc.text(tx(SP_ATTR + ' · captured ' + fmtDate(p.captured) + ' · approx., verify on site'), M, y); y += 4;
+  const T = { margin: { left: M, right: M }, styles: { font: 'helvetica', fontSize: kind === 'ind' ? 7.6 : 8.2, cellPadding: 1.3, lineColor: [205, 214, 226], lineWidth: 0.2 }, headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold' }, theme: 'grid' };
+  const K = spKey(job), rgb = c => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+  const keyTable = (rows, x, wd) => doc.autoTable(Object.assign({}, T, { startY: y, margin: { left: x, right: W - x - wd }, head: [['', 'Key', 'Detail']], body: rows.map(k => [k.cat.ic || '', tx(k.cat.name), tx([k.ext, k.labels].filter(Boolean).join(' - '))]), columnStyles: { 0: { cellWidth: 9, halign: 'center', fontStyle: 'bold' }, 1: { cellWidth: 38, fontStyle: 'bold' } }, didParseCell: d => { if (d.section === 'body' && d.column.index === 0) { d.cell.styles.fillColor = rgb(rows[d.row.index].cat.col); d.cell.styles.textColor = 255; } } }));
+  if (kind === 'ind') { const IMP = ['access', 'fireroute', 'assembly', 'firept', 'compound', 'welfare', 'unload', 'delroute', 'exclusion', 'fragile', 'parking', 'plant', 'services', 'skip', 'scaffold', 'edge', 'other']; const rows = IMP.map(id => K.find(k => k.cat.id === id)).filter(Boolean);
+    const half = (CW - 4) / 2, y0 = y; keyTable(rows, M, half); const yL = doc.lastAutoTable.finalY; const ind = p.ind || {}, man = ind.manager || (job.works && job.works.siteManager) || job.client.contact || '', ph = ind.phone || job.client.phone || '';
+    doc.autoTable(Object.assign({}, T, { startY: y0, margin: { left: M + half + 4, right: M }, head: [['Key contacts & emergency', '']], body: [['EMERGENCY', '999 / 112'], ['Site contact', tx([man, ph].filter(Boolean).join(' - ') || '-')], ['ARS office', tx([S.settings.company || 'Absolute Roofing Solutions', S.settings.phone].filter(Boolean).join(' - '))], ['First aider(s)', tx(ind.firstAid || '-')], ['Nearest A&E', tx(ind.ae || '-')], ['Assembly point', tx(((p.marks || []).find(m => m.cat === 'assembly') || {}).label || ((p.marks || []).some(m => m.cat === 'assembly') ? 'See plan (AP)' : '-'))]],
+      columnStyles: { 0: { cellWidth: 30, fontStyle: 'bold' } }, didParseCell: d => { if (d.section === 'body' && d.row.index === 0) { d.cell.styles.fillColor = [185, 28, 28]; d.cell.styles.textColor = 255; d.cell.styles.fontStyle = 'bold'; } } }));
+    y = Math.max(yL, doc.lastAutoTable.finalY) + 4; const warn = [];
+    if ((p.marks || []).some(m => m.cat === 'fragile') || (job.hs && job.hs.fragility === 'fragile')) warn.push('FRAGILE ROOF / ROOFLIGHTS - never walk on the roof sheets or rooflights. Stay within the protected areas shown.');
+    if ((p.marks || []).some(m => m.cat === 'exclusion')) warn.push('EXCLUSION ZONES (hatched red) - keep out unless authorised.');
+    const rules = ind.notes || 'Sign in on arrival. PPE at all times (hard hat, hi-vis, safety boots, gloves). Report all accidents and near misses to the site contact.';
+    warn.forEach(t => { font(8.5, 'bold', [255, 255, 255]); const L = doc.splitTextToSize(tx(t), CW - 6); doc.setFillColor(185, 28, 28); doc.roundedRect(M, y, CW, L.length * 3.8 + 3, 1.5, 1.5, 'F'); doc.text(L, M + 3, y + 4); y += L.length * 3.8 + 5; });
+    font(8.5, 'bold', NAVY); doc.text('Site rules', M, y + 1); y += 4.5; font(8.2, 'normal'); const L = doc.splitTextToSize(tx(rules), CW); doc.text(L, M, y); y += L.length * 3.6 + 4;
+    font(8, 'normal', GREY); doc.text('I have read and understood this induction:  Name ____________________  Signature ____________________  Date __________', M, Math.min(y + 4, 287)); }
+  else { if (K.length) { keyTable(K, M, CW); y = doc.lastAutoTable.finalY + 3; }
+    if ((p.roofs || []).length && p.mpp) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['Roof outline', 'Approx. plan area', 'Perimeter', 'Edge lengths (m)']], body: p.roofs.map((r, i) => { const s = spRoofStats(p, r); return [tx(r.name || 'Roof ' + (i + 1)), s.m2 + ' m²', s.perim + ' m', s.edges.join(', ')]; }) })); y = doc.lastAutoTable.finalY + 3; }
+    if ((p.pins || []).length) { const Tg = spPinTargets(job); doc.autoTable(Object.assign({}, T, { startY: y, head: [['Pin', 'Ref', 'Type', 'Location / description', 'Priority / status']], body: p.pins.map((q, i) => { const t = Tg.find(x => x.id === q.ref) || { ref: '?', kind: '', text: '' }; return [String(i + 1), t.ref, t.kind, tx(t.text), [t.pri, t.status].filter(Boolean).join(' / ')]; }), columnStyles: { 0: { cellWidth: 11, halign: 'center' } } })); } }
+  const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); font(7, 'normal', GREY); doc.text(tx(`${S.settings.company || 'Absolute Roofing Solutions'} · ${kind === 'ind' ? 'Site induction' : 'Site plan'} · ${job.ref || ''}`), M, 292); doc.text(`Page ${i} of ${n}`, W - M, 292, { align: 'right' }); }
+  return { blob: doc.output('blob'), name: `${safeName(job.ref || 'job')}-${kind === 'ind' ? 'Site-Induction' : 'Site-Plan'}.pdf`, pages: n }; }
+
+Object.assign(ACTIONS, {
+  async spcap(a, job) { if (spPlan(job) && spPlan(job).img && !await confirmBox('Re-capture the map?', 'The new image replaces the base map. Outlines, markup and pins are kept but may need moving if the view is different.', 'Re-capture', false)) return;
+    const r = await spMap(job); if (!r) return; job.sitePlan = Object.assign({ roofs: [], marks: [], pins: [], ind: {} }, job.sitePlan || {}, r); await spThumb(job); markDirty(job); if (!/\/plan$/.test(location.hash)) go(`#/job/${job.id}/plan`); else rerender(); toast('Map captured - now draw the roof outlines and markup'); },
+  async spedit(a, job) { const r = await spEdit(job); if (!r) return; Object.assign(job.sitePlan, { roofs: r.roofs, marks: r.marks, pins: r.pins }); const hs = spApplyHS(job); await spThumb(job); markDirty(job); rerender(); toast('Site plan saved' + (hs ? ' - fragile zones added to the H&S requirements' : '')); },
+  async sppush(a, job) { const n = spPushRoofs(job); markDirty(job); rerender(); toast(n ? `${n} roof area${n === 1 ? '' : 's'} updated from the site plan (approx. - verify on site)` : 'Draw a roof outline first'); },
+  async spdel(a, job) { if (!await confirmBox('Remove the site plan?', 'The captured map, outlines, markup and pins are removed from this job. Roof areas already created stay.')) return; delete job.sitePlan; markDirty(job); go(`#/job/${job.id}/safety`); },
+  async spind(a, job) { toast('Building induction sheet…', 1200); const o = await spPdfDoc(job, 'ind'); qOut(o.blob, o.name); },
+  async sppdf(a, job) { toast('Building site plan…', 1200); const o = await spPdfDoc(job, 'plan'); qOut(o.blob, o.name); }
+});
+
+/* ---------- PHOTO MARKUP ---------- */
+const PM_COLS = { red: '#ef4444', yellow: '#facc15', white: '#ffffff' };
+function pmDraw(g, im, shapes, W, H) { g.drawImage(im, 0, 0, W, H); const u = Math.max(W, H) / 1000;
+  shapes.forEach(s => { const col = PM_COLS[s.c] || s.c, lw = (s.lw || 6) * u; g.save(); g.strokeStyle = col; g.fillStyle = col; g.lineWidth = lw; g.lineCap = g.lineJoin = 'round'; g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowBlur = 4 * u;
+    const [a, b] = s.p; if (s.t === 'arrow') { const an = Math.atan2(b[1] - a[1], b[0] - a[0]), L = Math.max(22 * u, lw * 4); g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0] - Math.cos(an) * L * 0.6, b[1] - Math.sin(an) * L * 0.6); g.stroke(); g.beginPath(); g.moveTo(b[0], b[1]); g.lineTo(b[0] - L * Math.cos(an - 0.45), b[1] - L * Math.sin(an - 0.45)); g.lineTo(b[0] - L * Math.cos(an + 0.45), b[1] - L * Math.sin(an + 0.45)); g.closePath(); g.fill(); }
+    if (s.t === 'rect') { g.strokeRect(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])); }
+    if (s.t === 'circle') { g.beginPath(); g.ellipse((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, Math.abs(b[0] - a[0]) / 2 || 1, Math.abs(b[1] - a[1]) / 2 || 1, 0, 0, 7); g.stroke(); }
+    if (s.t === 'free') { g.beginPath(); s.p.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.stroke(); }
+    if (s.t === 'text') { const fs = 34 * u; g.font = `bold ${fs}px sans-serif`; g.textBaseline = 'top'; g.shadowBlur = 0; const w = g.measureText(s.text).width; g.fillStyle = s.c === 'white' ? 'rgba(0,0,0,.6)' : 'rgba(0,0,0,.55)'; g.fillRect(a[0] - 6 * u, a[1] - 4 * u, w + 12 * u, fs * 1.2 + 4 * u); g.fillStyle = col; g.fillText(s.text, a[0], a[1]); }
+    if (s.t === 'mag') { const R = s.r || Math.min(W, H) * 0.16, z = s.z || 2.5, sr = R / z; g.shadowBlur = 0; g.lineWidth = 3 * u; g.beginPath(); g.arc(a[0], a[1], sr, 0, 7); g.stroke();
+      const d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / d, uy = (b[1] - a[1]) / d; g.beginPath(); g.moveTo(a[0] + ux * sr, a[1] + uy * sr); g.lineTo(b[0] - ux * R, b[1] - uy * R); g.stroke();
+      g.save(); g.beginPath(); g.arc(b[0], b[1], R, 0, 7); g.clip(); g.drawImage(im, (a[0] - sr) * im.naturalWidth / W, (a[1] - sr) * im.naturalHeight / H, 2 * sr * im.naturalWidth / W, 2 * sr * im.naturalHeight / H, b[0] - R, b[1] - R, 2 * R, 2 * R); g.restore();
+      g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowBlur = 6 * u; g.lineWidth = 6 * u; g.beginPath(); g.arc(b[0], b[1], R, 0, 7); g.stroke(); g.font = `bold ${16 * u}px sans-serif`; g.fillStyle = col; g.shadowBlur = 3 * u; g.textAlign = 'center'; g.fillText(`x${z}`, b[0], b[1] + R - 14 * u); }
+    g.restore(); }); }
+function pmEdit(p) { return new Promise(async resolve => { const src = p.orig || p.data, im = await loadImg(src), W = im.naturalWidth, H = im.naturalHeight; const shapes = JSON.parse(JSON.stringify(p.mk || [])); const st = { t: 'arrow', c: 'red', cur: null, redo: [] };
+  const ov = document.createElement('div'); ov.className = 'sp-ov pm-ov';
+  ov.innerHTML = `<div class="sp-bar"><b>Mark up photo</b><div class="seg">${[['arrow', '➚ Arrow'], ['circle', '◯ Circle'], ['rect', '▭ Box'], ['free', '✎ Draw'], ['text', 'T Text'], ['mag', '🔍 Magnify']].map(([k, l]) => `<button type="button" data-t="${k}" class="${k === 'arrow' ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div class="seg pm-cols">${Object.keys(PM_COLS).map(k => `<button type="button" data-c="${k}" class="${k === 'red' ? 'on' : ''}" aria-label="${k}"><i style="display:inline-block;width:18px;height:18px;border-radius:50%;border:2px solid #333;background:${PM_COLS[k]}"></i></button>`).join('')}</div>
+    <button type="button" class="btn sm" data-x="undo">↶ Undo</button><button type="button" class="btn sm" data-x="redo">↷</button><button type="button" class="btn sm" data-x="clear">Clear</button><span class="sp-sp"></span><button type="button" class="btn sm" data-x="cancel">Cancel</button><button type="button" class="btn sm primary" data-x="save">Save</button></div>
+    <div class="sp-wrap"><canvas class="sp-cv pm-cv"></canvas></div><p class="sp-attr">The original photo is kept; reports use the marked-up copy. <b>Magnify</b>: press on the detail and drag to where the zoom bubble should go.</p>`;
+  document.body.appendChild(ov); document.body.classList.add('fl-lock'); const cv = $('.pm-cv', ov), g = cv.getContext('2d'); cv.width = W; cv.height = H;
+  const fitCss = () => { const r = $('.sp-wrap', ov).getBoundingClientRect(), s = Math.min(r.width / W, r.height / H); cv.style.width = W * s + 'px'; cv.style.height = H * s + 'px'; }; fitCss(); window.addEventListener('resize', fitCss);
+  const paint = () => { g.clearRect(0, 0, W, H); pmDraw(g, im, st.cur ? shapes.concat([st.cur]) : shapes, W, H); }; paint();
+  const pos = e => { const r = cv.getBoundingClientRect(); return [Math.round((e.clientX - r.left) * W / r.width), Math.round((e.clientY - r.top) * H / r.height)]; };
+  const close = v => { ov.remove(); document.body.classList.remove('fl-lock'); window.removeEventListener('resize', fitCss); resolve(v); };
+  ov.addEventListener('click', async e => { const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.t) { st.t = b.dataset.t; $$('[data-t]', ov).forEach(x => x.classList.toggle('on', x === b)); return; }
+    if (b.dataset.c) { st.c = b.dataset.c; $$('[data-c]', ov).forEach(x => x.classList.toggle('on', x === b)); return; }
+    const x = b.dataset.x; if (x === 'undo' && shapes.length) { st.redo.push(shapes.pop()); paint(); } if (x === 'redo' && st.redo.length) { shapes.push(st.redo.pop()); paint(); } if (x === 'clear' && shapes.length) { st.redo = shapes.splice(0).reverse(); paint(); }
+    if (x === 'cancel') close(null);
+    if (x === 'save') { const c = document.createElement('canvas'); c.width = W; c.height = H; pmDraw(c.getContext('2d'), im, shapes, W, H); close({ shapes, data: shapes.length ? c.toDataURL('image/jpeg', 0.85) : null, orig: src }); } });
+  cv.addEventListener('pointerdown', async e => { e.preventDefault(); const p0 = pos(e); if (st.t === 'text') { const t = await spAsk('Text on photo', ''); if (t) { shapes.push({ t: 'text', c: st.c, p: [p0], text: t }); st.redo = []; paint(); } return; }
+    try { cv.setPointerCapture(e.pointerId); } catch (_) { } st.cur = { t: st.t, c: st.c, p: [p0, p0.slice()], id: e.pointerId }; if (st.t === 'mag') st.cur.r = Math.round(Math.min(W, H) * 0.16); paint(); });
+  cv.addEventListener('pointermove', e => { const c = st.cur; if (!c || c.id !== e.pointerId) return; e.preventDefault(); const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e]; (evs.length ? evs : [e]).forEach(ev => { const q = pos(ev); if (c.t === 'free') { const l = c.p[c.p.length - 1]; if (Math.hypot(q[0] - l[0], q[1] - l[1]) > 2) c.p.push(q); } else c.p[1] = q; }); paint(); });
+  const up = e => { const c = st.cur; if (!c || c.id !== e.pointerId) return; st.cur = null; delete c.id; const [a, b] = c.p, d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (c.t === 'mag' && d < 20) { const R = c.r; c.p[1] = [Math.min(W - R - 4, a[0] + R * 1.6 > W - R ? a[0] - R * 1.8 : a[0] + R * 1.8), Math.max(R + 4, Math.min(H - R - 4, a[1] - R * 0.8))]; }
+    if (c.t === 'free' ? c.p.length > 2 : (d > 8 || c.t === 'mag')) { shapes.push(c); st.redo = []; } paint(); };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up); ov._shapes = shapes; }); }
+{ const _vp = ACTIONS.viewphoto; ACTIONS.viewphoto = async function (a, job) { const arr = getPath(S.ctx.obj, a.dataset.key); const p = arr && arr.find(x => x.id === a.dataset.id); if (!p || isPdfItem(p) || (typeof isLinkItem === 'function' && isLinkItem(p)) || !/^data:image\//.test(p.data || '')) return _vp.call(this, a, job);
+  const ro = S.ctx && S.ctx.readOnly;
+  const r = await modal(`<div class="viewer"><img src="${p.data}" alt=""><p>${esc(p.caption || '')}${p.orig ? ' <span class="tag">marked up</span>' : ''}</p><button class="btn primary" data-r="mk">✎ Mark up</button>${p.orig ? '<button class="btn" data-r="orig">Show original</button><button class="btn" data-r="restore">Remove markup</button>' : ''}<button class="btn" data-r="">Close</button><button class="btn danger" data-r="del">Remove photo</button></div>`);
+  if (r === 'del') { arr.splice(arr.indexOf(p), 1); S.ctx.save(); rerender(); }
+  if (r === 'orig') await modal(`<div class="viewer"><img src="${p.orig}" alt=""><p>Original photo (not marked up)</p><button class="btn" data-r="">Close</button></div>`);
+  if (r === 'restore' && await confirmBox('Remove the markup?', 'The photo goes back to the original; the markup is deleted.', 'Remove markup')) { p.data = p.orig; delete p.orig; delete p.mk; S.ctx.save(); rerender(); }
+  if (r === 'mk') { const res = await pmEdit(p); if (!res) return; if (!res.data) { if (p.orig) { p.data = p.orig; delete p.orig; delete p.mk; } } else { p.orig = res.orig; p.mk = res.shapes; p.data = res.data; } S.ctx.save(); rerender(); toast(res.data ? 'Marked-up photo saved - the original is kept' : 'Markup removed'); } }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
