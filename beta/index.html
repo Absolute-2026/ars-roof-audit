@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.7.15">
+<meta name="app-version" content="1.7.16">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -850,7 +850,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.7.15';
+const APP_VERSION = '1.7.16';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -6691,7 +6691,8 @@ function flTplHook(E, N, side) { // 24-unit welt hook at E, perpendicular to E�
 function flTplPlace(tpl, cx, cy, welts) {
   const P = tpl.pts.map(q => q.slice()), xs = P.map(q => q[0]), ys = P.map(q => q[1]);
   const mx = (Math.min(...xs) + Math.max(...xs)) / 2, my = (Math.min(...ys) + Math.max(...ys)) / 2;
-  const pts = P.map(q => [Math.round((q[0] - mx + cx) * 10) / 10, Math.round((q[1] - my + cy) * 10) / 10, 0.5]);
+  const ext = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) || 1, f = 300 / ext; // v1.7.15: placed at a comfortable size (about 300 units across)
+  const pts = P.map(q => [Math.round(((q[0] - mx) * f + cx) * 10) / 10, Math.round(((q[1] - my) * f + cy) * 10) / 10, 0.5]);
   const tid = 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const stroke = { w: 5, pts, tpl: tid, tplId: tpl.id };
   const labels = [];
@@ -7011,7 +7012,7 @@ function flDraw(item, title, opt = {}) {
       // whole template if any stroke/label in the hit belongs to one
       if (h.label != null && d.labels[h.label].tpl) h = { tpl: d.labels[h.label].tpl }; else if (h.k != null && d.strokes[h.k].tpl) h = { tpl: d.strokes[h.k].tpl };
       st.sel = h; paint();
-      const m = document.createElement('div'); m.className = 'fl-selpop'; m.style.cssText = `position:fixed;z-index:99;left:${Math.min(cx + 10, innerWidth - 280)}px;top:${Math.max(10, cy - 56)}px;background:#fff;border:1px solid #ccc;border-radius:10px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;flex-wrap:wrap;gap:6px;max-width:280px`;
+      const m = document.createElement('div'); m.className = 'fl-selpop'; m.style.cssText = `position:fixed;z-index:99;left:${Math.max(8, Math.min(cx + 10, innerWidth - 290))}px;top:${Math.max(10, Math.min(cy - 56, innerHeight - 140))}px;background:#fff;border:1px solid #ccc;border-radius:10px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;flex-wrap:wrap;gap:6px;max-width:280px`;
       let btns = '';
       if (h.tpl) btns = `<button type="button" class="btn sm" data-s="del">Delete</button><button type="button" class="btn sm" data-s="rot">Rotate 90°</button><button type="button" class="btn sm" data-s="fh">Flip H</button><button type="button" class="btn sm" data-s="fv">Flip V</button><button type="button" class="btn sm" data-s="move">Move</button><button type="button" class="btn sm${flTplScaleOn() ? ' primary' : ''}" data-s="scale">Scale to sizes: ${flTplScaleOn() ? 'on' : 'off'}</button><button type="button" class="btn sm${st.bendMode ? ' primary' : ''}" data-s="bend">Bend angles: ${st.bendMode ? 'on' : 'off'}</button>` + (typeof isMgr === 'function' && isMgr() ? '<button type="button" class="btn sm" data-s="save">Save as template</button>' : '');
       else { const what = h.label != null ? (d.labels[h.label].cx != null || /°/.test(d.labels[h.label].t) ? 'angle' : 'label') : 'leg';
@@ -7027,7 +7028,7 @@ function flDraw(item, title, opt = {}) {
           else if (t.dataset.s === 'undo') toast(flUndoItem(d, h2) === 'reverted' ? 'Put back as you drew it' : 'Removed');
           else if (t.dataset.s === 'save' && h2.k != null) { const nm = prompt('Template name', 'Custom'); if (nm) { flTplSaveCustom(nm, flTplFromStroke(d.strokes[h2.k])); toast('Saved · managers see it in Templates'); } } }
         unsel(); paint(); });
-      ov.appendChild(m); };
+      ov.appendChild(m); { const rb = m.getBoundingClientRect(); if (rb.bottom > innerHeight - 8) m.style.top = Math.max(8, innerHeight - 8 - rb.height) + 'px'; if (rb.right > innerWidth - 8) m.style.left = Math.max(8, innerWidth - 8 - rb.width) + 'px'; } };
     const placeTpl = (tpl, cx, cy) => { snap(); const bit = flTplPlace(tpl, cx, cy, !!st.tplWelts); d.strokes.push(...bit.strokes); d.labels.push(...bit.labels); paint(); toast(tpl.name + (st.tplWelts ? ' + welts' : '') + ' · tap [__] to enter sizes'); };
     const openTpls = () => { $$('.fl-tpls', ov).forEach(x => x.remove()); const strip = document.createElement('div'); strip.className = 'fl-tpls';
       strip.style.cssText = 'position:absolute;left:0;right:0;top:48px;z-index:80;background:#f8fafc;border-bottom:1px solid #cbd5e1;padding:8px 10px;overflow-x:auto;display:flex;gap:8px;align-items:stretch;-webkit-overflow-scrolling:touch';
@@ -7195,7 +7196,7 @@ function flWeltMm() { const v = parseFloat(S.settings.quotes && S.settings.quote
 function flGeom(d) {
   { const prof = d.strokes.map(s => !flLooksHand(s, d, true)); if (prof.some(Boolean)) { /* welts and short legs touch a line end; other small strokes are writing */ const att = (s, k) => [s.pts[0], s.pts[s.pts.length - 1]].some(p => d.strokes.some((o, j) => j !== k && prof[j] && [o.pts[0], o.pts[o.pts.length - 1]].some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 25)));
     const keep = d.strokes.filter((s, k) => prof[k] || att(s, k)); if (keep.length !== d.strokes.length) d = Object.assign({}, d, { strokes: keep }); } } // v1.7.11: handwriting is not part of the profile
-  const S_ = d.strokes.map(s => { const P = s.pts.length > 2 && !flIsStraight(s.pts) ? flGeoPts(s.pts) : flStraighten(s.pts, 14); const sg = []; for (let i = 1; i < P.length; i++) { const len = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); if (len > 6) sg.push({ a: P[i - 1], b: P[i], len }); } return { pts: s.pts, sg, len: sg.reduce((t, g) => t + g.len, 0) }; }).filter(s => s.sg.length);
+  const S_ = d.strokes.map(s => { const T = s.tpl && !s.welt; /* v1.7.15: a template's vertices are exact - keep every leg, so leg i = template leg i */ const P = T ? s.pts : s.pts.length > 2 && !flIsStraight(s.pts) ? flGeoPts(s.pts) : flStraighten(s.pts, 14); const sg = []; for (let i = 1; i < P.length; i++) { const len = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); if (len > 6 || T) sg.push({ a: P[i - 1], b: P[i], len: Math.max(len, 0.1) }); } return { pts: s.pts, sg, len: sg.reduce((t, g) => t + g.len, 0), tpl: T ? s.tpl : null }; }).filter(s => s.sg.length);
   const maxLen = Math.max(1, ...S_.map(s => s.len)), longest = Math.max(1, ...S_.flatMap(s => s.sg.map(g => g.len)));
   const touches = (p, k) => S_.some((o, j) => j !== k && [o.pts[0], o.pts[o.pts.length - 1]].some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 25));
   S_.forEach((s, k) => { s.hemStroke = s.len < maxLen * 0.25 && !flIsStraight(s.pts) && (touches(s.pts[0], k) || touches(s.pts[s.pts.length - 1], k)); }); // v1.7.12: a short STRAIGHT stroke is a leg, not a welt
@@ -7205,7 +7206,7 @@ function flGeom(d) {
   // v1.7.5: cost = distance to the leg line + a little distance to its midpoint (breaks ties at corners). A welt stroke (separate short stroke at an end)
   // can only take a 'welt' label, and a possible end hook costs extra, so a size written near a short leg + welt goes to the leg, not the welt.
   const hookish = g => { const s = S_[g.k]; return (g.i === 0 || g.i === s.sg.length - 1) && s.sg.length > 1 && g.len < longest * 0.16; };
-  const D = dims.map(x => segs.map(g => { const p = [x.l.x, x.l.y]; if (S_[g.k].hemStroke && !x.hem) return 1e9;
+  const D = dims.map(x => segs.map(g => { const p = [x.l.x, x.l.y]; if (x.l.tpl && x.l.leg != null && S_.some(s => s.tpl === x.l.tpl)) return S_[g.k].tpl === x.l.tpl && g.i === x.l.leg ? 0 : 1e9; /* template slot = its own leg */ if (S_[g.k].hemStroke && !x.hem) return 1e9;
     const mid = [(g.a[0] + g.b[0]) / 2, (g.a[1] + g.b[1]) / 2], dm = Math.hypot(p[0] - mid[0], p[1] - mid[1]);
     return flDist(p, g.a, g.b) + 0.25 * Math.max(0, dm - g.len / 2) + (hookish(g) && !x.hem ? 30 : 0); }));
   const MISS = 140, LIM = 120; let best = { c: 1e9, a: [] };
