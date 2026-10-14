@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.7.9">
+<meta name="app-version" content="1.7.10">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -850,7 +850,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.7.9';
+const APP_VERSION = '1.7.10';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -6775,6 +6775,14 @@ function flSplitReview(d) {
       if (a === 'ok' || a === 'x') { bg.remove(); res(a === 'ok' ? groups : null); } });
     bg._get = () => groups; paint(); });
 }
+/* v1.7.10: Straighten only touches lines drawn while it is on, one at a time at pen-up, and never handwriting: small or compact strokes
+   (digits, letters, welt hooks) or strokes over a label. The raw points are kept (s.raw) and the first Undo puts the line back as drawn. */
+function flLooksHand(s, d) { const P = s.pts; if (P.length < 3) return true; let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, len = 0;
+  P.forEach((p, i) => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); if (i) len += Math.hypot(p[0] - P[i - 1][0], p[1] - P[i - 1][1]); });
+  const diag = Math.hypot(x1 - x0, y1 - y0); if (diag < 95) return true;                              // digits, letters, welt hooks
+  if (diag < 170 && len / diag > 2.4) return true;                                                     // compact scribble (8, 0, B...)
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2; if ((d.labels || []).some(l => Math.hypot(l.x - cx, l.y - cy) < 45) && diag < 170) return true; // written over a label
+  return false; }
 function flDraw(item, title, opt = {}) {
   const SW = opt.sheet ? FL_SW : FL_W, SH = opt.sheet ? FL_SH : FL_H;
   return new Promise(resolve => {
@@ -6823,7 +6831,7 @@ function flDraw(item, title, opt = {}) {
       if (st.cur.erase) { evs.forEach(ev => eraseAt(pos(ev))); paint(); return; }
       evs.forEach(ev => { const p = pos(ev); const l = st.cur.s.pts[st.cur.s.pts.length - 1]; if (Math.hypot(p[0] - l[0], p[1] - l[1]) >= 1.5) st.cur.s.pts.push(p); }); paint();
     });
-    const end = e => { st.tp.delete(e.pointerId); if (st.tp.size < 2) st.pinch = null; if (!st.cur || e.pointerId !== st.cur.id) return; const s = st.cur.s; st.cur = null; if (s) { if (s.pts.length < 2 && e.type === 'pointercancel') d.strokes.pop(); else if (st.straight) s.pts = flStraighten(s.pts); } paint(); };
+    const end = e => { st.tp.delete(e.pointerId); if (st.tp.size < 2) st.pinch = null; if (!st.cur || e.pointerId !== st.cur.id) return; const s = st.cur.s; st.cur = null; if (s) { if (s.pts.length < 2 && e.type === 'pointercancel') d.strokes.pop(); else if (st.straight && !flLooksHand(s, d)) { const raw = s.pts.map(q => q.slice()); st.undo.push(JSON.stringify(d)); s.raw = raw; s.pts = flStraighten(raw); } } paint(); };
     cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
     const block = e => { if (e.target.closest && e.target.closest('.fl-wrap')) e.preventDefault(); };
     document.addEventListener('touchmove', block, { passive: false }); document.addEventListener('touchstart', block, { passive: false });
@@ -6833,7 +6841,7 @@ function flDraw(item, title, opt = {}) {
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.t) { st.tool = b.dataset.t; $$('[data-t]', ov).forEach(x => x.classList.toggle('on', x === b)); return; }
       const x = b.dataset.x;
-      if (x === 'straight') { st.straight = !st.straight; S.settings.flStraight = st.straight; saveSettings(); b.classList.toggle('on', st.straight); if (st.straight && d.strokes.length) { snap(); d.strokes = d.strokes.map(s => Object.assign({}, s, { pts: flStraighten(s.pts) })); paint(); } }
+      if (x === 'straight') { st.straight = !st.straight; S.settings.flStraight = st.straight; saveSettings(); b.classList.toggle('on', st.straight); toast(st.straight ? 'Straighten on: new lines are straightened when you lift the pen (handwriting is left as written)' : 'Straighten off'); }
       if (x === 'undo') { const u = st.undo.pop(); if (u) { const o = JSON.parse(u); d.strokes = o.strokes; d.labels = o.labels; paint(); } }
       if (x === 'clear' && (d.strokes.length || d.labels.length)) { snap(); d.strokes = []; d.labels = []; paint(); }
       if (x === 'geom' || x === 'read') { let found = [];
