@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.7.4">
+<meta name="app-version" content="1.7.5">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -841,7 +841,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.7.4';
+const APP_VERSION = '1.7.5';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -6799,11 +6799,19 @@ function flGeom(d) {
   const dims = (d.labels || []).map(l => ({ l, v: parseFloat(String(l.t).replace(',', '.')), hem: /\b(welt|hem)/i.test(l.t), angle: /°|deg/i.test(l.t) })).filter(x => !x.angle && (isFinite(x.v) || x.hem));
   const segs = []; S_.forEach((s, k) => s.sg.forEach((g, i) => segs.push(Object.assign(g, { k, i }))));
   // match labels to legs: the assignment with the smallest total distance (a label may also stay unmatched, at a cost), so a label sitting near two legs goes where it fits best
-  const D = dims.map(x => segs.map(g => flDist([x.l.x, x.l.y], g.a, g.b))); const MISS = 140; let best = { c: 1e9, a: [] };
-  if (dims.length <= 9 && segs.length <= 14) { const used = new Array(segs.length).fill(false), a = [];
-    const dfs = (k, c) => { if (c >= best.c) return; if (k === dims.length) { best = { c, a: a.slice() }; return; } for (let g = 0; g < segs.length; g++) if (!used[g] && D[k][g] <= 110) { used[g] = true; a[k] = g; dfs(k + 1, c + D[k][g]); used[g] = false; } a[k] = -1; dfs(k + 1, c + MISS); };
+  // v1.7.5: cost = distance to the leg line + a little distance to its midpoint (breaks ties at corners). A welt stroke (separate short stroke at an end)
+  // can only take a 'welt' label, and a possible end hook costs extra, so a size written near a short leg + welt goes to the leg, not the welt.
+  const hookish = g => { const s = S_[g.k]; return (g.i === 0 || g.i === s.sg.length - 1) && s.sg.length > 1 && g.len < longest * 0.16; };
+  const D = dims.map(x => segs.map(g => { const p = [x.l.x, x.l.y]; if (S_[g.k].hemStroke && !x.hem) return 1e9;
+    const mid = [(g.a[0] + g.b[0]) / 2, (g.a[1] + g.b[1]) / 2], dm = Math.hypot(p[0] - mid[0], p[1] - mid[1]);
+    return flDist(p, g.a, g.b) + 0.25 * Math.max(0, dm - g.len / 2) + (hookish(g) && !x.hem ? 30 : 0); }));
+  const MISS = 140, LIM = 120; let best = { c: 1e9, a: [] };
+  if (dims.length <= 9 && segs.length <= 16) { const used = new Array(segs.length).fill(false), a = [];
+    const dfs = (k, c) => { if (c >= best.c) return; if (k === dims.length) { best = { c, a: a.slice() }; return; } for (let g = 0; g < segs.length; g++) if (!used[g] && D[k][g] <= LIM) { used[g] = true; a[k] = g; dfs(k + 1, c + D[k][g]); used[g] = false; } a[k] = -1; dfs(k + 1, c + MISS); };
     dfs(0, 0); }
-  else { const lab = new Set(); best.a = dims.map((x, k) => { let m = -1; D[k].forEach((v, g) => { if (v <= 110 && !lab.has(g) && (m < 0 || v < D[k][m])) m = g; }); if (m >= 0) lab.add(m); return m; }); }
+  else { // many labels: global greedy, cheapest pair first, each label and leg used once
+    const pairs = []; D.forEach((r, k) => r.forEach((v, g) => { if (v <= LIM) pairs.push([v, k, g]); })); pairs.sort((x, y) => x[0] - y[0]);
+    const uk = new Set(), ug = new Set(); best.a = dims.map(() => -1); pairs.forEach(([v, k, g]) => { if (!uk.has(k) && !ug.has(g)) { uk.add(k); ug.add(g); best.a[k] = g; } }); }
   const segL = {}; best.a.forEach((g, k) => { if (g >= 0) segL[g] = k; });
   segs.forEach((g, gi) => { g.x = dims[segL[gi]]; });
   let bends = 0, hems = 0;
@@ -6814,10 +6822,14 @@ function flGeom(d) {
     s.sg.forEach((g, i) => { g.hem = (i < a || i >= s.sg.length - z) || !!(g.x && g.x.hem); });
     const n = s.sg.length; bends += Math.max(0, n - 1) - Math.max(0, a - 1) - Math.max(0, z - 1); hems += (a ? 1 : 0) + (z ? 1 : 0);
   });
+  // v1.7.5: a wobbly leg can straighten into two nearly-straight pieces; an unlabelled piece in line (< 25°) with a labelled neighbour is the same leg
+  const ang = (g, h) => { let t = Math.abs(Math.atan2(g.b[1] - g.a[1], g.b[0] - g.a[0]) - Math.atan2(h.b[1] - h.a[1], h.b[0] - h.a[0])) * 180 / Math.PI; return t > 180 ? 360 - t : t; };
+  S_.forEach(s => { if (s.hemStroke) return; s.sg.forEach((g, i) => { if (g.x || g.hem) return; const nb = [s.sg[i - 1], s.sg[i + 1]].find(h => h && h.x && !h.hem && !h.merged && ang(g, h) < 25); const corner = i > 0 && i < s.sg.length - 1 && g.len < 40 && s.sg[i - 1].x && s.sg[i + 1].x; // rounded corner drawn as a tiny cut
+    if (nb || corner) { g.merged = true; bends--; } }); });
   // two main strokes joined end to end = one more bend
   S_.forEach((s, k) => { if (s.hemStroke) return; [s.pts[s.pts.length - 1]].forEach(p => { if (S_.some((o, j) => j !== k && !o.hemStroke && Math.hypot(o.pts[0][0] - p[0], o.pts[0][1] - p[1]) < 25)) bends++; }); });
   // v1.7.4: welts (Matt's term for hems) are a fixed allowance each (manager setting, default 15 mm) and 1 bend each; their drawn size is ignored
-  const W = flWeltMm(), body = segs.filter(g => !g.hem); const known = body.filter(g => g.x && isFinite(g.x.v)); const missing = body.length - known.length;
+  const W = flWeltMm(), body = segs.filter(g => !g.hem && !g.merged); const known = body.filter(g => g.x && isFinite(g.x.v)); const missing = body.length - known.length;
   const legs = Math.round(known.reduce((t, g) => t + g.x.v, 0)), girth = legs + hems * W;
   return { girth, legs, missing, hems, welts: hems, bends, girthText: known.length ? (hems ? `${girth}` : `${legs}`) + (missing ? ` + [__] (${missing} leg${missing > 1 ? 's' : ''} without a size)` : '') : '',
     breakdown: known.length ? `legs ${legs}${hems ? ` + ${hems} welt${hems > 1 ? 's' : ''} x ${W} = ${girth}` : ''}${missing ? ` (+ ${missing} leg${missing > 1 ? 's' : ''} without a size)` : ''}` : '',
