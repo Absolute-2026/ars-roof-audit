@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.7.13">
+<meta name="app-version" content="1.7.14">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -850,7 +850,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.7.13';
+const APP_VERSION = '1.7.14';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -6469,6 +6469,7 @@ function viewQuoteSettings() {
     <div class="f"><label for="qs_weltMm">Flashings: welt allowance (mm per welt)</label><input id="qs_weltMm" type="number" min="0" step="1" data-qs="weltMm" value="${esc(String((S.settings.quotes && S.settings.quotes.weltMm) || 15))}" ${dis}><p class="hint">Each welt counts as 1 bend and adds this much to the girth. Default 15.</p></div>
     <div class="f"><label for="qs_fl_lengthDef">Flashings: default length for new items</label><input id="qs_fl_lengthDef" data-qs="fl_lengthDef" value="${esc(flLenDef())}" ${dis}></div>
     ${['length', 'material', 'gauge', 'colour'].map(k => `<div class="f"><label for="qs_fl_${k}">Flashings: ${k} list (one per line; a line starting # is a group heading; 'Other' is always offered)</label><textarea id="qs_fl_${k}" data-qs="fl_${k}" rows="5" ${dis}>${esc(flList(k).join('\n'))}</textarea></div>`).join('')}
+    <div class="f"><label>Flashings: custom templates (save one from a drawing: Select tool &gt; Save as template)</label>${((S.settings.quotes && S.settings.quotes.flTemplates) || []).map(t => `<div class="row" style="display:flex;gap:8px;align-items:center;margin:4px 0"><span style="flex:1">${esc(t.name)}</span>${mgr ? `<button type="button" class="btn sm danger" data-act="qstpldel" data-id="${esc(t.id)}">Remove</button>` : ''}</div>`).join('') || '<p class="hint">None yet. The 13 built-in templates are always offered.</p>'}</div>
     <label class="ckl"><input type="checkbox" data-qs="signoffReq" ${s.signoffReq ? 'checked' : ''} ${dis}> Manager sign-off required before a quote is issued</label>
     <div class="f"><label for="qs_validity">Quote validity (days)</label><input id="qs_validity" type="number" data-qs="validity" value="${s.validity}" ${dis}><p class="hint">Used in the short terms and the full terms &amp; conditions.</p></div></div>
   <div class="card"><h2>Company wording</h2>${ta('intro', 'Company introduction (full report)', 8)}${ta('closing', 'Closing paragraph', 3)}${ta('disclaimer', 'Disclaimer (repairs)', 4)}${ta('warranties', 'Warranties', 4)}${ta('noAllowance', '"No allowance" wording', 3)}${ta('leadTime', 'Lead time', 2)}</div>
@@ -6487,6 +6488,7 @@ function qsCollect() {
 }
 async function qsPush() { if (!signedIn() || !isMgr()) return; try { await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'quotes', value: S.settings.quotes || {} }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); } catch (e) { toast(e.offline ? 'Saved on this device - will share when online' : e.message, 4000); } }
 Object.assign(ACTIONS, {
+  async qstpldel(el) { if (!isMgr()) return; const id = el && el.dataset ? el.dataset.id : null; const q = S.settings.quotes || {}; q.flTemplates = (q.flTemplates || []).filter(t => t.id !== id); saveSettings(); await qsPush(); toast('Template removed'); if (typeof render === 'function') render(); },
   async qssave() { if (!qCanSign()) return; qsCollect(); saveSettings(); await qsPush(); toast('Quote settings saved'); },
   async qsreset() { if (!await confirmBox('Reset quote wording?', 'Company wording, terms, job-type library and preliminaries go back to the ARS defaults. Permissions are kept.', 'Reset')) return; const v = S.settings.quotes || {}; S.settings.quotes = { restrict: v.restrict, allowed: v.allowed, signoffReq: v.signoffReq, validity: v.validity }; saveSettings(); await qsPush(); rerender(); },
   async qslibadd() { let t; const r = await modal('<h3>New job type</h3><input id="qslt" placeholder="e.g. Liquid roof coating"><div style="height:10px"></div><button class="btn primary" data-r="ok">Add</button><button class="btn" data-r="">Cancel</button>', bg => { t = $('#qslt', bg); }); if (r !== 'ok' || !t.value.trim()) return; qsCollect(); const k = 'c_' + uid(); S.settings.quotes.library[k] = { title: t.value.trim(), text: '' }; saveSettings(); rerender(); },
@@ -6663,6 +6665,104 @@ function zipStore(files) {
   return new Blob([...parts, ...cen, new Uint8Array(e.buffer)]);
 }
 
+/* v1.7.14: template flashings - tray of common profiles, place on either pad, blank dim slots, welts, move/rotate/flip, custom templates for managers */
+const FL_TPL_U = 100; // default visual length of a typical leg (drawing units ≈ mm at 1:1 for sizes on the pad)
+const FL_TPL_DEF = [
+  { id: 'angle', name: 'Angle (90°)', pts: [[0, 0], [0, 100], [100, 100]], angs: [90] },
+  { id: 'drip', name: 'Drip / cover', pts: [[0, 0], [0, 80], [120, 80], [120, 100]], angs: [90, 90] },
+  { id: 'z', name: 'Z', pts: [[0, 0], [100, 0], [100, 40], [200, 40]], angs: [90, 90] },
+  { id: 'stepz', name: 'Step Z', pts: [[0, 0], [80, 0], [80, 40], [160, 40], [160, 80], [240, 80]], angs: [90, 90, 90, 90] },
+  { id: 'u', name: 'U channel', pts: [[0, 0], [0, 100], [100, 100], [100, 0]], angs: [90, 90] },
+  { id: 'tophat', name: 'Top hat', pts: [[0, 40], [20, 40], [20, 0], [100, 0], [100, 40], [120, 40]], angs: [90, 90, 90, 90] },
+  { id: 'cover', name: 'Cover / cap', pts: [[0, 30], [0, 0], [120, 0], [120, 30]], angs: [90, 90] },
+  { id: 'ridge', name: 'Ridge', pts: [[0, 70], [100, 0], [200, 70]], angs: [110] },
+  { id: 'barge', name: 'Barge / verge', pts: [[0, 0], [0, 140], [60, 140]], angs: [90] },
+  { id: 'flat', name: 'Flat strip', pts: [[0, 0], [200, 0]], angs: [] },
+  { id: 'apron', name: 'Apron', pts: [[0, 0], [0, 60], [160, 60]], angs: [90] },
+  { id: 'box', name: 'Box gutter', pts: [[0, 0], [0, 80], [160, 80], [160, 0]], angs: [90, 90] },
+  { id: 'joggle', name: 'Joggled gutter', pts: [[0, 0], [0, 50], [30, 50], [30, 90], [160, 90], [160, 0]], angs: [90, 90, 90, 90] }
+];
+function flTplList() { const c = (S.settings.quotes && S.settings.quotes.flTemplates) || []; return FL_TPL_DEF.concat(c.filter(t => t && t.id && t.pts && t.pts.length >= 2)); }
+function flTplById(id) { return flTplList().find(t => t.id === id); }
+function flTplHook(E, N, side) { // 24-unit welt hook at E, perpendicular to E←N
+  const L = Math.hypot(E[0] - N[0], E[1] - N[1]) || 1, ux = (E[0] - N[0]) / L, uy = (E[1] - N[1]) / L, px = -uy * side, py = ux * side;
+  return [[E[0], E[1], 0.5], [E[0] + px * 22, E[1] + py * 22, 0.5], [E[0] + px * 22 + ux * 14, E[1] + py * 22 + uy * 14, 0.5]];
+}
+function flTplPlace(tpl, cx, cy, welts) {
+  const P = tpl.pts.map(q => q.slice()), xs = P.map(q => q[0]), ys = P.map(q => q[1]);
+  const mx = (Math.min(...xs) + Math.max(...xs)) / 2, my = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const pts = P.map(q => [Math.round((q[0] - mx + cx) * 10) / 10, Math.round((q[1] - my + cy) * 10) / 10, 0.5]);
+  const tid = 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const stroke = { w: 5, pts, tpl: tid, tplId: tpl.id };
+  const labels = [];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], mx2 = (a[0] + b[0]) / 2, my2 = (a[1] + b[1]) / 2;
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / L * 22, ny = (b[0] - a[0]) / L * 22;
+    labels.push({ x: Math.round(mx2 + nx), y: Math.round(my2 + ny), t: '[__]', tpl: tid, leg: i - 1 });
+  }
+  (tpl.angs || []).forEach((ang, ai) => {
+    const c = pts[ai + 1]; if (!c) return;
+    const r1 = Math.atan2(pts[ai][1] - c[1], pts[ai][0] - c[0]), r2 = Math.atan2(pts[ai + 2][1] - c[1], pts[ai + 2][0] - c[0]);
+    let bx = Math.cos(r1) + Math.cos(r2), by = Math.sin(r1) + Math.sin(r2), bl = Math.hypot(bx, by) || 1;
+    labels.push({ x: Math.round(c[0] + bx / bl * 28), y: Math.round(c[1] + by / bl * 28), t: '[__]°', tpl: tid, cx: c[0], cy: c[1], r1, r2, bend: ai });
+  });
+  const strokes = [stroke];
+  if (welts && pts.length >= 2) {
+    strokes.push({ w: 4.5, pts: flTplHook(pts[0], pts[1], 1), tpl: tid, welt: true });
+    strokes.push({ w: 4.5, pts: flTplHook(pts[pts.length - 1], pts[pts.length - 2], 1), tpl: tid, welt: true });
+  }
+  return { strokes, labels, tid };
+}
+function flTplThumb(tpl) {
+  const c = document.createElement('canvas'); c.width = 120; c.height = 72; const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, 120, 72); const P = tpl.pts; if (!P.length) return c.toDataURL();
+  const xs = P.map(q => q[0]), ys = P.map(q => q[1]); const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const pad = 10, sc = Math.min((120 - pad * 2) / Math.max(1, x1 - x0), (72 - pad * 2) / Math.max(1, y1 - y0));
+  g.strokeStyle = '#1f2937'; g.lineWidth = 2.5; g.lineCap = g.lineJoin = 'round'; g.beginPath();
+  P.forEach((q, i) => { const x = pad + (q[0] - x0) * sc + (120 - pad * 2 - (x1 - x0) * sc) / 2, y = pad + (q[1] - y0) * sc + (72 - pad * 2 - (y1 - y0) * sc) / 2; i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
+  return c.toDataURL();
+}
+function flTplGroup(d, tid) { return { strokes: d.strokes.map((s, k) => s.tpl === tid ? k : -1).filter(k => k >= 0), labels: (d.labels || []).map((l, i) => l.tpl === tid ? i : -1).filter(i => i >= 0) }; }
+function flTplCentroid(d, tid) { const g = flTplGroup(d, tid); let n = 0, x = 0, y = 0; g.strokes.forEach(k => d.strokes[k].pts.forEach(p => { x += p[0]; y += p[1]; n++; })); return n ? [x / n, y / n] : [0, 0]; }
+function flTplTransform(d, tid, fn) { flTplGroup(d, tid).strokes.forEach(k => { d.strokes[k].pts = d.strokes[k].pts.map(fn); delete d.strokes[k].raw; });
+  flTplGroup(d, tid).labels.forEach(i => { const l = d.labels[i], q = fn([l.x, l.y]); l.x = q[0]; l.y = q[1]; if (l.cx != null) { const c = fn([l.cx, l.cy]); l.cx = c[0]; l.cy = c[1]; } }); }
+function flTplRotate(d, tid) { const [cx, cy] = flTplCentroid(d, tid); flTplTransform(d, tid, p => [cx - (p[1] - cy), cy + (p[0] - cx), p[2] ?? 0.5]); }
+function flTplFlip(d, tid, axis) { const [cx, cy] = flTplCentroid(d, tid); flTplTransform(d, tid, p => axis === 'h' ? [2 * cx - p[0], p[1], p[2] ?? 0.5] : [p[0], 2 * cy - p[1], p[2] ?? 0.5]); }
+function flTplDelete(d, tid) { d.strokes = d.strokes.filter(s => s.tpl !== tid); d.labels = (d.labels || []).filter(l => l.tpl !== tid); }
+function flTplMove(d, tid, dx, dy) { flTplTransform(d, tid, p => [p[0] + dx, p[1] + dy, p[2] ?? 0.5]); }
+// fill a blank dim: update the label and stretch that leg (and anything beyond it) so the drawn length matches mm (1 drawing unit ≈ 1 mm)
+function flTplFillDim(d, labIdx, text) {
+  const lab = d.labels[labIdx]; if (!lab) return; lab.t = text;
+  if (/°/.test(text) || lab.leg == null || !lab.tpl) return;
+  const v = parseFloat(String(text).replace(',', '.')); if (!isFinite(v) || v <= 0) return;
+  const main = d.strokes.find(s => s.tpl === lab.tpl && !s.welt); if (!main || main.pts.length < 2) return;
+  const i = lab.leg; if (i < 0 || i >= main.pts.length - 1) return;
+  const a = main.pts[i], b = main.pts[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+  const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L, dx = a[0] + ux * v - b[0], dy = a[1] + uy * v - b[1];
+  for (let k = i + 1; k < main.pts.length; k++) { main.pts[k][0] += dx; main.pts[k][1] += dy; }
+  d.labels.forEach(l => { if (l.tpl !== lab.tpl || l === lab) return;
+    if ((l.leg != null && l.leg > i) || (l.bend != null && l.bend >= i)) { l.x += dx; l.y += dy; if (l.cx != null) { l.cx += dx; l.cy += dy; } }
+    if (l.leg === i) { const mid = [(a[0] + main.pts[i + 1][0]) / 2, (a[1] + main.pts[i + 1][1]) / 2]; l.x = Math.round(mid[0] - uy * 22); l.y = Math.round(mid[1] + ux * 22); } });
+  // rebuild welts at both ends so they stay attached after the resize
+  const had = d.strokes.some(s => s.tpl === lab.tpl && s.welt);
+  d.strokes = d.strokes.filter(s => !(s.tpl === lab.tpl && s.welt));
+  if (had) { const P = main.pts, tid = lab.tpl;
+    d.strokes.push({ w: 4.5, pts: flTplHook(P[0], P[1], 1), tpl: tid, welt: true });
+    d.strokes.push({ w: 4.5, pts: flTplHook(P[P.length - 1], P[P.length - 2], 1), tpl: tid, welt: true }); }
+}
+function flTplSaveCustom(name, pts) {
+  const q = S.settings.quotes = S.settings.quotes || {};
+  const list = q.flTemplates = q.flTemplates || [];
+  const id = 'c_' + Date.now().toString(36);
+  list.push({ id, name: name || 'Custom', pts: pts.map(p => [Math.round(p[0]), Math.round(p[1])]), angs: [] });
+  saveSettings(); if (typeof qsPush === 'function') qsPush();
+  return id;
+}
+function flTplFromStroke(s) { // simplified polyline for saving
+  const P = flStraighten(s.pts, 14); const xs = P.map(q => q[0]), ys = P.map(q => q[1]);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys); return P.map(q => [Math.round(q[0] - x0), Math.round(q[1] - y0)]);
+}
+
 /* ===== v1.7.1: optional Flashings RFQ - hand-drawn flashing profiles (Apple Pencil / finger / mouse) + supplier request for quotation PDF =====
    Inside a job: job.flashRfqs[] (saved and synced with the job; no DB change). Standalone from the home screen: kept on this device (IndexedDB key 'flash.standalone'). */
 const FL_W = 1000, FL_H = 700; // logical drawing space
@@ -6760,13 +6860,14 @@ function flIsStraight(P) { if (P.length < 2) return true; const C = Math.hypot(P
 function flSegsOf(s) { const P = flStraighten(s.pts, 14); const out = []; for (let i = 1; i < P.length; i++) out.push([P[i - 1], P[i]]); return out.length ? out : [[s.pts[0], s.pts[0]]]; }
 function flSplit(d) {
   const bb = s => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; s.pts.forEach(p => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }); return { x0, y0, x1, y1 }; };
-  const B = d.strokes.map(bb), big = B.map(b => Math.hypot(b.x1 - b.x0, b.y1 - b.y0) >= 95), SG = d.strokes.map(flSegsOf);
+  const B = d.strokes.map(bb), big = B.map((b, k) => Math.hypot(b.x1 - b.x0, b.y1 - b.y0) >= 95 || !!(d.strokes[k].tpl && !d.strokes[k].welt)), SG = d.strokes.map(flSegsOf);
   const dS = (p, k) => Math.min(...SG[k].map(([a, b]) => flDist(p, a, b)));
   const ends = k => [d.strokes[k].pts[0], d.strokes[k].pts[d.strokes[k].pts.length - 1]];
   // profile strokes: big ones, plus small ones touching a big one's end (welts)
   const prof = d.strokes.map((s, k) => big[k] || ends(k).some(p => d.strokes.some((o, j) => j !== k && big[j] && ends(j).some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 25))));
   const par = d.strokes.map((s, k) => k), find = k => par[k] === k ? k : (par[k] = find(par[k]));
   d.strokes.forEach((s, k) => { if (!prof[k]) return; d.strokes.forEach((o, j) => { if (j <= k || !prof[j]) return; if (ends(k).some(p => dS(p, j) < 28) || ends(j).some(p => dS(p, k) < 28)) par[find(k)] = find(j); }); });
+  d.strokes.forEach((s, k) => { if (!s.tpl) return; d.strokes.forEach((o, j) => { if (j > k && o.tpl === s.tpl) par[find(k)] = find(j); }); }); prof.forEach((v, k) => { if (d.strokes[k].tpl) prof[k] = true; }); // a placed template is one flashing
   const G = {}; d.strokes.forEach((s, k) => { if (prof[k]) (G[find(k)] = G[find(k)] || { ks: [], ls: [] }).ks.push(k); });
   const groups = Object.values(G);
   const near = p => { let gi = -1, bd = 170; groups.forEach((g, i) => g.ks.forEach(k => { const v = dS(p, k); if (v < bd) { bd = v; gi = i; } })); return gi; };
@@ -6776,7 +6877,7 @@ function flSplit(d) {
   const LB = d.labels || [], qv = {}, skip = new Set(), num = t => /^\d{1,4}$/.test(String(t).trim());
   LB.forEach((l, i) => { const t = String(l.t).trim(), m = FL_QTY.exec(t); if (m) { qv[i] = m[1] || m[2]; return; } if (/^(x|×|qty\.?|no\.?)$/i.test(t)) { let bj = -1, bd = 1e9; LB.forEach((o, j) => { if (j === i || skip.has(j) || !num(o.t)) return; const dx = o.x - l.x, dy = o.y - l.y; if (dx > -10 && dx < 130 && Math.abs(dy) < 35 && Math.hypot(dx, dy) < bd) { bd = Math.hypot(dx, dy); bj = j; } }); if (bj >= 0) { qv[i] = String(LB[bj].t).trim(); skip.add(bj); } } });
   const nearAny = p => { let gi = -1, bd = 700; groups.forEach((g, i) => g.ks.forEach(k => { const v = dS(p, k); if (v < bd) { bd = v; gi = i; } })); return gi; };
-  LB.forEach((l, i) => { if (skip.has(i)) return; const q = qv[i] !== undefined, gi = (q ? nearAny : near)([l.cx ?? l.x, l.cy ?? l.y]); const g = gi < 0 ? loose : groups[gi]; g.ls.push(i); if (q && gi >= 0) g.qty = qv[i]; });
+  LB.forEach((l, i) => { if (skip.has(i)) return; const q = qv[i] !== undefined, tg = l.tpl ? groups.findIndex(g => g.ks.some(k => d.strokes[k].tpl === l.tpl)) : -1, gi = tg >= 0 ? tg : (q ? nearAny : near)([l.cx ?? l.x, l.cy ?? l.y]); const g = gi < 0 ? loose : groups[gi]; g.ls.push(i); if (q && gi >= 0) g.qty = qv[i]; });
   groups.forEach(g => { g.qls = g.ls.filter(i => qv[i] !== undefined); });
   groups.forEach(g => { g.box = flGroupBox(d, g); }); groups.sort((a, b) => (Math.round(a.box.y0 / 500) - Math.round(b.box.y0 / 500)) || a.box.x0 - b.box.x0);
   return { groups, loose };
@@ -6786,7 +6887,7 @@ function flGroupBox(d, g) { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; g.ks.f
 // one group -> its own drawing (moved into the normal pad area, shrunk only if it does not fit) + qty from 'x15' / 'qty 15'
 function flGroupItem(d, g) { const b = flGroupBox(d, g), w = b.x1 - b.x0, h = b.y1 - b.y0, sc = Math.min(1, 900 / Math.max(w, 1), 600 / Math.max(h, 1)), dx = FL_W / 2 - (b.x0 + w / 2) * sc, dy = FL_H / 2 - (b.y0 + h / 2) * sc;
   const T = p => [Math.round((p[0] * sc + dx) * 10) / 10, Math.round((p[1] * sc + dy) * 10) / 10];
-  const strokes = g.ks.map(k => ({ w: d.strokes[k].w, pts: d.strokes[k].pts.map(p => [...T(p), p[2]]) })); let qty = '';
+  const strokes = g.ks.map(k => Object.assign({ w: d.strokes[k].w, pts: d.strokes[k].pts.map(p => [...T(p), p[2]]) }, d.strokes[k].tpl ? { tpl: d.strokes[k].tpl, welt: d.strokes[k].welt, tplId: d.strokes[k].tplId } : {})); let qty = '';
   if (g.qty) qty = g.qty; const labels = []; g.ls.forEach(i => { const l = d.labels[i], m = FL_QTY.exec(String(l.t).trim()); if (m) { qty = qty || m[1] || m[2]; return; } if ((g.qls || []).includes(i)) return; const n = Object.assign({}, l), q = T([l.x, l.y]); n.x = q[0]; n.y = q[1]; if (l.cx != null) { const c = T([l.cx, l.cy]); n.cx = c[0]; n.cy = c[1]; } labels.push(n); });
   const it = Object.assign(newFlashItem(), { drawing: { strokes, labels }, qty }); const G2 = flGeom(it.drawing); it.girth = G2.girthText; it.bends = G2.bendsText; if (G2.welts && G2.breakdown) it.girthNote = G2.breakdown; return it; }
 function flSplitReview(d) {
@@ -6824,7 +6925,7 @@ function flSplitReview(d) {
 }
 /* v1.7.10: Straighten only touches lines drawn while it is on, one at a time at pen-up, and never handwriting: small or compact strokes
    (digits, letters, welt hooks) or strokes over a label. The raw points are kept (s.raw) and the first Undo puts the line back as drawn. */
-function flLooksHand(s, d, noLab) { const P = s.pts; if (P.length < 2) return true; let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, len = 0;
+function flLooksHand(s, d, noLab) { const P = s.pts; if (P.length < 2) return true; if (s.tpl && !s.welt) return false; /* v1.7.14: a template profile is never writing */ let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, len = 0;
   P.forEach((p, i) => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); if (i) len += Math.hypot(p[0] - P[i - 1][0], p[1] - P[i - 1][1]); });
   const diag = Math.hypot(x1 - x0, y1 - y0); if (diag < 95) return true;                              // digits, letters, welt hooks
   if (diag < 170 && len / diag > 2.4) return true;                                                     // compact scribble (8, 0, B...)
@@ -6853,7 +6954,7 @@ function flDraw(item, title, opt = {}) {
     const st = { view: { s: 1, x: 0, y: 0 }, tp: new Map(), pinch: null, tool: 'pen', straight: !!S.settings.flStraight, penSeen: false, cur: null, undo: [] };
     const ov = document.createElement('div'); ov.className = 'fl-ov' + (opt.sheet ? ' fl-sheet' : '');
     ov.innerHTML = `<div class="fl-bar"><b class="fl-t">${esc(title)}</b>
-      <div class="fl-tools"><button type="button" data-t="pen" class="on">✎ Pen</button><button type="button" data-t="erase" title="Erases one leg or welt. Tap again for Erase whole">⌫ Eraser</button><button type="button" data-t="select" title="Tap one leg, welt, label or angle">⬚ Select</button><button type="button" data-t="label">A Label</button><button type="button" data-t="angle">∠ Angle</button>
+      <div class="fl-tools"><button type="button" data-t="pen" class="on">✎ Pen</button><button type="button" data-t="erase" title="Erases one leg or welt. Tap again for Erase whole">⌫ Eraser</button><button type="button" data-t="select" title="Tap one leg, welt, label or angle">⬚ Select</button><button type="button" data-x="tpls" title="Template flashings">Templates</button><button type="button" data-t="label">A Label</button><button type="button" data-t="angle">∠ Angle</button>
       <button type="button" data-x="straight" class="${st.straight ? 'on' : ''}" title="Straighten each new line as you draw">Straighten</button><button type="button" data-x="straightall" title="Straighten every profile line now (writing is left alone)">Straighten all</button>${opt.sheet ? '<button type="button" data-x="zout" aria-label="Zoom out">－</button><button type="button" data-x="zin" aria-label="Zoom in">＋</button><button type="button" data-x="zfit">Fit</button><button type="button" data-x="split" class="fl-split">Split into flashings</button>' : '<button type="button" data-x="geom">Girth &amp; bends</button>'}${flVisionOn() ? '<button type="button" data-x="read">Read dimensions</button>' : ''}<button type="button" data-x="undo">↶ Undo</button><button type="button" data-x="clear">Clear</button></div>
       <div class="fl-done"><button type="button" data-x="cancel" class="btn sm">Cancel</button><button type="button" data-x="done" class="btn sm primary">Done</button></div></div>
       <div class="fl-wrap"><canvas class="fl-cv" width="${FL_W}" height="${FL_H}" aria-label="Drawing area"></canvas></div>
@@ -6865,16 +6966,54 @@ function flDraw(item, title, opt = {}) {
       else { const s = Math.min(wr.width / FL_W, wr.height / FL_H); cv.style.width = FL_W * s + 'px'; cv.style.height = FL_H * s + 'px'; cv.width = FL_W * dpr; cv.height = FL_H * dpr; V.s = cv.width / FL_W; V.x = V.y = 0; } paint(); };
     const paint = () => { flPaint(g, d, cv.width, cv.height, { grid: true, view: opt.sheet ? V : null, gw: SW, gh: SH }); const h = st.sel; if (!h) return;
       g.save(); g.setTransform(V.s, 0, 0, V.s, V.x, V.y); g.strokeStyle = 'rgba(255,140,0,.85)'; g.fillStyle = 'rgba(255,140,0,.25)'; g.lineWidth = 12; g.lineCap = g.lineJoin = 'round';
-      if (h.label != null) { const l = d.labels[h.label]; if (l) { g.beginPath(); g.arc(l.x, l.y, 26, 0, 7); g.fill(); g.stroke(); } } else { const P = d.strokes[h.k] && d.strokes[h.k].pts.slice(h.a, h.b + 1); if (P && P.length) { g.beginPath(); g.moveTo(P[0][0], P[0][1]); P.forEach(q => g.lineTo(q[0], q[1])); g.stroke(); } } g.restore(); };
+      if (h.tpl) { d.strokes.forEach(s => { if (s.tpl !== h.tpl || !s.pts.length) return; g.beginPath(); g.moveTo(s.pts[0][0], s.pts[0][1]); s.pts.forEach(q => g.lineTo(q[0], q[1])); g.stroke(); });
+        d.labels.forEach(l => { if (l.tpl !== h.tpl) return; g.beginPath(); g.arc(l.x, l.y, 22, 0, 7); g.fill(); }); }
+      else if (h.label != null) { const l = d.labels[h.label]; if (l) { g.beginPath(); g.arc(l.x, l.y, 26, 0, 7); g.fill(); g.stroke(); } }
+      else { const P = d.strokes[h.k] && d.strokes[h.k].pts.slice(h.a, h.b + 1); if (P && P.length) { g.beginPath(); g.moveTo(P[0][0], P[0][1]); P.forEach(q => g.lineTo(q[0], q[1])); g.stroke(); } } g.restore(); };
     const unsel = () => { st.sel = null; $$('.fl-selpop', ov).forEach(x => x.remove()); };
-    const selAt = (p, cx, cy) => { unsel(); const h = flHit(d, p); if (!h) { paint(); return; } st.sel = h; paint();
-      const m = document.createElement('div'); m.className = 'fl-selpop'; m.style.cssText = `position:fixed;z-index:99;left:${Math.min(cx + 10, innerWidth - 230)}px;top:${Math.max(10, cy - 56)}px;background:#fff;border:1px solid #ccc;border-radius:10px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;gap:6px`;
-      const what = h.label != null ? (d.labels[h.label].cx != null || /°/.test(d.labels[h.label].t) ? 'angle' : 'label') : 'leg';
-      m.innerHTML = `<button type="button" class="btn sm" data-s="del">Delete ${what}</button><button type="button" class="btn sm" data-s="undo">Undo this</button><button type="button" class="btn sm" data-s="x" aria-label="Close">✕</button>`;
-      m.addEventListener('click', ev => { const t = ev.target.closest('[data-s]'); if (!t) return; const h2 = st.sel; if (t.dataset.s !== 'x' && h2) { snap();
-          if (t.dataset.s === 'del') { if (h2.label != null) d.labels.splice(h2.label, 1); else flRemovePiece(d, h2.k, h2.a, h2.b); }
-          else toast(flUndoItem(d, h2) === 'reverted' ? 'Put back as you drew it' : 'Removed'); } unsel(); paint(); });
+    const selAt = (p, cx, cy) => { unsel(); let h = flHit(d, p); if (!h) { paint(); return; }
+      // whole template if any stroke/label in the hit belongs to one
+      if (h.label != null && d.labels[h.label].tpl) h = { tpl: d.labels[h.label].tpl }; else if (h.k != null && d.strokes[h.k].tpl) h = { tpl: d.strokes[h.k].tpl };
+      st.sel = h; paint();
+      const m = document.createElement('div'); m.className = 'fl-selpop'; m.style.cssText = `position:fixed;z-index:99;left:${Math.min(cx + 10, innerWidth - 280)}px;top:${Math.max(10, cy - 56)}px;background:#fff;border:1px solid #ccc;border-radius:10px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;flex-wrap:wrap;gap:6px;max-width:280px`;
+      let btns = '';
+      if (h.tpl) btns = `<button type="button" class="btn sm" data-s="del">Delete</button><button type="button" class="btn sm" data-s="rot">Rotate 90°</button><button type="button" class="btn sm" data-s="fh">Flip H</button><button type="button" class="btn sm" data-s="fv">Flip V</button><button type="button" class="btn sm" data-s="move">Move</button>` + (typeof isMgr === 'function' && isMgr() ? '<button type="button" class="btn sm" data-s="save">Save as template</button>' : '');
+      else { const what = h.label != null ? (d.labels[h.label].cx != null || /°/.test(d.labels[h.label].t) ? 'angle' : 'label') : 'leg';
+        btns = `<button type="button" class="btn sm" data-s="del">Delete ${what}</button><button type="button" class="btn sm" data-s="undo">Undo this</button>` + (typeof isMgr === 'function' && isMgr() && h.k != null ? '<button type="button" class="btn sm" data-s="save">Save as template</button>' : ''); }
+      m.innerHTML = btns + '<button type="button" class="btn sm" data-s="x" aria-label="Close">✕</button>';
+      m.addEventListener('click', async ev => { const t = ev.target.closest('[data-s]'); if (!t) return; const h2 = st.sel; if (t.dataset.s === 'x') { unsel(); paint(); return; } if (!h2) return; snap();
+        if (h2.tpl) { if (t.dataset.s === 'del') flTplDelete(d, h2.tpl); else if (t.dataset.s === 'rot') flTplRotate(d, h2.tpl); else if (t.dataset.s === 'fh') flTplFlip(d, h2.tpl, 'h'); else if (t.dataset.s === 'fv') flTplFlip(d, h2.tpl, 'v');
+          else if (t.dataset.s === 'move') { st.moveTpl = h2.tpl; toast('Drag on the pad to move the template'); unsel(); paint(); return; }
+          else if (t.dataset.s === 'save') { const main = d.strokes.find(s => s.tpl === h2.tpl && !s.welt); if (main) { const nm = prompt('Template name', (flTplById(main.tplId) || {}).name || 'Custom'); if (nm) { flTplSaveCustom(nm, flTplFromStroke(main)); toast('Saved · managers see it in Templates'); } } } }
+        else { if (t.dataset.s === 'del') { if (h2.label != null) d.labels.splice(h2.label, 1); else flRemovePiece(d, h2.k, h2.a, h2.b); }
+          else if (t.dataset.s === 'undo') toast(flUndoItem(d, h2) === 'reverted' ? 'Put back as you drew it' : 'Removed');
+          else if (t.dataset.s === 'save' && h2.k != null) { const nm = prompt('Template name', 'Custom'); if (nm) { flTplSaveCustom(nm, flTplFromStroke(d.strokes[h2.k])); toast('Saved · managers see it in Templates'); } } }
+        unsel(); paint(); });
       ov.appendChild(m); };
+    const placeTpl = (tpl, cx, cy) => { snap(); const bit = flTplPlace(tpl, cx, cy, !!st.tplWelts); d.strokes.push(...bit.strokes); d.labels.push(...bit.labels); paint(); toast(tpl.name + (st.tplWelts ? ' + welts' : '') + ' · tap [__] to enter sizes'); };
+    const openTpls = () => { $$('.fl-tpls', ov).forEach(x => x.remove()); const strip = document.createElement('div'); strip.className = 'fl-tpls';
+      strip.style.cssText = 'position:absolute;left:0;right:0;top:48px;z-index:80;background:#f8fafc;border-bottom:1px solid #cbd5e1;padding:8px 10px;overflow-x:auto;display:flex;gap:8px;align-items:stretch;-webkit-overflow-scrolling:touch';
+      strip.innerHTML = `<label class="ckl" style="flex:none;align-self:center;white-space:nowrap"><input type="checkbox" data-tw ${st.tplWelts ? 'checked' : ''}> Welts</label>` +
+        flTplList().map(t => `<button type="button" class="fl-tpl" data-tid="${t.id}" style="flex:none;width:110px;padding:4px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;text-align:center"><img src="${flTplThumb(t)}" alt="" style="width:100%;height:56px;object-fit:contain;display:block;pointer-events:none"><span style="font-size:11px;display:block;margin-top:2px">${esc(t.name)}</span></button>`).join('') +
+        `<button type="button" class="btn sm" data-tx style="flex:none;align-self:center">Close</button>`;
+      strip.addEventListener('change', e => { if (e.target.dataset.tw != null) st.tplWelts = e.target.checked; });
+      strip.addEventListener('click', e => { if (e.target.closest('[data-tx]')) { strip.remove(); return; } const b = e.target.closest('[data-tid]'); if (!b) return; const tpl = flTplById(b.dataset.tid); if (!tpl) return;
+        // tap = place at centre of current view
+        const cx = opt.sheet ? (SW / 2 - V.x / V.s) : FL_W / 2, cy = opt.sheet ? (SH / 2 - V.y / V.s) : FL_H / 2;
+        // if sheet, centre of visible area
+        const vis = opt.sheet ? [(0 - V.x) / V.s + (cv.width / V.s) / 2, (0 - V.y) / V.s + (cv.height / V.s) / 2] : [FL_W / 2, FL_H / 2];
+        placeTpl(tpl, vis[0], vis[1]); strip.remove(); });
+      // drag from thumb onto canvas
+      strip.addEventListener('pointerdown', e => { const b = e.target.closest('[data-tid]'); if (!b) return; const tpl = flTplById(b.dataset.tid); if (!tpl) return;
+        st.dragTpl = { id: e.pointerId, tpl, ghost: null }; try { b.setPointerCapture(e.pointerId); } catch (_) {} });
+      strip.addEventListener('pointermove', e => { if (!st.dragTpl || st.dragTpl.id !== e.pointerId) return; e.preventDefault();
+        if (!st.dragTpl.ghost) { const g = document.createElement('div'); g.style.cssText = 'position:fixed;z-index:200;pointer-events:none;opacity:.7;width:110px'; g.innerHTML = `<img src="${flTplThumb(st.dragTpl.tpl)}" style="width:100%">`; document.body.appendChild(g); st.dragTpl.ghost = g; }
+        st.dragTpl.ghost.style.left = (e.clientX - 55) + 'px'; st.dragTpl.ghost.style.top = (e.clientY - 30) + 'px'; });
+      strip.addEventListener('pointerup', e => { if (!st.dragTpl || st.dragTpl.id !== e.pointerId) return; const r = cv.getBoundingClientRect();
+        if (st.dragTpl.ghost) st.dragTpl.ghost.remove();
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) { const p = pos(e); placeTpl(st.dragTpl.tpl, p[0], p[1]); strip.remove(); }
+        st.dragTpl = null; });
+      ov.appendChild(strip); };
     const hs = () => Math.min(cv.width / FL_W, cv.height / FL_H), clampS = n => Math.max(hs() * 0.2, Math.min(hs() * 6, n));
     const zoomAt = (f, cx, cy) => { const n = clampS(V.s * f); V.x = cx - (cx - V.x) * n / V.s; V.y = cy - (cy - V.y) * n / V.s; V.s = n; paint(); };
     const dev = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
@@ -6887,13 +7026,16 @@ function flDraw(item, title, opt = {}) {
     cv.addEventListener('pointerdown', async e => {
       if (opt.sheet && e.pointerType === 'touch') { st.tp.set(e.pointerId, dev(e)); if (st.tp.size >= 2) { if (st.cur && st.cur.touch) { if (st.cur.s) d.strokes.splice(d.strokes.indexOf(st.cur.s), 1); st.undo.pop(); st.cur = null; } st.pinch = Object.assign(pinchInfo(), { v: Object.assign({}, V) }); paint(); return; } }
       if (ignore(e) || (e.button && e.button !== 0)) return; e.preventDefault(); const p = pos(e);
+      if (st.moveTpl) { st.cur = { moveTpl: st.moveTpl, id: e.pointerId, last: p }; try { cv.setPointerCapture(e.pointerId); } catch (_) {} return; }
+      // tapping a blank dim/angle slot always opens entry
+      { const li = d.labels.findIndex(l => /\[__\]/.test(l.t) && Math.hypot(l.x - p[0], l.y - p[1]) < 36); if (li >= 0) { const lab = d.labels[li]; const t = await flAsk('', e.clientX, e.clientY); if (t == null || t === '__draw') return; snap(); if (!t) { d.labels.splice(li, 1); } else { flTplFillDim(d, li, t); } paint(); return; } }
       if (st.tool === 'angle') { const cs = flCorners(d); let c = null, bd = 70; cs.forEach(q => { const dd = Math.hypot(q.x - p[0], q.y - p[1]); if (dd < bd) { bd = dd; c = q; } });
         const lab = d.labels.find(l => l.cx != null && c && Math.hypot(l.cx - c.x, l.cy - c.y) < 12) || d.labels.find(l => /°/.test(l.t) && Math.hypot(l.x - p[0], l.y - p[1]) < 30);
         if (!c && !lab) { toast('Tap on a bend (a corner between two legs)'); return; }
         const t = await flAngAsk(lab ? lab.t : '', e.clientX, e.clientY); if (t == null) return; snap();
         if (lab) { if (t) lab.t = t; else d.labels.splice(d.labels.indexOf(lab), 1); } else if (t) d.labels.push(flAngLabel(c, t)); paint(); return; }
       if (st.tool === 'label') { const lab = d.labels.find(l => Math.hypot(l.x - p[0], l.y - p[1]) < 30);
-        const t = await flAsk(lab ? lab.t : '', e.clientX, e.clientY); if (t === '__draw') { $$('[data-t]', ov).forEach(x => x.classList.toggle('on', x.dataset.t === 'pen')); st.tool = 'pen'; return; } if (t == null) return; snap(); if (lab) { if (t) lab.t = t; else d.labels.splice(d.labels.indexOf(lab), 1); } else if (t) d.labels.push(flSnapAng(d, { x: p[0], y: p[1], t })); paint(); return; }
+        const t = await flAsk(lab ? (/\[__\]/.test(lab.t) ? '' : lab.t) : '', e.clientX, e.clientY); if (t === '__draw') { $$('[data-t]', ov).forEach(x => x.classList.toggle('on', x.dataset.t === 'pen')); st.tool = 'pen'; return; } if (t == null) return; snap(); if (lab) { if (!t) d.labels.splice(d.labels.indexOf(lab), 1); else if (lab.tpl && lab.leg != null) flTplFillDim(d, d.labels.indexOf(lab), t); else lab.t = t; } else if (t) d.labels.push(flSnapAng(d, { x: p[0], y: p[1], t })); paint(); return; }
       if (st.tool === 'select') { selAt(p, e.clientX, e.clientY); return; }
       try { cv.setPointerCapture(e.pointerId); } catch (_) { } snap();
       if (st.tool === 'erase') { st.cur = { erase: true, id: e.pointerId }; if (!eraseAt(p)) st.undo.pop(); paint(); return; }
@@ -6903,10 +7045,11 @@ function flDraw(item, title, opt = {}) {
       if (st.tp.has(e.pointerId)) { st.tp.set(e.pointerId, dev(e)); if (st.pinch && st.tp.size >= 2) { e.preventDefault(); const q = pinchInfo(), v0 = st.pinch.v, n = clampS(v0.s * q.dd / st.pinch.dd);
         V.s = n; V.x = q.m[0] - (st.pinch.m[0] - v0.x) * n / v0.s; V.y = q.m[1] - (st.pinch.m[1] - v0.y) * n / v0.s; paint(); return; } }
       if (!st.cur || e.pointerId !== st.cur.id) return; e.preventDefault(); let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : []; if (!evs.length) evs = [e];
+      if (st.cur.moveTpl) { const p = pos(e); flTplMove(d, st.cur.moveTpl, p[0] - st.cur.last[0], p[1] - st.cur.last[1]); st.cur.last = p; paint(); return; }
       if (st.cur.erase) { evs.forEach(ev => eraseAt(pos(ev))); paint(); return; }
       evs.forEach(ev => { const p = pos(ev); const l = st.cur.s.pts[st.cur.s.pts.length - 1]; if (Math.hypot(p[0] - l[0], p[1] - l[1]) >= 1.5) st.cur.s.pts.push(p); }); paint();
     });
-    const end = e => { st.tp.delete(e.pointerId); if (st.tp.size < 2) st.pinch = null; if (!st.cur || e.pointerId !== st.cur.id) return; const s = st.cur.s; st.cur = null; if (s) { if (s.pts.length < 2 && e.type === 'pointercancel') d.strokes.pop(); else if (st.straight && !flLooksHand(s, d)) { const raw = s.pts.map(q => q.slice()); st.undo.push(JSON.stringify(d)); s.raw = raw; s.pts = flStraightenKeep(raw); } } paint(); };
+    const end = e => { st.tp.delete(e.pointerId); if (st.tp.size < 2) st.pinch = null; if (!st.cur || e.pointerId !== st.cur.id) return; if (st.cur.moveTpl) { st.moveTpl = null; st.cur = null; paint(); return; } const s = st.cur.s; st.cur = null; if (s) { if (s.pts.length < 2 && e.type === 'pointercancel') d.strokes.pop(); else if (st.straight && !flLooksHand(s, d)) { const raw = s.pts.map(q => q.slice()); st.undo.push(JSON.stringify(d)); s.raw = raw; s.pts = flStraightenKeep(raw); } } paint(); };
     cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
     const block = e => { if (e.target.closest && e.target.closest('.fl-wrap')) e.preventDefault(); };
     document.addEventListener('touchmove', block, { passive: false }); document.addEventListener('touchstart', block, { passive: false });
@@ -6916,6 +7059,7 @@ function flDraw(item, title, opt = {}) {
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.t) { if (b.dataset.t === 'erase' && st.tool === 'erase') { st.eraseWhole = !st.eraseWhole; b.textContent = st.eraseWhole ? '⌫ Erase whole' : '⌫ Eraser'; toast(st.eraseWhole ? 'Eraser: whole strokes' : 'Eraser: one leg or welt at a time'); return; } unsel(); paint(); st.tool = b.dataset.t; $$('[data-t]', ov).forEach(x => x.classList.toggle('on', x === b)); return; }
       const x = b.dataset.x;
+      if (x === 'tpls') { openTpls(); return; }
       if (x === 'straight') { st.straight = !st.straight; S.settings.flStraight = st.straight; saveSettings(); b.classList.toggle('on', st.straight); toast(st.straight ? 'Straighten on: new lines are straightened when you lift the pen (handwriting is left as written)' : 'Straighten off'); }
       if (x === 'straightall') { if (!d.strokes.length) return; snap(); const rs = flStraightenAll(d); if (!rs.lines && !rs.welts) { st.undo.pop(); return toast('Nothing to straighten'); } paint(); toast(`Straightened ${rs.lines} line${rs.lines === 1 ? '' : 's'}${rs.welts ? `, ${rs.welts} welt${rs.welts === 1 ? '' : 's'} tidied` : ''}. Handwriting left as written. Undo puts it all back.`, 4000); return; }
       if (x === 'undo') { unsel(); const u = st.undo.pop(); if (u) { const o = JSON.parse(u); d.strokes = o.strokes; d.labels = o.labels; paint(); } }
@@ -6943,7 +7087,7 @@ function flAngLabel(c, t) { const r1 = Math.atan2(c.a[1] - c.y, c.a[0] - c.x), r
   if (L < 0.05) { bx = -Math.sin(r1); by = Math.cos(r1); } else { bx /= L; by /= L; }
   t = /^\d+(\.\d+)?$/.test(t) ? t + '°' : t; return { x: c.x + bx * 46, y: c.y + by * 46, t, cx: c.x, cy: c.y, r1, r2 }; }
 function flSnapAng(d, l) { if (!/°|deg/i.test(l.t)) return l; let c = null, bd = 90; flCorners(d).forEach(q => { const dd = Math.hypot(q.x - l.x, q.y - l.y); if (dd < bd) { bd = dd; c = q; } }); return c ? flAngLabel(c, l.t.replace(/\s*deg(rees)?/i, '°')) : l; }
-function flAngles(d) { const cs = flCorners(d); return (d.labels || []).filter(l => /°/.test(l.t)).map(l => { const x = l.cx ?? l.x, y = l.cy ?? l.y; let k = 0, bd = 1e9; cs.forEach((q, i) => { const dd = Math.hypot(q.x - x, q.y - y); if (dd < bd) { bd = dd; k = i; } }); return [k, l.t]; }).sort((a, b) => a[0] - b[0]).map(x => x[1]); }
+function flAngles(d) { const cs = flCorners(d); return (d.labels || []).filter(l => /°/.test(l.t) && !/\[__\]/.test(l.t)).map(l => { const x = l.cx ?? l.x, y = l.cy ?? l.y; let k = 0, bd = 1e9; cs.forEach((q, i) => { const dd = Math.hypot(q.x - x, q.y - y); if (dd < bd) { bd = dd; k = i; } }); return [k, l.t]; }).sort((a, b) => a[0] - b[0]).map(x => x[1]); }
 function flBendsOut(it) { const b = String(it.bends || '').trim(), a = it.drawing ? flAngles(it.drawing) : []; if (!a.length || /°/.test(b)) return b; return b ? `${b} (${a.join(', ')})`.replace(/\) \(/, '; ') : a.join(', '); }
 const FL_ANGS = [45, 90, 95, 100, 105, 120, 135, 150, 160];
 function flAngAsk(cur, cx, cy) {
