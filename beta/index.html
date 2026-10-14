@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.7.14">
+<meta name="app-version" content="1.7.15">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -850,7 +850,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.7.14';
+const APP_VERSION = '1.7.15';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -6708,8 +6708,8 @@ function flTplPlace(tpl, cx, cy, welts) {
   });
   const strokes = [stroke];
   if (welts && pts.length >= 2) {
-    strokes.push({ w: 4.5, pts: flTplHook(pts[0], pts[1], 1), tpl: tid, welt: true });
-    strokes.push({ w: 4.5, pts: flTplHook(pts[pts.length - 1], pts[pts.length - 2], 1), tpl: tid, welt: true });
+    strokes.push({ w: 4.5, pts: flTplHook(pts[0], pts[1], 1), tpl: tid, welt: true, wend: 'a', wside: 1 });
+    strokes.push({ w: 4.5, pts: flTplHook(pts[pts.length - 1], pts[pts.length - 2], 1), tpl: tid, welt: true, wend: 'z', wside: 1 });
   }
   return { strokes, labels, tid };
 }
@@ -6727,12 +6727,15 @@ function flTplCentroid(d, tid) { const g = flTplGroup(d, tid); let n = 0, x = 0,
 function flTplTransform(d, tid, fn) { flTplGroup(d, tid).strokes.forEach(k => { d.strokes[k].pts = d.strokes[k].pts.map(fn); delete d.strokes[k].raw; });
   flTplGroup(d, tid).labels.forEach(i => { const l = d.labels[i], q = fn([l.x, l.y]); l.x = q[0]; l.y = q[1]; if (l.cx != null) { const c = fn([l.cx, l.cy]); l.cx = c[0]; l.cy = c[1]; } }); }
 function flTplRotate(d, tid) { const [cx, cy] = flTplCentroid(d, tid); flTplTransform(d, tid, p => [cx - (p[1] - cy), cy + (p[0] - cx), p[2] ?? 0.5]); }
-function flTplFlip(d, tid, axis) { const [cx, cy] = flTplCentroid(d, tid); flTplTransform(d, tid, p => axis === 'h' ? [2 * cx - p[0], p[1], p[2] ?? 0.5] : [p[0], 2 * cy - p[1], p[2] ?? 0.5]); }
+function flTplFlip(d, tid, axis) { const [cx, cy] = flTplCentroid(d, tid); d.strokes.forEach(s => { if (s.tpl === tid && s.welt && s.wside != null) s.wside = -s.wside; }); d.labels.forEach(l => { if (l.tpl === tid && l.side) l.side = -l.side; }); flTplTransform(d, tid, p => axis === 'h' ? [2 * cx - p[0], p[1], p[2] ?? 0.5] : [p[0], 2 * cy - p[1], p[2] ?? 0.5]); }
 function flTplDelete(d, tid) { d.strokes = d.strokes.filter(s => s.tpl !== tid); d.labels = (d.labels || []).filter(l => l.tpl !== tid); }
 function flTplMove(d, tid, dx, dy) { flTplTransform(d, tid, p => [p[0] + dx, p[1] + dy, p[2] ?? 0.5]); }
 // fill a blank dim: update the label and stretch that leg (and anything beyond it) so the drawn length matches mm (1 drawing unit ≈ 1 mm)
 function flTplFillDim(d, labIdx, text) {
-  const lab = d.labels[labIdx]; if (!lab) return; lab.t = text;
+  const lab0 = d.labels[labIdx]; if (lab0 && lab0.tpl && lab0.leg != null && flTplScaleOn()) { lab0.t = text; const m = flTplMain(d, lab0.tpl); if (m && m.man) delete m.man[lab0.leg]; flTplScale(d, lab0.tpl); return; }
+  return flTplFillDimRaw(d, labIdx, text); }
+function flTplFillDimRaw(d, labIdx, text) {
+  const lab = d.labels[labIdx]; if (!lab) return; lab.t = text; { const m = flTplMain(d, lab.tpl); if (m && m.man && lab.leg != null) delete m.man[lab.leg]; }
   if (/°/.test(text) || lab.leg == null || !lab.tpl) return;
   const v = parseFloat(String(text).replace(',', '.')); if (!isFinite(v) || v <= 0) return;
   const main = d.strokes.find(s => s.tpl === lab.tpl && !s.welt); if (!main || main.pts.length < 2) return;
@@ -6744,11 +6747,7 @@ function flTplFillDim(d, labIdx, text) {
     if ((l.leg != null && l.leg > i) || (l.bend != null && l.bend >= i)) { l.x += dx; l.y += dy; if (l.cx != null) { l.cx += dx; l.cy += dy; } }
     if (l.leg === i) { const mid = [(a[0] + main.pts[i + 1][0]) / 2, (a[1] + main.pts[i + 1][1]) / 2]; l.x = Math.round(mid[0] - uy * 22); l.y = Math.round(mid[1] + ux * 22); } });
   // rebuild welts at both ends so they stay attached after the resize
-  const had = d.strokes.some(s => s.tpl === lab.tpl && s.welt);
-  d.strokes = d.strokes.filter(s => !(s.tpl === lab.tpl && s.welt));
-  if (had) { const P = main.pts, tid = lab.tpl;
-    d.strokes.push({ w: 4.5, pts: flTplHook(P[0], P[1], 1), tpl: tid, welt: true });
-    d.strokes.push({ w: 4.5, pts: flTplHook(P[P.length - 1], P[P.length - 2], 1), tpl: tid, welt: true }); }
+  flTplRelayout(d, lab.tpl);
 }
 function flTplSaveCustom(name, pts) {
   const q = S.settings.quotes = S.settings.quotes || {};
@@ -6762,6 +6761,42 @@ function flTplFromStroke(s) { // simplified polyline for saving
   const P = flStraighten(s.pts, 14); const xs = P.map(q => q[0]), ys = P.map(q => q[1]);
   const x0 = Math.min(...xs), y0 = Math.min(...ys); return P.map(q => [Math.round(q[0] - x0), Math.round(q[1] - y0)]);
 }
+/* v1.7.15: direct manipulation. Handles at every vertex; relayout keeps welts and labels with the legs; 'Scale to sizes' redraws legs in proportion to their numbers */
+function flTplMain(d, tid) { return d.strokes.find(s => s.tpl === tid && !s.welt); }
+function flTplRelayout(d, tid) { const m = flTplMain(d, tid); if (!m || m.pts.length < 2) return; const P = m.pts, n = P.length;
+  d.labels.forEach(l => { if (l.tpl !== tid) return;
+    if (l.leg != null && l.leg < n - 1) { const a = P[l.leg], b = P[l.leg + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
+      const side = l.side || (Math.sign(ux * (l.y - a[1]) - uy * (l.x - a[0])) || 1); l.side = side; l.x = Math.round((a[0] + b[0]) / 2 - uy * 22 * side); l.y = Math.round((a[1] + b[1]) / 2 + ux * 22 * side); }
+    if (l.bend != null && l.bend + 2 < n) { const c = P[l.bend + 1], r1 = Math.atan2(P[l.bend][1] - c[1], P[l.bend][0] - c[0]), r2 = Math.atan2(P[l.bend + 2][1] - c[1], P[l.bend + 2][0] - c[0]);
+      const bx = Math.cos(r1) + Math.cos(r2), by = Math.sin(r1) + Math.sin(r2), bl = Math.hypot(bx, by) || 1; Object.assign(l, { cx: c[0], cy: c[1], r1, r2, x: Math.round(c[0] + bx / bl * 28), y: Math.round(c[1] + by / bl * 28) }); } });
+  d.strokes.forEach(s => { if (s.tpl !== tid || !s.welt) return; const E0 = P[0], E1 = P[n - 1]; const atStart = Math.hypot(s.pts[0][0] - E0[0], s.pts[0][1] - E0[1]) <= Math.hypot(s.pts[0][0] - E1[0], s.pts[0][1] - E1[1]) ? s.wend !== 'z' : s.wend === 'a';
+    s.wend = s.wend || (atStart ? 'a' : 'z'); const E = s.wend === 'a' ? E0 : E1, N = s.wend === 'a' ? P[1] : P[n - 2];
+    if (s.wside == null) { const o = s.pts[0], h = s.pts[1] || o, ux = o[0] - (s.wend === 'a' ? P[1] : P[n - 2])[0], uy = o[1] - (s.wend === 'a' ? P[1] : P[n - 2])[1]; s.wside = Math.sign(ux * (h[1] - o[1]) - uy * (h[0] - o[0])) || 1; }
+    s.pts = flTplHook(E, N, s.wside); }); }
+// drag vertex i: along its leg (angles kept, the rest of the profile follows), or freely (bend: changes the angle) when free
+function flTplDragVertex(d, tid, i, p, free) { const m = flTplMain(d, tid); if (!m) return; const P = m.pts, n = P.length; m.man = m.man || {};
+  if (free) { P[i][0] = p[0]; P[i][1] = p[1]; if (i > 0) m.man[i - 1] = 1; if (i < n - 1) m.man[i] = 1; flTplRelayout(d, tid); return; }
+  const back = i === 0, a = back ? P[1] : P[i - 1], b = P[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
+  const t = Math.max(12, (p[0] - a[0]) * ux + (p[1] - a[1]) * uy), dx = a[0] + ux * t - b[0], dy = a[1] + uy * t - b[1];
+  if (back) { P[0][0] += dx; P[0][1] += dy; m.man[0] = 1; } else { for (let k = i; k < n; k++) { P[k][0] += dx; P[k][1] += dy; } m.man[i - 1] = 1; }
+  flTplRelayout(d, tid); }
+// 'Scale to sizes': legs with a number are drawn in proportion, fitted to the template's current box; hand-dragged legs keep their drawn length
+function flTplScale(d, tid) { const m = flTplMain(d, tid); if (!m || m.pts.length < 2) return; const P = m.pts, n = P.length, man = m.man || {};
+  const cur = [], dir = [], val = []; for (let i = 0; i < n - 1; i++) { const a = P[i], b = P[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; cur.push(L); dir.push([(b[0] - a[0]) / L, (b[1] - a[1]) / L]); }
+  d.labels.forEach(l => { if (l.tpl === tid && l.leg != null && l.leg < n - 1) { const v = parseFloat(String(l.t).replace(',', '.')); if (isFinite(v) && v > 0 && !/°/.test(l.t)) val[l.leg] = v; } });
+  const known = cur.map((c, i) => val[i] && !man[i] ? i : -1).filter(i => i >= 0); if (!known.length) return;
+  const k0 = known.reduce((t, i) => t + cur[i], 0) / known.reduce((t, i) => t + val[i], 0);
+  const mm = cur.map((c, i) => man[i] ? null : val[i] ? val[i] : c / k0);
+  const box = Q => { const xs = Q.map(q => q[0]), ys = Q.map(q => q[1]); return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]; };
+  const b0 = box(P), ext0 = Math.max(160, Math.min(520, Math.max(b0[2] - b0[0], b0[3] - b0[1])));
+  const build = k => { const Q = [[0, 0]]; for (let i = 0; i < n - 1; i++) { const L = mm[i] == null ? cur[i] : mm[i] * k; Q.push([Q[i][0] + dir[i][0] * L, Q[i][1] + dir[i][1] * L]); } return Q; };
+  let k = k0; for (let it = 0; it < 4; it++) { const b = box(build(k)), e = Math.max(b[2] - b[0], b[3] - b[1]) || 1; k *= ext0 / e; }
+  const Q = build(k), bq = box(Q), cx = (b0[0] + b0[2]) / 2 - (bq[0] + bq[2]) / 2, cy = (b0[1] + b0[3]) / 2 - (bq[1] + bq[3]) / 2;
+  Q.forEach((q, i) => { P[i][0] = Math.round((q[0] + cx) * 10) / 10; P[i][1] = Math.round((q[1] + cy) * 10) / 10; }); m.k = k; flTplRelayout(d, tid); }
+const flTplScaleOn = () => S.settings.flTplScale !== false;
+// template under a point (generous radius for finger / Pencil)
+function flTplAt(d, p, R) { let best = null, bd = R; d.strokes.forEach(s => { if (!s.tpl) return; const P = s.pts; for (let i = 0; i < P.length - 1; i++) { const v = flSegD(p, P[i], P[i + 1]); if (v < bd) { bd = v; best = s.tpl; } } });
+  (d.labels || []).forEach(l => { if (!l.tpl) return; const v = Math.hypot(l.x - p[0], l.y - p[1]); if (v < Math.min(bd, 30)) { bd = v; best = l.tpl; } }); return best; }
 
 /* ===== v1.7.1: optional Flashings RFQ - hand-drawn flashing profiles (Apple Pencil / finger / mouse) + supplier request for quotation PDF =====
    Inside a job: job.flashRfqs[] (saved and synced with the job; no DB change). Standalone from the home screen: kept on this device (IndexedDB key 'flash.standalone'). */
@@ -6967,7 +7002,8 @@ function flDraw(item, title, opt = {}) {
     const paint = () => { flPaint(g, d, cv.width, cv.height, { grid: true, view: opt.sheet ? V : null, gw: SW, gh: SH }); const h = st.sel; if (!h) return;
       g.save(); g.setTransform(V.s, 0, 0, V.s, V.x, V.y); g.strokeStyle = 'rgba(255,140,0,.85)'; g.fillStyle = 'rgba(255,140,0,.25)'; g.lineWidth = 12; g.lineCap = g.lineJoin = 'round';
       if (h.tpl) { d.strokes.forEach(s => { if (s.tpl !== h.tpl || !s.pts.length) return; g.beginPath(); g.moveTo(s.pts[0][0], s.pts[0][1]); s.pts.forEach(q => g.lineTo(q[0], q[1])); g.stroke(); });
-        d.labels.forEach(l => { if (l.tpl !== h.tpl) return; g.beginPath(); g.arc(l.x, l.y, 22, 0, 7); g.fill(); }); }
+        d.labels.forEach(l => { if (l.tpl !== h.tpl) return; g.beginPath(); g.arc(l.x, l.y, 22, 0, 7); g.fill(); });
+        const m = flTplMain(d, h.tpl), hr = 13 * dpr / V.s; if (m) m.pts.forEach((q, i) => { g.beginPath(); g.arc(q[0], q[1], hr, 0, 7); g.fillStyle = i === 0 || i === m.pts.length - 1 ? '#fff' : (st.bendMode ? '#fde68a' : '#fff'); g.fill(); g.lineWidth = 3 * dpr / V.s; g.strokeStyle = '#ea580c'; g.stroke(); }); }
       else if (h.label != null) { const l = d.labels[h.label]; if (l) { g.beginPath(); g.arc(l.x, l.y, 26, 0, 7); g.fill(); g.stroke(); } }
       else { const P = d.strokes[h.k] && d.strokes[h.k].pts.slice(h.a, h.b + 1); if (P && P.length) { g.beginPath(); g.moveTo(P[0][0], P[0][1]); P.forEach(q => g.lineTo(q[0], q[1])); g.stroke(); } } g.restore(); };
     const unsel = () => { st.sel = null; $$('.fl-selpop', ov).forEach(x => x.remove()); };
@@ -6977,12 +7013,14 @@ function flDraw(item, title, opt = {}) {
       st.sel = h; paint();
       const m = document.createElement('div'); m.className = 'fl-selpop'; m.style.cssText = `position:fixed;z-index:99;left:${Math.min(cx + 10, innerWidth - 280)}px;top:${Math.max(10, cy - 56)}px;background:#fff;border:1px solid #ccc;border-radius:10px;padding:6px;box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;flex-wrap:wrap;gap:6px;max-width:280px`;
       let btns = '';
-      if (h.tpl) btns = `<button type="button" class="btn sm" data-s="del">Delete</button><button type="button" class="btn sm" data-s="rot">Rotate 90°</button><button type="button" class="btn sm" data-s="fh">Flip H</button><button type="button" class="btn sm" data-s="fv">Flip V</button><button type="button" class="btn sm" data-s="move">Move</button>` + (typeof isMgr === 'function' && isMgr() ? '<button type="button" class="btn sm" data-s="save">Save as template</button>' : '');
+      if (h.tpl) btns = `<button type="button" class="btn sm" data-s="del">Delete</button><button type="button" class="btn sm" data-s="rot">Rotate 90°</button><button type="button" class="btn sm" data-s="fh">Flip H</button><button type="button" class="btn sm" data-s="fv">Flip V</button><button type="button" class="btn sm" data-s="move">Move</button><button type="button" class="btn sm${flTplScaleOn() ? ' primary' : ''}" data-s="scale">Scale to sizes: ${flTplScaleOn() ? 'on' : 'off'}</button><button type="button" class="btn sm${st.bendMode ? ' primary' : ''}" data-s="bend">Bend angles: ${st.bendMode ? 'on' : 'off'}</button>` + (typeof isMgr === 'function' && isMgr() ? '<button type="button" class="btn sm" data-s="save">Save as template</button>' : '');
       else { const what = h.label != null ? (d.labels[h.label].cx != null || /°/.test(d.labels[h.label].t) ? 'angle' : 'label') : 'leg';
         btns = `<button type="button" class="btn sm" data-s="del">Delete ${what}</button><button type="button" class="btn sm" data-s="undo">Undo this</button>` + (typeof isMgr === 'function' && isMgr() && h.k != null ? '<button type="button" class="btn sm" data-s="save">Save as template</button>' : ''); }
       m.innerHTML = btns + '<button type="button" class="btn sm" data-s="x" aria-label="Close">✕</button>';
       m.addEventListener('click', async ev => { const t = ev.target.closest('[data-s]'); if (!t) return; const h2 = st.sel; if (t.dataset.s === 'x') { unsel(); paint(); return; } if (!h2) return; snap();
         if (h2.tpl) { if (t.dataset.s === 'del') flTplDelete(d, h2.tpl); else if (t.dataset.s === 'rot') flTplRotate(d, h2.tpl); else if (t.dataset.s === 'fh') flTplFlip(d, h2.tpl, 'h'); else if (t.dataset.s === 'fv') flTplFlip(d, h2.tpl, 'v');
+          else if (t.dataset.s === 'scale') { S.settings.flTplScale = !flTplScaleOn(); saveSettings(); if (flTplScaleOn()) { const m = flTplMain(d, h2.tpl); if (m) m.man = {}; flTplScale(d, h2.tpl); } toast(flTplScaleOn() ? 'Scale to sizes on: legs are drawn in proportion to their numbers' : 'Scale to sizes off'); }
+          else if (t.dataset.s === 'bend') { st.bendMode = !st.bendMode; st.undo.pop(); toast(st.bendMode ? 'Bend angles on: drag a corner handle to change its angle' : 'Bend angles off: handles stretch legs, angles kept'); paint(); return; }
           else if (t.dataset.s === 'move') { st.moveTpl = h2.tpl; toast('Drag on the pad to move the template'); unsel(); paint(); return; }
           else if (t.dataset.s === 'save') { const main = d.strokes.find(s => s.tpl === h2.tpl && !s.welt); if (main) { const nm = prompt('Template name', (flTplById(main.tplId) || {}).name || 'Custom'); if (nm) { flTplSaveCustom(nm, flTplFromStroke(main)); toast('Saved · managers see it in Templates'); } } } }
         else { if (t.dataset.s === 'del') { if (h2.label != null) d.labels.splice(h2.label, 1); else flRemovePiece(d, h2.k, h2.a, h2.b); }
@@ -7024,11 +7062,11 @@ function flDraw(item, title, opt = {}) {
     const pinchInfo = () => { const P = [...st.tp.values()]; return { m: [(P[0][0] + P[1][0]) / 2, (P[0][1] + P[1][1]) / 2], dd: Math.hypot(P[0][0] - P[1][0], P[0][1] - P[1][1]) || 1 }; };
     if (opt.sheet) cv.addEventListener('wheel', e => { e.preventDefault(); const q = dev(e); if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY / 300), q[0], q[1]); else { V.x -= e.deltaX; V.y -= e.deltaY; paint(); } }, { passive: false });
     cv.addEventListener('pointerdown', async e => {
-      if (opt.sheet && e.pointerType === 'touch') { st.tp.set(e.pointerId, dev(e)); if (st.tp.size >= 2) { if (st.cur && st.cur.touch) { if (st.cur.s) d.strokes.splice(d.strokes.indexOf(st.cur.s), 1); st.undo.pop(); st.cur = null; } st.pinch = Object.assign(pinchInfo(), { v: Object.assign({}, V) }); paint(); return; } }
+      if (opt.sheet && e.pointerType === 'touch') { st.tp.set(e.pointerId, dev(e)); if (st.tp.size >= 2) { if (st.cur && st.cur.touch) { if (st.cur.s) { d.strokes.splice(d.strokes.indexOf(st.cur.s), 1); st.undo.pop(); } else if (st.cur.moveTpl || st.cur.handle != null) { const u = st.undo.pop(); if (u) { const o = JSON.parse(u); d.strokes = o.strokes; d.labels = o.labels; } } else st.undo.pop(); st.cur = null; } st.pinch = Object.assign(pinchInfo(), { v: Object.assign({}, V) }); paint(); return; } }
       if (ignore(e) || (e.button && e.button !== 0)) return; e.preventDefault(); const p = pos(e);
       if (st.moveTpl) { st.cur = { moveTpl: st.moveTpl, id: e.pointerId, last: p }; try { cv.setPointerCapture(e.pointerId); } catch (_) {} return; }
       // tapping a blank dim/angle slot always opens entry
-      { const li = d.labels.findIndex(l => /\[__\]/.test(l.t) && Math.hypot(l.x - p[0], l.y - p[1]) < 36); if (li >= 0) { const lab = d.labels[li]; const t = await flAsk('', e.clientX, e.clientY); if (t == null || t === '__draw') return; snap(); if (!t) { d.labels.splice(li, 1); } else { flTplFillDim(d, li, t); } paint(); return; } }
+      if (st.tool !== 'select' && st.tool !== 'erase') { const li = d.labels.findIndex(l => /\[__\]/.test(l.t) && Math.hypot(l.x - p[0], l.y - p[1]) < 36); if (li >= 0) { const lab = d.labels[li]; const t = await flAsk('', e.clientX, e.clientY); if (t == null || t === '__draw') return; snap(); if (!t) { d.labels.splice(li, 1); } else { flTplFillDim(d, li, t); } paint(); return; } }
       if (st.tool === 'angle') { const cs = flCorners(d); let c = null, bd = 70; cs.forEach(q => { const dd = Math.hypot(q.x - p[0], q.y - p[1]); if (dd < bd) { bd = dd; c = q; } });
         const lab = d.labels.find(l => l.cx != null && c && Math.hypot(l.cx - c.x, l.cy - c.y) < 12) || d.labels.find(l => /°/.test(l.t) && Math.hypot(l.x - p[0], l.y - p[1]) < 30);
         if (!c && !lab) { toast('Tap on a bend (a corner between two legs)'); return; }
@@ -7036,7 +7074,11 @@ function flDraw(item, title, opt = {}) {
         if (lab) { if (t) lab.t = t; else d.labels.splice(d.labels.indexOf(lab), 1); } else if (t) d.labels.push(flAngLabel(c, t)); paint(); return; }
       if (st.tool === 'label') { const lab = d.labels.find(l => Math.hypot(l.x - p[0], l.y - p[1]) < 30);
         const t = await flAsk(lab ? (/\[__\]/.test(lab.t) ? '' : lab.t) : '', e.clientX, e.clientY); if (t === '__draw') { $$('[data-t]', ov).forEach(x => x.classList.toggle('on', x.dataset.t === 'pen')); st.tool = 'pen'; return; } if (t == null) return; snap(); if (lab) { if (!t) d.labels.splice(d.labels.indexOf(lab), 1); else if (lab.tpl && lab.leg != null) flTplFillDim(d, d.labels.indexOf(lab), t); else lab.t = t; } else if (t) d.labels.push(flSnapAng(d, { x: p[0], y: p[1], t })); paint(); return; }
-      if (st.tool === 'select') { selAt(p, e.clientX, e.clientY); return; }
+      if (st.tool === 'select') { const Rr = 26 * dpr / V.s, cap = () => { try { cv.setPointerCapture(e.pointerId); } catch (_) { } }, touch = e.pointerType === 'touch';
+        if (st.sel && st.sel.tpl) { const m = flTplMain(d, st.sel.tpl); let hi = -1, hb = Rr; if (m) m.pts.forEach((q, i) => { const v = Math.hypot(q[0] - p[0], q[1] - p[1]); if (v < hb) { hb = v; hi = i; } });
+          if (hi >= 0) { snap(); $$('.fl-selpop', ov).forEach(x => x.remove()); st.cur = { handle: hi, tid: st.sel.tpl, id: e.pointerId, free: e.shiftKey || e.altKey || !!st.bendMode, touch }; cap(); return; } }
+        const tid = flTplAt(d, p, Rr); if (tid) { snap(); $$('.fl-selpop', ov).forEach(x => x.remove()); st.sel = { tpl: tid }; st.cur = { moveTpl: tid, drag: true, id: e.pointerId, last: p, moved: 0, cx: e.clientX, cy: e.clientY, touch }; cap(); paint(); return; }
+        selAt(p, e.clientX, e.clientY); return; }
       try { cv.setPointerCapture(e.pointerId); } catch (_) { } snap();
       if (st.tool === 'erase') { st.cur = { erase: true, id: e.pointerId }; if (!eraseAt(p)) st.undo.pop(); paint(); return; }
       st.cur = { touch: e.pointerType === 'touch', id: e.pointerId, s: { w: e.pointerType === 'pen' ? 5 : 4.5, pts: [p] } }; d.strokes.push(st.cur.s); paint();
@@ -7045,11 +7087,13 @@ function flDraw(item, title, opt = {}) {
       if (st.tp.has(e.pointerId)) { st.tp.set(e.pointerId, dev(e)); if (st.pinch && st.tp.size >= 2) { e.preventDefault(); const q = pinchInfo(), v0 = st.pinch.v, n = clampS(v0.s * q.dd / st.pinch.dd);
         V.s = n; V.x = q.m[0] - (st.pinch.m[0] - v0.x) * n / v0.s; V.y = q.m[1] - (st.pinch.m[1] - v0.y) * n / v0.s; paint(); return; } }
       if (!st.cur || e.pointerId !== st.cur.id) return; e.preventDefault(); let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : []; if (!evs.length) evs = [e];
-      if (st.cur.moveTpl) { const p = pos(e); flTplMove(d, st.cur.moveTpl, p[0] - st.cur.last[0], p[1] - st.cur.last[1]); st.cur.last = p; paint(); return; }
+      if (st.cur.handle != null) { flTplDragVertex(d, st.cur.tid, st.cur.handle, pos(e), st.cur.free); st.cur.moved = 1; paint(); return; }
+      if (st.cur.moveTpl) { const p = pos(e); st.cur.moved += Math.hypot(e.clientX - st.cur.cx, e.clientY - st.cur.cy) > 4 ? 1 : 0; flTplMove(d, st.cur.moveTpl, p[0] - st.cur.last[0], p[1] - st.cur.last[1]); st.cur.last = p; paint(); return; }
       if (st.cur.erase) { evs.forEach(ev => eraseAt(pos(ev))); paint(); return; }
       evs.forEach(ev => { const p = pos(ev); const l = st.cur.s.pts[st.cur.s.pts.length - 1]; if (Math.hypot(p[0] - l[0], p[1] - l[1]) >= 1.5) st.cur.s.pts.push(p); }); paint();
     });
-    const end = e => { st.tp.delete(e.pointerId); if (st.tp.size < 2) st.pinch = null; if (!st.cur || e.pointerId !== st.cur.id) return; if (st.cur.moveTpl) { st.moveTpl = null; st.cur = null; paint(); return; } const s = st.cur.s; st.cur = null; if (s) { if (s.pts.length < 2 && e.type === 'pointercancel') d.strokes.pop(); else if (st.straight && !flLooksHand(s, d)) { const raw = s.pts.map(q => q.slice()); st.undo.push(JSON.stringify(d)); s.raw = raw; s.pts = flStraightenKeep(raw); } } paint(); };
+    const end = e => { st.tp.delete(e.pointerId); if (st.tp.size < 2) st.pinch = null; if (!st.cur || e.pointerId !== st.cur.id) return; if (st.cur.handle != null) { if (!st.cur.moved) st.undo.pop(); st.cur = null; paint(); return; }
+      if (st.cur.moveTpl) { const c = st.cur; st.moveTpl = null; st.cur = null; if (c.drag && !c.moved) { st.undo.pop(); if (c.last) { flTplMove(d, c.moveTpl, 0, 0); } selAt(pos(e), c.cx, c.cy); return; } paint(); return; } const s = st.cur.s; st.cur = null; if (s) { if (s.pts.length < 2 && e.type === 'pointercancel') d.strokes.pop(); else if (st.straight && !flLooksHand(s, d)) { const raw = s.pts.map(q => q.slice()); st.undo.push(JSON.stringify(d)); s.raw = raw; s.pts = flStraightenKeep(raw); } } paint(); };
     cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
     const block = e => { if (e.target.closest && e.target.closest('.fl-wrap')) e.preventDefault(); };
     document.addEventListener('touchmove', block, { passive: false }); document.addEventListener('touchstart', block, { passive: false });
