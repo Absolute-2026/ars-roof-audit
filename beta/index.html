@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.7.3">
+<meta name="app-version" content="1.7.4">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -841,7 +841,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.7.3';
+const APP_VERSION = '1.7.4';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -6457,6 +6457,8 @@ function viewQuoteSettings() {
     <label class="ckl"><input type="checkbox" data-qs="restrict" ${s.restrict ? 'checked' : ''} ${dis}> Restrict quote creation / issue to the people below (managers always can)</label>
     <div class="f"><label for="qs_allowed">Allowed people (names or emails, one per line)</label><textarea id="qs_allowed" data-qs="allowed" rows="3" ${dis}>${esc(s.allowed)}</textarea></div>
     <label class="ckl"><input type="checkbox" data-qs="flVision" ${S.settings.quotes && S.settings.quotes.flVision ? 'checked' : ''} ${dis}> Flashings RFQ: show <b>Read dimensions</b> (sends the drawing to an AI vision service - small cost per use; needs the server key)</label>
+    <div class="f"><label for="qs_weltMm">Flashings: welt allowance (mm per welt)</label><input id="qs_weltMm" type="number" min="0" step="1" data-qs="weltMm" value="${esc(String((S.settings.quotes && S.settings.quotes.weltMm) || 15))}" ${dis}><p class="hint">Each welt counts as 1 bend and adds this much to the girth. Default 15.</p></div>
+    ${['material', 'gauge', 'colour'].map(k => `<div class="f"><label for="qs_fl_${k}">Flashings: ${k} list (one per line; a line starting # is a group heading; 'Other' is always offered)</label><textarea id="qs_fl_${k}" data-qs="fl_${k}" rows="5" ${dis}>${esc(flList(k).join('\n'))}</textarea></div>`).join('')}
     <label class="ckl"><input type="checkbox" data-qs="signoffReq" ${s.signoffReq ? 'checked' : ''} ${dis}> Manager sign-off required before a quote is issued</label>
     <div class="f"><label for="qs_validity">Quote validity (days)</label><input id="qs_validity" type="number" data-qs="validity" value="${s.validity}" ${dis}><p class="hint">Used in the short terms and the full terms &amp; conditions.</p></div></div>
   <div class="card"><h2>Company wording</h2>${ta('intro', 'Company introduction (full report)', 8)}${ta('closing', 'Closing paragraph', 3)}${ta('disclaimer', 'Disclaimer (repairs)', 4)}${ta('warranties', 'Warranties', 4)}${ta('noAllowance', '"No allowance" wording', 3)}${ta('leadTime', 'Lead time', 2)}</div>
@@ -6663,8 +6665,8 @@ function newFlashItem(n) { return { id: uid(), code: '', desc: '', girth: '', be
 function newFlashRfq(job) {
   const st = S.settings; const c = (job && job.client) || {}; const s = (job && job.site) || {};
   return { id: uid(), ref: (job && (job.rp || job.ref)) || '', date: todayISO(), project: job ? [c.name, s.name !== c.name ? s.name : ''].filter(Boolean).join(' - ') : '', contact: c.contact || '', phone: c.phone || '',
-    delivery: 'site', address: job ? [s.address, (s.postcode || '').toUpperCase()].filter(Boolean).join(', ') : '', reqBy: '', supplier: '', material: 'Plastisol coated steel', gauge: '0.7 mm', colour: '', colourSide: 'Colour side marked C',
-    general: 'Dimensions in mm. Girths exclude hems unless stated.', notes: '', by: (Cloud.profile && Cloud.profile.full_name) || st.surveyor || '', items: [newFlashItem()], extras: [] };
+    delivery: 'site', address: job ? [s.address, (s.postcode || '').toUpperCase()].filter(Boolean).join(', ') : '', reqBy: '', supplier: '', material: 'Plastisol', gauge: '0.7 mm', colour: '', colourSide: 'Colour side marked C',
+    general: 'Dimensions in mm. Girths include welts at ' + flWeltMm() + 'mm each.', notes: '', by: (Cloud.profile && Cloud.profile.full_name) || st.surveyor || '', items: [newFlashItem()], extras: [] };
 }
 const flCode = (r, i) => r.items[i].code || `F${i + 1}`;
 /* ---------- rendering of a drawing ---------- */
@@ -6743,7 +6745,7 @@ function flDraw(item, title) {
       if (x === 'clear' && (d.strokes.length || d.labels.length)) { snap(); d.strokes = []; d.labels = []; paint(); }
       if (x === 'geom' || x === 'read') { let found = [];
         if (x === 'read') { b.disabled = true; const t0 = b.textContent; b.textContent = 'Reading…'; try { found = await flReadDims(d); } catch (er) { b.disabled = false; b.textContent = t0; return toast(er.offline ? er.message : er.status === 503 || /not.configured/i.test(er.message) ? 'Read dimensions is not set up on the server yet (vision API key needed). Use the Label tool.' : /^Sign in/.test(er.message) ? er.message : 'Could not read dimensions: ' + er.message, 5000); } b.disabled = false; b.textContent = t0; }
-        const rv = await flReview(d, found, x === 'read' ? 'Read dimensions' : 'Girth & bends'); if (!rv) return; snap(); const drop = new Set(rv.labels.flatMap(l => l.ks || [])); if (drop.size) d.strokes = d.strokes.filter((s, k) => !drop.has(k)); rv.labels.forEach(l => d.labels.push({ x: l.x, y: l.y, t: l.t })); d._sugg = { girth: rv.girth, bends: rv.bends }; paint(); toast('Girth and bends will be filled in when you tap Done'); return; }
+        const rv = await flReview(d, found, x === 'read' ? 'Read dimensions' : 'Girth & bends'); if (!rv) return; snap(); const drop = new Set(rv.labels.flatMap(l => l.ks || [])); if (drop.size) d.strokes = d.strokes.filter((s, k) => !drop.has(k)); rv.labels.forEach(l => d.labels.push({ x: l.x, y: l.y, t: l.t })); d._sugg = { girth: rv.girth, girthNote: rv.girthNote, bends: rv.bends }; paint(); toast('Girth and bends will be filled in when you tap Done'); return; }
       if (x === 'cancel') close(null);
       if (x === 'done') close(d);
     });
@@ -6755,9 +6757,9 @@ function flDraw(item, title) {
 function flAsk(cur, cx, cy) {
   return new Promise(res => { const bg = document.createElement('div'); bg.className = 'fl-ask';
     bg.innerHTML = `<div class="fl-askb"><input id="flat" class="fl-in" value="${esc(cur)}" placeholder="write or type" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" inputmode="decimal" aria-label="Label: dimension in mm, angle or note">
-      <div class="fl-q">${['°', 'hem', 'C', 'drip', 'lap', 'abc'].map(q => `<button type="button" data-q="${q}">${q === 'abc' ? 'ABC' : q}</button>`).join('')}</div>
+      <div class="fl-q">${['°', 'welt', 'C', 'drip', 'lap', 'abc'].map(q => `<button type="button" data-q="${q}">${q === 'abc' ? 'ABC' : q}</button>`).join('')}</div>
       <div class="fl-qb"><button type="button" class="btn sm primary" data-r="ok">OK</button>${cur ? '<button type="button" class="btn sm danger" data-r="del">Remove</button>' : ''}<button type="button" class="btn sm" data-r="draw">✎ Draw it instead</button><button type="button" class="btn sm" data-r="x">Cancel</button></div>
-      <p class="fl-sc">Write with the Pencil in the box (Scribble) or type. e.g. 200, 96°, C, 25 hem</p></div>`;
+      <p class="fl-sc">Write with the Pencil in the box (Scribble) or type. e.g. 200, 96°, C, welt</p></div>`;
     document.body.appendChild(bg); const box = $('.fl-askb', bg), inp = $('#flat', bg);
     const vw = window.innerWidth, vh = window.innerHeight, bw = Math.min(vw - 16, 340), bh = 190;
     const x = cx == null ? (vw - bw) / 2 : Math.max(8, Math.min(vw - bw - 8, cx - bw / 2)), y = cy == null ? vh / 3 : (cy + 24 + bh < vh ? cy + 24 : Math.max(8, cy - bh - 24));
@@ -6770,15 +6772,31 @@ function flAsk(cur, cx, cy) {
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') done(inp.value.trim()); if (e.key === 'Escape') done(null); });
   });
 }
-/* v1.7.2: girth and bends from the drawing. Straightened legs are matched to the nearest dimension label. Legs labelled 'hem' (or unlabelled
-   short end hooks) are hems: they count as bends but are left out of the girth unless the label says 'incl'/'+'. */
+/* v1.7.2: girth and bends from the drawing. Straightened legs are matched to the nearest dimension label. Legs labelled 'welt' (or unlabelled
+   short end hooks) are welts: 1 bend each, fixed allowance each (v1.7.4). */
 function flDist(p, a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1; const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L)); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); }
+/* v1.7.4: material / gauge / colour dropdowns (manager-editable lists in Settings > Quotes; 'Other' = type your own) */
+// colours: official 2026 colour cards (Tata Steel UK Colorcoat HPS200 Ultra & Prisma, Kingspan Colours & Coatings UK&IE Feb 2026). BS/RAL = nearest reference per the maker. '# ' lines are group headings.
+const FL_LISTS = { material: ['Plastisol', 'HPS200', 'Galvanised steel', 'Fatra', 'Aluminium'],
+  gauge: ['0.5 mm', '0.55 mm', '0.6 mm', '0.7 mm', '0.9 mm', '1.0 mm', '1.2 mm', '1.5 mm', '2.0 mm'],
+  colour: ["# Tata Colorcoat HPS200 Ultra", "Alaska Grey (RAL 7000)", "Albatross (BS 18B17)", "Anthracite (RAL 7016)", "Ardenne (RAL 7022)", "Black (BS 00E53 / RAL 9005)", "Goosewing Grey (BS 10A05 / RAL 7038)", "Hamlet (RAL 9002)", "Honesty (BS 10C31 / RAL 1015)", "Ice Blue (RAL 230 80 10)", "Marlstone (BS 10B15 / RAL 1013)", "Meadowland (BS 12B17)", "Merlin Grey (BS 18B25)", "Mole Brown (RAL 070 40 10)", "Moorland Green (BS 12B21)", "Mushroom (BS 10B19)", "Olive Green (BS 12B27)", "Pure Grey (RAL 000 55 00)", "Straw (RAL 080 70 30)", "Svelte Grey (BS 10B23)", "White (BS 00E55 / RAL 9003)", "# Tata Colorcoat HPS200 Ultra - Classics", "Barn Red (RAL 030 30 40)", "Burano (RAL 3004)", "Chili (BS 04E56 / RAL 3000)", "Heritage Green (RAL 6002)", "Ivy (RAL 170 20 10)", "Jade (RAL 150 50 20)", "Juniper Green (BS 12B29)", "Ocean Blue (BS 18C39)", "Petra (BS 04D44 / RAL 3013)", "Raven (RAL 7021)", "Sargasso (RAL 5003)", "Solent Blue (BS 18E53)", "Terracotta (BS 04C39)", "Van Dyke Brown (BS 08B29 / RAL 8014)", "Wedgewood Blue (BS 18C37)", "# Tata Colorcoat HPS200 Ultra - Matts", "Alaska Grey Matt (RAL 7000)", "Anthracite Matt (RAL 7016)", "Green Grey Matt (RAL 150 40 10)", "Oxidised Matt (RAL 050 20 10)", "Terracotta Matt (BS 04C39)", "# Tata Colorcoat Prisma", "Aquarius", "Atlantis", "Helios", "Kronos", "Sirius (RAL 9006)", "Orion (RAL 9007)", "Zeus", "Ephyra", "Ariana", "Hamlet (RAL 9002)", "Cream (RAL 1015)", "Oxide Red (RAL 3009)", "Sargasso (RAL 5003)", "Black (RAL 9005)", "White (RAL 9010)", "Oyster (RAL 7035)", "Alaska Grey (RAL 7000)", "Slate Grey (RAL 7012)", "Anthracite (RAL 7016)", "White Sparkle (RAL 9010)", "Black Sparkle (RAL 9005)", "Seren Oren", "Seren Aurum", "Seren Champagne", "Seren Titanium", "Seren Mirage", "White Matt (RAL 9010)", "Sirius Matt (RAL 9006)", "Orion Matt (RAL 9007)", "Zeus Matt", "# Kingspan XL Forté", "White (BS 00E55 / RAL 9003)", "Grey White (RAL 9002)", "Sunflower Yellow (BS 10E55)", "Cream (BS 10C31 / RAL 1015)", "Mushroom (BS 10B19)", "Camouflage (RAL 110 50 10)", "Willow Green (BS 12B17)", "Khaki Green (BS 12B21)", "Leaf Green (RAL 6002)", "Bottle Green (RAL 6007)", "Olive Green (BS 12B27)", "Holly Bush (BS 14C39)", "Juniper Green (BS 12B29)", "Gull Grey (BS 18B17)", "Goosewing Grey (BS 10A05)", "Merlin Grey (BS 18B25)", "Pure Grey (RAL 000 55 00)", "Anthracite (RAL 7016)", "Umber Grey (RAL 7022)", "Powder Blue (RAL 210 80 10)", "Denim (RAL 5014)", "Wedgewood Blue (BS 18C37)", "Sapphire Blue (RAL 5003)", "Midnight (RAL 5008)", "Slate Blue (BS 18B29)", "Russet Red (BS 04D44 / RAL 3013)", "Copper Beech (BS 04C39)", "Red Brown (RAL 8012)", "Van Dyke Brown (BS 08B29 / RAL 8014)", "Black (BS 00E53 / RAL 9005)", "# Kingspan Spectrum Solid", "Pearl (RAL 9010)", "Citrine (RAL 1015)", "Hamlet (RAL 9002)", "Beige Grey (RAL 7006)", "Moonstone (RAL 7035)", "Goosewing Grey (BS 10A05)", "Pure Grey (RAL 000 55 00)", "Adventura (RAL 7000)", "Merlin Grey (BS 18B25)", "Basalt (RAL 7012)", "Umber Grey (RAL 7022)", "Charcoal (RAL 7024)", "Slate Grey (RAL 7015)", "Onyx (RAL 7016)", "Zircon (RAL 5014)", "Light Blue (RAL 5012)", "Kyanite (RAL 5010)", "Lazuli (RAL 5002)", "Iolite (RAL 5011)", "Greenrock (RAL 6003)", "Citroën Red (RAL 3000)", "Traffic Red (RAL 3020)", "Red Orange (RAL 2001)", "Goldstone (RAL 2013)", "Carnelia (RAL 3009)", "Black Grey (RAL 7021)", "Jet (RAL 9005)", "# Kingspan Spectrum Metallic", "Beigestone (RAL 1035)", "Silver (RAL 9006)", "Obsidian (RAL 9007)", "Graphite (RAL 9023)", "Greyrock (KC 100)", "Topaz (KC 200)", "Opal (KC 400)", "Emerald (KC 300)", "# Other finishes", "Mill finish"] };
+function flList(k) { const q = S.settings.quotes || {}, v = q['fl_' + k]; const l = typeof v === 'string' ? v.split('\n').map(x => x.trim()).filter(x => x && !/^other$/i.test(x)) : null; return l && l.length ? l : FL_LISTS[k]; }
+const flOpts = k => flList(k).filter(x => !x.startsWith('#'));
+function flPick(label, path, cur, k, blank) { cur = cur || ''; const L = flList(k), other = cur && !flOpts(k).includes(cur); const id = 'flp_' + path.replace(/[^\w]/g, '_'); let h = `<option value="">${esc(blank)}</option>`, open = false;
+  L.forEach(o => { if (o.startsWith('#')) { h += (open ? '</optgroup>' : '') + `<optgroup label="${esc(o.replace(/^#\s*/, ''))}">`; open = true; } else h += `<option${o === cur ? ' selected' : ''}>${esc(o)}</option>`; }); if (open) h += '</optgroup>';
+  return `<div class="f fl-pick"><label for="${id}">${esc(label)}</label><select id="${id}" data-flpick="${k}">${h}<option value="__other"${other ? ' selected' : ''}>Other (type it)…</option></select><input data-b="${path}" value="${esc(cur)}" placeholder="Type the ${esc(label.toLowerCase())}" aria-label="${esc(label)} (other)"${other ? '' : ' hidden'}></div>`; }
+document.addEventListener('change', e => { const sel = e.target.closest && e.target.closest('select[data-flpick]'); if (!sel) return; const inp = sel.parentNode.querySelector('input[data-b]');
+  if (sel.value === '__other') { inp.hidden = false; if (flOpts(sel.dataset.flpick).includes(inp.value)) inp.value = ''; inp.focus(); } else { inp.hidden = true; inp.value = sel.value; }
+  ['input', 'change'].forEach(t => inp.dispatchEvent(new Event(t, { bubbles: true }))); });
+// breakdown shown only while the girth still equals the worked-out figure (an edited girth drops it)
+function flGN(it) { const n = it.girthNote || ''; return n && String(it.girth || '').trim().split(' ')[0] === (n.match(/= (\d+)/) || [])[1] ? n : ''; }
+function flWeltMm() { const v = parseFloat(S.settings.quotes && S.settings.quotes.weltMm); return isFinite(v) && v >= 0 ? v : 15; }
 function flGeom(d) {
   const S_ = d.strokes.map(s => { const P = flStraighten(s.pts, 14); const sg = []; for (let i = 1; i < P.length; i++) { const len = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); if (len > 6) sg.push({ a: P[i - 1], b: P[i], len }); } return { pts: s.pts, sg, len: sg.reduce((t, g) => t + g.len, 0) }; }).filter(s => s.sg.length);
   const maxLen = Math.max(1, ...S_.map(s => s.len)), longest = Math.max(1, ...S_.flatMap(s => s.sg.map(g => g.len)));
   const touches = (p, k) => S_.some((o, j) => j !== k && [o.pts[0], o.pts[o.pts.length - 1]].some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 25));
   S_.forEach((s, k) => { s.hemStroke = s.len < maxLen * 0.25 && (touches(s.pts[0], k) || touches(s.pts[s.pts.length - 1], k)); });
-  const dims = (d.labels || []).map(l => ({ l, v: parseFloat(String(l.t).replace(',', '.')), hem: /hem/i.test(l.t), angle: /°|deg/i.test(l.t) })).filter(x => !x.angle && (isFinite(x.v) || x.hem));
+  const dims = (d.labels || []).map(l => ({ l, v: parseFloat(String(l.t).replace(',', '.')), hem: /\b(welt|hem)/i.test(l.t), angle: /°|deg/i.test(l.t) })).filter(x => !x.angle && (isFinite(x.v) || x.hem));
   const segs = []; S_.forEach((s, k) => s.sg.forEach((g, i) => segs.push(Object.assign(g, { k, i }))));
   // match labels to legs: the assignment with the smallest total distance (a label may also stay unmatched, at a cost), so a label sitting near two legs goes where it fits best
   const D = dims.map(x => segs.map(g => flDist([x.l.x, x.l.y], g.a, g.b))); const MISS = 140; let best = { c: 1e9, a: [] };
@@ -6798,14 +6816,16 @@ function flGeom(d) {
   });
   // two main strokes joined end to end = one more bend
   S_.forEach((s, k) => { if (s.hemStroke) return; [s.pts[s.pts.length - 1]].forEach(p => { if (S_.some((o, j) => j !== k && !o.hemStroke && Math.hypot(o.pts[0][0] - p[0], o.pts[0][1] - p[1]) < 25)) bends++; }); });
-  const body = segs.filter(g => !g.hem || (g.x && /incl|\+/.test(g.x.l.t))); const known = body.filter(g => g.x && isFinite(g.x.v)); const missing = body.length - known.length;
-  const girth = Math.round(known.reduce((t, g) => t + g.x.v, 0));
-  return { girth, missing, hems, bends, girthText: known.length ? `${girth}${hems ? ' + hem' + (hems > 1 ? 's' : '') : ''}${missing ? ` + [__] (${missing} leg${missing > 1 ? 's' : ''} without a size)` : ''}` : '',
-    bendsText: bends ? `${bends}${hems ? ` (incl. ${hems} hem${hems > 1 ? 's' : ''})` : ''}` : '' };
+  // v1.7.4: welts (Matt's term for hems) are a fixed allowance each (manager setting, default 15 mm) and 1 bend each; their drawn size is ignored
+  const W = flWeltMm(), body = segs.filter(g => !g.hem); const known = body.filter(g => g.x && isFinite(g.x.v)); const missing = body.length - known.length;
+  const legs = Math.round(known.reduce((t, g) => t + g.x.v, 0)), girth = legs + hems * W;
+  return { girth, legs, missing, hems, welts: hems, bends, girthText: known.length ? (hems ? `${girth}` : `${legs}`) + (missing ? ` + [__] (${missing} leg${missing > 1 ? 's' : ''} without a size)` : '') : '',
+    breakdown: known.length ? `legs ${legs}${hems ? ` + ${hems} welt${hems > 1 ? 's' : ''} x ${W} = ${girth}` : ''}${missing ? ` (+ ${missing} leg${missing > 1 ? 's' : ''} without a size)` : ''}` : '',
+    bendsText: bends ? `${bends}${hems ? ` (incl. ${hems} welt${hems > 1 ? 's' : ''})` : ''}` : '' };
 }
 // v1.7.2: optional 'Read dimensions' - the drawing image goes to the read-dimensions Edge Function (vision model). Off until a manager turns it on.
 const flVisionOn = () => !!(S.settings.quotes && S.settings.quotes.flVision);
-// v1.7.3: handwriting marks = small strokes that are not hems (a hem touches the end of a profile line); nearby strokes are grouped into one mark
+// v1.7.3: handwriting marks = small strokes that are not welts (a welt touches the end of a profile line); nearby strokes are grouped into one mark
 function flMarks(d) {
   const bb = s => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; s.pts.forEach(p => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }); return { x0, y0, x1, y1 }; };
   const B = d.strokes.map(bb); const small = B.map(b => Math.hypot(b.x1 - b.x0, b.y1 - b.y0) < 95);
@@ -6841,13 +6861,13 @@ async function flReview(d, found, title) {
   return new Promise(res => { const bg = document.createElement('div'); bg.className = 'fl-ask';
     bg.innerHTML = `<div class="fl-askb fl-rev"><h3 style="margin:0 0 6px">${esc(title)}</h3>
       ${found.length ? `<p class="hint">Check each value against your drawing. Untick anything that is wrong.</p>${found.map((l, i) => `<label class="ckl"><input type="checkbox" data-i="${i}" checked> <input class="fl-rv" data-v="${i}" value="${esc(l.t)}" aria-label="Value ${i + 1}"></label>`).join('')}` : (title.startsWith('Read') ? '<p class="hint">No handwritten numbers found. Use the Label tool instead.</p>' : '')}
-      <div class="f"><label for="flg">Girth (mm)</label><input id="flg" value="${esc(G.girthText)}" placeholder="from the labelled legs"></div><div class="f"><label for="flb">No. of bends</label><input id="flb" value="${esc(G.bendsText)}"></div>
-      <p class="hint">Girth = the labelled legs added up, leaving out hems unless the label says incl. Bends = corners in the drawing, including hems.</p>
+      <div class="f"><label for="flg">Girth (mm)</label><input id="flg" value="${esc(G.girthText)}" placeholder="from the labelled legs"><p class="hint" id="flgb">${esc(G.breakdown)}</p></div><div class="f"><label for="flb">No. of bends</label><input id="flb" value="${esc(G.bendsText)}"></div>
+      <p class="hint">Girth = the labelled legs added up, plus ${flWeltMm()} mm for each welt. Bends = corners in the drawing; each welt is 1 bend.</p>
       <div class="fl-qb"><button type="button" class="btn sm primary" data-r="ok">Accept</button><button type="button" class="btn sm" data-r="x">Cancel</button></div></div>`;
     document.body.appendChild(bg);
-    const recalc = () => { const keep = found.filter((l, i) => $(`[data-i="${i}"]`, bg).checked).map((l, i) => Object.assign({}, l, { t: $(`[data-v="${found.indexOf(l)}"]`, bg).value.trim() })); const g = flGeom(Object.assign({}, d, { labels: [...d.labels, ...keep] })); $('#flg', bg).value = g.girthText; $('#flb', bg).value = g.bendsText; return keep; };
+    const recalc = () => { const keep = found.filter((l, i) => $(`[data-i="${i}"]`, bg).checked).map((l, i) => Object.assign({}, l, { t: $(`[data-v="${found.indexOf(l)}"]`, bg).value.trim() })); const g = flGeom(Object.assign({}, d, { labels: [...d.labels, ...keep] })); $('#flg', bg).value = g.girthText; $('#flb', bg).value = g.bendsText; $('#flgb', bg).textContent = g.breakdown; return keep; };
     bg.addEventListener('change', e => { if (e.target.matches('[data-i],[data-v]')) recalc(); });
-    bg.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (!b) return; const keep = found.length ? recalc() : []; const out = b.dataset.r === 'ok' ? { labels: keep.filter(l => l.t), girth: $('#flg', bg).value.trim(), bends: $('#flb', bg).value.trim() } : null; bg.remove(); res(out); });
+    bg.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (!b) return; const keep = found.length ? recalc() : []; const out = b.dataset.r === 'ok' ? { labels: keep.filter(l => l.t), girth: $('#flg', bg).value.trim(), girthNote: $('#flgb', bg).textContent.trim(), bends: $('#flb', bg).value.trim() } : null; bg.remove(); res(out); });
   });
 }
 /* ---------- views ---------- */
@@ -6862,18 +6882,18 @@ function viewFlashRfq(h, r) {
   const item = (it, i) => { const ib = `${b}.items#${it.id}`; const has = it.drawing.strokes.length || it.drawing.labels.length;
     return `<div class="card flit" id="fli_${it.id}"><h2><span class="fl-code">${esc(flCode(r, i))}</span><input class="pit-l" data-b="${ib}.desc" value="${esc(it.desc)}" placeholder="Description, e.g. Drip / cover flashing" aria-label="Description"><button type="button" class="ck-x" data-act="fldel" data-id="${it.id}" aria-label="Remove flashing">×</button></h2>
       <button type="button" class="fl-thumb ${has ? '' : 'empty'}" data-act="fldraw" data-id="${it.id}" aria-label="Draw profile">${has ? `<img src="${flThumb(it.drawing)}" alt="Profile drawing">` : `<span>✎ Tap to draw the profile</span>`}</button>
-      <div class="row">${f.text('Item code', ib + '.code', { ph: flCode(r, i) })}${f.text('Girth (mm)', ib + '.girth', { ph: 'e.g. 220 + hem' })}</div>
-      <div class="row">${f.text('No. of bends', ib + '.bends', { ph: 'e.g. 2 (incl. 1 hem)' })}${f.text('Length', ib + '.length', { ph: 'e.g. 3m or 3000' })}</div>
-      <div class="row">${f.text('Material', ib + '.material', { ph: r.material || 'as general' })}${f.text('Gauge', ib + '.gauge', { ph: r.gauge || 'as general' })}</div>
-      <div class="row">${f.text('Colour', ib + '.colour', { ph: r.colour || 'as general' })}${f.text('Qty', ib + '.qty', { ph: 'e.g. 15', type: 'text' })}</div>
+      <div class="row">${f.text('Item code', ib + '.code', { ph: flCode(r, i) })}${f.text('Girth (mm)', ib + '.girth', { ph: 'e.g. 235' })}</div>
+      <div class="row">${f.text('No. of bends', ib + '.bends', { ph: 'e.g. 2 (incl. 1 welt)' })}${f.text('Length', ib + '.length', { ph: 'e.g. 3m or 3000' })}</div>
+      <div class="row">${flPick('Material', ib + '.material', it.material, 'material', 'As general' + (r.material ? ' (' + r.material + ')' : ''))}${flPick('Gauge', ib + '.gauge', it.gauge, 'gauge', 'As general' + (r.gauge ? ' (' + r.gauge + ')' : ''))}</div>
+      <div class="row">${flPick('Colour', ib + '.colour', it.colour, 'colour', 'As general' + (r.colour ? ' (' + r.colour + ')' : ''))}${f.text('Qty', ib + '.qty', { ph: 'e.g. 15', type: 'text' })}</div>
       ${f.seg('Colour side', ib + '.colourSide', [['', 'As drawn / general'], ['Outside', 'Outside'], ['Inside', 'Inside'], ['Both', 'Both sides']])}
-      ${f.text('Notes', ib + '.notes', { ph: 'e.g. joggled ends, 25mm hem' })}</div>`; };
+      ${f.text('Notes', ib + '.notes', { ph: 'e.g. joggled ends, welt on top edge' })}</div>`; };
   return `<div class="card"><h2>Request details</h2>
     ${f.text('Project', b + '.project')}<div class="row">${f.text('RFQ ref (RP number)', b + '.ref', { ph: 'RP5046' })}${f.text('Date', b + '.date', { type: 'date' })}</div>
     <div class="row">${f.text('Site contact', b + '.contact')}${f.text('Contact phone', b + '.phone', { type: 'tel' })}</div>
     ${f.seg('Delivery', b + '.delivery', [['site', 'Deliver to site'], ['collect', 'Collect']])}${f.text('Delivery address', b + '.address')}
     <div class="row">${f.text('Quote required by', b + '.reqBy', { type: 'date' })}${f.text('Supplier (optional)', b + '.supplier')}</div></div>
-  <div class="card"><h2>All flashings (general)</h2><div class="row">${f.text('Material', b + '.material')}${f.text('Gauge', b + '.gauge')}</div><div class="row">${f.text('Colour / finish', b + '.colour', { ph: 'e.g. Goosewing Grey' })}${f.text('Colour side', b + '.colourSide')}</div>${f.text('Other notes for all items', b + '.general')}</div>
+  <div class="card"><h2>All flashings (general)</h2><div class="row">${flPick('Material', b + '.material', r.material, 'material', 'Choose…')}${flPick('Gauge', b + '.gauge', r.gauge, 'gauge', 'Choose…')}</div><div class="row">${flPick('Colour / finish', b + '.colour', r.colour, 'colour', 'Choose…')}${f.text('Colour side', b + '.colourSide')}</div>${f.text('Other notes for all items', b + '.general')}</div>
   ${r.items.map(item).join('')}
   <button type="button" class="btn block" data-act="fladd">${I.plus} Add flashing</button><div style="height:12px"></div>
   <div class="card"><h2>Extras</h2><p class="hint">Stop ends, gutter arms, outlets, rivets, sealant…</p>${qRows(`${b}.extras`, r.extras, [['desc', 'Item'], ['spec', 'Material / colour'], ['qty', 'Qty']], { desc: '', spec: '', qty: '' })}</div>
@@ -6885,7 +6905,7 @@ Object.assign(ACTIONS, {
   async flnew() { const c = flCtx(); const r = newFlashRfq(S.ctx && S.ctx.job); (c.h.flashRfqs = c.h.flashRfqs || []).push(r); await c.save(); go(`${c.base}/${r.id}`); },
   fladd() { const c = flCtx(), r = flRfq(); const it = newFlashItem(); r.items.push(it); c.save(); rerender(true); setTimeout(() => { const el = $('#fli_' + it.id); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 60); },
   async fldel(a) { const c = flCtx(), r = flRfq(); if (!await confirmBox('Remove flashing?', 'The drawing and details for this flashing will be removed.', 'Remove')) return; r.items = r.items.filter(x => x.id !== a.dataset.id); c.save(); rerender(true); },
-  async fldraw(a) { const c = flCtx(), r = flRfq(); const i = r.items.findIndex(x => x.id === a.dataset.id); const it = r.items[i]; const d = await flDraw(it, `${flCode(r, i)} ${it.desc || 'profile'}`); if (!d) return; const sg = d._sugg; delete d._sugg; if (sg) { if (sg.girth) it.girth = sg.girth; if (sg.bends) it.bends = sg.bends; } it.drawing = d; c.save(); rerender(true); },
+  async fldraw(a) { const c = flCtx(), r = flRfq(); const i = r.items.findIndex(x => x.id === a.dataset.id); const it = r.items[i]; const d = await flDraw(it, `${flCode(r, i)} ${it.desc || 'profile'}`); if (!d) return; const sg = d._sugg; delete d._sugg; if (sg) { if (sg.girth) { it.girth = sg.girth; it.girthNote = sg.girthNote && /welt/.test(sg.girthNote) ? sg.girthNote : ''; } if (sg.bends) it.bends = sg.bends; } it.drawing = d; c.save(); rerender(true); },
   async flpdf() { const r = flRfq(); toast('Building flashings RFQ…', 1500); const o = await buildFlashRFQ(r); qOut(o.blob, o.name); },
   async flcopy() { const c = flCtx(), r = flRfq(); const n = JSON.parse(JSON.stringify(r)); n.id = uid(); n.date = todayISO(); n.items.forEach(x => x.id = uid()); n.extras.forEach(x => x.id = uid()); c.h.flashRfqs.push(n); c.save(); go(`${c.base}/${n.id}`); toast('Copied'); },
   async flrm() { const c = flCtx(), r = flRfq(); if (!await confirmBox('Delete flashings RFQ?', `${r.ref || r.project || 'This request'} and its drawings will be deleted.`, 'Delete')) return; c.h.flashRfqs = c.h.flashRfqs.filter(x => x !== r); c.save(); go(c.base); },
@@ -6927,7 +6947,7 @@ async function buildFlashRFQ(r) {
   const gen = [`Material ${B(r.material)}`, `Gauge ${B(r.gauge)}`, `Colour / finish ${B(r.colour)}`, r.colourSide, r.general].filter(Boolean).join(' · ');
   font(8.6, 'bold'); doc.text('All flashings:', M, y); font(8.6, 'normal'); const gl = doc.splitTextToSize(tx(gen), W - 2 * M - 22); doc.text(gl, M + 21, y); y += gl.length * 4 + 3;
   const thumbs = r.items.map(it => (it.drawing.strokes.length || it.drawing.labels.length) ? flPNG(it.drawing, 300, 231) : null);
-  const body = r.items.map((it, i) => [flCode(r, i), '', tx(it.desc || '') + (it.notes ? '\n' + tx(it.notes) : ''), B(it.girth), B(it.bends), tx([it.material || r.material, it.gauge || r.gauge].filter(Boolean).join(' ')) || '[__]', tx([it.colour || r.colour || '[__]', it.colourSide ? `(${it.colourSide})` : ''].filter(Boolean).join(' ')), B(it.length), it.qty ? `${it.qty}${/^\d+$/.test(it.qty) ? ' no' : ''}` : '[__]', '']);
+  const body = r.items.map((it, i) => [flCode(r, i), '', tx(it.desc || '') + (it.notes ? '\n' + tx(it.notes) : ''), B(it.girth) + (flGN(it) ? '\n(' + tx(flGN(it).replace(/ = \d+.*/, '')) + ')' : ''), B(it.bends), tx([it.material || r.material, it.gauge || r.gauge].filter(Boolean).join(' ')) || '[__]', tx([it.colour || r.colour || '[__]', it.colourSide ? `(${it.colourSide})` : ''].filter(Boolean).join(' ')), B(it.length), it.qty ? `${it.qty}${/^\d+$/.test(it.qty) ? ' no' : ''}` : '[__]', '']);
   r.extras.forEach((e, i) => body.push([`A${i + 1}`, '-', tx(e.desc || ''), '-', '-', tx(e.spec || '') || '[__]', '', '-', tx(e.qty || '[__]'), '']));
   doc.autoTable({ startY: y, margin: { left: M, right: M, top: 32 }, head: [['Item', 'Profile', 'Description', 'Girth (mm)', 'Bends', 'Material / gauge', 'Colour', 'Length', 'Qty', 'Rate / Total']], body, theme: 'grid', rowPageBreak: 'avoid',
     styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 1.8, valign: 'middle', lineColor: [150, 150, 150], lineWidth: 0.25, textColor: TXT }, headStyles: { fillColor: G, textColor: 255, fontStyle: 'normal' },
@@ -6944,7 +6964,7 @@ async function buildFlashRFQ(r) {
   r.items.forEach((it, i) => { doc.addPage(); let yy = head(true); font(15, 'bold', G); doc.text(tx(`${flCode(r, i)}  ${it.desc || 'Flashing'}`), M, yy + 4);
     const img = thumbs[i] ? flPNG(it.drawing, 1400, 980) : null; const bw = 190, bh = 133;
     doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.3); doc.rect(M, yy + 9, bw, bh); if (img) doc.addImage(img, 'PNG', M + 1, yy + 10, bw - 2, bh - 2); else { font(11, 'normal', LG); doc.text('No drawing', M + bw / 2, yy + 9 + bh / 2, { align: 'center' }); }
-    const kv = [['Girth (mm)', B(it.girth)], ['Bends', B(it.bends)], ['Material', B(it.material || r.material)], ['Gauge', B(it.gauge || r.gauge)], ['Colour / finish', B(it.colour || r.colour)], ['Colour side', it.colourSide || r.colourSide || '[__]'], ['Length', B(it.length)], ['Quantity', it.qty ? it.qty + (/^\d+$/.test(it.qty) ? ' no' : '') : '[__]'], ['Notes', it.notes || '-']];
+    const kv = [['Girth (mm)', B(it.girth) + (flGN(it) ? '  (' + tx(flGN(it)) + ')' : '')], ['Bends', B(it.bends)], ['Material', B(it.material || r.material)], ['Gauge', B(it.gauge || r.gauge)], ['Colour / finish', B(it.colour || r.colour)], ['Colour side', it.colourSide || r.colourSide || '[__]'], ['Length', B(it.length)], ['Quantity', it.qty ? it.qty + (/^\d+$/.test(it.qty) ? ' no' : '') : '[__]'], ['Notes', it.notes || '-']];
     doc.autoTable({ startY: yy + 9, margin: { left: M + bw + 6, right: M }, body: kv.map(([k, v]) => [k, tx(v)]), theme: 'grid', styles: { fontSize: 9.5, cellPadding: 2.2, lineColor: [190, 190, 190], lineWidth: 0.25 }, columnStyles: { 0: { fontStyle: 'bold', cellWidth: 30, fillColor: [244, 244, 244] } } });
     font(8, 'normal', LG); doc.text('Not to scale - dimensions in mm. Red = dimensions, blue = angles.', M, yy + bh + 14); });
   const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); font(7.5, 'normal', LG); doc.text(`Page ${i} of ${n}`, W - M, H - 6, { align: 'right' }); }
