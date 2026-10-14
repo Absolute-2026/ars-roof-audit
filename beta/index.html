@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.7.2">
+<meta name="app-version" content="1.7.3">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -841,7 +841,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.7.2';
+const APP_VERSION = '1.7.3';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -6479,7 +6479,7 @@ Object.assign(ACTIONS, {
   async qsreset() { if (!await confirmBox('Reset quote wording?', 'Company wording, terms, job-type library and preliminaries go back to the ARS defaults. Permissions are kept.', 'Reset')) return; const v = S.settings.quotes || {}; S.settings.quotes = { restrict: v.restrict, allowed: v.allowed, signoffReq: v.signoffReq, validity: v.validity }; saveSettings(); await qsPush(); rerender(); },
   async qslibadd() { let t; const r = await modal('<h3>New job type</h3><input id="qslt" placeholder="e.g. Liquid roof coating"><div style="height:10px"></div><button class="btn primary" data-r="ok">Add</button><button class="btn" data-r="">Cancel</button>', bg => { t = $('#qslt', bg); }); if (r !== 'ok' || !t.value.trim()) return; qsCollect(); const k = 'c_' + uid(); S.settings.quotes.library[k] = { title: t.value.trim(), text: '' }; saveSettings(); rerender(); },
 });
-{ const _pl = pullSettings; pullSettings = async function () { await _pl(); try { const rows = await sbFetch('/rest/v1/app_settings?select=value&key=eq.quotes') || []; if (rows[0] && rows[0].value) { S.settings.quotes = rows[0].value; await DB.setKV('settings', S.settings); } } catch (e) { if (e.offline) throw e; } }; }
+{ const _pl = pullSettings; pullSettings = async function () { await _pl(); try { const rows = await sbFetch('/rest/v1/app_settings?select=value&key=eq.quotes') || []; if (rows[0] && rows[0].value) { S.settings.quotes = Object.assign({}, S.settings.quotes || {}, rows[0].value); await DB.setKV('settings', S.settings); } } catch (e) { if (e.offline) throw e; } }; }
 { const _vs = viewSettings; viewSettings = function () { const h = _vs(); const link = `<a class="item" href="#/settings/quotes"><div class="th">${I.pdf.replace('<svg', '<svg width="28" height="28"')}</div><div class="bd"><div class="t1">Quotes</div><div class="t2">Who can quote, manager sign-off, wording library, company intro and T&amp;Cs</div></div>${I.chev}</a>`; return h.replace('<a class="item" href="#/settings/library">', link + '<a class="item" href="#/settings/library">'); }; }
 
 /* ---------- documents ---------- */
@@ -6743,7 +6743,7 @@ function flDraw(item, title) {
       if (x === 'clear' && (d.strokes.length || d.labels.length)) { snap(); d.strokes = []; d.labels = []; paint(); }
       if (x === 'geom' || x === 'read') { let found = [];
         if (x === 'read') { b.disabled = true; const t0 = b.textContent; b.textContent = 'Reading…'; try { found = await flReadDims(d); } catch (er) { b.disabled = false; b.textContent = t0; return toast(er.offline ? er.message : er.status === 503 || /not.configured/i.test(er.message) ? 'Read dimensions is not set up on the server yet (vision API key needed). Use the Label tool.' : /^Sign in/.test(er.message) ? er.message : 'Could not read dimensions: ' + er.message, 5000); } b.disabled = false; b.textContent = t0; }
-        const rv = await flReview(d, found, x === 'read' ? 'Read dimensions' : 'Girth & bends'); if (!rv) return; snap(); rv.labels.forEach(l => d.labels.push({ x: l.x, y: l.y, t: l.t })); d._sugg = { girth: rv.girth, bends: rv.bends }; paint(); toast('Girth and bends will be filled in when you tap Done'); return; }
+        const rv = await flReview(d, found, x === 'read' ? 'Read dimensions' : 'Girth & bends'); if (!rv) return; snap(); const drop = new Set(rv.labels.flatMap(l => l.ks || [])); if (drop.size) d.strokes = d.strokes.filter((s, k) => !drop.has(k)); rv.labels.forEach(l => d.labels.push({ x: l.x, y: l.y, t: l.t })); d._sugg = { girth: rv.girth, bends: rv.bends }; paint(); toast('Girth and bends will be filled in when you tap Done'); return; }
       if (x === 'cancel') close(null);
       if (x === 'done') close(d);
     });
@@ -6805,12 +6805,35 @@ function flGeom(d) {
 }
 // v1.7.2: optional 'Read dimensions' - the drawing image goes to the read-dimensions Edge Function (vision model). Off until a manager turns it on.
 const flVisionOn = () => !!(S.settings.quotes && S.settings.quotes.flVision);
+// v1.7.3: handwriting marks = small strokes that are not hems (a hem touches the end of a profile line); nearby strokes are grouped into one mark
+function flMarks(d) {
+  const bb = s => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; s.pts.forEach(p => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }); return { x0, y0, x1, y1 }; };
+  const B = d.strokes.map(bb); const small = B.map(b => Math.hypot(b.x1 - b.x0, b.y1 - b.y0) < 95);
+  const ends = d.strokes.map(s => [s.pts[0], s.pts[s.pts.length - 1]]);
+  const isHem = k => ends[k].some(p => d.strokes.some((o, j) => j !== k && !small[j] && [o.pts[0], o.pts[o.pts.length - 1]].some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 25)));
+  const ids = d.strokes.map((s, k) => k).filter(k => small[k] && !isHem(k));
+  const groups = ids.map(k => ({ ks: [k], b: Object.assign({}, B[k]) }));
+  const near = (a, b) => a.x0 - 22 <= b.x1 && b.x0 - 22 <= a.x1 && a.y0 - 14 <= b.y1 && b.y0 - 14 <= a.y1;
+  for (let ch = true; ch;) { ch = false; for (let i = 0; i < groups.length; i++) for (let j = i + 1; j < groups.length; j++) if (near(groups[i].b, groups[j].b)) { const a = groups[i], c = groups[j]; a.ks.push(...c.ks); a.b = { x0: Math.min(a.b.x0, c.b.x0), y0: Math.min(a.b.y0, c.b.y0), x1: Math.max(a.b.x1, c.b.x1), y1: Math.max(a.b.y1, c.b.y1) }; groups.splice(j, 1); ch = true; j--; } }
+  return groups.map(g => { const pad = 10, w = g.b.x1 - g.b.x0 + pad * 2, h = g.b.y1 - g.b.y0 + pad * 2, H = 96, W = Math.max(48, Math.round(H * w / h)); const c = document.createElement('canvas'); c.width = Math.min(W, 480); c.height = H; const x = c.getContext('2d');
+    const sc = Math.min(c.width / w, H / h); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, H); x.lineCap = x.lineJoin = 'round'; x.strokeStyle = '#000'; x.lineWidth = Math.max(2.5, 4 * sc);
+    g.ks.forEach(k => { const s = d.strokes[k]; x.beginPath(); s.pts.forEach((p, i) => { const px = (p[0] - g.b.x0 + pad) * sc + (c.width - w * sc) / 2, py = (p[1] - g.b.y0 + pad) * sc; i ? x.lineTo(px, py) : x.moveTo(px, py); }); x.stroke(); });
+    return { ks: g.ks, x: (g.b.x0 + g.b.x1) / 2, y: (g.b.y0 + g.b.y1) / 2, crop: c.toDataURL('image/png') }; }).sort((a, b) => a.y - b.y || a.x - b.x);
+}
+// one numbered contact sheet = one cheap, reliable vision call
+async function flSheet(M) {
+  const imgs = await Promise.all(M.map(m => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.src = m.crop; })));
+  const RH = 116, W = 640, c = document.createElement('canvas'); c.width = W; c.height = RH * M.length + 8; const x = c.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, W, c.height); x.font = 'bold 34px sans-serif'; x.textBaseline = 'middle';
+  imgs.forEach((im, i) => { const y = 4 + i * RH; x.strokeStyle = '#888'; x.lineWidth = 2; x.strokeRect(4, y, W - 8, RH - 8); x.fillStyle = '#c00'; x.fillText('#' + (i + 1), 14, y + RH / 2 - 4); x.drawImage(im, 110, y + 6, Math.min(im.width, W - 130), RH - 20); });
+  return { sheet: c.toDataURL('image/png'), n: M.length };
+}
 async function flReadDims(d) {
   if (!navigator.onLine) throw Object.assign(new Error('You are offline. Read dimensions needs signal - add the labels with the Label tool (Scribble works offline).'), { offline: true });
   if (!signedIn()) throw new Error('Sign in to use Read dimensions.');
-  const img = flPNG(Object.assign({}, d, { labels: [] }), 1000, 700, false); // the handwriting is drawn as strokes, so send the strokes only, unscaled
-  const r = await sbFetch('/functions/v1/read-dimensions', { method: 'POST', body: { image: img, w: FL_W, h: FL_H } });
-  return (r && r.labels || []).filter(l => l && l.t != null && isFinite(l.x) && isFinite(l.y)).map(l => ({ x: Math.max(0, Math.min(1, l.x)) * FL_W, y: Math.max(0, Math.min(1, l.y)) * FL_H, t: String(l.t).slice(0, 24), src: 'ai', box: l.box }));
+  const M = flMarks(d); if (!M.length) return [];
+  const r = await sbFetch('/functions/v1/read-dimensions', { method: 'POST', body: await flSheet(M.slice(0, 24)) });
+  return M.slice(0, 24).map((m, i) => ({ x: m.x, y: m.y, t: String((r && r.texts || [])[i] || '').trim().slice(0, 24), src: 'ai', ks: m.ks })).filter(l => l.t);
 }
 async function flReview(d, found, title) {
   found = found.filter(f => !d.labels.some(l => l.t === f.t && Math.hypot(l.x - f.x, l.y - f.y) < 40)); // already on the drawing
