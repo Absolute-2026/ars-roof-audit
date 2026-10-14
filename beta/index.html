@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.7.1">
+<meta name="app-version" content="1.7.2">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -415,6 +415,12 @@ body.fl-lock{overflow:hidden;position:fixed;width:100%}
 .fl-q{display:flex;gap:6px;margin:8px 0}.fl-q button{min-height:40px;padding:0 12px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;font-weight:700}
 .fl-thumb{display:flex;align-items:center;justify-content:center;width:100%;height:190px;border:2px dashed #cbd5e1;border-radius:12px;background:#fff;margin:4px 0 10px;padding:4px}.fl-thumb img{max-width:100%;max-height:100%}.fl-thumb.empty span{color:#5a6678;font-weight:700}.fl-thumb:not(.empty){border-style:solid}
 .fl-code{flex:none;background:#0f2542;color:#fff;border-radius:6px;padding:2px 8px;font-size:14px;margin-right:6px}.flit h2 input{flex:1;font-size:16px;font-weight:700;min-width:0}
+/* v1.7.2 label entry + review */
+.fl-ask{align-items:flex-start;justify-content:flex-start;background:rgba(15,37,66,.25)}.fl-ask .fl-rev{margin:8vh auto;position:relative;max-height:84vh;overflow:auto}
+.fl-in{width:100%;height:64px;font-size:34px!important;font-weight:800;text-align:center;border:3px solid #f18902!important;border-radius:12px;color:#c0392b}
+.fl-qb{display:flex;flex-wrap:wrap;gap:6px}.fl-sc{font-size:12px;color:#5a6678;margin:6px 0 0}.fl-rv{width:110px;min-height:36px;margin-left:6px;font-weight:700}
+.fl-ask{background:rgba(15,37,66,.08)}.fl-rev .ckl{display:flex;align-items:center;gap:6px}.fl-rev input.fl-rv{width:120px!important;height:40px!important;min-height:40px;font-size:18px;appearance:auto;-webkit-appearance:auto;border:1px solid #cbd5e1;border-radius:8px;padding:4px 8px}
+.fl-rev input.fl-rv{flex:none!important;max-width:none!important}
 
 </style>
 </head>
@@ -835,7 +841,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.7.2';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -6450,6 +6456,7 @@ function viewQuoteSettings() {
   return `<div class="card"><h2>Who can create quotes</h2>${mgr ? '' : '<p class="warn-banner amber">Only managers can change these settings.</p>'}
     <label class="ckl"><input type="checkbox" data-qs="restrict" ${s.restrict ? 'checked' : ''} ${dis}> Restrict quote creation / issue to the people below (managers always can)</label>
     <div class="f"><label for="qs_allowed">Allowed people (names or emails, one per line)</label><textarea id="qs_allowed" data-qs="allowed" rows="3" ${dis}>${esc(s.allowed)}</textarea></div>
+    <label class="ckl"><input type="checkbox" data-qs="flVision" ${S.settings.quotes && S.settings.quotes.flVision ? 'checked' : ''} ${dis}> Flashings RFQ: show <b>Read dimensions</b> (sends the drawing to an AI vision service - small cost per use; needs the server key)</label>
     <label class="ckl"><input type="checkbox" data-qs="signoffReq" ${s.signoffReq ? 'checked' : ''} ${dis}> Manager sign-off required before a quote is issued</label>
     <div class="f"><label for="qs_validity">Quote validity (days)</label><input id="qs_validity" type="number" data-qs="validity" value="${s.validity}" ${dis}><p class="hint">Used in the short terms and the full terms &amp; conditions.</p></div></div>
   <div class="card"><h2>Company wording</h2>${ta('intro', 'Company introduction (full report)', 8)}${ta('closing', 'Closing paragraph', 3)}${ta('disclaimer', 'Disclaimer (repairs)', 4)}${ta('warranties', 'Warranties', 4)}${ta('noAllowance', '"No allowance" wording', 3)}${ta('leadTime', 'Lead time', 2)}</div>
@@ -6685,6 +6692,7 @@ function flStraighten(pts, eps = 14) {
   const out = rdp(0, pts.length - 1).map(i => [...pts[i]]);
   for (let i = 1; i < out.length; i++) { const a = out[i - 1], b = out[i]; const ang = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI; const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
     const near = [0, 45, 90, 135, 180, -45, -90, -135, -180].find(t => Math.abs(ang - t) < 7); if (near != null) { const r = near * Math.PI / 180; b[0] = a[0] + L * Math.cos(r); b[1] = a[1] + L * Math.sin(r); } }
+  for (let i = 1; i < out.length - 1; i++) { const a = out[i - 1], b = out[i], c = out[i + 1]; const d1 = Math.atan2(b[1] - a[1], b[0] - a[0]), d2 = Math.atan2(c[1] - b[1], c[0] - b[0]); let df = Math.abs(d1 - d2) * 180 / Math.PI; if (df > 180) df = 360 - df; if (df < 10) { out.splice(i, 1); i--; } } // merge collinear legs
   return out.map(p => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10, 0.5]);
 }
 /* ---------- drawing pad (full screen) ---------- */
@@ -6695,7 +6703,7 @@ function flDraw(item, title) {
     const ov = document.createElement('div'); ov.className = 'fl-ov';
     ov.innerHTML = `<div class="fl-bar"><b class="fl-t">${esc(title)}</b>
       <div class="fl-tools"><button type="button" data-t="pen" class="on">✎ Pen</button><button type="button" data-t="erase">⌫ Eraser</button><button type="button" data-t="label">A Label</button>
-      <button type="button" data-x="straight" class="${st.straight ? 'on' : ''}">Straighten</button><button type="button" data-x="undo">↶ Undo</button><button type="button" data-x="clear">Clear</button></div>
+      <button type="button" data-x="straight" class="${st.straight ? 'on' : ''}">Straighten</button><button type="button" data-x="geom">Girth &amp; bends</button>${flVisionOn() ? '<button type="button" data-x="read">Read dimensions</button>' : ''}<button type="button" data-x="undo">↶ Undo</button><button type="button" data-x="clear">Clear</button></div>
       <div class="fl-done"><button type="button" data-x="cancel" class="btn sm">Cancel</button><button type="button" data-x="done" class="btn sm primary">Done</button></div></div>
       <div class="fl-wrap"><canvas class="fl-cv" width="${FL_W}" height="${FL_H}" aria-label="Drawing area"></canvas></div>
       <p class="fl-hint">Draw the profile with your Apple Pencil, finger or mouse. <b>Label</b>: tap where a dimension or angle goes (e.g. 200 or 96°). Mark the colour side with a C label. With a pencil, your palm and finger are ignored.</p>`;
@@ -6710,7 +6718,7 @@ function flDraw(item, title) {
     cv.addEventListener('pointerdown', async e => {
       if (ignore(e) || (e.button && e.button !== 0)) return; e.preventDefault(); const p = pos(e);
       if (st.tool === 'label') { const lab = d.labels.find(l => Math.hypot(l.x - p[0], l.y - p[1]) < 30);
-        const t = await flAsk(lab ? lab.t : ''); if (t == null) return; snap(); if (lab) { if (t) lab.t = t; else d.labels.splice(d.labels.indexOf(lab), 1); } else if (t) d.labels.push({ x: p[0], y: p[1], t }); paint(); return; }
+        const t = await flAsk(lab ? lab.t : '', e.clientX, e.clientY); if (t === '__draw') { $$('[data-t]', ov).forEach(x => x.classList.toggle('on', x.dataset.t === 'pen')); st.tool = 'pen'; return; } if (t == null) return; snap(); if (lab) { if (t) lab.t = t; else d.labels.splice(d.labels.indexOf(lab), 1); } else if (t) d.labels.push({ x: p[0], y: p[1], t }); paint(); return; }
       try { cv.setPointerCapture(e.pointerId); } catch (_) { } snap();
       if (st.tool === 'erase') { st.cur = { erase: true, id: e.pointerId }; if (!eraseAt(p)) st.undo.pop(); paint(); return; }
       st.cur = { id: e.pointerId, s: { w: e.pointerType === 'pen' ? 5 : 4.5, pts: [p] } }; d.strokes.push(st.cur.s); paint();
@@ -6733,6 +6741,9 @@ function flDraw(item, title) {
       if (x === 'straight') { st.straight = !st.straight; S.settings.flStraight = st.straight; saveSettings(); b.classList.toggle('on', st.straight); if (st.straight && d.strokes.length) { snap(); d.strokes = d.strokes.map(s => Object.assign({}, s, { pts: flStraighten(s.pts) })); paint(); } }
       if (x === 'undo') { const u = st.undo.pop(); if (u) { const o = JSON.parse(u); d.strokes = o.strokes; d.labels = o.labels; paint(); } }
       if (x === 'clear' && (d.strokes.length || d.labels.length)) { snap(); d.strokes = []; d.labels = []; paint(); }
+      if (x === 'geom' || x === 'read') { let found = [];
+        if (x === 'read') { b.disabled = true; const t0 = b.textContent; b.textContent = 'Reading…'; try { found = await flReadDims(d); } catch (er) { b.disabled = false; b.textContent = t0; return toast(er.offline ? er.message : er.status === 503 || /not.configured/i.test(er.message) ? 'Read dimensions is not set up on the server yet (vision API key needed). Use the Label tool.' : /^Sign in/.test(er.message) ? er.message : 'Could not read dimensions: ' + er.message, 5000); } b.disabled = false; b.textContent = t0; }
+        const rv = await flReview(d, found, x === 'read' ? 'Read dimensions' : 'Girth & bends'); if (!rv) return; snap(); rv.labels.forEach(l => d.labels.push({ x: l.x, y: l.y, t: l.t })); d._sugg = { girth: rv.girth, bends: rv.bends }; paint(); toast('Girth and bends will be filled in when you tap Done'); return; }
       if (x === 'cancel') close(null);
       if (x === 'done') close(d);
     });
@@ -6740,13 +6751,80 @@ function flDraw(item, title) {
     ov._d = d; ov._st = st; // for tests
   });
 }
-function flAsk(cur) {
+// v1.7.2: Scribble-friendly label entry - a real, focused, large text input next to the tap point (iPad Scribble turns Pencil handwriting into text, offline)
+function flAsk(cur, cx, cy) {
   return new Promise(res => { const bg = document.createElement('div'); bg.className = 'fl-ask';
-    bg.innerHTML = `<div class="fl-askb"><label class="lbl" for="flat">Label (dimension mm, angle or note)</label><input id="flat" value="${esc(cur)}" placeholder="e.g. 200   96°   C   hem"><div class="fl-q">${['°', 'hem', 'C', 'drip', 'lap'].map(q => `<button type="button" data-q="${q}">${q}</button>`).join('')}</div><div class="btns"><button type="button" class="btn primary" data-r="ok">OK</button>${cur ? '<button type="button" class="btn danger" data-r="del">Remove</button>' : ''}<button type="button" class="btn" data-r="x">Cancel</button></div></div>`;
-    document.body.appendChild(bg); const inp = $('#flat', bg); setTimeout(() => inp.focus(), 30);
+    bg.innerHTML = `<div class="fl-askb"><input id="flat" class="fl-in" value="${esc(cur)}" placeholder="write or type" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" inputmode="decimal" aria-label="Label: dimension in mm, angle or note">
+      <div class="fl-q">${['°', 'hem', 'C', 'drip', 'lap', 'abc'].map(q => `<button type="button" data-q="${q}">${q === 'abc' ? 'ABC' : q}</button>`).join('')}</div>
+      <div class="fl-qb"><button type="button" class="btn sm primary" data-r="ok">OK</button>${cur ? '<button type="button" class="btn sm danger" data-r="del">Remove</button>' : ''}<button type="button" class="btn sm" data-r="draw">✎ Draw it instead</button><button type="button" class="btn sm" data-r="x">Cancel</button></div>
+      <p class="fl-sc">Write with the Pencil in the box (Scribble) or type. e.g. 200, 96°, C, 25 hem</p></div>`;
+    document.body.appendChild(bg); const box = $('.fl-askb', bg), inp = $('#flat', bg);
+    const vw = window.innerWidth, vh = window.innerHeight, bw = Math.min(vw - 16, 340), bh = 190;
+    const x = cx == null ? (vw - bw) / 2 : Math.max(8, Math.min(vw - bw - 8, cx - bw / 2)), y = cy == null ? vh / 3 : (cy + 24 + bh < vh ? cy + 24 : Math.max(8, cy - bh - 24));
+    Object.assign(box.style, { position: 'absolute', left: x + 'px', top: y + 'px', width: bw + 'px' });
+    inp.focus(); setTimeout(() => { inp.focus(); inp.select(); }, 30);
     const done = v => { bg.remove(); res(v); };
-    bg.addEventListener('click', e => { const q = e.target.closest('[data-q]'); if (q) { inp.value = q.dataset.q === '°' ? inp.value.replace(/°?$/, '°') : (inp.value ? inp.value + ' ' : '') + q.dataset.q; inp.focus(); return; } const b = e.target.closest('[data-r]'); if (!b) return; done(b.dataset.r === 'ok' ? inp.value.trim() : b.dataset.r === 'del' ? '' : null); });
+    bg.addEventListener('pointerdown', e => { if (e.target === bg) done(inp.value.trim() || null); });
+    bg.addEventListener('click', e => { const q = e.target.closest('[data-q]'); if (q) { if (q.dataset.q === 'abc') { inp.inputMode = inp.inputMode === 'text' ? 'decimal' : 'text'; inp.blur(); inp.focus(); return; } inp.value = q.dataset.q === '°' ? inp.value.replace(/°?$/, '°') : (inp.value ? inp.value + ' ' : '') + q.dataset.q; inp.focus(); return; }
+      const b = e.target.closest('[data-r]'); if (!b) return; const r = b.dataset.r; done(r === 'ok' ? inp.value.trim() : r === 'del' ? '' : r === 'draw' ? '__draw' : null); });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') done(inp.value.trim()); if (e.key === 'Escape') done(null); });
+  });
+}
+/* v1.7.2: girth and bends from the drawing. Straightened legs are matched to the nearest dimension label. Legs labelled 'hem' (or unlabelled
+   short end hooks) are hems: they count as bends but are left out of the girth unless the label says 'incl'/'+'. */
+function flDist(p, a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy || 1; const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L)); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); }
+function flGeom(d) {
+  const S_ = d.strokes.map(s => { const P = flStraighten(s.pts, 14); const sg = []; for (let i = 1; i < P.length; i++) { const len = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); if (len > 6) sg.push({ a: P[i - 1], b: P[i], len }); } return { pts: s.pts, sg, len: sg.reduce((t, g) => t + g.len, 0) }; }).filter(s => s.sg.length);
+  const maxLen = Math.max(1, ...S_.map(s => s.len)), longest = Math.max(1, ...S_.flatMap(s => s.sg.map(g => g.len)));
+  const touches = (p, k) => S_.some((o, j) => j !== k && [o.pts[0], o.pts[o.pts.length - 1]].some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 25));
+  S_.forEach((s, k) => { s.hemStroke = s.len < maxLen * 0.25 && (touches(s.pts[0], k) || touches(s.pts[s.pts.length - 1], k)); });
+  const dims = (d.labels || []).map(l => ({ l, v: parseFloat(String(l.t).replace(',', '.')), hem: /hem/i.test(l.t), angle: /°|deg/i.test(l.t) })).filter(x => !x.angle && (isFinite(x.v) || x.hem));
+  const segs = []; S_.forEach((s, k) => s.sg.forEach((g, i) => segs.push(Object.assign(g, { k, i }))));
+  // match labels to legs: the assignment with the smallest total distance (a label may also stay unmatched, at a cost), so a label sitting near two legs goes where it fits best
+  const D = dims.map(x => segs.map(g => flDist([x.l.x, x.l.y], g.a, g.b))); const MISS = 140; let best = { c: 1e9, a: [] };
+  if (dims.length <= 9 && segs.length <= 14) { const used = new Array(segs.length).fill(false), a = [];
+    const dfs = (k, c) => { if (c >= best.c) return; if (k === dims.length) { best = { c, a: a.slice() }; return; } for (let g = 0; g < segs.length; g++) if (!used[g] && D[k][g] <= 110) { used[g] = true; a[k] = g; dfs(k + 1, c + D[k][g]); used[g] = false; } a[k] = -1; dfs(k + 1, c + MISS); };
+    dfs(0, 0); }
+  else { const lab = new Set(); best.a = dims.map((x, k) => { let m = -1; D[k].forEach((v, g) => { if (v <= 110 && !lab.has(g) && (m < 0 || v < D[k][m])) m = g; }); if (m >= 0) lab.add(m); return m; }); }
+  const segL = {}; best.a.forEach((g, k) => { if (g >= 0) segL[g] = k; });
+  segs.forEach((g, gi) => { g.x = dims[segL[gi]]; });
+  let bends = 0, hems = 0;
+  S_.forEach(s => {
+    if (s.hemStroke) { hems++; bends++; s.sg.forEach(g => { g.hem = !(g.x && !g.x.hem); }); return; }
+    const hook = idx => { const g = s.sg[idx]; return g.len < longest * 0.16 && (!g.x || g.x.hem); };
+    let a = 0; while (a < s.sg.length - 1 && hook(a)) a++; let z = 0; while (z < s.sg.length - 1 - a && hook(s.sg.length - 1 - z)) z++;
+    s.sg.forEach((g, i) => { g.hem = (i < a || i >= s.sg.length - z) || !!(g.x && g.x.hem); });
+    const n = s.sg.length; bends += Math.max(0, n - 1) - Math.max(0, a - 1) - Math.max(0, z - 1); hems += (a ? 1 : 0) + (z ? 1 : 0);
+  });
+  // two main strokes joined end to end = one more bend
+  S_.forEach((s, k) => { if (s.hemStroke) return; [s.pts[s.pts.length - 1]].forEach(p => { if (S_.some((o, j) => j !== k && !o.hemStroke && Math.hypot(o.pts[0][0] - p[0], o.pts[0][1] - p[1]) < 25)) bends++; }); });
+  const body = segs.filter(g => !g.hem || (g.x && /incl|\+/.test(g.x.l.t))); const known = body.filter(g => g.x && isFinite(g.x.v)); const missing = body.length - known.length;
+  const girth = Math.round(known.reduce((t, g) => t + g.x.v, 0));
+  return { girth, missing, hems, bends, girthText: known.length ? `${girth}${hems ? ' + hem' + (hems > 1 ? 's' : '') : ''}${missing ? ` + [__] (${missing} leg${missing > 1 ? 's' : ''} without a size)` : ''}` : '',
+    bendsText: bends ? `${bends}${hems ? ` (incl. ${hems} hem${hems > 1 ? 's' : ''})` : ''}` : '' };
+}
+// v1.7.2: optional 'Read dimensions' - the drawing image goes to the read-dimensions Edge Function (vision model). Off until a manager turns it on.
+const flVisionOn = () => !!(S.settings.quotes && S.settings.quotes.flVision);
+async function flReadDims(d) {
+  if (!navigator.onLine) throw Object.assign(new Error('You are offline. Read dimensions needs signal - add the labels with the Label tool (Scribble works offline).'), { offline: true });
+  if (!signedIn()) throw new Error('Sign in to use Read dimensions.');
+  const img = flPNG(Object.assign({}, d, { labels: [] }), 1000, 700, false); // the handwriting is drawn as strokes, so send the strokes only, unscaled
+  const r = await sbFetch('/functions/v1/read-dimensions', { method: 'POST', body: { image: img, w: FL_W, h: FL_H } });
+  return (r && r.labels || []).filter(l => l && l.t != null && isFinite(l.x) && isFinite(l.y)).map(l => ({ x: Math.max(0, Math.min(1, l.x)) * FL_W, y: Math.max(0, Math.min(1, l.y)) * FL_H, t: String(l.t).slice(0, 24), src: 'ai', box: l.box }));
+}
+async function flReview(d, found, title) {
+  found = found.filter(f => !d.labels.some(l => l.t === f.t && Math.hypot(l.x - f.x, l.y - f.y) < 40)); // already on the drawing
+  const G = flGeom(Object.assign({}, d, { labels: [...d.labels, ...found] }));
+  return new Promise(res => { const bg = document.createElement('div'); bg.className = 'fl-ask';
+    bg.innerHTML = `<div class="fl-askb fl-rev"><h3 style="margin:0 0 6px">${esc(title)}</h3>
+      ${found.length ? `<p class="hint">Check each value against your drawing. Untick anything that is wrong.</p>${found.map((l, i) => `<label class="ckl"><input type="checkbox" data-i="${i}" checked> <input class="fl-rv" data-v="${i}" value="${esc(l.t)}" aria-label="Value ${i + 1}"></label>`).join('')}` : (title.startsWith('Read') ? '<p class="hint">No handwritten numbers found. Use the Label tool instead.</p>' : '')}
+      <div class="f"><label for="flg">Girth (mm)</label><input id="flg" value="${esc(G.girthText)}" placeholder="from the labelled legs"></div><div class="f"><label for="flb">No. of bends</label><input id="flb" value="${esc(G.bendsText)}"></div>
+      <p class="hint">Girth = the labelled legs added up, leaving out hems unless the label says incl. Bends = corners in the drawing, including hems.</p>
+      <div class="fl-qb"><button type="button" class="btn sm primary" data-r="ok">Accept</button><button type="button" class="btn sm" data-r="x">Cancel</button></div></div>`;
+    document.body.appendChild(bg);
+    const recalc = () => { const keep = found.filter((l, i) => $(`[data-i="${i}"]`, bg).checked).map((l, i) => Object.assign({}, l, { t: $(`[data-v="${found.indexOf(l)}"]`, bg).value.trim() })); const g = flGeom(Object.assign({}, d, { labels: [...d.labels, ...keep] })); $('#flg', bg).value = g.girthText; $('#flb', bg).value = g.bendsText; return keep; };
+    bg.addEventListener('change', e => { if (e.target.matches('[data-i],[data-v]')) recalc(); });
+    bg.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (!b) return; const keep = found.length ? recalc() : []; const out = b.dataset.r === 'ok' ? { labels: keep.filter(l => l.t), girth: $('#flg', bg).value.trim(), bends: $('#flb', bg).value.trim() } : null; bg.remove(); res(out); });
   });
 }
 /* ---------- views ---------- */
@@ -6784,7 +6862,7 @@ Object.assign(ACTIONS, {
   async flnew() { const c = flCtx(); const r = newFlashRfq(S.ctx && S.ctx.job); (c.h.flashRfqs = c.h.flashRfqs || []).push(r); await c.save(); go(`${c.base}/${r.id}`); },
   fladd() { const c = flCtx(), r = flRfq(); const it = newFlashItem(); r.items.push(it); c.save(); rerender(true); setTimeout(() => { const el = $('#fli_' + it.id); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 60); },
   async fldel(a) { const c = flCtx(), r = flRfq(); if (!await confirmBox('Remove flashing?', 'The drawing and details for this flashing will be removed.', 'Remove')) return; r.items = r.items.filter(x => x.id !== a.dataset.id); c.save(); rerender(true); },
-  async fldraw(a) { const c = flCtx(), r = flRfq(); const i = r.items.findIndex(x => x.id === a.dataset.id); const it = r.items[i]; const d = await flDraw(it, `${flCode(r, i)} ${it.desc || 'profile'}`); if (!d) return; it.drawing = d; c.save(); rerender(true); },
+  async fldraw(a) { const c = flCtx(), r = flRfq(); const i = r.items.findIndex(x => x.id === a.dataset.id); const it = r.items[i]; const d = await flDraw(it, `${flCode(r, i)} ${it.desc || 'profile'}`); if (!d) return; const sg = d._sugg; delete d._sugg; if (sg) { if (sg.girth) it.girth = sg.girth; if (sg.bends) it.bends = sg.bends; } it.drawing = d; c.save(); rerender(true); },
   async flpdf() { const r = flRfq(); toast('Building flashings RFQ…', 1500); const o = await buildFlashRFQ(r); qOut(o.blob, o.name); },
   async flcopy() { const c = flCtx(), r = flRfq(); const n = JSON.parse(JSON.stringify(r)); n.id = uid(); n.date = todayISO(); n.items.forEach(x => x.id = uid()); n.extras.forEach(x => x.id = uid()); c.h.flashRfqs.push(n); c.save(); go(`${c.base}/${n.id}`); toast('Copied'); },
   async flrm() { const c = flCtx(), r = flRfq(); if (!await confirmBox('Delete flashings RFQ?', `${r.ref || r.project || 'This request'} and its drawings will be deleted.`, 'Delete')) return; c.h.flashRfqs = c.h.flashRfqs.filter(x => x !== r); c.save(); go(c.base); },
