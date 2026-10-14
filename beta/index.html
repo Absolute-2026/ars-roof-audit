@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.7.7">
+<meta name="app-version" content="1.7.8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -421,6 +421,8 @@ body.fl-lock{overflow:hidden;position:fixed;width:100%}
 .fl-qb{display:flex;flex-wrap:wrap;gap:6px}.fl-sc{font-size:12px;color:#5a6678;margin:6px 0 0}.fl-rv{width:110px;min-height:36px;margin-left:6px;font-weight:700}
 .fl-ask{background:rgba(15,37,66,.08)}.fl-rev .ckl{display:flex;align-items:center;gap:6px}.fl-rev input.fl-rv{width:120px!important;height:40px!important;min-height:40px;font-size:18px;appearance:auto;-webkit-appearance:auto;border:1px solid #cbd5e1;border-radius:8px;padding:4px 8px}
 .fl-rev input.fl-rv{flex:none!important;max-width:none!important}
+
+.fl-angs{flex-wrap:wrap}.fl-angs button{min-width:58px;min-height:44px;font-size:16px}
 
 </style>
 </head>
@@ -841,7 +843,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.7.7';
+const APP_VERSION = '1.7.8';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -6682,6 +6684,8 @@ function flPaint(g, d, W, H, o = {}) {
   d.strokes.forEach(s => { if (!s.pts.length) return; for (let i = 1; i < s.pts.length || i === 1; i++) { const a = s.pts[i - 1], b = s.pts[Math.min(i, s.pts.length - 1)]; g.lineWidth = lw || Math.max(1.5, (s.w || 5) * (0.55 + (b[2] ?? 0.5)) * sc); g.beginPath(); g.moveTo(ox + a[0] * sc, oy + a[1] * sc); g.lineTo(ox + b[0] * sc, oy + b[1] * sc); g.stroke(); if (s.pts.length === 1) break; } });
   const fs = o.fit ? Math.max(W < 400 ? 15 : 9, Math.min(26, 30 * sc)) : 30 * sc;
   g.font = `700 ${fs}px Helvetica, Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.strokeStyle = '#1f5fa8'; (d.labels || []).forEach(l => { if (l.cx == null) return; let a1 = l.r1, a2 = l.r2, df = a2 - a1; while (df > Math.PI) df -= 2 * Math.PI; while (df < -Math.PI) df += 2 * Math.PI;
+    g.lineWidth = Math.max(1.2, 2.2 * sc * (o.fit ? 1.6 : 1)); g.beginPath(); g.arc(ox + l.cx * sc, oy + l.cy * sc, 22 * sc * (o.fit ? 1.4 : 1), a1, a1 + df, df < 0); g.stroke(); });
   (d.labels || []).forEach(l => { const x = ox + l.x * sc, y = oy + l.y * sc; const w = g.measureText(l.t).width + fs * 0.5; g.fillStyle = 'rgba(255,255,255,.85)'; g.fillRect(x - w / 2, y - fs * 0.62, w, fs * 1.24); g.fillStyle = /°/.test(l.t) ? '#1f5fa8' : '#c0392b'; g.fillText(l.t, x, y); });
   g.restore();
 }
@@ -6705,11 +6709,11 @@ function flDraw(item, title) {
     const st = { tool: 'pen', straight: !!S.settings.flStraight, penSeen: false, cur: null, undo: [] };
     const ov = document.createElement('div'); ov.className = 'fl-ov';
     ov.innerHTML = `<div class="fl-bar"><b class="fl-t">${esc(title)}</b>
-      <div class="fl-tools"><button type="button" data-t="pen" class="on">✎ Pen</button><button type="button" data-t="erase">⌫ Eraser</button><button type="button" data-t="label">A Label</button>
+      <div class="fl-tools"><button type="button" data-t="pen" class="on">✎ Pen</button><button type="button" data-t="erase">⌫ Eraser</button><button type="button" data-t="label">A Label</button><button type="button" data-t="angle">∠ Angle</button>
       <button type="button" data-x="straight" class="${st.straight ? 'on' : ''}">Straighten</button><button type="button" data-x="geom">Girth &amp; bends</button>${flVisionOn() ? '<button type="button" data-x="read">Read dimensions</button>' : ''}<button type="button" data-x="undo">↶ Undo</button><button type="button" data-x="clear">Clear</button></div>
       <div class="fl-done"><button type="button" data-x="cancel" class="btn sm">Cancel</button><button type="button" data-x="done" class="btn sm primary">Done</button></div></div>
       <div class="fl-wrap"><canvas class="fl-cv" width="${FL_W}" height="${FL_H}" aria-label="Drawing area"></canvas></div>
-      <p class="fl-hint">Draw the profile with your Apple Pencil, finger or mouse. <b>Label</b>: tap where a dimension or angle goes (e.g. 200 or 96°). Mark the colour side with a C label. With a pencil, your palm and finger are ignored.</p>`;
+      <p class="fl-hint">Draw the profile with your Apple Pencil, finger or mouse. <b>Label</b>: tap where a dimension goes (e.g. 200). <b>Angle</b>: tap a bend to set its angle. Mark the colour side with a C label. With a pencil, your palm and finger are ignored.</p>`;
     document.body.appendChild(ov); document.body.classList.add('fl-lock');
     const cv = $('.fl-cv', ov), g = cv.getContext('2d'); const dpr = Math.min(2, window.devicePixelRatio || 1);
     const fit = () => { const wr = $('.fl-wrap', ov).getBoundingClientRect(); const s = Math.min(wr.width / FL_W, wr.height / FL_H); cv.style.width = FL_W * s + 'px'; cv.style.height = FL_H * s + 'px'; cv.width = FL_W * dpr; cv.height = FL_H * dpr; paint(); };
@@ -6720,8 +6724,13 @@ function flDraw(item, title) {
     const ignore = e => { if (e.pointerType === 'pen') st.penSeen = true; return st.penSeen && e.pointerType === 'touch'; };   // palm rejection once a pencil is detected
     cv.addEventListener('pointerdown', async e => {
       if (ignore(e) || (e.button && e.button !== 0)) return; e.preventDefault(); const p = pos(e);
+      if (st.tool === 'angle') { const cs = flCorners(d); let c = null, bd = 70; cs.forEach(q => { const dd = Math.hypot(q.x - p[0], q.y - p[1]); if (dd < bd) { bd = dd; c = q; } });
+        const lab = d.labels.find(l => l.cx != null && c && Math.hypot(l.cx - c.x, l.cy - c.y) < 12) || d.labels.find(l => /°/.test(l.t) && Math.hypot(l.x - p[0], l.y - p[1]) < 30);
+        if (!c && !lab) { toast('Tap on a bend (a corner between two legs)'); return; }
+        const t = await flAngAsk(lab ? lab.t : '', e.clientX, e.clientY); if (t == null) return; snap();
+        if (lab) { if (t) lab.t = t; else d.labels.splice(d.labels.indexOf(lab), 1); } else if (t) d.labels.push(flAngLabel(c, t)); paint(); return; }
       if (st.tool === 'label') { const lab = d.labels.find(l => Math.hypot(l.x - p[0], l.y - p[1]) < 30);
-        const t = await flAsk(lab ? lab.t : '', e.clientX, e.clientY); if (t === '__draw') { $$('[data-t]', ov).forEach(x => x.classList.toggle('on', x.dataset.t === 'pen')); st.tool = 'pen'; return; } if (t == null) return; snap(); if (lab) { if (t) lab.t = t; else d.labels.splice(d.labels.indexOf(lab), 1); } else if (t) d.labels.push({ x: p[0], y: p[1], t }); paint(); return; }
+        const t = await flAsk(lab ? lab.t : '', e.clientX, e.clientY); if (t === '__draw') { $$('[data-t]', ov).forEach(x => x.classList.toggle('on', x.dataset.t === 'pen')); st.tool = 'pen'; return; } if (t == null) return; snap(); if (lab) { if (t) lab.t = t; else d.labels.splice(d.labels.indexOf(lab), 1); } else if (t) d.labels.push(flSnapAng(d, { x: p[0], y: p[1], t })); paint(); return; }
       try { cv.setPointerCapture(e.pointerId); } catch (_) { } snap();
       if (st.tool === 'erase') { st.cur = { erase: true, id: e.pointerId }; if (!eraseAt(p)) st.undo.pop(); paint(); return; }
       st.cur = { id: e.pointerId, s: { w: e.pointerType === 'pen' ? 5 : 4.5, pts: [p] } }; d.strokes.push(st.cur.s); paint();
@@ -6746,7 +6755,7 @@ function flDraw(item, title) {
       if (x === 'clear' && (d.strokes.length || d.labels.length)) { snap(); d.strokes = []; d.labels = []; paint(); }
       if (x === 'geom' || x === 'read') { let found = [];
         if (x === 'read') { b.disabled = true; const t0 = b.textContent; b.textContent = 'Reading…'; try { found = await flReadDims(d); } catch (er) { b.disabled = false; b.textContent = t0; return toast(er.offline ? er.message : er.status === 503 || /not.configured/i.test(er.message) ? 'Read dimensions is not set up on the server yet (vision API key needed). Use the Label tool.' : /^Sign in/.test(er.message) ? er.message : 'Could not read dimensions: ' + er.message, 5000); } b.disabled = false; b.textContent = t0; }
-        const rv = await flReview(d, found, x === 'read' ? 'Read dimensions' : 'Girth & bends'); if (!rv) return; snap(); const drop = new Set(rv.labels.flatMap(l => l.ks || [])); if (drop.size) d.strokes = d.strokes.filter((s, k) => !drop.has(k)); rv.labels.forEach(l => d.labels.push({ x: l.x, y: l.y, t: l.t })); d._sugg = { girth: rv.girth, girthNote: rv.girthNote, bends: rv.bends }; paint(); toast('Girth and bends will be filled in when you tap Done'); return; }
+        const rv = await flReview(d, found, x === 'read' ? 'Read dimensions' : 'Girth & bends'); if (!rv) return; snap(); const drop = new Set(rv.labels.flatMap(l => l.ks || [])); if (drop.size) d.strokes = d.strokes.filter((s, k) => !drop.has(k)); rv.labels.forEach(l => d.labels.push(flSnapAng(d, { x: l.x, y: l.y, t: l.t }))); d._sugg = { girth: rv.girth, girthNote: rv.girthNote, bends: rv.bends }; paint(); toast('Girth and bends will be filled in when you tap Done'); return; }
       if (x === 'cancel') close(null);
       if (x === 'done') close(d);
     });
@@ -6755,6 +6764,33 @@ function flDraw(item, title) {
   });
 }
 // v1.7.2: Scribble-friendly label entry - a real, focused, large text input next to the tap point (iPad Scribble turns Pencil handwriting into text, offline)
+/* v1.7.8: angles at bends. A corner = an inner vertex of a straightened stroke, or where two strokes meet. The label sits outside the bend with a small arc. */
+function flCorners(d) { const out = [], S2 = d.strokes.map(s => flStraighten(s.pts, 14)).filter(P => P.length > 1);
+  S2.forEach(P => { for (let i = 1; i < P.length - 1; i++) out.push({ x: P[i][0], y: P[i][1], a: P[i - 1], c: P[i + 1] }); });
+  S2.forEach((P, k) => S2.forEach((Q, j) => { if (j <= k) return; [[P[0], P[1]], [P[P.length - 1], P[P.length - 2]]].forEach(([e, n]) => [[Q[0], Q[1]], [Q[Q.length - 1], Q[Q.length - 2]]].forEach(([f, m]) => { if (Math.hypot(e[0] - f[0], e[1] - f[1]) < 25) out.push({ x: (e[0] + f[0]) / 2, y: (e[1] + f[1]) / 2, a: n, c: m }); })); }));
+  return out; }
+function flAngLabel(c, t) { const r1 = Math.atan2(c.a[1] - c.y, c.a[0] - c.x), r2 = Math.atan2(c.c[1] - c.y, c.c[0] - c.x); let bx = Math.cos(r1) + Math.cos(r2), by = Math.sin(r1) + Math.sin(r2); const L = Math.hypot(bx, by);
+  if (L < 0.05) { bx = -Math.sin(r1); by = Math.cos(r1); } else { bx /= L; by /= L; }
+  t = /^\d+(\.\d+)?$/.test(t) ? t + '°' : t; return { x: c.x + bx * 46, y: c.y + by * 46, t, cx: c.x, cy: c.y, r1, r2 }; }
+function flSnapAng(d, l) { if (!/°|deg/i.test(l.t)) return l; let c = null, bd = 90; flCorners(d).forEach(q => { const dd = Math.hypot(q.x - l.x, q.y - l.y); if (dd < bd) { bd = dd; c = q; } }); return c ? flAngLabel(c, l.t.replace(/\s*deg(rees)?/i, '°')) : l; }
+function flAngles(d) { const cs = flCorners(d); return (d.labels || []).filter(l => /°/.test(l.t)).map(l => { const x = l.cx ?? l.x, y = l.cy ?? l.y; let k = 0, bd = 1e9; cs.forEach((q, i) => { const dd = Math.hypot(q.x - x, q.y - y); if (dd < bd) { bd = dd; k = i; } }); return [k, l.t]; }).sort((a, b) => a[0] - b[0]).map(x => x[1]); }
+function flBendsOut(it) { const b = String(it.bends || '').trim(), a = it.drawing ? flAngles(it.drawing) : []; if (!a.length || /°/.test(b)) return b; return b ? `${b} (${a.join(', ')})`.replace(/\) \(/, '; ') : a.join(', '); }
+const FL_ANGS = [45, 90, 95, 100, 105, 120, 135, 150, 160];
+function flAngAsk(cur, cx, cy) {
+  return new Promise(res => { const bg = document.createElement('div'); bg.className = 'fl-ask';
+    bg.innerHTML = `<div class="fl-askb"><div class="fl-q fl-angs">${FL_ANGS.map(a => `<button type="button" data-a="${a}">${a}°</button>`).join('')}</div>
+      <input id="flat" class="fl-in" value="${esc(String(cur).replace('°', ''))}" placeholder="or write / type an angle" inputmode="decimal" autocomplete="off" enterkeyhint="done" aria-label="Angle in degrees">
+      <div class="fl-qb"><button type="button" class="btn sm primary" data-r="ok">OK</button>${cur ? '<button type="button" class="btn sm danger" data-r="del">Remove</button>' : ''}<button type="button" class="btn sm" data-r="x">Cancel</button></div></div>`;
+    document.body.appendChild(bg); const box = $('.fl-askb', bg), inp = $('#flat', bg);
+    const vw = window.innerWidth, vh = window.innerHeight, bw = Math.min(vw - 16, 360), bh = 200;
+    Object.assign(box.style, { position: 'absolute', left: (cx == null ? (vw - bw) / 2 : Math.max(8, Math.min(vw - bw - 8, cx - bw / 2))) + 'px', top: (cy == null ? vh / 3 : (cy + 24 + bh < vh ? cy + 24 : Math.max(8, cy - bh - 24))) + 'px', width: bw + 'px' });
+    const val = () => { const v = inp.value.trim().replace(/\s*(°|deg(rees)?)$/i, ''); return v ? v + '°' : ''; };
+    const done = v => { bg.remove(); res(v); };
+    bg.addEventListener('pointerdown', e => { if (e.target === bg) done(null); });
+    bg.addEventListener('click', e => { const a = e.target.closest('[data-a]'); if (a) return done(a.dataset.a + '°'); const b = e.target.closest('[data-r]'); if (!b) return; done(b.dataset.r === 'ok' ? val() || null : b.dataset.r === 'del' ? '' : null); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') done(val() || null); if (e.key === 'Escape') done(null); });
+  });
+}
 function flAsk(cur, cx, cy) {
   return new Promise(res => { const bg = document.createElement('div'); bg.className = 'fl-ask';
     bg.innerHTML = `<div class="fl-askb"><input id="flat" class="fl-in" value="${esc(cur)}" placeholder="write or type" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" inputmode="decimal" aria-label="Label: dimension in mm, angle or note">
@@ -6840,7 +6876,7 @@ function flGeom(d) {
   const legs = Math.round(known.reduce((t, g) => t + g.x.v, 0)), girth = legs + hems * W;
   return { girth, legs, missing, hems, welts: hems, bends, girthText: known.length ? (hems ? `${girth}` : `${legs}`) + (missing ? ` + [__] (${missing} leg${missing > 1 ? 's' : ''} without a size)` : '') : '',
     breakdown: known.length ? `legs ${legs}${hems ? ` + ${hems} welt${hems > 1 ? 's' : ''} x ${W} = ${girth}` : ''}${missing ? ` (+ ${missing} leg${missing > 1 ? 's' : ''} without a size)` : ''}` : '',
-    bendsText: bends ? `${bends}${hems ? ` (incl. ${hems} welt${hems > 1 ? 's' : ''})` : ''}` : '' };
+    bendsText: bends ? (() => { const A = flAngles(d), w = hems ? `incl. ${hems} welt${hems > 1 ? 's' : ''}` : ''; const p = [A.join(', '), w].filter(Boolean).join('; '); return `${bends}${p ? ` (${p})` : ''}`; })() : '' };
 }
 // v1.7.2: optional 'Read dimensions' - the drawing image goes to the read-dimensions Edge Function (vision model). Off until a manager turns it on.
 const flVisionOn = () => !!(S.settings.quotes && S.settings.quotes.flVision);
@@ -6966,7 +7002,7 @@ async function buildFlashRFQ(r) {
   const gen = [`Material ${B(r.material)}`, `Gauge ${B(r.gauge)}`, `Colour / finish ${B(r.colour)}`, r.colourSide, r.general].filter(Boolean).join(' · ');
   font(8.6, 'bold'); doc.text('All flashings:', M, y); font(8.6, 'normal'); const gl = doc.splitTextToSize(tx(gen), W - 2 * M - 22); doc.text(gl, M + 21, y); y += gl.length * 4 + 3;
   const thumbs = r.items.map(it => (it.drawing.strokes.length || it.drawing.labels.length) ? flPNG(it.drawing, 300, 231) : null);
-  const body = r.items.map((it, i) => [flCode(r, i), '', tx(it.desc || '') + (it.notes ? '\n' + tx(it.notes) : ''), B(it.girth) + (flGN(it) ? '\n(' + tx(flGN(it).replace(/ = \d+.*/, '')) + ')' : ''), B(it.bends), tx([it.material || r.material, it.gauge || r.gauge].filter(Boolean).join(' ')) || '[__]', tx([it.colour || r.colour || '[__]', it.colourSide ? `(${it.colourSide})` : ''].filter(Boolean).join(' ')), B(flLenFmt(it.length || flLenDef())), it.qty ? `${it.qty}${/^\d+$/.test(it.qty) ? ' no' : ''}` : '[__]', '']);
+  const body = r.items.map((it, i) => [flCode(r, i), '', tx(it.desc || '') + (it.notes ? '\n' + tx(it.notes) : ''), B(it.girth) + (flGN(it) ? '\n(' + tx(flGN(it).replace(/ = \d+.*/, '')) + ')' : ''), B(flBendsOut(it)), tx([it.material || r.material, it.gauge || r.gauge].filter(Boolean).join(' ')) || '[__]', tx([it.colour || r.colour || '[__]', it.colourSide ? `(${it.colourSide})` : ''].filter(Boolean).join(' ')), B(flLenFmt(it.length || flLenDef())), it.qty ? `${it.qty}${/^\d+$/.test(it.qty) ? ' no' : ''}` : '[__]', '']);
   r.extras.forEach((e, i) => body.push([`A${i + 1}`, '-', tx(e.desc || ''), '-', '-', tx(e.spec || '') || '[__]', '', '-', tx(e.qty || '[__]'), '']));
   doc.autoTable({ startY: y, margin: { left: M, right: M, top: 32 }, head: [['Item', 'Profile', 'Description', 'Girth (mm)', 'Bends', 'Material / gauge', 'Colour', 'Length', 'Qty', 'Rate / Total']], body, theme: 'grid', rowPageBreak: 'avoid',
     styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 1.8, valign: 'middle', lineColor: [150, 150, 150], lineWidth: 0.25, textColor: TXT }, headStyles: { fillColor: G, textColor: 255, fontStyle: 'normal' },
@@ -6983,7 +7019,7 @@ async function buildFlashRFQ(r) {
   r.items.forEach((it, i) => { doc.addPage(); let yy = head(true); font(15, 'bold', G); doc.text(tx(`${flCode(r, i)}  ${it.desc || 'Flashing'}`), M, yy + 4);
     const img = thumbs[i] ? flPNG(it.drawing, 1400, 980) : null; const bw = 190, bh = 133;
     doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.3); doc.rect(M, yy + 9, bw, bh); if (img) doc.addImage(img, 'PNG', M + 1, yy + 10, bw - 2, bh - 2); else { font(11, 'normal', LG); doc.text('No drawing', M + bw / 2, yy + 9 + bh / 2, { align: 'center' }); }
-    const kv = [['Girth (mm)', B(it.girth) + (flGN(it) ? '  (' + tx(flGN(it)) + ')' : '')], ['Bends', B(it.bends)], ['Material', B(it.material || r.material)], ['Gauge', B(it.gauge || r.gauge)], ['Colour / finish', B(it.colour || r.colour)], ['Colour side', it.colourSide || r.colourSide || '[__]'], ['Length', B(flLenFmt(it.length || flLenDef()))], ['Quantity', it.qty ? it.qty + (/^\d+$/.test(it.qty) ? ' no' : '') : '[__]'], ['Notes', it.notes || '-']];
+    const kv = [['Girth (mm)', B(it.girth) + (flGN(it) ? '  (' + tx(flGN(it)) + ')' : '')], ['Bends', B(flBendsOut(it))], ['Material', B(it.material || r.material)], ['Gauge', B(it.gauge || r.gauge)], ['Colour / finish', B(it.colour || r.colour)], ['Colour side', it.colourSide || r.colourSide || '[__]'], ['Length', B(flLenFmt(it.length || flLenDef()))], ['Quantity', it.qty ? it.qty + (/^\d+$/.test(it.qty) ? ' no' : '') : '[__]'], ['Notes', it.notes || '-']];
     doc.autoTable({ startY: yy + 9, margin: { left: M + bw + 6, right: M }, body: kv.map(([k, v]) => [k, tx(v)]), theme: 'grid', styles: { fontSize: 9.5, cellPadding: 2.2, lineColor: [190, 190, 190], lineWidth: 0.25 }, columnStyles: { 0: { fontStyle: 'bold', cellWidth: 30, fillColor: [244, 244, 244] } } });
     font(8, 'normal', LG); doc.text('Not to scale - dimensions in mm. Red = dimensions, blue = angles.', M, yy + bh + 14); });
   const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); font(7.5, 'normal', LG); doc.text(`Page ${i} of ${n}`, W - M, H - 6, { align: 'right' }); }
