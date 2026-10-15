@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.9.4">
+<meta name="app-version" content="1.9.5">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.9.4';
+const APP_VERSION = '1.9.5';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -8036,6 +8036,18 @@ function ssSlope(s, sl) { const p = ssProd(s), sp = ssSp(sl), ov = String(sl.ove
     segs.forEach(x => { x.len = Math.round(x.to - x.from); if (x.len > maxL) warn.push(`${x.kind === 'rl' ? 'Rooflight' : 'Sheet ' + x.kind + ' rooflight'} ${x.len} mm is over ${maxL} mm - add a split`); });
     const one = k => segs.filter(x => x.kind === k); band = { segs, from: f1, to: t1, lo: one('below').reduce((t, x) => t + x.len, 0), rl: one('rl')[0].len, hi: one('above').reduce((t, x) => t + x.len, 0) }; }
   return { band, sp, pos, L, pieces, cover, cols, rlc, sheetsCols: cols - rlc.length, span, worst, warn, purlins: pos.length, endLaps: pieces.length - 1 }; }
+// 1.9.5: sheet lengths to dimension on the pad / cross-section: rooflight band pieces (below / RL / above, split pieces), else the split pieces, else one length
+function ssDimSegs(s, sl, r) { r = r || ssSlope(s, sl); if (!r.L) return []; if (r.band) return r.band.segs.map(x => ({ kind: x.kind === 'rl' ? 'rl' : 'sheet', from: x.from, to: x.to, len: x.len }));
+  const f1 = +sl.rlFrom, t1 = +sl.rlTo, pos = r.pos, lap = +sl.lap || +s.lap || SS_LAP; if (f1 >= 1 && t1 > f1 && t1 <= pos.length) { const man = String(sl.splits || '').split(/[,; ]+/).map(Number).filter(k => k >= 2 && k < pos.length && (k < f1 || k > t1));
+    const bnd = [...new Set(man.concat([f1, t1]))].sort((a, b) => a - b), out = []; let st = 0, prev = 0; bnd.forEach(k => { out.push({ kind: k <= f1 || prev >= t1 ? 'sheet' : 'rl', from: st, to: pos[k - 1] + lap / 2 }); st = pos[k - 1] - lap / 2; prev = k; }); out.push({ kind: 'sheet', from: st, to: r.L }); out.forEach(x => { x.len = Math.round(x.to - x.from); }); return out; }
+  return r.pieces.map(x => ({ kind: 'sheet', from: x.from, to: x.to, len: x.len })); }
+// draw one dimension line from point a to b, offset along normal n by d (tier), ticks at both ends, length text centred above the line
+function ssDimLine(g, a, b, n, d, label, col, sz, rot) { const A = [a[0] + n[0] * d, a[1] + n[1] * d], Bp = [b[0] + n[0] * d, b[1] + n[1] * d], t = 7;
+  g.save(); g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 1.6; g.beginPath(); g.moveTo(a[0] + n[0] * (d - t * 2.4), a[1] + n[1] * (d - t * 2.4)); g.lineTo(A[0] + n[0] * t, A[1] + n[1] * t); g.moveTo(b[0] + n[0] * (d - t * 2.4), b[1] + n[1] * (d - t * 2.4)); g.lineTo(Bp[0] + n[0] * t, Bp[1] + n[1] * t); g.moveTo(A[0], A[1]); g.lineTo(Bp[0], Bp[1]); g.stroke();
+  const ux = Bp[0] - A[0], uy = Bp[1] - A[1], L = Math.hypot(ux, uy) || 1, e = [ux / L, uy / L]; [[A, 1], [Bp, -1]].forEach(([P, sg]) => { g.beginPath(); g.moveTo(P[0] + (e[0] * t - n[0] * t / 2) * sg - 0, P[1] + (e[1] * t - n[1] * t / 2) * sg); g.lineTo(P[0], P[1]); g.lineTo(P[0] + e[0] * t * sg + n[0] * t / 2 * sg, P[1] + e[1] * t * sg + n[1] * t / 2 * sg); g.stroke(); });
+  let ang = Math.atan2(e[1], e[0]); if (ang > Math.PI / 2) ang -= Math.PI; if (ang < -Math.PI / 2) ang += Math.PI; const m = [(A[0] + Bp[0]) / 2 + n[0] * sz * 0.75, (A[1] + Bp[1]) / 2 + n[1] * sz * 0.75];
+  g.translate(m[0], m[1]); if (rot !== false) g.rotate(ang); g.font = `bold ${sz}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; const w = g.measureText(label).width; g.fillStyle = '#fff'; g.fillRect(-w / 2 - 3, -sz / 2 - 2, w + 6, sz + 4); g.fillStyle = col; g.fillText(label, 0, 0); g.restore(); }
+const SS_DIMC = { sheet: '#111', rl: '#d97706' };
 function ssCalc(s) { if (typeof ssSyncLinks === 'function') ssSyncLinks(s); const S2 = (s.slopes || []).map(sl => Object.assign({ sl }, ssSlope(s, sl))); const p = ssProd(s);
   const sheetRows = [], rlRows = []; S2.forEach(r => r.pieces.forEach((x, i) => { if (r.sheetsCols) sheetRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.sheetsCols }); if (r.rlc.length && !r.band) rlRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.rlc.length, cols: r.rlc.join(', ') }); }));
   S2.forEach(r => { if (!r.band || !r.rlc.length) return; const q = r.rlc.length; ['below', 'rl', 'above'].forEach(kd => { const L2 = r.band.segs.filter(x => x.kind === kd); L2.forEach((x, i) => { const nm = (kd === 'rl' ? 'Rooflight' : `Sheet ${kd} rooflight`) + (L2.length > 1 ? ` (${i + 1} of ${L2.length})` : '') + ` P${x.p0 || 'eaves'}-${x.p1 ? 'P' + x.p1 : 'top'}`;
@@ -8086,7 +8098,7 @@ function viewSheetSchedule(h, s, job) { const f = mk(h), b = `sheetSchedules#${s
   const rlOpts = []; ['Filon', 'Brett Martin'].forEach(m => { rlOpts.push('#' + m); SS_RL.filter(x => x.maker === m).forEach(x => rlOpts.push(x.name)); });
   const slope = (sl, i) => { const sb = `${b}.slopes#${sl.id}`, r = C.slopes[i];
     const n = Math.max(0, Math.min(40, +sl.n || 0)); sl.sp = sl.sp || []; while (sl.sp.length < n) sl.sp.push('');
-    const spF = n ? `<div class="f"><label>Purlin spacings, from the ridge down (mm)</label><div class="ss-sp">${Array.from({ length: n }, (_, k) => `<label><small>${k + 1}</small><input type="number" inputmode="numeric" data-b="${sb}.sp.${k}" value="${esc(sl.sp[k] || '')}" aria-label="Spacing ${k + 1}"></label>`).join('')}</div></div>` : '';
+    const spF = n ? `<div class="f"><label>Purlin spacings, from the ridge down (mm)</label><div class="ss-sp">${Array.from({ length: n }, (_, k) => `<label><small>${k + 1}</small><input type="text" inputmode="numeric" pattern="[0-9]*" enterkeyhint="next" class="ss-spi" data-b="${sb}.sp.${k}" value="${esc(sl.sp[k] || '')}" aria-label="Spacing ${k + 1}"></label>`).join('')}</div><button type="button" class="btn sm ss-nx" data-sl="${sl.id}">Next ›</button></div>` : '';
     return `<div class="card ss-sl" id="ssl_${sl.id}"><h2><input class="pit-l" data-b="${sb}.name" value="${esc(sl.name)}" aria-label="Slope name"><button type="button" class="ck-x" data-act="ssdelsl" data-id="${sl.id}" aria-label="Remove slope">×</button></h2>${ssCopyBar(s, sl)}<fieldset class="ss-lk" ${sl.linkOf && s.slopes.some(x => x.id === sl.linkOf) ? 'disabled' : ''}>
       <div class="row">${f.text('Cross-section', sb + '.sec', { ph: 'A' })}${f.text('Pitch (°)', sb + '.pitch', { type: 'number', ph: 'e.g. 27' })}${sel('High end is on the', sb + '.dir', ['right', 'left'], ssUp(sl) ? 'right' : 'left')}</div>
       <div class="row">${sel('Top end', sb + '.topType', SS_TOPS, sl.topType || SS_TOPS[0])}${f.text('Step down from previous slope (mm)', sb + '.drop', { type: 'number', ph: 'e.g. 600 lean-to / canopy' })}</div>
@@ -8210,9 +8222,10 @@ function ssXSection(s, key, C, W = 1400, H = 640) { C = C || ssCalc(s); const ro
     const off = (q, d) => [q[0] + n2[0] * d / k, q[1] + n2[1] * d / k];
     r.pos.forEach(pp => { const q = at(pp); line([q, off(q, 16), off(off(q, 16), 0)], '#1e3a8a', 2.5); const e = off(q, 16); line([e, [e[0] + dx * 6 / k, e[1] + dy * 6 / k]], '#1e3a8a', 2.5); line([q, [q[0] + dx * 6 / k, q[1] + dy * 6 / k]], '#1e3a8a', 2.5); });
     const rp = r.pos.map(v => v); for (let j = 0; j < r.sp.length; j++) { const m = at((rp[j] + rp[j + 1]) / 2); const o = off(m, 32); txt(String(r.sp[j]), o[0], o[1], ta, 14); }
+    { const ds = ssDimSegs(s, r.sl, r); if (ds.length > 1 || r.band || +r.sl.rlFrom) ds.forEach((x, j) => { const A = P(...at(x.from)), Bq = P(...at(x.to)), N0 = P(...off(at(x.from), 100)), nn = [N0[0] - A[0], N0[1] - A[1]], nl = Math.hypot(nn[0], nn[1]) || 1; ssDimLine(g, A, Bq, [nn[0] / nl, nn[1] / nl], 52 + (j % 2) * 26, `${x.kind === 'rl' ? 'RL ' : ''}${x.len}`, SS_DIMC[x.kind], 12); }); }
     const tg = at(r.L - (+r.sl.topExt || 0) / 2), bg = at((+r.sl.overhang || 0) / 2); if (+r.sl.topExt) { const o = off(tg, -18); txt(String(r.sl.topExt), o[0], o[1], ta, 12, '#555'); } if (+r.sl.overhang) { const o = off(bg, 32); txt(String(r.sl.overhang), o[0], o[1], ta, 13, '#555'); }
     const mid = at(r.L / 2), o1 = off(mid, -70), o2 = off(at(r.L * 0.78), -40); txt(r.sl.name, o1[0], o1[1], 0, 22, '#1d4ed8', true); if (/Wall/.test(r.sl.topType || '')) txt('Wall', sg.t[0], sg.t[1] + 250, 0, 13, '#555', true);
-    if (r.band && r.rlc.length) line([at(r.pos[r.band.from - 1]), at(r.pos[r.band.to - 1])], '#f59e0b', 7); if (r.band && r.rlc.length) r.band.segs.forEach(x => { const m = at((x.from + x.to) / 2), o = off(m, -40); txt(`${x.kind === 'rl' ? 'RL' : x.kind === 'below' ? 'sheet' : 'sheet'} ${x.len}`, o[0], o[1], ta, 12, x.kind === 'rl' ? '#b45309' : '#1d4ed8', true); }); txt(`${r.sl.pitch || '?'}°`, o2[0], o2[1], 0, 17, '#111', true);
+    if (r.band && r.rlc.length) line([at(r.pos[r.band.from - 1]), at(r.pos[r.band.to - 1])], '#f59e0b', 7); txt(`${r.sl.pitch || '?'}°`, o2[0], o2[1], 0, 17, '#111', true);
     // bottom end detail
     const B = sg.b, side = sg.up ? -1 : 1, u = 1 / k; const et = r.sl.endType || '';
     if (/gutter/i.test(et) && !/Valley/.test(et)) { const [bu, bv] = P(B[0], B[1]); g.strokeStyle = '#111'; g.lineWidth = 2.5; g.beginPath(); g.arc(bu + side * 14, bv + 8, 14, 0, Math.PI); g.stroke(); txt('Gutter', B[0] + side * 40 * u, B[1] - 50 * u, 0, 12, '#555'); }
@@ -8229,6 +8242,14 @@ Object.assign(ACTIONS, {
     if (job) { (job.flashRfqs = job.flashRfqs || []).push(fr); await markDirty(job); go(`#/job/${job.id}/flash/${fr.id}`); } else { await fsaLoad(); FSA.holder.flashRfqs.push(fr); await fsaSave(); go(`#/flash/${fr.id}`); } toast('Gutters copied to a new flashings RFQ - draw the profiles there'); },
 });
 { const st = document.createElement('style'); st.textContent = '.ss-sp{display:flex;flex-wrap:wrap;gap:6px}.ss-sp label{display:flex;flex-direction:column;width:84px;font-size:12px;color:#64748b}.ss-sp input{width:100%}.ss-xs{width:100%;border:1px solid #e5e7eb;border-radius:8px;margin:6px 0}.ss-gut{border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:8px}'; document.head.appendChild(st); }
+
+// v1.9.5: Enter / iOS Next / the Next › button moves to the next spacing, then on to the overhang field
+let ssLastSp = null; document.addEventListener('focusin', e => { if (e.target.classList && e.target.classList.contains('ss-spi')) ssLastSp = e.target; });
+function ssFocusNext(el) { const card = el.closest('.ss-sl'); const all = [...card.querySelectorAll('.ss-spi')]; const i = all.indexOf(el); let nx = all[i + 1];
+  if (!nx) nx = card.querySelector('[data-b$=".overhang"]'); if (nx) { nx.focus(); if (nx.select) nx.select(); nx.scrollIntoView({ block: 'center', behavior: 'smooth' }); } }
+document.addEventListener('keydown', e => { const el = e.target; if (e.key !== 'Enter' || !el.classList || !el.classList.contains('ss-spi')) return; e.preventDefault(); el.dispatchEvent(new Event('change', { bubbles: true })); ssFocusNext(el); });
+Object.assign(ACTIONS, { ssnext(a) { const card = a.closest('.ss-sl'); const el = ssLastSp && card.contains(ssLastSp) ? ssLastSp : null; if (!el) { const f = card.querySelector('.ss-spi'); if (f) f.focus(); return; } el.dispatchEvent(new Event('change', { bubbles: true })); ssFocusNext(el); } });
+document.addEventListener('pointerdown', e => { const b = e.target.closest && e.target.closest('.ss-nx'); if (!b) return; e.preventDefault(); ACTIONS.ssnext(b); }); // acts on pointerdown so the keyboard stays up (WebKit drops the click once pointerdown is prevented)
 
 /* ===== v1.9.1 (BETA): PURLIN SKETCH PAD for the roof sheet schedule =====
    Drag purlin sections, rafters and end markers from the tray onto the page; purlins snap onto slope lines; tap a gap to type its size,
@@ -8247,11 +8268,11 @@ function ppSetGaps(sl, g) { sl.n = g.length ? String(g.length) : ''; sl.sp = g.s
 // form -> pad: (re)layout any slope whose purlin count changed, chain new slopes along the section
 function ppLayout(s, key, force) { const rows = s.slopes.filter(x => (x.sec || 'A').trim() === key); if (typeof ssPadOrder === 'function') ssPadOrder(rows, x => x); let cur = [160, 820], prevUp = null, fresh = false, pBase = 820;
   let mmpx = PP_MMPX; if (force || rows.some(x => !x.pad)) { let w = 0, h = 0; rows.forEach(sl => { const L = ssSlope(s, sl).L || 6000, a = (+sl.pitch || 10) * Math.PI / 180; w += L * Math.cos(a) + 700; h = Math.max(h, L * Math.sin(a)); }); mmpx = Math.min(0.16, 1350 / Math.max(1, w), 640 / Math.max(1, h)); }
-  rows.forEach(sl => { const sp = ssSp(sl), m = sp.length ? sp.length + 1 : 0, r = ssSlope(s, sl), scaled = r.L && sp.every(x => x > 0), v = ppV(sl), up = ssUp(sl);
+  rows.forEach(sl => { const sp = ssSp(sl), nn = +sl.n || 0, m = nn ? nn + 1 : (sp.length ? sp.length + 1 : 0), r = ssSlope(s, sl), scaled = r.L && sp.length === m - 1 && sp.every(x => x > 0), v = ppV(sl), up = ssUp(sl);
     if (!sl.pad || force || (sl.pad.t || []).length !== m) { const len = scaled ? Math.max(200, r.L * mmpx) : (sl.pad && !force ? sl.pad.len : 520);
       const t = m ? (scaled ? r.pos.map(p => p * len / r.L) : Array.from({ length: m }, (_, i) => len * (0.08 + 0.84 * i / Math.max(1, m - 1)))) : [];
-      if (!sl.pad || force) { let B; if (up && prevUp) B = [cur[0], pBase]; else if (up) B = [cur[0] + (prevUp === false ? 60 : 0), cur[1]]; else if (prevUp) B = [cur[0] - v[0] * len, cur[1] - v[1] * len]; else B = [cur[0] + Math.abs(v[0]) * len, cur[1]]; sl.pad = { bx: B[0], by: B[1], len, t }; fresh = true; }
-      else Object.assign(sl.pad, { len, t }); }
+      if (!sl.pad || force) { let B; if (up && prevUp) B = [cur[0], pBase]; else if (up) B = [cur[0] + (prevUp === false ? 60 : 0), cur[1]]; else if (prevUp) B = [cur[0] - v[0] * len, cur[1] - v[1] * len]; else B = [cur[0] + Math.abs(v[0]) * len, cur[1]]; const o = sl.pad || {}; sl.pad = { bx: B[0], by: B[1], len, t }; if (o.k) sl.pad.k = o.k.slice(); if (o.f) sl.pad.f = o.f.slice(); if (o.mmpx && !scaled) sl.pad.mmpx = o.mmpx; fresh = true; } /* 1.9.5: a re-layout (Copy/Mirror off the edge, Scale) used to drop purlin types/facing */
+      else Object.assign(sl.pad, { len, t }); if (scaled) sl.pad.mmpx = mmpx; else if (!sl.pad.mmpx) sl.pad.mmpx = 0.1; }
     cur = up ? ppAt(sl, sl.pad.len) : [sl.pad.bx, sl.pad.by]; pBase = sl.pad.by; prevUp = up; });
   if (fresh) { const P = rows.flatMap(sl => [[sl.pad.bx, sl.pad.by], ppAt(sl, sl.pad.len)]); const x0 = Math.min(...P.map(q => q[0])), x1 = Math.max(...P.map(q => q[0])), y0 = Math.min(...P.map(q => q[1])), y1 = Math.max(...P.map(q => q[1])); const dx = (PP_W - (x1 + x0)) / 2, dy = (PP_H - (y1 + y0)) / 2 + 40; rows.forEach(sl => { sl.pad.bx += dx; sl.pad.by += dy; }); } }
 // segments for tapping / reading: bottom overhang, purlin gaps (bottom -> top), top gap
@@ -8274,14 +8295,14 @@ function ppRender(c, s, key, st) { const g = c.getContext('2d'); g.setTransform(
   s.slopes.filter(x => (x.sec || 'A').trim() === key && x.pad).forEach(sl => { const v = ppV(sl), n = ppN(v), B = [sl.pad.bx, sl.pad.by], T = ppAt(sl, sl.pad.len), sel = st && st.sel === sl.id;
     g.strokeStyle = sel ? '#2563eb' : '#111'; g.lineWidth = 5; g.beginPath(); g.moveTo(B[0], B[1]); g.lineTo(T[0], T[1]); g.stroke();
     if (+sl.rlFrom && +sl.rlTo && sl.pad.t[sl.rlTo - 1] != null) { const a = ppAt(sl, sl.pad.t[sl.rlFrom - 1]), z = ppAt(sl, sl.pad.t[sl.rlTo - 1]); g.strokeStyle = '#f59e0b'; g.lineWidth = 12; g.globalAlpha = 0.7; g.beginPath(); g.moveTo(a[0] - n[0] * 7, a[1] - n[1] * 7); g.lineTo(z[0] - n[0] * 7, z[1] - n[1] * 7); g.stroke(); g.globalAlpha = 1; } else if (+sl.rlFrom && sl.pad.t[sl.rlFrom - 1] != null) { const a = ppAt(sl, sl.pad.t[sl.rlFrom - 1]); g.fillStyle = '#f59e0b'; g.beginPath(); g.arc(a[0] - n[0] * 7, a[1] - n[1] * 7, 9, 0, 7); g.fill(); }
-    { const rr = ssSlope(s, sl); if (rr.band && rr.L) rr.band.segs.forEach(x => { const m = ppAt(sl, ((x.from + x.to) / 2) * sl.pad.len / rr.L); txt(`${x.kind === 'rl' ? 'RL ' : x.kind === 'below' ? '↓ ' : '↑ '}${x.len}`, m[0] - n[0] * 58, m[1] - n[1] * 58, 16, x.kind === 'rl' ? '#b45309' : '#1d4ed8', true); }); }
+    { const rr = ssSlope(s, sl), ds = rr.L ? ssDimSegs(s, sl, rr) : []; if (ds.length > 1 || +sl.rlFrom) ds.forEach((x, j) => { const q = d => ppAt(sl, d * sl.pad.len / rr.L); ssDimLine(g, q(x.from), q(x.to), n, 70 + (j % 2) * 36, `${x.kind === 'rl' ? 'RL ' : ''}${x.len}`, SS_DIMC[x.kind], 23); }); }
     String(sl.splits || '').split(/[,; ]+/).map(Number).filter(k => k > 0 && sl.pad.t[k - 1] != null).forEach(k => { const q = ppAt(sl, sl.pad.t[k - 1]); g.strokeStyle = '#dc2626'; g.lineWidth = 6; g.beginPath(); g.moveTo(q[0] - n[0] * 28 - v[0] * 10, q[1] - n[1] * 28 - v[1] * 10); g.lineTo(q[0] + n[0] * 4 + v[0] * 10, q[1] + n[1] * 4 + v[1] * 10); g.stroke(); txt('✂', q[0] - n[0] * 44, q[1] - n[1] * 44, 20, '#dc2626', true); });
     g.strokeStyle = '#1e3a8a'; g.lineWidth = 3.5; ppKF(sl, kind); sl.pad.t.forEach((t, i) => { const f = sl.pad.f[i] || 1, sel2 = st && st.selPur && st.selPur.id === sl.id && st.selPur.j === i; g.strokeStyle = sel2 ? '#f28c28' : '#1e3a8a'; ppDrawShape(g, sl.pad.k[i] || kind, ppAt(sl, t), [v[0] * f, v[1] * f], n); });
     // handles
     g.fillStyle = '#2563eb'; [B, T].forEach((p, i) => { g.globalAlpha = sel ? 0.9 : 0.25; g.beginPath(); g.arc(p[0], p[1], i ? 13 : 10, 0, 7); g.fill(); }); g.globalAlpha = 1;
     // ends
     g.strokeStyle = '#111'; g.lineWidth = 3; const et = sl.endType || '', sx = ssUp(sl) ? -1 : 1;
-    if (/Valley/.test(et)) { const r = ssSlope(s, sl), kk = Math.max(0.1, r.L ? sl.pad.len / r.L : PP_MMPX); if (!ssUp(sl)) ssValleyDraw(g, s, sl, B[0], B[1], kk, 1); else if (!ppValleyPartner(s, key, sl)) ssValleyDraw(g, s, sl, B[0] - (ssValleyGeo(s, sl).topW - 80) * kk, B[1], kk, 1); } else if (/Flat/.test(et)) { g.beginPath(); g.moveTo(B[0], B[1]); g.lineTo(B[0] + sx * 110, B[1]); g.lineTo(B[0] + sx * 110, B[1] - 50); g.stroke(); txt('Flat', B[0] + sx * 60, B[1] + 22, 18, '#555', true); }
+    if (/Valley/.test(et)) { const kk = sl.pad.mmpx || 0.1; /* fixed per slope so typing spacings never resizes it */ if (!ssUp(sl)) ssValleyDraw(g, s, sl, B[0], B[1], kk, 1); else if (!ppValleyPartner(s, key, sl)) ssValleyDraw(g, s, sl, B[0] - (ssValleyGeo(s, sl).topW - 80) * kk, B[1], kk, 1); } else if (/Flat/.test(et)) { g.beginPath(); g.moveTo(B[0], B[1]); g.lineTo(B[0] + sx * 110, B[1]); g.lineTo(B[0] + sx * 110, B[1] - 50); g.stroke(); txt('Flat', B[0] + sx * 60, B[1] + 22, 18, '#555', true); }
     else if (/gutter/i.test(et)) { g.beginPath(); g.arc(B[0] + sx * 18, B[1] + 10, 18, 0, Math.PI); g.stroke(); }
     if (/Wall/.test(sl.topType || '')) { g.beginPath(); g.moveTo(T[0], T[1] + 60); g.lineTo(T[0], T[1] - 120); g.stroke(); txt('Wall', T[0] + 30, T[1] - 90, 16, '#555', true); } else if (!/Mono/.test(sl.topType || '')) txt('^', T[0], T[1] - 22, 26, '#111', true);
     const M = ppAt(sl, sl.pad.len * 0.5); txt(sl.name, M[0] - n[0] * 95, M[1] - n[1] * 95, 26, '#1d4ed8', true); txt(`${sl.pitch || '?'}°`, M[0] - n[0] * 60, M[1] - n[1] * 60, 20, '#111', true); });
@@ -8296,9 +8317,9 @@ function ppDelPurlin(sl, j) { ppKF(sl); const T = sl.pad.t, g = ppGaps(sl); if (
 // one-to-one: each handwritten number goes to the nearest free gap (closest pairs first)
 function ppAssign(segs, found) { const pairs = []; found.forEach((f, fi) => { const v = parseFloat(String(f.t).replace(/[^\d.]/g, '')); if (!(v > 0)) return; segs.forEach((sg, si) => pairs.push({ fi, si, v, d: Math.hypot(sg.c[0] - f.x, sg.c[1] - f.y) })); });
   pairs.sort((a, b) => a.d - b.d); const uf = new Set(), us = new Set(), out = []; pairs.forEach(p => { if (uf.has(p.fi) || us.has(p.si) || p.d > 260) return; uf.add(p.fi); us.add(p.si); out.push({ sg: segs[p.si], v: p.v, f: found[p.fi] }); }); return out; }
-const ppAskNum = (title, cur) => new Promise(res => { const bg = document.createElement('div'); bg.className = 'fl-ask'; bg.innerHTML = `<div class="fl-askb"><h3 style="margin:0 0 8px">${esc(title)}</h3><input id="pp-num" inputmode="numeric" value="${esc(cur || '')}" placeholder="mm - type or write" style="font-size:28px;width:100%"><div class="btns" style="margin-top:10px"><button type="button" class="btn" data-r="x">Cancel</button><button type="button" class="btn" data-r="clr">Clear</button><button type="button" class="btn primary" data-r="ok">OK</button></div></div>`;
-  document.body.appendChild(bg); const i = bg.querySelector('#pp-num'); i.focus(); i.select(); const done = v => { bg.remove(); res(v); }; i.addEventListener('keydown', e => { if (e.key === 'Enter') done(i.value); });
-  bg.addEventListener('click', e => { const r = e.target.dataset && e.target.dataset.r; if (r === 'ok') done(i.value); else if (r === 'clr') done(''); else if (r === 'x' || e.target === bg) done(null); }); });
+const ppAskNum = (title, cur, withNext) => new Promise(res => { ppAskNum.next = false; const bg = document.createElement('div'); bg.className = 'fl-ask'; bg.innerHTML = `<div class="fl-askb"><h3 style="margin:0 0 8px">${esc(title)}</h3><input id="pp-num" inputmode="numeric" value="${esc(cur || '')}" placeholder="mm - type or write" style="font-size:28px;width:100%"><div class="btns" style="margin-top:10px"><button type="button" class="btn" data-r="x">Cancel</button><button type="button" class="btn" data-r="clr">Clear</button>${withNext ? '<button type="button" class="btn" data-r="ok">Done</button><button type="button" class="btn primary" data-r="next">Next ›</button>' : '<button type="button" class="btn primary" data-r="ok">OK</button>'}</div></div>`; if (withNext) bg.querySelector('#pp-num').setAttribute('enterkeyhint', 'next');
+  document.body.appendChild(bg); const i = bg.querySelector('#pp-num'); i.focus(); i.select(); const done = v => { bg.remove(); res(v); }; i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ppAskNum.next = !!withNext; done(i.value); } });
+  bg.addEventListener('click', e => { const r = e.target.dataset && e.target.dataset.r; if (r === 'ok') done(i.value); else if (r === 'next') { ppAskNum.next = true; done(i.value); } else if (r === 'clr') done(''); else if (r === 'x' || e.target === bg) done(null); }); });
 function ppPad(s, key, save) { window._ppS = s; return new Promise(resolve => { ppLayout(s, key); s.padInk = s.padInk || {}; s.padInk[key] = s.padInk[key] || [];
   const st = { mode: 'move', sel: null, armed: null, ghost: null, undo: [] }; const W = document.createElement('div'); W.className = 'pp-wrap';
   W.innerHTML = `<div class="pp-top"><b>Purlin sketch pad - section ${esc(key)}</b><span class="pp-sp"></span><button type="button" data-x="move" class="on">Select</button><button type="button" data-x="pen">✎ Write</button><button type="button" data-x="split">✂ Split</button><button type="button" data-x="rl">☐ Rooflight</button><button type="button" data-x="addn">+n purlins</button><button type="button" data-x="flip">⇆ Flip purlin</button><button type="button" data-x="read">Read handwriting</button><button type="button" data-x="clear">Clear writing</button><button type="button" data-x="pitch">Pitch…</button><button type="button" data-x="del">Delete</button><button type="button" data-x="scale">To scale</button><button type="button" data-x="undo">Undo</button><button type="button" data-x="done" class="pri">Done</button></div>
@@ -8337,7 +8358,11 @@ function ppPad(s, key, save) { window._ppS = s; return new Promise(resolve => { 
     else if (drag.h === 'pur') { const v = ppV(sl); let t = (p[0] - sl.pad.bx) * v[0] + (p[1] - sl.pad.by) * v[1]; const T = sl.pad.t, lo = drag.j ? T[drag.j - 1] + 10 : 4, hi = drag.j < T.length - 1 ? T[drag.j + 1] - 10 : sl.pad.len - 4; T[drag.j] = Math.max(lo, Math.min(hi, t)); drag.moved = true; }
     draw(); });
   c.addEventListener('pointerup', async e => { const d = drag; drag = null; if (!d) return; if (!d.tap && d.tapC && !d.moved) { st.undo.pop(); d.tap = d.tapC; } if (d.tap) { const sg = d.tap, nm = sg.kind === 'over' ? `${sg.sl.name}: sheet past the bottom purlin` : sg.kind === 'top' ? `${sg.sl.name}: gap at the ${/Wall/.test(sg.sl.topType || '') ? 'wall' : 'ridge'} (top purlin to top)` : `${sg.sl.name}: purlin space ${ppGaps(sg.sl).length - sg.i} (from the ridge)`;
-      const v = await ppAskNum(nm, sg.val); if (v === null) return; snap(); ppSetSeg(sg, v); return ch(); } ch(); });
+      return ppAskChain(sg); } ch(); });
+  // tap-gap dialog with Next ›: saves and opens the next empty gap along the slope, ridge to eaves (then the next slope)
+  async function ppAskChain(sg) { for (let guard = 0; sg && guard < 80; guard++) { const nm = sg.kind === 'over' ? `${sg.sl.name}: sheet past the bottom purlin` : sg.kind === 'top' ? `${sg.sl.name}: gap at the ${/Wall/.test(sg.sl.topType || '') ? 'wall' : 'ridge'} (top purlin to top)` : `${sg.sl.name}: purlin space ${ppGaps(sg.sl).length - sg.i} (from the ridge)`;
+      const v = await ppAskNum(nm, sg.val, true); if (v === null) return; snap(); ppSetSeg(sg, v); ch(); if (!ppAskNum.next) return;
+      const order = ppOrderSegs(s, key), at = order.findIndex(x => x.sl === sg.sl && x.kind === sg.kind && x.i === sg.i); sg = order.slice(at + 1).find(x => !String(x.val ?? '').trim()) || null; if (!sg) toast('All gaps filled'); } }
   W.querySelector('.pp-top').addEventListener('click', async e => { const x = e.target.dataset && e.target.dataset.x; if (!x) return; const sl = s.slopes.find(y => y.id === st.sel);
     if (['move', 'pen', 'split', 'rl'].includes(x)) ppMode(W, st, x);
     else if (x === 'addn') { if (!sl) return toast('Tap a slope first'); const v = await ppAskNum(`${sl.name}: how many purlins (evenly along the slope)?`, String(sl.pad.t.length || 6)); const n = Math.min(41, parseInt(v) || 0); if (n < 2) return; let kk = st.armed && PP_TRAY.find(q => q[0] === st.armed)[2] ? st.armed : null; ppKF(sl); if (!kk && sl.pad.t.length) { const cnt = {}; sl.pad.k.forEach((q, i) => { const key2 = q === 'zed' && sl.pad.f[i] < 0 ? 'zedr' : q; cnt[key2] = (cnt[key2] || 0) + 1; }); kk = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0]; }
@@ -8373,11 +8398,19 @@ const PP_KN = { cee: 'Cee section (cold-rolled)', zed: 'Zed (cold-rolled)', sigm
 const ppAskKind = (title, cur) => new Promise(res => { const bg = document.createElement('div'); bg.className = 'fl-ask'; bg.innerHTML = `<div class="fl-askb"><h3 style="margin:0 0 8px">${esc(title)}</h3><div class="btns">${Object.keys(PP_KN).concat(['zedr']).map(k => `<button type="button" class="btn ${k === cur ? 'primary' : ''}" data-k="${k}">${k === 'zedr' ? 'Zed (reversed)' : esc(PP_KN[k].replace(/ \(.*$/, ''))}</button>`).join('')}<button type="button" class="btn" data-k="">Cancel</button></div></div>`;
   document.body.appendChild(bg); bg.addEventListener('click', e => { const k = e.target.dataset && e.target.dataset.k; if (k === undefined && e.target !== bg) return; bg.remove(); res(k || null); }); });
 
+// gaps in typing order: each slope (left to right) from the ridge down to the eaves
+function ppOrderSegs(s, key) { const segs = ppSegs(s, key), rows = s.slopes.filter(x => (x.sec || 'A').trim() === key && x.pad); if (typeof ssPadOrder === 'function') ssPadOrder(rows, x => x);
+  const out = []; rows.forEach(sl => { const m = segs.filter(x => x.sl === sl); const top = m.filter(x => x.kind === 'top'), gs = m.filter(x => x.kind === 'gap').sort((a, b) => b.i - a.i), ov = m.filter(x => x.kind === 'over'); out.push(...top, ...gs, ...ov); }); return out; }
+
 /* ===== v1.9.2 (BETA): COPY / MIRROR SLOPES (form + purlin pad), optional "same as slope X" link ===== */
 const SS_LINKF = ['pitch', 'n', 'sp', 'spacings', 'topExt', 'overhang', 'endType', 'topType', 'rlCols', 'rlFrom', 'rlTo', 'bldLen', 'drop'];
 function ssNextName(s) { const ns = s.slopes.map(x => +((/(\d+)\s*$/.exec(x.name || '') || [])[1] || 0)); return 'Slope ' + (Math.max(0, ...ns) + 1); }
-function ssCloneSlope(s, src, mirror, at) { const c = JSON.parse(JSON.stringify(src)); c.id = uid(); c.name = ssNextName(s); delete c.linkOf; delete c.linkMirror; delete c.pad; c.sketch = { strokes: [], labels: [] };
-  if (mirror) c.dir = ssUp(src) ? 'down' : 'up'; s.slopes.splice(at == null ? s.slopes.indexOf(src) + 1 : at, 0, c); return c; }
+function ssCloneSlope(s, src, mirror, at) { if (src.pad && typeof ppKF === 'function') ppKF(src); const c = JSON.parse(JSON.stringify(src)); c.id = uid(); c.name = ssNextName(s); delete c.linkOf; delete c.linkMirror; c.sketch = { strokes: [], labels: [] };
+  if (mirror) c.dir = ssUp(src) ? 'down' : 'up'; s.slopes.splice(at == null ? s.slopes.indexOf(src) + 1 : at, 0, c);
+  // keep every purlin (type, facing - flipped on a mirror), spacings, splits and rooflight band; place the copy alongside
+  if (src.pad) { c.pad = JSON.parse(JSON.stringify(src.pad)); if (mirror) c.pad.f = (c.pad.f || []).map(x => -(x || 1)); const v = ppV(src), T = ppAt(src, src.pad.len), up = ssUp(src), vc = ppV(c);
+    if (mirror) { if (up) { c.pad.bx = T[0] - vc[0] * c.pad.len; c.pad.by = T[1] - vc[1] * c.pad.len; } else { c.pad.bx = src.pad.bx + 60; c.pad.by = src.pad.by; } } else { c.pad.bx = src.pad.bx + Math.abs(v[0]) * src.pad.len; c.pad.by = src.pad.by; } }
+  return c; }
 function ssSyncLinks(s) { (s.slopes || []).forEach(sl => { if (!sl.linkOf) return; const src = s.slopes.find(x => x.id === sl.linkOf); if (!src || src.linkOf === sl.id) { delete sl.linkOf; return; }
   SS_LINKF.forEach(k => { sl[k] = JSON.parse(JSON.stringify(src[k] ?? '')); }); sl.dir = sl.linkMirror ? (ssUp(src) ? 'down' : 'up') : (ssUp(src) ? 'up' : 'down'); }); }
 function ssCopyBar(s, sl) { const others = s.slopes.filter(x => x.id !== sl.id && !x.linkOf); const src = sl.linkOf && s.slopes.find(x => x.id === sl.linkOf);
@@ -8395,11 +8428,7 @@ Object.assign(ACTIONS, {
   ssunlink(a) { const c = ssCtx(), s = ssCur(), sl = s.slopes.find(x => x.id === a.dataset.id); delete sl.linkOf; delete sl.linkMirror; c.save(); rerender(true); },
 });
 // purlin pad: Copy / Mirror the selected slope, placed alongside (mirror joins at the ridge or valley; copy repeats it next door)
-function ppCopy(s, key, sl, mirror) { const c = ssCloneSlope(s, sl, mirror); c.sec = sl.sec; const v = ppV(sl), T = ppAt(sl, sl.pad.len), up = ssUp(sl);
-  c.pad = { bx: 0, by: 0, len: sl.pad.len, t: sl.pad.t.slice(), k: (sl.pad.k || []).slice(), f: (sl.pad.f || []).map(x => mirror ? x : x) }; const vc = ppV(c);
-  if (mirror) { if (up) { c.pad.bx = T[0] - vc[0] * c.pad.len; c.pad.by = T[1] - vc[1] * c.pad.len; } else { c.pad.bx = sl.pad.bx + 60; c.pad.by = sl.pad.by; } } // up -> join at ridge; down -> start at the valley
-  else { const w = Math.abs(v[0]) * sl.pad.len; c.pad.bx = sl.pad.bx + w + (up ? 0 : 0); c.pad.by = sl.pad.by; }
-  return c; }
+function ppCopy(s, key, sl, mirror) { const c = ssCloneSlope(s, sl, mirror); c.sec = sl.sec; return c; }
 { const _pp = ppPad; ppPad = function (s, key, save) { const pr = _pp(s, key, save); const W = document.querySelector('.pp-wrap:last-of-type'); const st = window._pp && window._pp.st; if (!W || !st) return pr;
     const top = W.querySelector('.pp-top'), del = top.querySelector('[data-x="del"]'); del.insertAdjacentHTML('beforebegin', '<button type="button" data-x2="copy">Copy</button><button type="button" data-x2="mirror">⇋ Mirror</button><button type="button" data-x2="link">🔗 Same as…</button>');
     top.addEventListener('click', async e => { const x = e.target.dataset && e.target.dataset.x2; if (!x) return; const sl = s.slopes.find(y => y.id === st.sel); if (!sl) return toast('Tap a slope first (its blue handle or a purlin)');
@@ -8422,7 +8451,7 @@ function ssValleyDraw(g, s, sl, bx, by, k) { const G = ssValleyGut(s, sl) || nul
   g.save(); g.strokeStyle = '#334155'; g.lineWidth = 4; g.beginPath(); pts.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.stroke(); g.font = '15px sans-serif'; g.fillStyle = '#555'; g.textAlign = 'center'; g.fillText(`valley ${geo.girth} girth`, bx - 40 * k + geo.topW * k / 2, by + 60 * k + geo.depth * k + 20); g.restore(); }
 // pad layout: leave room for the valley gutter between a falling and a rising slope
 { const _pl = ppLayout; ppLayout = function (s, key, force) { _pl(s, key, force); const rows = s.slopes.filter(x => (x.sec || 'A').trim() === key && x.pad);
-  for (let i = 1; i < rows.length; i++) { const a = rows[i - 1], b = rows[i]; if (!ssUp(a) && ssUp(b) && /Valley/.test(a.endType || '') && (force || b._vfix !== a.pad.bx)) { const r = ssSlope(s, a), k = r.L ? a.pad.len / r.L : PP_MMPX, want = a.pad.bx + (ssValleyGeo(s, a).topW - 80) * k, dx = want - b.pad.bx; if (Math.abs(dx) > 1 && force) for (let j = i; j < rows.length; j++) rows[j].pad.bx += dx; } } }; }
+  for (let i = 1; i < rows.length; i++) { const a = rows[i - 1], b = rows[i]; if (!ssUp(a) && ssUp(b) && /Valley/.test(a.endType || '') && (force || b._vfix !== a.pad.bx)) { const k = a.pad.mmpx || 0.1, want = a.pad.bx + (ssValleyGeo(s, a).topW - 80) * k, dx = want - b.pad.bx; if (Math.abs(dx) > 1 && force) for (let j = i; j < rows.length; j++) rows[j].pad.bx += dx; } } }; }
 /* ---------- bays ---------- */
 function ssBayList(s) { const out = []; String(s.bays || '').split(/[,;\n]+/).forEach(t => { t = t.trim().replace(/m$/i, ''); if (!t) return; const m = /^(\d+)\s*(?:bays?)?\s*[@x×]\s*([\d.]+)/i.exec(t); const f = v => v > 100 ? v / 1000 : v; if (m) { for (let i = 0; i < +m[1]; i++) out.push(f(+m[2])); } else if (parseFloat(t) > 0) out.push(f(parseFloat(t))); }); return out; }
 const ssBaysTotal = s => Math.round(ssBayList(s).reduce((a, b) => a + b, 0) * 1000) / 1000;
@@ -8469,7 +8498,7 @@ function ssEnsureValleyGutter(s, sl) { s.gutters = s.gutters || []; let g = s.gu
   sl.gutterId = g.id; return g; }
 // Valley marker: the slope it was dropped on AND any slope whose bottom meets it become valleys sharing one Gutters & valleys entry
 function ppMakeValley(s, key, sl) { const B = [sl.pad.bx, sl.pad.by]; const near = s.slopes.filter(o => o !== sl && o.pad && (o.sec || 'A').trim() === key && Math.hypot(o.pad.bx - B[0], o.pad.by - B[1]) < 170).sort((a, b) => Math.hypot(a.pad.bx - B[0], a.pad.by - B[1]) - Math.hypot(b.pad.bx - B[0], b.pad.by - B[1]));
-  const g = ssEnsureValleyGutter(s, sl); sl.endType = 'Valley gutter'; const o = near[0]; if (o) { o.endType = 'Valley gutter'; o.gutterId = g.id; const dn = ssUp(sl) ? o : sl, up = ssUp(sl) ? sl : o; if (!ssUp(dn) && ssUp(up)) { const r = ssSlope(s, dn), k = Math.max(0.1, r.L ? dn.pad.len / r.L : PP_MMPX); up.pad.bx = dn.pad.bx + (ssValleyGeo(s, dn).topW - 80) * k; up.pad.by = dn.pad.by; } }
+  const g = ssEnsureValleyGutter(s, sl); sl.endType = 'Valley gutter'; const o = near[0]; if (o) { o.endType = 'Valley gutter'; o.gutterId = g.id; const dn = ssUp(sl) ? o : sl, up = ssUp(sl) ? sl : o; if (!ssUp(dn) && ssUp(up)) { const k = dn.pad.mmpx || 0.1; up.pad.bx = dn.pad.bx + (ssValleyGeo(s, dn).topW - 80) * k; up.pad.by = dn.pad.by; } }
   toast(`Valley: ${[sl, o].filter(Boolean).map(x => x.name).join(' + ')} - ${g.name} (girth ${ssGirth(g)} mm, see Gutters & valleys)`); }
 // choosing Valley gutter as a slope's Bottom end in the form links (or creates) the valley gutter entry
 document.addEventListener('change', e => { const el = e.target; const m = /^sheetSchedules#[^.]+\.slopes#([^.]+)\.endType$/.exec((el.dataset && el.dataset.b) || ''); if (!m || !/Valley/.test(el.value)) return; setTimeout(() => { const s = ssCur(); if (!s) return; const sl = s.slopes.find(x => x.id === m[1]); if (sl && !s.gutters?.some(g => g.id === sl.gutterId)) { ssEnsureValleyGutter(s, sl); ssCtx().save(); rerender(true); } }, 50); });
