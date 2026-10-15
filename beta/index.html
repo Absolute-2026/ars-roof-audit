@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.9.10">
+<meta name="app-version" content="1.9.11">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.9.10';
+const APP_VERSION = '1.9.11';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -7391,10 +7391,9 @@ async function buildFlashRFQ(r) {
     if (st.logo && st.logoW) { const lh = small ? 16 : 30, lw = Math.min(small ? 40 : 34, lh * st.logoW / st.logoH); doc.addImage(st.logo, /png/.test(st.logo.slice(0, 20)) ? 'PNG' : 'JPEG', M, 8, lw, lw * st.logoH / st.logoW, 'flogo', 'FAST'); }
     font(small ? 11 : 14, 'bold', G); doc.text('REQUEST FOR QUOTATION - FLASHINGS & GUTTER', small ? M + 44 : M + 40, small ? 15 : 17);
     if (!small) { font(8.5, 'normal', TXT); doc.text(tx(`${st.company || 'Absolute Roofing Solutions Ltd'}${st.phone ? ' · ' + st.phone : ''}${st.website ? ' · ' + st.website.replace(/^https?:\/\//, '') : ''}`), M + 40, 31);
-      font(8.5, 'bold'); doc.text('QUOTATION ONLY', M + 40, 37); font(8.5, 'normal'); doc.text('  - please quote, do not manufacture until an order is issued.', M + 40 + doc.getTextWidth('QUOTATION ONLY'), 37);
       const rows = [['Project', B(r.project)], ['Site contact', [r.contact, r.phone].filter(Boolean).join(' - ') || '[__]'], ['Delivery', r.delivery === 'collect' ? 'Collect from supplier' : `To site - ${B(r.address)}`], ['RFQ ref', B(r.ref)], ['Date', qDate(r.date) || '[__]'], ['Quote required by', r.reqBy ? qDate(r.reqBy) : '[__]']].concat(r.supplier ? [['Supplier', r.supplier]] : []);
       let y = 12; rows.forEach(([k, v]) => { font(8.5, 'bold'); doc.text(k + ':', 182, y); const kw = doc.getTextWidth(k + ': '); font(8.5, 'normal'); const L = doc.splitTextToSize(tx(v), W - M - 182 - kw); doc.text(L, 182 + kw, y); y += 4.4 * L.length; });
-      doc.setDrawColor(...OR); doc.setLineWidth(0.8); doc.line(M, Math.max(44, y), W - M, Math.max(44, y)); return Math.max(44, y) + 6; }
+      font(8.5, 'bold'); doc.text('QUOTATION ONLY', M + 40, Math.max(37, y)); font(8.5, 'normal'); const qy = Math.max(37, y); doc.text(doc.splitTextToSize('  - please quote, do not manufacture until an order is issued.', 178 - M - 40), M + 40 + doc.getTextWidth('QUOTATION ONLY'), qy); const qb = qy + 4; doc.setDrawColor(...OR); doc.setLineWidth(0.8); doc.line(M, Math.max(44, qb, y), W - M, Math.max(44, qb, y)); return Math.max(44, qb, y) + 6; }
     font(8.5, 'normal', LG); doc.text(tx(`RFQ ref ${B(r.ref)} · ${r.project || ''}`), W - M, 15, { align: 'right' }); doc.setDrawColor(...OR); doc.setLineWidth(0.6); doc.line(M, 26, W - M, 26); return 32;
   };
   let y = head(false);
@@ -8182,10 +8181,9 @@ async function buildSheetRFQ(s, sup, pkg) { const { jsPDF } = window.jspdf; cons
   const head = small => { if (st.logo && st.logoW) { const lh = small ? 16 : 30, lw = Math.min(small ? 40 : 34, lh * st.logoW / st.logoH); doc.addImage(st.logo, /png/.test(st.logo.slice(0, 20)) ? 'PNG' : 'JPEG', M, 8, lw, lw * st.logoH / st.logoW, 'sslogo', 'FAST'); }
     font(small ? 11 : 13, 'bold', G); if (small) doc.text(title, M + 44, 15); else { const tl = doc.splitTextToSize(title, 182 - M - 40 - 4); doc.text(tl, M + 40, tl.length > 1 ? 14 : 17); }
     if (!small) { font(8.5, 'normal'); doc.text(tx(`${st.company || 'Absolute Roofing Solutions Ltd'}${st.phone ? ' · ' + st.phone : ''}${st.website ? ' · ' + st.website.replace(/^https?:\/\//, '') : ''}`), M + 40, 31);
-      font(8.5, 'bold'); doc.text('QUOTATION ONLY', M + 40, 37); font(8.5, 'normal'); doc.text('  - please quote, do not manufacture until an order is issued with confirmed lengths.', M + 40 + doc.getTextWidth('QUOTATION ONLY'), 37);
       const rows = [['Project', B(s.project)], ['Site contact', [s.contact, s.phone].filter(Boolean).join(' - ') || '[__]'], ['Delivery', s.delivery === 'collect' ? 'Collect from supplier' : `To site - ${B(s.address)}`], ['RFQ ref', B(s.ref)], ['Date', qDate(s.date) || '[__]'], ['Quote required by', s.reqBy ? qDate(s.reqBy) : '[__]']].concat(sup ? [['Supplier', sup]] : []);
       let y = 12; rows.forEach(([k, v]) => { font(8.5, 'bold'); doc.text(k + ':', 182, y); const kw = doc.getTextWidth(k + ': '); font(8.5, 'normal'); const L = doc.splitTextToSize(tx(v), W - M - 182 - kw); doc.text(L, 182 + kw, y); y += 4.4 * L.length; });
-      doc.setDrawColor(...OR); doc.setLineWidth(0.8); doc.line(M, Math.max(44, y), W - M, Math.max(44, y)); return Math.max(44, y) + 6; }
+      font(8.5, 'bold'); doc.text('QUOTATION ONLY', M + 40, Math.max(37, y)); font(8.5, 'normal'); const qy = Math.max(37, y); doc.text(doc.splitTextToSize('  - please quote, do not manufacture until an order is issued with confirmed lengths.', 178 - M - 40), M + 40 + doc.getTextWidth('QUOTATION ONLY'), qy); const qb = qy + 4; doc.setDrawColor(...OR); doc.setLineWidth(0.8); doc.line(M, Math.max(44, qb, y), W - M, Math.max(44, qb, y)); return Math.max(44, qb, y) + 6; }
     font(8.5, 'normal', LG); doc.text(tx(`RFQ ref ${B(s.ref)} · ${s.project || ''}`), W - M, 15, { align: 'right' }); doc.setDrawColor(...OR); doc.setLineWidth(0.6); doc.line(M, 26, W - M, 26); return 32; };
   let y = head(false); const T = { theme: 'grid', margin: { left: M, right: M, top: 32 }, styles: { font: 'helvetica', fontSize: 8.6, cellPadding: 1.8, lineColor: [150, 150, 150], lineWidth: 0.25, textColor: TXT }, headStyles: { fillColor: G, textColor: 255, fontStyle: 'normal' }, didDrawPage: d => { if (d.pageNumber > 1) head(true); } };
   const spec = (panels || pkg === 'flashings') ? [`Panel ${B(s.product)}`, `Thickness / gauge ${B(s.thick)}`, `Cover width ${B(s.cover)} mm`, `Colour ${B(s.colour)}`, p && p.kind === 'composite' ? `Liner ${B(s.linerColour)}` : '', `End laps ${s.lap || SS_LAP} mm over purlins`, `Purlins ${B(s.purlinType)}${s.purlinDepth ? ' ' + s.purlinDepth + ' mm' : ''}${s.purlinGauge ? ' x ' + s.purlinGauge + ' mm' : ''}`].filter(Boolean)
