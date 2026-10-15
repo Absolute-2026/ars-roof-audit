@@ -8014,19 +8014,27 @@ function ssCols(txt, n) { const t = String(txt || '').trim(); if (!t) return [];
   if (ev) { const k = +ev[1], st = +(ev[2] || ev[1]); for (let i = st; i <= n; i += k) out.add(i); } else t.split(/[,; ]+/).forEach(x => { const r = /^(\d+)\s*-\s*(\d+)$/.exec(x); if (r) { for (let i = +r[1]; i <= +r[2]; i++) out.add(i); } else if (+x > 0) out.add(+x); });
   return [...out].filter(i => i >= 1 && i <= n).sort((a, b) => a - b); }
 // one slope -> geometry, pieces, counts, warnings
-function ssSlope(s, sl) { const p = ssProd(s), sp = ssParse(sl.spacings), ov = +sl.overhang || 0, top = +sl.topExt || 0, lap = +s.lap || SS_LAP;
+const SS_TOPS = ['Ridge', 'Wall abutment (lean-to / canopy)', 'Mono-pitch top / verge'];
+const SS_ENDS = ['Eaves into gutter', 'Valley gutter', 'Flat roof / abutment', 'Open eaves / verge'];
+const ssUpX = 0;
+const ssUp = sl => !(sl.dir === 'down' || sl.dir === 'left');
+const ssBL = v => { const m = /^\s*(\d+)\s*(?:bays?)?\s*[@x×]\s*([\d.]+)/i.exec(String(v || '')); return m ? +m[1] * +m[2] : parseFloat(v) || 0; };
+function ssSp(sl) { const a = (sl.sp || []).slice(0, +sl.n || 0).map(v => parseFloat(v)).filter(x => x > 0); return a.length ? a.slice().reverse() : ssParse(sl.spacings); }
+function ssSlope(s, sl) { const p = ssProd(s), sp = ssSp(sl), ov = +sl.overhang || 0, top = +sl.topExt || 0, lap = +s.lap || SS_LAP;
   const pos = [ov]; sp.forEach(x => pos.push(pos[pos.length - 1] + x)); const L = sp.length ? Math.round(pos[pos.length - 1] + top) : 0;
   const maxL = Math.min(+s.maxLen || SS_TRANSPORT, p ? p.max : SS_TRANSPORT); const pieces = [], warn = [];
   if (L) { let st = 0; while (L - st > maxL) { let best = -1; for (let k = pos.length - 2; k >= 1; k--) if (pos[k] > st + lap && pos[k] + lap / 2 - st <= maxL) { best = k; break; } if (best < 0) { warn.push(`No purlin within ${maxL} mm for an end lap - check purlin positions`); break; } pieces.push({ from: st, to: pos[best] + lap / 2, at: best }); st = pos[best] - lap / 2; } pieces.push({ from: st, to: L }); }
   pieces.forEach(x => { x.len = Math.round(x.to - x.from); }); if (L > maxL && pieces.length > 1) warn.push(`Sheet run ${(L / 1000).toFixed(2)} m exceeds ${(maxL / 1000).toFixed(1)} m (transport / manufacturer max) - split into ${pieces.length} lengths with ${lap} mm end laps over purlins`);
-  const cover = +s.cover || (p ? p.cover : 1000), bl = (+sl.bldLen || 0) * 1000, cols = bl ? Math.ceil(bl / cover) : 0, rlc = ssCols(sl.rlCols, cols);
+  const cover = +s.cover || (p ? p.cover : 1000), bl = ssBL(sl.bldLen) * 1000, cols = bl ? Math.ceil(bl / cover) : 0, rlc = ssCols(sl.rlCols, cols);
   const span = +s.maxSpan || +ssDefSpan(s) || 0, worst = sp.length ? Math.max(...sp) : 0; if (span && worst > span) warn.push(`Purlin spacing ${worst} mm exceeds ${span} mm max for this panel - check with manufacturer`);
   if (rlc.length && worst > SS_SPAN.rooflight && !/factory/i.test(s.rlProduct || '')) warn.push(`Rooflight span ${worst} mm > ${SS_SPAN.rooflight} mm typical GRP max - check with rooflight manufacturer`);
-  return { sp, pos, L, pieces, cover, cols, rlc, sheetsCols: cols - rlc.length, span, worst, warn, purlins: pos.length, endLaps: pieces.length - 1 }; }
+  let band = null; const f1 = +sl.rlFrom, t1 = +sl.rlTo; if (rlc.length && f1 >= 1 && t1 > f1 && t1 <= pos.length) { const a = pos[f1 - 1], z = pos[t1 - 1]; band = { lo: Math.round(a + lap / 2), rl: Math.round(z - a + lap), hi: Math.round(L - z + lap / 2), from: f1, to: t1 }; if (band.rl > maxL || band.lo > maxL || band.hi > maxL) warn.push('Rooflight band piece over max length - check'); }
+  return { band, sp, pos, L, pieces, cover, cols, rlc, sheetsCols: cols - rlc.length, span, worst, warn, purlins: pos.length, endLaps: pieces.length - 1 }; }
 function ssCalc(s) { const S2 = (s.slopes || []).map(sl => Object.assign({ sl }, ssSlope(s, sl))); const p = ssProd(s);
-  const sheetRows = [], rlRows = []; S2.forEach(r => r.pieces.forEach((x, i) => { if (r.sheetsCols) sheetRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.sheetsCols }); if (r.rlc.length) rlRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.rlc.length, cols: r.rlc.join(', ') }); }));
+  const sheetRows = [], rlRows = []; S2.forEach(r => r.pieces.forEach((x, i) => { if (r.sheetsCols) sheetRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.sheetsCols }); if (r.rlc.length && !r.band) rlRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.rlc.length, cols: r.rlc.join(', ') }); }));
+  S2.forEach(r => { if (!r.band || !r.rlc.length) return; sheetRows.push({ slope: r.sl.name, piece: `Below rooflight (to P${r.band.from})`, len: r.band.lo, qty: r.rlc.length }, { slope: r.sl.name, piece: `Above rooflight (from P${r.band.to})`, len: r.band.hi, qty: r.rlc.length }); rlRows.push({ slope: r.sl.name, piece: `Band P${r.band.from}-P${r.band.to}`, len: r.band.rl, qty: r.rlc.length, cols: r.rlc.join(', ') }); });
   // ancillaries (approx.)
-  const bl = S2.reduce((t, r) => t + (+r.sl.bldLen || 0), 0), ridgeRun = Math.max(0, ...S2.map(r => +r.sl.bldLen || 0)), duo = S2.length >= 2;
+  const bl = S2.reduce((t, r) => t + ssBL(r.sl.bldLen), 0), ridgeRun = Math.max(0, ...S2.map(r => ssBL(r.sl.bldLen))), duo = S2.length >= 2;
   const colsAll = S2.reduce((t, r) => t + r.cols, 0), fixPer = S2.reduce((t, r) => t + r.cols * (2 * 3 + Math.max(0, r.purlins - 2) * 2 + r.endLaps * 2), 0);
   const sideLaps = S2.reduce((t, r) => t + Math.max(0, r.cols - 1) * r.L / 1000, 0), stitch = Math.ceil(sideLaps / 0.45), endLapM = S2.reduce((t, r) => t + r.endLaps * r.cols * r.cover / 1000, 0);
   const sealM = endLapM * 2 + (p && p.kind === 'single' ? sideLaps : 0) + bl * 2; const fx = ssFixing(s);
@@ -8042,12 +8050,12 @@ async function ssaLoad() { if (SSA.loaded) return; const v = await DB.getKV('she
 const ssaSave = () => DB.setKV('sheets.standalone', SSA.holder);
 function ssCtx() { const c = S.ctx || {}; if (c.job) return { h: c.job, job: c.job, save: () => markDirty(c.job), base: `#/job/${c.job.id}/sheets` }; return { h: SSA.holder, save: ssaSave, base: '#/sheets' }; }
 const ssCur = () => { const r = route(); const id = r[0] === 'sheets' ? r[1] : r[3]; return (ssCtx().h.sheetSchedules || []).find(x => x.id === id); };
-const ssNewSlope = n => ({ id: uid(), name: 'Slope ' + n, spacings: '', overhang: '150', topExt: '100', bldLen: '', rlCols: '', notes: '', sketch: { strokes: [], labels: [] } });
+const ssNewSlope = n => ({ id: uid(), name: 'Slope ' + n, sec: 'A', pitch: '', dir: n % 2 ? 'up' : 'down', n: '', sp: [], endType: 'Eaves into gutter', spacings: '', overhang: '150', topExt: '80', bldLen: '', rlCols: '', notes: '', sketch: { strokes: [], labels: [] } });
 function newSheetSchedule(job) { const st = S.settings, c = (job && job.client) || {}, s = (job && job.site) || {};
   return { id: uid(), ref: (job && (job.rp || job.ref)) || '', date: todayISO(), project: job ? [c.name, s.name !== c.name ? s.name : ''].filter(Boolean).join(' - ') : '', contact: c.contact || '', phone: c.phone || '', delivery: 'site',
     address: job ? [s.address, (s.postcode || '').toUpperCase()].filter(Boolean).join(', ') : '', reqBy: '', by: (Cloud.profile && Cloud.profile.full_name) || st.surveyor || '',
     product: 'KS1000 RW trapezoidal composite roof panel', cover: '1000', thick: '80 mm', colour: '', linerColour: 'Bright White (liner)', maxSpan: '', lap: String(SS_LAP), maxLen: String(SS_TRANSPORT),
-    purlinType: 'Zed (cold-rolled)', purlinDepth: '', purlinGauge: '', rlProduct: '', rlSkin: 'Triple skin', rlFrag: 'Class B (non-fragile)', notes: '', slopes: [ssNewSlope(1)] }; }
+    purlinType: 'Zed (cold-rolled)', purlinDepth: '', purlinFlange: '', purlinGauge: '', gutters: [], rlProduct: '', rlSkin: 'Triple skin', rlFrag: 'Class B (non-fragile)', notes: '', slopes: [ssNewSlope(1)] }; }
 /* ---------- section drawing (to scale along the slope) ---------- */
 function ssSection(s, r, W = 1100, H = 260) { const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); if (!r.L) return c.toDataURL('image/png');
   const m = 50, k = (W - 2 * m) / r.L, X = v => m + v * k, y0 = 120; g.font = '13px sans-serif'; g.textAlign = 'center';
@@ -8070,22 +8078,33 @@ function viewSheetSchedule(h, s, job) { const f = mk(h), b = `sheetSchedules#${s
   const prodOpts = []; [...new Set(SS_PRODUCTS.map(x => x.maker))].forEach(m => { prodOpts.push('#' + m); SS_PRODUCTS.filter(x => x.maker === m).forEach(x => prodOpts.push(x.name)); });
   const rlOpts = []; ['Filon', 'Brett Martin'].forEach(m => { rlOpts.push('#' + m); SS_RL.filter(x => x.maker === m).forEach(x => rlOpts.push(x.name)); });
   const slope = (sl, i) => { const sb = `${b}.slopes#${sl.id}`, r = C.slopes[i];
+    const n = Math.max(0, Math.min(40, +sl.n || 0)); sl.sp = sl.sp || []; while (sl.sp.length < n) sl.sp.push('');
+    const spF = n ? `<div class="f"><label>Purlin spacings, from the ridge down (mm)</label><div class="ss-sp">${Array.from({ length: n }, (_, k) => `<label><small>${k + 1}</small><input type="number" inputmode="numeric" data-b="${sb}.sp.${k}" value="${esc(sl.sp[k] || '')}" aria-label="Spacing ${k + 1}"></label>`).join('')}</div></div>` : '';
     return `<div class="card ss-sl" id="ssl_${sl.id}"><h2><input class="pit-l" data-b="${sb}.name" value="${esc(sl.name)}" aria-label="Slope name"><button type="button" class="ck-x" data-act="ssdelsl" data-id="${sl.id}" aria-label="Remove slope">×</button></h2>
-      ${f.area('Purlin centres from the eaves purlin up (mm)', sb + '.spacings', { rows: 2, ph: 'e.g. 1500, 1800, 1800, 1800  or  6@1800, 1500', hint: 'List each spacing, or use "n@x" for repeated bays. Values under 30 are read as metres.' })}
-      <div class="row">${f.text('Eaves overhang past eaves purlin (mm)', sb + '.overhang', { type: 'number' })}${f.text('Past ridge / top purlin (mm)', sb + '.topExt', { type: 'number' })}</div>
-      <div class="row">${f.text('Roof / building length (m) - for sheet count', sb + '.bldLen', { type: 'number', ph: 'e.g. 48' })}${f.text('Rooflight columns', sb + '.rlCols', { ph: 'e.g. 3, 7, 11  or  every 4' })}</div>
+      <div class="row">${f.text('Cross-section', sb + '.sec', { ph: 'A' })}${f.text('Pitch (°)', sb + '.pitch', { type: 'number', ph: 'e.g. 27' })}${sel('High end is on the', sb + '.dir', ['right', 'left'], ssUp(sl) ? 'right' : 'left')}</div>
+      <div class="row">${sel('Top end', sb + '.topType', SS_TOPS, sl.topType || SS_TOPS[0])}${f.text('Step down from previous slope (mm)', sb + '.drop', { type: 'number', ph: 'e.g. 600 lean-to / canopy' })}</div>
+      <div class="row">${f.text('Top gap - ridge / wall to top purlin (mm)', sb + '.topExt', { type: 'number' })}${f.text('Number of purlin spaces', sb + '.n', { type: 'number', ph: 'e.g. 6' })}</div>${spF}
+      ${n ? '' : f.text('…or type the spacings in one line (eaves up)', sb + '.spacings', { ph: 'e.g. 1500, 4@1800, 1200', hint: 'Use "n@x" for repeated bays.' })}
+      <div class="row">${sel('Bottom end', sb + '.endType', SS_ENDS, sl.endType)}${f.text('Sheet past last purlin (mm)', sb + '.overhang', { type: 'number', ph: 'e.g. 200 valley, 450 eaves' })}</div>
+      <div class="row">${f.text('Roof / building length (m) - for sheet count', sb + '.bldLen', { ph: 'e.g. 24  or  6@7.25' })}${f.text('Rooflight columns', sb + '.rlCols', { ph: 'e.g. 3, 7, 11  or  every 4' })}</div>
+      ${sl.rlCols ? `<div class="row">${f.text('Rooflight from purlin no. (eaves = 1)', sb + '.rlFrom', { type: 'number', ph: 'blank = full length' })}${f.text('to purlin no.', sb + '.rlTo', { type: 'number', ph: 'e.g. 6' })}</div>` : ''}
       ${f.text('Notes', sb + '.notes')}
-      <div class="ss-sec">${r.L ? `<img src="${ssSection(s, r)}" alt="Section">` : '<p class="hint">Enter the purlin spacings to see the section.</p>'}</div>
-      <div class="btns"><button type="button" class="btn sm" data-act="sssketch" data-id="${sl.id}">✎ ${sl.sketch && sl.sketch.strokes.length ? 'Open sketch' : 'Sketch / handwrite dims'}</button></div>${sl.sketch && sl.sketch.strokes.length ? `<img class="fl-skimg" src="${flPNG(sl.sketch, 600, 300)}" alt="Sketch">` : ''}</div>`; };
+      <div class="ss-sec">${r.L ? `<img src="${ssSection(s, r)}" alt="Section">` : '<p class="hint">Enter the purlin spacings to see the sheet lengths.</p>'}</div>
+      <div class="btns"><button type="button" class="btn sm" data-act="sssketch" data-id="${sl.id}">✎ ${sl.sketch && sl.sketch.strokes.length ? 'Open sketch' : 'Optional sketch'}</button></div>${sl.sketch && sl.sketch.strokes.length ? `<img class="fl-skimg" src="${flPNG(sl.sketch, 600, 300)}" alt="Sketch">` : ''}</div>`; };
   return `<div class="card"><h2>Request details</h2>${f.text('Project', b + '.project')}<div class="row">${f.text('RFQ ref (RP number)', b + '.ref', { ph: 'RP5046' })}${f.text('Date', b + '.date', { type: 'date' })}</div>
       <div class="row">${f.text('Site contact', b + '.contact')}${f.text('Contact phone', b + '.phone', { type: 'tel' })}</div>${f.seg('Delivery', b + '.delivery', [['site', 'Deliver to site'], ['collect', 'Collect']])}${f.text('Delivery address', b + '.address')}${f.text('Quote required by', b + '.reqBy', { type: 'date' })}</div>
     <div class="card"><h2>Panel system</h2>${sel('Manufacturer / product', b + '.product', prodOpts, s.product)}
       <div class="row">${sel('Thickness / gauge', b + '.thick', p ? p.th : [], s.thick)}${f.text('Cover width (mm)', b + '.cover', { type: 'number' })}</div>
       <div class="row">${flPick('Colour (weather side)', b + '.colour', s.colour, 'colour', 'Choose…')}${f.text('Liner colour', b + '.linerColour')}</div>
       <div class="row">${f.text('Max purlin centres (mm) - check with manufacturer', b + '.maxSpan', { type: 'number', ph: 'default ' + (ssDefSpan(s) || '?') })}${f.text('End lap (mm)', b + '.lap', { type: 'number' })}</div>${f.text('Max sheet length (mm, transport)', b + '.maxLen', { type: 'number' })}</div>
-    <div class="card"><h2>Purlins</h2>${sel('Purlin type', b + '.purlinType', SS_PURLINS, s.purlinType)}<div class="row">${f.text('Depth (mm)', b + '.purlinDepth', { type: 'number', ph: 'e.g. 172' })}${f.text('Gauge (mm)', b + '.purlinGauge', { type: 'number', ph: 'e.g. 1.6' })}</div><p class="hint ss-fx">Suggested fixing: ${esc(C.fx.text)}</p></div>
+    <div class="card"><h2>Purlins</h2>${sel('Purlin type', b + '.purlinType', SS_PURLINS, s.purlinType)}<div class="row">${f.text('Depth (mm)', b + '.purlinDepth', { type: 'number', ph: 'e.g. 130' })}${f.text('Flange (mm)', b + '.purlinFlange', { type: 'number', ph: 'e.g. 65' })}${f.text('Gauge (mm)', b + '.purlinGauge', { type: 'number', ph: 'e.g. 1.6' })}</div><p class="hint ss-fx">Suggested fixing: ${esc(C.fx.text)}</p></div>
     <div class="card"><h2>Rooflights</h2>${sel('Rooflight', b + '.rlProduct', rlOpts, s.rlProduct, 'None')}<div class="row">${sel('Skins', b + '.rlSkin', SS_SKINS, s.rlSkin)}${sel('Fragility', b + '.rlFrag', SS_FRAG, s.rlFrag)}</div><p class="hint">Profile to match the panel: ${esc(p ? p.name : '-')}. Choose the rooflight columns per slope below.</p></div>
     ${s.slopes.map(slope).join('')}<button type="button" class="btn block" data-act="ssaddsl">${I.plus} Add roof slope</button>
+    <div class="card"><h2>Cross-sections</h2><div id="ss-xs">${ssXsHTML(s)}</div></div>
+    <div class="card"><h2>Gutters &amp; valleys</h2>${(s.gutters || []).map(g => { const gb = `${b}.gutters#${g.id}`; return `<div class="ss-gut"><div class="row">${f.text('Gutter', gb + '.name')}${sel('Type', gb + '.type', ['Valley gutter', 'Eaves gutter', 'Box gutter', 'Boundary wall gutter'], g.type)}<button type="button" class="ck-x" data-act="ssdelgut" data-id="${g.id}" aria-label="Remove gutter">×</button></div>
+      <div class="row">${f.text('Girth legs (mm)', gb + '.legs', { ph: 'e.g. 100, 265, 460, 305, 70, 230', hint: 'Each fold-to-fold leg; the girth is the sum.' })}${f.text('Material', gb + '.material', { ph: 'e.g. 2 mm galv / GRP lined' })}</div>
+      <div class="row">${f.text('Length (m)', gb + '.length', { type: 'number' })}${f.text('Number of runs', gb + '.qty', { type: 'number', ph: '1' })}${f.text('Outlets', gb + '.outlets', { ph: 'e.g. 6in x1, 4in x1' })}</div><p class="hint">Girth ${ssGirth(g) || '-'} mm${ssGirth(g) ? ` · ${String(g.legs).split(/[,; ]+/).filter(Boolean).length - 1} bends` : ''}</p></div>`; }).join('')}
+      <div class="btns"><button type="button" class="btn" data-act="ssaddgut">${I.plus} Add gutter / valley</button>${(s.gutters || []).length ? '<button type="button" class="btn" data-act="ssgutfl">→ Send to a flashings RFQ</button>' : ''}</div></div>
     <div class="card"><h2>Schedule</h2><div id="ss-calc">${ssResults(s)}</div></div>
     <div class="card"><h2>Ancillaries (approx.)</h2><div id="ss-anc">${ssAncHTML(C)}</div>${job ? `<a class="btn block" href="#/job/${job.id}/flash">✎ Flashings schedule / RFQ</a>` : '<a class="btn block" href="#/flash">✎ Flashings RFQ</a>'}</div>
     <div class="card"><h2>Request for quotation</h2>${f.area('Notes to the supplier', b + '.notes', { rows: 3, ph: 'e.g. Please quote delivered, with lead time. Lengths to be confirmed before order.' })}
@@ -8095,8 +8114,9 @@ const ssAncHTML = C => `<table class="mtbl"><tr><th>Item</th><th>Qty</th><th>Not
 const ssSuppliers = s => { const o = []; const p = ssProd(s); if (p && p.maker !== 'Other') o.push(p.maker); const rl = ssRl(s); if (rl && rl.maker !== (p && p.maker)) o.push(rl.maker); return o; };
 // live recalculation without a full re-render (keeps the keyboard up)
 document.addEventListener('input', e => { const el = e.target; if (!el.dataset || !/^sheetSchedules#/.test(el.dataset.b || '')) return; const s = ssCur(); if (!s) return;
+  if (/\.(n|dir|endType)$/.test(el.dataset.b)) { const sl = s.slopes.find(x => el.dataset.b.includes(x.id)); if (sl && /\.dir$/.test(el.dataset.b)) sl.dir = el.value === 'left' ? 'down' : 'up'; ssCtx().save(); return setTimeout(() => rerender(true), 0); }
   if (/\.(product|thick)$/.test(el.dataset.b)) { const p = ssProd(s); if (/product$/.test(el.dataset.b) && p) { s.cover = String(p.cover); if (!p.th.includes(s.thick)) s.thick = p.th[Math.min(2, p.th.length - 1)]; } ssCtx().save(); return setTimeout(() => rerender(true), 0); }
-  clearTimeout(SSA.t); SSA.t = setTimeout(() => { const c = $('#ss-calc'); if (c) c.innerHTML = ssResults(s); const C = ssCalc(s), a = $('#ss-anc'); if (a) a.innerHTML = ssAncHTML(C); const fx = $('.ss-fx'); if (fx) fx.textContent = 'Suggested fixing: ' + C.fx.text;
+  clearTimeout(SSA.t); SSA.t = setTimeout(() => { const c = $('#ss-calc'); if (c) c.innerHTML = ssResults(s); const C = ssCalc(s), a = $('#ss-anc'); if (a) a.innerHTML = ssAncHTML(C); const xs = $('#ss-xs'); if (xs) xs.innerHTML = ssXsHTML(s); const fx = $('.ss-fx'); if (fx) fx.textContent = 'Suggested fixing: ' + C.fx.text;
     s.slopes.forEach((sl, i) => { const box = $(`#ssl_${sl.id} .ss-sec`); if (box) box.innerHTML = C.slopes[i].L ? `<img src="${ssSection(s, C.slopes[i])}" alt="Section">` : '<p class="hint">Enter the purlin spacings to see the section.</p>'; }); }, 250); });
 Object.assign(ACTIONS, {
   async ssnew() { const c = ssCtx(); const s = newSheetSchedule(c.job); (c.h.sheetSchedules = c.h.sheetSchedules || []).push(s); await c.save(); go(`${c.base}/${s.id}`); },
@@ -8144,14 +8164,61 @@ async function buildSheetRFQ(s, sup) { const { jsPDF } = window.jspdf; const doc
   if (C.warn.length) { font(8.4, 'bold', RED); const wl = doc.splitTextToSize(tx('Notes: ' + C.warn.join(' | ')), W - 2 * M); doc.text(wl, M, y); y += wl.length * 3.8 + 2; }
   font(8.6, 'bold'); doc.text('Please confirm:', M, y); font(8.6, 'normal'); const nt = doc.splitTextToSize(tx(`lead time, delivery charge, price per item and total ex VAT, validity, and that the lengths / purlin centres suit the product's load tables. Lengths measured on site from below - to be confirmed before order. Anything marked [__] is to be confirmed.${s.notes ? ' ' + s.notes : ''}`), W - 2 * M - 26); doc.text(nt, M + 25, y); y += nt.length * 4 + 4;
   font(8.6, 'normal'); doc.text('Supplier name: ____________________    Quote ref: ____________    Signed: ____________________    Date: ____________', M, y); if (s.by) { font(8, 'normal', LG); doc.text(tx(`Requested by ${s.by}, ${st.company || 'Absolute Roofing Solutions Ltd'}${st.email ? ' · ' + st.email : ''}`), M, y + 5); }
-  // section per slope
-  C.slopes.filter(r => r.L).forEach(r => { doc.addPage(); let yy = head(true); font(14, 'bold', G); doc.text(tx(`${r.sl.name} - section along the slope`), M, yy + 4); doc.addImage(ssSection(s, r, 1400, 330), 'PNG', M, yy + 8, W - 2 * M, (W - 2 * M) * 330 / 1400);
-    const by = yy + 12 + (W - 2 * M) * 330 / 1400; doc.autoTable(Object.assign({}, T, { startY: by, margin: { left: M, right: W / 2 + 4, top: 32 }, body: [['Purlin centres (mm)', r.sp.join(', ')], ['Eaves overhang / past top purlin', `${r.sl.overhang || 0} / ${r.sl.topExt || 0} mm`], ['Sheet run along slope', `${r.L} mm`], ['Lengths', r.pieces.map(x => x.len).join(' + ') + ' mm'], ['Roof length / cover', `${r.sl.bldLen || '[__]'} m / ${r.cover} mm = ${r.cols} columns`], ['Rooflight columns', r.rlc.join(', ') || '-']].map(x => x.map(tx)), columnStyles: { 0: { fontStyle: 'bold', cellWidth: 52, fillColor: [244, 244, 244] } } }));
-    if (r.sl.sketch && r.sl.sketch.strokes.length) { const iw = W / 2 - M - 4, ih = iw * 0.5; doc.addImage(flPNG(r.sl.sketch, 1200, 600), 'PNG', W / 2 + 4, by, iw, ih); font(8, 'normal', LG); doc.text('Site sketch (not to scale)', W / 2 + 4, by + ih + 4); } });
+  // gutters (full schedule / panel supplier)
+  if (panels && (s.gutters || []).length) { doc.autoTable(Object.assign({}, T, { startY: Math.max(y + 10, doc.lastAutoTable ? 0 : 0), head: [['Gutters & valleys (for information - see flashings RFQ)', 'Girth legs (mm)', 'Girth', 'Length x runs', 'Outlets', 'Material']], body: s.gutters.map(g => [tx(g.name || g.type), tx(g.legs), ssGirth(g) ? ssGirth(g) + ' mm' : '[__]', `${g.length || '[__]'} m x ${g.qty || 1}`, tx(g.outlets || '-'), tx(g.material || '[__]')]) })); }
+  // one page per cross-section: drawing + slope table
+  ssSecs(s).forEach(key => { const rs = C.slopes.filter(r => (r.sl.sec || 'A').trim() === key && r.L); if (!rs.length) return; doc.addPage(); const yy = head(true); const iw = W - 2 * M, ih = iw * 640 / 1400 * 0.82, iw2 = ih * 1400 / 640;
+    doc.addImage(ssXSection(s, key, C), 'PNG', M + (iw - iw2) / 2, yy, iw2, ih);
+    doc.autoTable(Object.assign({}, T, { startY: yy + ih + 3, styles: Object.assign({}, T.styles, { fontSize: 8 }), head: [['Slope', 'Pitch', 'Top gap', 'Purlin spacings, ridge down (mm)', 'Bottom end', 'Sheet run', 'Lengths (mm)', 'Roof length', 'Cols / RL']],
+      body: rs.map(r => [tx(r.sl.name), `${r.sl.pitch || '[__]'}°`, `${r.sl.topExt || 0}`, r.sp.slice().reverse().join(', '), tx(`${r.sl.endType || ''} +${r.sl.overhang || 0}`), `${r.L}`, r.pieces.map(x => x.len).join(' + '), `${r.sl.bldLen || '[__]'} m`, `${r.cols}${r.rlc.length ? ' / ' + r.rlc.length : ''}`]) }));
+    const sk = rs.filter(r => r.sl.sketch && r.sl.sketch.strokes.length); if (sk.length && doc.lastAutoTable.finalY < H - 70) { const w2 = 90; sk.slice(0, 2).forEach((r, i) => { doc.addImage(flPNG(r.sl.sketch, 900, 450), 'PNG', M + i * (w2 + 6), doc.lastAutoTable.finalY + 4, w2, w2 / 2); }); } });
   const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); font(7.5, 'normal', LG); doc.text(`Page ${i} of ${n}`, W - M, H - 6, { align: 'right' }); doc.text('Spans, laps and fixings are guidance only - check with the manufacturer.', M, H - 6); }
   doc.setProperties({ title: tx(`Sheet schedule RFQ ${s.ref || ''}`), author: st.company || 'Absolute Roofing Solutions Ltd' });
   return { blob: doc.output('blob'), name: `Sheet-RFQ_${safeName(sup || 'all')}_${safeName(s.ref || s.project || 'schedule')}_${s.date || todayISO()}.pdf`, pages: n }; }
 { const st = document.createElement('style'); st.textContent = '.ss-warn{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:8px 10px;margin-bottom:10px;font-size:14px}.ss-warn p{margin:2px 0}.ss-tab{width:100%;font-size:14px}.ss-sec img{width:100%;border:1px solid #e5e7eb;border-radius:8px;margin:6px 0}.fl-skimg{max-width:100%;border:1px solid #e5e7eb;border-radius:8px;margin-top:8px}.pit-l{font:inherit;border:0;background:transparent;flex:1;min-width:0}'; document.head.appendChild(st); }
+
+const ssGirth = g => String(g.legs || '').split(/[,; ]+/).map(Number).filter(x => x > 0).reduce((a, b) => a + b, 0);
+const ssSecs = s => [...new Set((s.slopes || []).map(x => (x.sec || 'A').trim() || 'A'))];
+function ssXsHTML(s) { const C = ssCalc(s); const secs = ssSecs(s).filter(k => C.slopes.some(r => (r.sl.sec || 'A').trim() === k && r.L)); return secs.length ? secs.map(k => `<img class="ss-xs" src="${ssXSection(s, k, C)}" alt="Cross-section ${esc(k)}">`).join('') : '<p class="hint">Enter pitch and spacings for each slope to draw the cross-section.</p>'; }
+// cross-section of one or more slopes, to scale, in the style of the site sketches: slopes, purlin cleats, spacings, pitch, slope numbers, end types
+function ssXSection(s, key, C, W = 1400, H = 640) { C = C || ssCalc(s); const rows = C.slopes.filter(r => (r.sl.sec || 'A').trim() === key && r.L);
+  const segs = [], ends = []; let x = 0, y = 0, first = true, prevBottom = null;
+  rows.forEach(r => { y -= +r.sl.drop || 0; if (+r.sl.drop && !first) ends.push([x, y + (+r.sl.drop), x, y - 300]); const a = (+r.sl.pitch || 10) * Math.PI / 180, hx = r.L * Math.cos(a), vy = r.L * Math.sin(a), up = ssUp(r.sl);
+    if (up) { if (!first && y > 1) { /* previous ended high: step down */ } if (!first && prevBottom === 'Valley gutter' && /Valley/.test(r.sl.endType)) x += 460; else if (!first && y < 1 && /Valley/.test(r.sl.endType)) x += 460; const b = [x, y], t = [x + hx, y + vy]; segs.push({ r, b, t, up }); x = t[0]; y = t[1]; }
+    else { if (first) y = vy; const t = [x, y], b = [x + hx, y - vy]; segs.push({ r, b, t, up }); x = b[0]; y = b[1]; prevBottom = r.sl.endType; }
+    first = false; });
+  const xs = segs.flatMap(g => [g.b[0], g.t[0]]), ys = segs.flatMap(g => [g.b[1], g.t[1]]); const x0 = Math.min(...xs) - 1200, x1 = Math.max(...xs) + 1200, y0 = Math.min(...ys) - 500, y1 = Math.max(...ys) + 900;
+  const k = Math.min((W - 60) / (x1 - x0), (H - 90) / (y1 - y0)), ox = (W - (x1 - x0) * k) / 2, P = (px, py) => [ox + (px - x0) * k, H - 50 - (py - y0) * k];
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.lineCap = 'round'; g.lineJoin = 'round';
+  const line = (pts, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); pts.forEach((q, i) => { const [u, v] = P(q[0], q[1]); i ? g.lineTo(u, v) : g.moveTo(u, v); }); g.stroke(); };
+  const txt = (t, px, py, ang = 0, sz = 15, col = '#111', bold = false) => { const [u, v] = P(px, py); g.save(); g.translate(u, v); g.rotate(-ang); g.font = `${bold ? 'bold ' : ''}${sz}px sans-serif`; g.fillStyle = col; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, 0, 0); g.restore(); };
+  ends.forEach(e => line([[e[0], e[1] + 400], [e[2], e[3]]], '#475569', 5));
+  segs.forEach((sg, i) => { const r = sg.r, dx = (sg.t[0] - sg.b[0]) / r.L, dy = (sg.t[1] - sg.b[1]) / r.L, at = d => [sg.b[0] + dx * d, sg.b[1] + dy * d], nx = dy, ny = -dx; // normal pointing below the sheet
+    const n2 = sg.up ? [nx, ny] : [-nx, -ny], ang = Math.atan2(dy, dx), ta = Math.abs(ang) > Math.PI / 2 ? ang - Math.PI : ang;
+    line([sg.b, sg.t], '#111', 3);
+    r.pieces.forEach((pc, j) => { if (j) { const q = at(pc.from), q2 = at(pc.from + (+s.lap || SS_LAP)); line([q, q2], '#dc2626', 6); } });
+    const off = (q, d) => [q[0] + n2[0] * d / k, q[1] + n2[1] * d / k];
+    r.pos.forEach(pp => { const q = at(pp); line([q, off(q, 16), off(off(q, 16), 0)], '#1e3a8a', 2.5); const e = off(q, 16); line([e, [e[0] + dx * 6 / k, e[1] + dy * 6 / k]], '#1e3a8a', 2.5); line([q, [q[0] + dx * 6 / k, q[1] + dy * 6 / k]], '#1e3a8a', 2.5); });
+    const rp = r.pos.map(v => v); for (let j = 0; j < r.sp.length; j++) { const m = at((rp[j] + rp[j + 1]) / 2); const o = off(m, 32); txt(String(r.sp[j]), o[0], o[1], ta, 14); }
+    const tg = at(r.L - (+r.sl.topExt || 0) / 2), bg = at((+r.sl.overhang || 0) / 2); if (+r.sl.topExt) { const o = off(tg, -18); txt(String(r.sl.topExt), o[0], o[1], ta, 12, '#555'); } if (+r.sl.overhang) { const o = off(bg, 32); txt(String(r.sl.overhang), o[0], o[1], ta, 13, '#555'); }
+    const mid = at(r.L / 2), o1 = off(mid, -70), o2 = off(at(r.L * 0.78), -40); txt(r.sl.name, o1[0], o1[1], 0, 22, '#1d4ed8', true); if (/Wall/.test(r.sl.topType || '')) txt('Wall', sg.t[0], sg.t[1] + 250, 0, 13, '#555', true);
+    if (r.band && r.rlc.length) line([at(r.pos[r.band.from - 1]), at(r.pos[r.band.to - 1])], '#f59e0b', 7); txt(`${r.sl.pitch || '?'}°`, o2[0], o2[1], 0, 17, '#111', true);
+    // bottom end detail
+    const B = sg.b, side = sg.up ? -1 : 1, u = 1 / k; const et = r.sl.endType || '';
+    if (/gutter/i.test(et) && !/Valley/.test(et)) { const [bu, bv] = P(B[0], B[1]); g.strokeStyle = '#111'; g.lineWidth = 2.5; g.beginPath(); g.arc(bu + side * 14, bv + 8, 14, 0, Math.PI); g.stroke(); txt('Gutter', B[0] + side * 40 * u, B[1] - 50 * u, 0, 12, '#555'); }
+    else if (/Flat/.test(et)) { line([B, [B[0] + side * 900, B[1]], [B[0] + side * 900, B[1] + 500]], '#111', 2.5); txt('Flat', B[0] + side * 450, B[1] - 30 * u, 0, 13, '#555', true); }
+    else if (/Valley/.test(et)) { const nb = segs[i + 1]; if (!sg.up && nb && nb.up) { const a2 = nb.b; line([B, [B[0] + 40, B[1] - 260], [a2[0] - 40, a2[1] - 260], a2], '#111', 2.5); txt('V', (B[0] + a2[0]) / 2, B[1] - 260 - 40 * u, 0, 16, '#111', true); } else if (sg.up && !(segs[i - 1] && !segs[i - 1].up && /Valley/.test(segs[i - 1].r.sl.endType))) txt('V', B[0] - 30 * u, B[1] - 30 * u, 0, 16, '#111', true); }
+  });
+  g.font = 'bold 16px sans-serif'; g.fillStyle = '#111'; g.textAlign = 'left'; g.fillText(`Cross-section ${key}`, 14, 24); g.font = '13px sans-serif'; g.fillStyle = '#555'; g.fillText('To scale along the slopes. Purlin spacings in mm (ridge gap and sheet past last purlin in grey). Red = end lap, amber = rooflight band.', 14, H - 14);
+  return c.toDataURL('image/png'); }
+Object.assign(ACTIONS, {
+  ssaddgut() { const c = ssCtx(), s = ssCur(); (s.gutters = s.gutters || []).push({ id: uid(), name: 'Valley gutter', type: 'Valley gutter', legs: '', material: '', length: s.slopes[0] ? s.slopes[0].bldLen : '', qty: '1', outlets: '' }); c.save(); rerender(true); },
+  ssdelgut(a) { const c = ssCtx(), s = ssCur(); s.gutters = s.gutters.filter(x => x.id !== a.dataset.id); c.save(); rerender(true); },
+  async ssgutfl() { const c = ssCtx(), s = ssCur(), job = c.job; const fr = newFlashRfq(job || null); fr.ref = s.ref; fr.project = s.project; fr.address = s.address;
+    fr.items = s.gutters.map(g => Object.assign(newFlashItem(), { desc: `${g.name || g.type}${g.material ? ' - ' + g.material : ''}${g.outlets ? ' (outlets ' + g.outlets + ')' : ''}`, girth: String(ssGirth(g) || ''), bends: String(Math.max(0, String(g.legs || '').split(/[,; ]+/).filter(Boolean).length - 1) || ''), qty: String(Math.ceil((+g.length || 0) * (+g.qty || 1) / (parseFloat(flLenDef()) || 3)) || ''), notes: `Legs ${g.legs || '?'} mm, ${g.length || '?'} m x ${g.qty || 1} run(s)` }));
+    if (job) { (job.flashRfqs = job.flashRfqs || []).push(fr); await markDirty(job); go(`#/job/${job.id}/flash/${fr.id}`); } else { await fsaLoad(); FSA.holder.flashRfqs.push(fr); await fsaSave(); go(`#/flash/${fr.id}`); } toast('Gutters copied to a new flashings RFQ - draw the profiles there'); },
+});
+{ const st = document.createElement('style'); st.textContent = '.ss-sp{display:flex;flex-wrap:wrap;gap:6px}.ss-sp label{display:flex;flex-direction:column;width:84px;font-size:12px;color:#64748b}.ss-sp input{width:100%}.ss-xs{width:100%;border:1px solid #e5e7eb;border-radius:8px;margin:6px 0}.ss-gut{border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:8px}'; document.head.appendChild(st); }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
