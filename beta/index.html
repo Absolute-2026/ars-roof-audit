@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.8.2">
+<meta name="app-version" content="1.8.3">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -449,6 +449,10 @@ body.fl-lock{overflow:hidden;position:fixed;width:100%}
 .sp-drop{margin-top:10px;border:2px dashed #cbd5e1;border-radius:10px;padding:10px}.sp-drop.over{border-color:#f18902;background:#fff7ed}
 .sp-warn{background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:14px}
 .sp-plist{max-height:50vh;overflow:auto;margin-bottom:8px}.sp-plist .btn{margin-bottom:6px;white-space:normal}
+.sd-list{max-height:55vh;overflow:auto;margin:10px 0}.sd-cat{font-weight:700;font-size:13px;color:#64748b;text-transform:uppercase;margin:10px 2px 4px}
+.sd-it{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;margin-bottom:5px;font-size:15px}.sd-it:hover{background:#fff7ed}
+.sd-p{font-size:12px;font-weight:700;border-radius:6px;padding:1px 6px;background:#e2e8f0;flex:none}.sd-p.P1{background:#fee2e2;color:#991b1b}.sd-p.P2{background:#ffedd5;color:#9a3412}
+.sd-btn{margin:0 0 8px}
 
 </style>
 </head>
@@ -869,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.8.2';
+const APP_VERSION = '1.8.3';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -1408,7 +1412,7 @@ function viewDefect(job, a, d) {
   return `${hsStrip(job)}<div class="card"><h2><span class="n">${esc(d.ref)}</span> Defect</h2>
     <div class="row">${f.text('Defect ref', b + '.ref')}${f.select('Element', b + '.element', REF.elements)}</div>
     ${f.text('Location / grid ref', b + '.location', { ph: 'e.g. Gridline C-D / 4-5, north valley' })}
-    ${f.area('Description', b + '.description', { rows: 3, ph: 'Describe the defect…' })}
+    ${sdBtn(b)}${f.area('Description', b + '.description', { rows: 3, ph: 'Describe the defect…' })}
     <div class="f"><span class="lbl">Priority</span><div class="seg pri" data-b="${b}.priority">${Object.entries(REF.priorities).map(([k, l]) => `<button type="button" data-v="${k}" class="${d.priority === k ? 'on' : ''}"><b>${k}</b><span>${l}</span></button>`).join('')}</div></div>
   </div>
   <div class="card"><h2>Recommended action</h2>
@@ -1496,7 +1500,7 @@ function viewTemplates() {
   return `<h2 class="sec-h" style="margin:8px 4px 0">PRE-WORKS SURVEY</h2>` + grp('job', 'Survey: audit-level sections', 'Job details, H&amp;S requirements and General are shown on their own tabs. Extra sections appear under General.') +
     grp('area', 'Survey: roof area sections', 'Added to every new roof area.') +
     `<div class="divider"></div><h2 class="sec-h" style="margin:8px 4px 0">WORKS INSPECTION</h2>` + grp('worksJob', 'Works: inspection-level sections', 'Inspection checklist (Details tab), Site H&S during works (Safety tab) and General observations.') +
-    grp('packages', 'Works: work packages', 'Chosen per roof area on a works inspection (overclad, strip & re-sheet, coatings, rooflights, gutter lining, remedial). Pass/Fail items that FAIL create a snag automatically.') + scafTplHTML() +
+    grp('packages', 'Works: work packages', 'Chosen per roof area on a works inspection (overclad, strip & re-sheet, coatings, rooflights, gutter lining, remedial). Pass/Fail items that FAIL create a snag automatically.') + scafTplHTML() + sdTplHTML() +
     `<div class="divider"></div><p class="hint">Template changes apply to new audits and roof areas. Existing audits keep their own checklist.</p><button class="btn danger block" data-act="treset">Reset all templates to defaults</button>`;
 }
 
@@ -2364,7 +2368,7 @@ function viewSnag(job, s) {
     ${src ? `<p class="hint" style="margin:-4px 0 12px">Raised from failed item: <b>${esc(src)}</b>${s.source && s.source.carried ? ' (carried forward)' : ''}</p>` : ''}
     <div class="row">${f.text('Snag ref', b + '.ref')}${f.select('Roof area', b + '.areaId', [], { blank: 'Site-wide' }).replace('</select>', job.areas.map(a => `<option value="${a.id}" ${s.areaId === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('') + '</select>')}</div>
     ${f.text('Location', b + '.location', { ph: 'e.g. Gridline 4-5, eaves' })}
-    ${f.area('Description', b + '.description', { rows: 3 })}
+    ${sdBtn(b)}${f.area('Description', b + '.description', { rows: 3 })}
     <div class="row">${f.text('Assigned to', b + '.assignedTo', { ph: 'e.g. Apex Cladding gang' })}${f.text('Due date', b + '.due', { type: 'date' })}</div>
     <div class="f"><span class="lbl">Priority (optional)</span><div class="seg pri" data-b="${b}.priority">${Object.entries(REF.priorities).map(([k, l]) => `<button type="button" data-v="${k}" class="${s.priority === k ? 'on' : ''}"><b>${k}</b><span>${l}</span></button>`).join('')}</div></div>
     ${f.seg('Status', b + '.status', [['Open', 'Open', 'bad'], ['In progress', 'In progress', 'warn'], ['Closed', 'Closed', 'ok']], { cls: 'yn' })}
@@ -7837,17 +7841,18 @@ document.addEventListener('drop', e => { const d = e.target.closest && e.target.
 function spPinOpts(T, w) { return `<option value="">${T.length ? 'Choose ' + (w ? 'snag' : 'defect') + '…' : 'No ' + (w ? 'snags' : 'defects') + ' yet - tap ＋ New'}</option>` + T.map(t => `<option value="${t.id}">${esc(t.ref + ' - ' + t.text).slice(0, 70)}</option>`).join(''); }
 async function spNewDefect(job) { const w = isWorks(job), A = job.areas || [], PR = (S.settings && S.settings.priorities) || { P1: '', P2: '', P3: '', P4: '' }; let ph = null;
   const r = await modal(`<h3>New ${w ? 'snag' : 'defect'}</h3><label class="small">Roof area</label><select id="sp-na" style="width:100%;font-size:16px;padding:8px">${w ? '<option value="">Site-wide</option>' : ''}${A.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}${w ? '' : '<option value="+">＋ New roof area</option>'}</select>
-    <label class="small">Description</label><textarea id="sp-nd" rows="3" style="width:100%;font-size:16px;padding:8px" placeholder="e.g. Rooflight cracked, unprotected"></textarea>
+    <button type="button" class="btn sm" id="sp-sd">📋 Standard defects…</button><br><label class="small">Description</label><textarea id="sp-nd" rows="3" style="width:100%;font-size:16px;padding:8px" placeholder="e.g. Rooflight cracked, unprotected"></textarea>
     <label class="small">Location (optional)</label><input id="sp-nl" style="width:100%;font-size:16px;padding:8px" placeholder="e.g. Bay 3, north slope">
     <label class="small">Priority</label><select id="sp-np" style="width:100%;font-size:16px;padding:8px"><option value="">-</option>${Object.keys(PR).map(k => `<option value="${k}">${k}${PR[k] ? ' - ' + esc(PR[k]) : ''}</option>`).join('')}</select>
     <div style="height:8px"></div><label class="btn">📷 Add photo (optional)<input type="file" accept="image/*" id="sp-nf" hidden></label> <span id="sp-nfs" class="small"></span>
     <div style="height:10px"></div><button class="btn primary" data-r="ok">Add ${w ? 'snag' : 'defect'}</button><button class="btn" data-r="">Cancel</button>`,
-    bg => { $('#sp-nf', bg).addEventListener('change', async e => { const f = e.target.files && e.target.files[0]; if (!f) return; $('#sp-nfs', bg).textContent = 'Loading…'; try { ph = await compressImage(f); $('#sp-nfs', bg).textContent = '✓ ' + f.name; } catch (er) { $('#sp-nfs', bg).textContent = er.message; } });
-      bg.addEventListener('click', e => { const b = e.target.closest('[data-r="ok"]'); if (!b) return; if (!$('#sp-nd', bg).value.trim()) { e.stopPropagation(); toast('Add a short description'); return; } b.dataset.r = 'ok:' + JSON.stringify({ a: $('#sp-na', bg).value, d: $('#sp-nd', bg).value.trim(), l: $('#sp-nl', bg).value.trim(), p: $('#sp-np', bg).value }); }, true); setTimeout(() => $('#sp-nd', bg).focus(), 30); });
+    bg => { $('#sp-sd', bg).addEventListener('click', async () => { const d = await sdPick(); if (!d) return; if (d.other) return $('#sp-nd', bg).focus(); $('#sp-nd', bg).value = d.text; if (d.pri && !$('#sp-np', bg).value) $('#sp-np', bg).value = d.pri; bg._sd = d; });
+      $('#sp-nf', bg).addEventListener('change', async e => { const f = e.target.files && e.target.files[0]; if (!f) return; $('#sp-nfs', bg).textContent = 'Loading…'; try { ph = await compressImage(f); $('#sp-nfs', bg).textContent = '✓ ' + f.name; } catch (er) { $('#sp-nfs', bg).textContent = er.message; } });
+      bg.addEventListener('click', e => { const b = e.target.closest('[data-r="ok"]'); if (!b) return; if (!$('#sp-nd', bg).value.trim()) { e.stopPropagation(); toast('Add a short description'); return; } b.dataset.r = 'ok:' + JSON.stringify({ el: (bg._sd || {}).el || '', rm: (bg._sd || {}).remedy || '', a: $('#sp-na', bg).value, d: $('#sp-nd', bg).value.trim(), l: $('#sp-nl', bg).value.trim(), p: $('#sp-np', bg).value }); }, true); setTimeout(() => $('#sp-nd', bg).focus(), 30); });
   if (!r || !r.startsWith('ok:')) return null; const v = JSON.parse(r.slice(3));
   if (w) { job.snags = job.snags || []; const s = newSnag(job, v.a); Object.assign(s, { description: v.d, location: v.l, priority: v.p }); if (ph) s.photos.push(ph); job.snags.push(s); markDirty(job); toast(`Snag ${s.ref} added to the inspection`); return s.id; }
   let ar = A.find(a => a.id === v.a); if (!ar) { ar = newArea(job); ar.name = A.length ? `Roof area ${A.length + 1}` : 'Roof area 1'; job.areas.push(ar); }
-  const d = newDefect(job); Object.assign(d, { description: v.d, location: v.l, priority: v.p }); if (ph) d.photos.push(ph); ar.defects.push(d); markDirty(job); toast(`Defect ${d.ref} added to ${ar.name}`); return d.id; }
+  const d = newDefect(job); Object.assign(d, { description: v.d, location: v.l, priority: v.p, element: v.el, remedy: v.rm }); if (ph) d.photos.push(ph); ar.defects.push(d); markDirty(job); toast(`Defect ${d.ref} added to ${ar.name}`); return d.id; }
 // total scaffold / edge-protection run lengths -> Scaffolding & access items (qty + per-elevation in Location). Asks before replacing a hand-edited qty.
 async function spScafToAudit(job) { const p = spPlan(job); if (!p || !p.mpp) return ''; const out = [];
   for (const [cat, re] of [['scaffold', /^Independent tied scaffold/], ['edge', /^Edge protection scaffold/]]) { const ms = (p.marks || []).filter(m => m.cat === cat && m.kind === 'line' && m.pts.length > 1); const sc = scafOf(job), it = sc.items.find(i => re.test(i.text)); if (!it) continue;
@@ -7857,6 +7862,119 @@ async function spScafToAudit(job) { const p = spPlan(job); if (!p || !p.mpp) ret
     if (manual && !await confirmBox('Update scaffold length?', `"${it.text}" was set by hand to ${it.qty} ${it.unit}. Replace it with ${q} ${it.unit} measured on the site plan?`, 'Replace', false)) continue;
     it.qty = q; it.planQty = q; if (!it.loc || it.loc === it.planLoc) { it.loc = loc; it.planLoc = loc; } if (!isWorks(job) && it.status !== 'Required') it.status = 'Required'; out.push(`${spCat(cat).name} ${q} m`); }
   return out.length ? out.join(', ') + ' put in Scaffolding & access' : ''; }
+
+/* ===== v1.8.3: STANDARD DEFECTS picklist (UK industrial roofing). Managers edit it in Settings > Checklist templates.
+   Stored in S.settings.templates.stdDefects (synced with the other templates in app_settings 'templates'; no schema change). ===== */
+const SD = (cat, text, pri, el, remedy) => ({ cat, text, pri: pri || '', el: el || '', remedy: remedy || '' });
+const DEFAULT_STD_DEFECTS = [
+  // profiled metal sheeting / cladding
+  SD('Profiled metal sheeting', 'Cut edge corrosion to sheet ends / eaves', 'P2', 'Sheeting / coating', 'Cut-edge corrosion treatment (clean, prime & seal)'),
+  SD('Profiled metal sheeting', 'Surface corrosion / rusting to sheets', 'P3', 'Sheeting / coating', 'Apply roof coating system'),
+  SD('Profiled metal sheeting', 'Perforated corrosion / holes through sheets', 'P1', 'Sheeting / coating', 'Replace roof sheets'),
+  SD('Profiled metal sheeting', 'Holes / punctures / impact damage to sheets', 'P1', 'Sheeting / coating', 'Replace roof sheets'),
+  SD('Profiled metal sheeting', 'Delaminating / peeling Plastisol coating', 'P3', 'Sheeting / coating', 'Apply roof coating system'),
+  SD('Profiled metal sheeting', 'Chalking / faded coating (end of service life)', 'P4', 'Sheeting / coating', 'Monitor & re-inspect'),
+  SD('Profiled metal sheeting', 'Dented / deformed sheets (foot traffic)', 'P3', 'Sheeting / coating', 'Replace roof sheets'),
+  SD('Profiled metal sheeting', 'Liner sheet corrosion (internal)', 'P2', 'Insulation', 'Over-cladding (new built-up system)'),
+  // laps & sealants
+  SD('Laps & sealants', 'Failed side laps - open / leaking', 'P2', 'Side laps', 'Reseal side laps'),
+  SD('Laps & sealants', 'Failed end laps - open / leaking', 'P2', 'End laps', 'Reseal end laps'),
+  SD('Laps & sealants', 'Perished / missing lap sealant (mastic)', 'P2', 'Sealants', 'Replace sealants & mastics'),
+  SD('Laps & sealants', 'Missing stitcher fixings at side laps', 'P2', 'Side laps', 'Re-fix loose fixings'),
+  // fixings
+  SD('Fixings', 'Loose / missing primary fixings', 'P1', 'Fixings', 'Replace corroded / missing fixings'),
+  SD('Fixings', 'Corroded fixings / perished washers', 'P2', 'Fixings', 'Replace corroded / missing fixings'),
+  SD('Fixings', 'Over-tightened / dished fixings', 'P3', 'Fixings', 'Replace corroded / missing fixings'),
+  SD('Fixings', 'Hook bolts corroded (fibre cement)', 'P2', 'Fixings', 'Replace corroded / missing fixings'),
+  SD('Fixings', 'Missing fastener caps', 'P3', 'Fixings', 'Fit fastener caps'),
+  // fibre cement / asbestos
+  SD('Fibre cement / asbestos', 'Asbestos cement sheets - weathered / degraded surface', 'P2', 'Sheeting / coating', 'Asbestos - R&D survey / licensed contractor'),
+  SD('Fibre cement / asbestos', 'Cracked / broken fibre cement sheets', 'P1', 'Sheeting / coating', 'Replace roof sheets'),
+  SD('Fibre cement / asbestos', 'Brittle fibre cement sheets - fragile (no safe access)', 'P1', 'Safety / access', 'Install permanent safety netting / edge protection'),
+  SD('Fibre cement / asbestos', 'Moss / lichen growth on sheets', 'P4', 'Sheeting / coating', 'Monitor & re-inspect'),
+  SD('Fibre cement / asbestos', 'Previous patch repairs failing', 'P2', 'Sheeting / coating', 'Over-cladding (new built-up system)'),
+  // built-up felt
+  SD('Built-up felt', 'Blistering of felt', 'P3', 'Sheeting / coating', 'Other (see details)'),
+  SD('Built-up felt', 'Splits / cracks in felt membrane', 'P2', 'Sheeting / coating', 'Other (see details)'),
+  SD('Built-up felt', 'Ponding / standing water', 'P3', 'Sheeting / coating', 'Other (see details)'),
+  SD('Built-up felt', 'Loss of chippings / mineral surface', 'P3', 'Sheeting / coating', 'Apply roof coating system'),
+  SD('Built-up felt', 'Failed upstands / skirtings', 'P2', 'Flashings', 'Other (see details)'),
+  SD('Built-up felt', 'Lifted / open felt laps', 'P2', 'Side laps', 'Other (see details)'),
+  SD('Built-up felt', 'Ridging / rucking of felt', 'P3', 'Sheeting / coating', 'Monitor & re-inspect'),
+  // single-ply
+  SD('Single-ply membrane (e.g. Fatra)', 'Lifted / detached membrane (wind uplift)', 'P1', 'Sheeting / coating', 'Other (see details)'),
+  SD('Single-ply membrane (e.g. Fatra)', 'Torn / punctured membrane', 'P1', 'Sheeting / coating', 'Other (see details)'),
+  SD('Single-ply membrane (e.g. Fatra)', 'Failed seam welds', 'P2', 'Side laps', 'Other (see details)'),
+  SD('Single-ply membrane (e.g. Fatra)', 'Shrinkage / bridging at upstands', 'P2', 'Flashings', 'Other (see details)'),
+  SD('Single-ply membrane (e.g. Fatra)', 'Embrittled / cracked membrane (UV)', 'P2', 'Sheeting / coating', 'Re-roof (strip & replace)'),
+  SD('Single-ply membrane (e.g. Fatra)', 'Failed upstand / termination bar', 'P2', 'Flashings', 'Other (see details)'),
+  // rooflights
+  SD('Rooflights', 'Brittle / discoloured GRP rooflights', 'P2', 'Rooflights', 'Replace rooflights (like-for-like GRP)'),
+  SD('Rooflights', 'Cracked / holed rooflights', 'P1', 'Rooflights', 'Replace rooflights (like-for-like GRP)'),
+  SD('Rooflights', 'Unprotected fragile rooflights (no mesh / covers)', 'P1', 'Rooflights', 'Install rooflight safety mesh / covers'),
+  SD('Rooflights', 'Leaking rooflight laps / failed fillers', 'P2', 'Rooflights', 'Reseal side laps'),
+  SD('Rooflights', 'Previously over-sheeted rooflights failing', 'P2', 'Rooflights', 'Replace rooflights (like-for-like GRP)'),
+  // gutters & outlets
+  SD('Gutters & outlets', 'Blocked gutters / debris and vegetation', 'P2', 'Gutters', 'Clear gutters & outlets'),
+  SD('Gutters & outlets', 'Leaking / split gutter joints', 'P2', 'Gutters', 'Gutter lining - Fatra membrane'),
+  SD('Gutters & outlets', 'Corroded / holed gutters', 'P2', 'Gutters', 'Gutter lining - Fatra membrane'),
+  SD('Gutters & outlets', 'Standing water in gutters (falls)', 'P3', 'Gutters', 'Gutter lining - liquid silicone system'),
+  SD('Gutters & outlets', 'Blocked outlets / no leaf guards', 'P2', 'Outlets / RWPs', 'Repair / replace outlets & RWPs'),
+  SD('Gutters & outlets', 'Leaking outlets into building', 'P1', 'Outlets / RWPs', 'Repair / replace outlets & RWPs'),
+  SD('Gutters & outlets', 'Damaged / disconnected downpipes (RWPs)', 'P3', 'Outlets / RWPs', 'Repair / replace outlets & RWPs'),
+  SD('Gutters & outlets', 'Failed previous gutter lining', 'P2', 'Gutters', 'Gutter lining - Fatra membrane'),
+  // flashings & ridge
+  SD('Flashings & ridge', 'Missing / damaged ridge', 'P1', 'Flashings', 'Replace flashings'),
+  SD('Flashings & ridge', 'Failed / lifted flashings', 'P2', 'Flashings', 'Re-fix / reseal flashings'),
+  SD('Flashings & ridge', 'Missing flashings', 'P1', 'Flashings', 'Replace flashings'),
+  SD('Flashings & ridge', 'Corroded flashings', 'P2', 'Flashings', 'Replace flashings'),
+  SD('Flashings & ridge', 'Missing profile fillers / eaves fillers', 'P3', 'Flashings', 'Re-fix / reseal flashings'),
+  SD('Flashings & ridge', 'Failed abutment / apron flashing (water ingress)', 'P2', 'Flashings', 'Replace flashings'),
+  // coatings
+  SD('Coatings', 'Failed / peeling previous roof coating', 'P3', 'Sheeting / coating', 'Apply roof coating system'),
+  SD('Coatings', 'Coating cracked / crazed at laps', 'P3', 'Sheeting / coating', 'Apply roof coating system'),
+  // insulation & condensation
+  SD('Insulation & condensation', 'Condensation / dripping internally', 'P3', 'Insulation', 'Other (see details)'),
+  SD('Insulation & condensation', 'Wet / saturated insulation', 'P2', 'Insulation', 'Replace damaged insulation'),
+  SD('Insulation & condensation', 'Missing / compressed insulation', 'P3', 'Insulation', 'Replace damaged insulation'),
+  SD('Insulation & condensation', 'Active leaks / water staining internally', 'P1', 'Other', 'Other (see details)'),
+  // edges, access & safety
+  SD('Edges, access & safety', 'Damaged / missing edge protection', 'P1', 'Safety / access', 'Install permanent safety netting / edge protection'),
+  SD('Edges, access & safety', 'No safe access / walkways to plant', 'P1', 'Safety / access', 'Install permanent safety netting / edge protection'),
+  SD('Edges, access & safety', 'Damaged / corroded access ladder or hatch', 'P2', 'Safety / access', 'Other (see details)'),
+  SD('Edges, access & safety', 'Fall-arrest / anchor system out of test', 'P1', 'Safety / access', 'Other (see details)'),
+  // general
+  SD('General', 'Moss / debris build-up on roof', 'P4', 'Other', 'Clear gutters & outlets'),
+  SD('General', 'Structural deflection / sagging purlins', 'P1', 'Structure', 'Other (see details)'),
+  SD('General', 'Bird fouling / nesting', 'P4', 'Other', 'Other (see details)'),
+];
+DEFAULT_TEMPLATES.stdDefects = DEFAULT_STD_DEFECTS;
+const stdDefects = () => { const c = S.settings.templates && S.settings.templates.stdDefects; return Array.isArray(c) && c.length ? c : DEFAULT_STD_DEFECTS; };
+const sdCats = () => [...new Set(stdDefects().map(d => d.cat || 'General'))];
+// searchable picker: resolves { text, pri, el, remedy } | { other: true } | null
+function sdPick(cur) { return modal(`<h3>Standard defects</h3><input type="search" id="sd-q" placeholder="Search e.g. lap, gutter, rooflight…" value="" style="width:100%;font-size:17px;padding:10px" autocomplete="off">
+  <div class="sd-list" id="sd-l"></div><button class="btn block" data-r="other">✎ Other - type my own</button><button class="btn block" data-r="">Cancel</button>`, bg => {
+    const L = stdDefects(), q = $('#sd-q', bg), box = $('#sd-l', bg);
+    const draw = () => { const t = q.value.trim().toLowerCase(), w = t.split(/\s+/).filter(Boolean); let h = ''; sdCats().forEach(c => { const it = L.map((d, i) => [d, i]).filter(([d]) => (d.cat || 'General') === c && w.every(x => (d.text + ' ' + c + ' ' + (d.el || '')).toLowerCase().includes(x))); if (!it.length) return;
+        h += `<div class="sd-cat">${esc(c)}</div>` + it.map(([d, i]) => `<button type="button" class="sd-it" data-r="sd:${i}">${esc(d.text)}${d.pri ? ` <span class="sd-p ${d.pri}">${esc(d.pri)}</span>` : ''}</button>`).join(''); });
+      box.innerHTML = h || '<p class="hint">No match - use <b>Other</b> to type your own.</p>'; };
+    q.addEventListener('input', draw); draw(); setTimeout(() => q.focus(), 40); }).then(r => !r ? null : r === 'other' ? { other: true } : r.startsWith('sd:') ? stdDefects()[+r.slice(3)] : null); }
+const sdBtn = path => `<button type="button" class="btn sm sd-btn" data-act="sdpick" data-b="${path}">📋 Standard defects…</button>`;
+Object.assign(ACTIONS, {
+  async sdpick(a, job) { const d = await sdPick(); if (!d) return; const p = a.dataset.b, o = getPath(S.ctx.obj, p) || getPath(job, p); if (!o) return;
+    if (d.other) { rerender(); setTimeout(() => { const t = document.querySelector(`[data-b="${p}.description"]`); if (t) t.focus(); }, 80); return; }
+    o.description = d.text; if (!o.priority && d.pri) o.priority = d.pri; if ('element' in o && !o.element && d.el) o.element = d.el; if ('remedy' in o && !o.remedy && d.remedy) o.remedy = d.remedy;
+    markDirty(job); rerender(); toast('Filled from the standard list - edit the description as needed'); },
+  sdadd() { sdTpl().push(SD(sdCats().slice(-1)[0] || 'General', 'New defect', 'P3')); saveSettings(); rerender(); setTimeout(() => { const d = $('#sdtpl'); if (d) d.open = true; }, 30); },
+  sddel(a) { sdTpl().splice(+a.dataset.i, 1); saveSettings(); rerender(); setTimeout(() => { const d = $('#sdtpl'); if (d) d.open = true; }, 30); },
+  async sdreset() { if (await confirmBox('Reset standard defects?', 'The standard defects list will be restored to the defaults. Existing audits are not changed.', 'Reset')) { S.settings.templates.stdDefects = clone(DEFAULT_STD_DEFECTS); saveSettings(); rerender(); } },
+});
+function sdTpl() { if (!S.settings.templates) S.settings.templates = clone(DEFAULT_TEMPLATES); if (!Array.isArray(S.settings.templates.stdDefects) || !S.settings.templates.stdDefects.length) S.settings.templates.stdDefects = clone(DEFAULT_STD_DEFECTS); return S.settings.templates.stdDefects; }
+function sdTplHTML() { const L = sdTpl(), P = Object.keys(REF.priorities);
+  return `<div class="divider"></div><h2 class="sec-h" style="margin:8px 4px 0">STANDARD DEFECTS</h2><p class="hint" style="margin:4px 4px 10px">Pick list on defects, snags and site plan pins: fills the description (still editable), suggested priority, element and remedial action.</p>
+  <details class="sec" id="sdtpl"><summary>Standard defects list <span class="prog">${L.length} items</span>${I.chv}</summary><div class="bd"><datalist id="dl_sdcat">${sdCats().map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+  ${L.map((d, i) => `<div class="ck"><input type="text" data-b="templates.stdDefects.${i}.text" value="${esc(d.text)}" aria-label="Defect"><div style="display:flex;gap:8px;margin-top:8px"><input type="text" list="dl_sdcat" data-b="templates.stdDefects.${i}.cat" value="${esc(d.cat)}" style="flex:2" aria-label="Category"><select data-b="templates.stdDefects.${i}.pri" style="flex:1" aria-label="Priority"><option value="">-</option>${P.map(k => `<option ${d.pri === k ? 'selected' : ''}>${k}</option>`).join('')}</select><button class="btn danger sm" data-act="sddel" data-i="${i}" aria-label="Remove">✕</button></div></div>`).join('')}
+  <button class="btn block" data-act="sdadd">${I.plus} Add standard defect</button><button class="btn danger block" style="margin-top:10px" data-act="sdreset">Reset list to defaults</button></div></details>`; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
