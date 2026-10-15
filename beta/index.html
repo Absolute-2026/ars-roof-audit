@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.9.13">
+<meta name="app-version" content="1.9.14">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.9.13';
+const APP_VERSION = '1.9.14';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -8050,16 +8050,17 @@ function ssBandSegs(sl, pos, lap, L, BL) { const man = String(sl.splits || '').s
   bnd.forEach(k => { const rl = BL.some(([f, t]) => prev >= f && k <= t); segs.push({ kind: rl ? 'rl' : k <= f0 ? 'below' : 'above', from: st, to: pos[k - 1] + lap / 2, p0: prev, p1: k }); st = pos[k - 1] - lap / 2; prev = k; });
   segs.push({ kind: 'above', from: st, to: L, p0: prev, p1: 0 }); segs.forEach(x => { x.len = Math.round(x.to - x.from); }); return segs; }
 // 1.9.5: sheet lengths to dimension on the pad / cross-section: rooflight band pieces (below / RL / above, split pieces), else the split pieces, else one length
-function ssDimSegs(s, sl, r) { r = r || ssSlope(s, sl); if (!r.L) return []; if (r.band) return r.band.segs.map(x => ({ kind: x.kind === 'rl' ? 'rl' : 'sheet', from: x.from, to: x.to, len: x.len }));
-  const BL = ssBands(sl, r.pos.length); if (BL.length) return ssBandSegs(sl, r.pos, +sl.lap || +s.lap || SS_LAP, r.L, BL).map(x => ({ kind: x.kind === 'rl' ? 'rl' : 'sheet', from: x.from, to: x.to, len: x.len }));
-  return r.pieces.map(x => ({ kind: 'sheet', from: x.from, to: x.to, len: x.len })); }
+// v1.9.14: sheet pieces (manual / auto splits) are dimensioned ABOVE the line (side 'up'); the rooflight columns (sheet below / RL / sheet above) BELOW (side 'down') - both always shown
+function ssDimSegs(s, sl, r) { r = r || ssSlope(s, sl); if (!r.L) return []; const P = r.pieces.map(x => ({ kind: 'sheet', side: 'up', from: x.from, to: x.to, len: x.len }));
+  let B = r.band ? r.band.segs : null; if (!B) { const BL = ssBands(sl, r.pos.length); if (BL.length) B = ssBandSegs(sl, r.pos, +sl.lap || +s.lap || SS_LAP, r.L, BL); }
+  return B ? P.concat(B.map(x => ({ kind: x.kind === 'rl' ? 'rl' : 'rlsheet', side: 'down', from: x.from, to: x.to, len: x.len }))) : P; }
 // draw one dimension line from point a to b, offset along normal n by d (tier), ticks at both ends, length text centred above the line
 function ssDimLine(g, a, b, n, d, label, col, sz, rot) { const A = [a[0] + n[0] * d, a[1] + n[1] * d], Bp = [b[0] + n[0] * d, b[1] + n[1] * d], t = 7;
   g.save(); g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 1.6; g.beginPath(); g.moveTo(a[0] + n[0] * (d - t * 2.4), a[1] + n[1] * (d - t * 2.4)); g.lineTo(A[0] + n[0] * t, A[1] + n[1] * t); g.moveTo(b[0] + n[0] * (d - t * 2.4), b[1] + n[1] * (d - t * 2.4)); g.lineTo(Bp[0] + n[0] * t, Bp[1] + n[1] * t); g.moveTo(A[0], A[1]); g.lineTo(Bp[0], Bp[1]); g.stroke();
   const ux = Bp[0] - A[0], uy = Bp[1] - A[1], L = Math.hypot(ux, uy) || 1, e = [ux / L, uy / L]; [[A, 1], [Bp, -1]].forEach(([P, sg]) => { g.beginPath(); g.moveTo(P[0] + (e[0] * t - n[0] * t / 2) * sg - 0, P[1] + (e[1] * t - n[1] * t / 2) * sg); g.lineTo(P[0], P[1]); g.lineTo(P[0] + e[0] * t * sg + n[0] * t / 2 * sg, P[1] + e[1] * t * sg + n[1] * t / 2 * sg); g.stroke(); });
   let ang = Math.atan2(e[1], e[0]); if (ang > Math.PI / 2) ang -= Math.PI; if (ang < -Math.PI / 2) ang += Math.PI; const m = [(A[0] + Bp[0]) / 2 + n[0] * sz * 0.75, (A[1] + Bp[1]) / 2 + n[1] * sz * 0.75];
   g.translate(m[0], m[1]); if (rot !== false) g.rotate(ang); g.font = `bold ${sz}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; const w = g.measureText(label).width; g.fillStyle = '#fff'; g.fillRect(-w / 2 - 3, -sz / 2 - 2, w + 6, sz + 4); g.fillStyle = col; g.fillText(label, 0, 0); g.restore(); }
-const SS_DIMC = { sheet: '#111', rl: '#d97706' };
+const SS_DIMC = { sheet: '#111', rl: '#d97706', rlsheet: '#78716c' };
 function ssCalc(s) { if (typeof ssSyncLinks === 'function') ssSyncLinks(s); const S2 = (s.slopes || []).map(sl => Object.assign({ sl }, ssSlope(s, sl))); const p = ssProd(s);
   const sheetRows = [], rlRows = []; S2.forEach(r => r.pieces.forEach((x, i) => { if (r.sheetsCols) sheetRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.sheetsCols }); if (r.rlc.length && !r.band) rlRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.rlc.length, cols: r.rlc.join(', ') }); }));
   S2.forEach(r => { if (!r.band || !r.rlc.length) return; const q = r.rlc.length; ['below', 'rl', 'above'].forEach(kd => { const L2 = r.band.segs.filter(x => x.kind === kd); L2.forEach((x, i) => { const nm = (kd === 'rl' ? 'Rooflight' : `Sheet ${kd} rooflight`) + (L2.length > 1 ? ` (${i + 1} of ${L2.length})` : '') + ` P${x.p0 || 'eaves'}-${x.p1 ? 'P' + x.p1 : 'top'}`;
@@ -8236,7 +8237,7 @@ function ssXSection(s, key, C, W = 1400, H = 640) { C = C || ssCalc(s); const ro
     const off = (q, d) => [q[0] + n2[0] * d / k, q[1] + n2[1] * d / k];
     r.pos.forEach(pp => { const q = at(pp); line([q, off(q, 16), off(off(q, 16), 0)], '#1e3a8a', 2.5); const e = off(q, 16); line([e, [e[0] + dx * 6 / k, e[1] + dy * 6 / k]], '#1e3a8a', 2.5); line([q, [q[0] + dx * 6 / k, q[1] + dy * 6 / k]], '#1e3a8a', 2.5); });
     const rp = r.pos.map(v => v); for (let j = 0; j < r.sp.length; j++) { const m = at((rp[j] + rp[j + 1]) / 2); const o = off(m, 32); txt(String(r.sp[j]), o[0], o[1], ta, 14); }
-    { const ds = ssDimSegs(s, r.sl, r); if (ds.length > 1 || r.band || +r.sl.rlFrom) ds.forEach((x, j) => { const A = P(...at(x.from)), Bq = P(...at(x.to)), N0 = P(...off(at(x.from), 100)), nn = [N0[0] - A[0], N0[1] - A[1]], nl = Math.hypot(nn[0], nn[1]) || 1; ssDimLine(g, A, Bq, [nn[0] / nl, nn[1] / nl], 52 + (j % 2) * 26, `${x.kind === 'rl' ? 'RL ' : ''}${x.len}`, SS_DIMC[x.kind], 12); }); }
+    { const ds = ssDimSegs(s, r.sl, r); if (ds.length > 1 || r.band || +r.sl.rlFrom) { const ju = {}; ds.forEach(x => { const j = ju[x.side] = (ju[x.side] ?? -1) + 1, A = P(...at(x.from)), Bq = P(...at(x.to)), N0 = P(...off(at(x.from), 100)), nn = [N0[0] - A[0], N0[1] - A[1]], nl = Math.hypot(nn[0], nn[1]) || 1, sg = x.side === 'up' ? -1 : 1; ssDimLine(g, A, Bq, [sg * nn[0] / nl, sg * nn[1] / nl], (x.side === 'up' ? 40 : 52) + (j % 2) * 26, `${x.kind === 'rl' ? 'RL ' : ''}${x.len}`, SS_DIMC[x.kind], 12); }); } }
     const tg = at(r.L - (+r.sl.topExt || 0) / 2), bg = at((+r.sl.overhang || 0) / 2); if (+r.sl.topExt) { const o = off(tg, -18); txt(String(r.sl.topExt), o[0], o[1], ta, 12, '#555'); } if (+r.sl.overhang) { const o = off(bg, 32); txt(String(r.sl.overhang), o[0], o[1], ta, 13, '#555'); }
     const mid = at(r.L / 2), o1 = off(mid, -70), o2 = off(at(r.L * 0.78), -40); txt(r.sl.name, o1[0], o1[1], 0, 22, '#1d4ed8', true); if (/Wall/.test(r.sl.topType || '')) txt('Wall', sg.t[0], sg.t[1] + 250, 0, 13, '#555', true);
     if (r.band && r.rlc.length) line([at(r.pos[r.band.from - 1]), at(r.pos[r.band.to - 1])], '#f59e0b', 7); txt(`${r.sl.pitch || '?'}°`, o2[0], o2[1], 0, 17, '#111', true);
@@ -8320,7 +8321,7 @@ function ppRender(c, s, key, st) { const g = c.getContext('2d'); g.setTransform(
     g.strokeStyle = sel ? '#2563eb' : '#111'; g.lineWidth = 5; g.beginPath(); g.moveTo(B[0], B[1]); g.lineTo(T[0], T[1]); g.stroke();
     { const BL = ssBands(sl, sl.pad.t.length); BL.forEach(([f, t], bi) => { if (sl.pad.t[t - 1] == null) return; const a = ppAt(sl, sl.pad.t[f - 1]), z = ppAt(sl, sl.pad.t[t - 1]), d = bi % 2 ? 11 : 7; g.strokeStyle = bi % 2 ? '#d97706' : '#f59e0b'; g.lineWidth = 12; g.globalAlpha = 0.7; g.beginPath(); g.moveTo(a[0] - n[0] * d, a[1] - n[1] * d); g.lineTo(z[0] - n[0] * d, z[1] - n[1] * d); g.stroke(); g.globalAlpha = 1; });
       const pf = sl.rlPend || (+sl.rlFrom && !+sl.rlTo ? +sl.rlFrom : 0); if (pf && sl.pad.t[pf - 1] != null) { const a = ppAt(sl, sl.pad.t[pf - 1]); g.fillStyle = '#f59e0b'; g.beginPath(); g.arc(a[0] - n[0] * 7, a[1] - n[1] * 7, 9, 0, 7); g.fill(); } }
-    { const rr = ssSlope(s, sl), ds = rr.L ? ssDimSegs(s, sl, rr) : []; if (ds.length > 1 || +sl.rlFrom || sl.rlBands) ds.forEach((x, j) => { const q = d => ppAt(sl, d * sl.pad.len / rr.L); ssDimLine(g, q(x.from), q(x.to), n, 70 + (j % 2) * 36, `${x.kind === 'rl' ? 'RL ' : ''}${x.len}`, SS_DIMC[x.kind], 23); }); }
+    { const rr = ssSlope(s, sl), ds = rr.L ? ssDimSegs(s, sl, rr) : []; if (ds.length > 1 || +sl.rlFrom || sl.rlBands) { const ju = {}; ds.forEach(x => { const j = ju[x.side] = (ju[x.side] ?? -1) + 1, up = x.side === 'up', q = d => ppAt(sl, d * sl.pad.len / rr.L); ssDimLine(g, q(x.from), q(x.to), up ? [-n[0], -n[1]] : n, (up ? 118 : 70) + (j % 2) * 34, `${x.kind === 'rl' ? 'RL ' : ''}${x.len}`, SS_DIMC[x.kind], 23); }); } }
     String(sl.splits || '').split(/[,; ]+/).map(Number).filter(k => k > 0 && sl.pad.t[k - 1] != null).forEach(k => { const q = ppAt(sl, sl.pad.t[k - 1]); g.strokeStyle = '#dc2626'; g.lineWidth = 6; g.beginPath(); g.moveTo(q[0] - n[0] * 28 - v[0] * 10, q[1] - n[1] * 28 - v[1] * 10); g.lineTo(q[0] + n[0] * 4 + v[0] * 10, q[1] + n[1] * 4 + v[1] * 10); g.stroke(); txt('✂', q[0] - n[0] * 44, q[1] - n[1] * 44, 20, '#dc2626', true); });
     g.strokeStyle = '#1e3a8a'; g.lineWidth = 3.5; ppKF(sl, kind); sl.pad.t.forEach((t, i) => { const f = sl.pad.f[i] || 1, sel2 = st && st.selPur && st.selPur.id === sl.id && st.selPur.j === i; g.strokeStyle = sel2 ? '#f28c28' : '#1e3a8a'; ppDrawShape(g, sl.pad.k[i] || kind, ppAt(sl, t), [v[0] * f, v[1] * f], n); });
     // handles
@@ -8369,7 +8370,7 @@ function ppPad(s, key, save) { window._ppS = s; return new Promise(resolve => { 
     if (st.armed) { drop(st.armed, p); return; }
     if (st.mode === 'split' || st.mode === 'rl') { let best = null; s.slopes.filter(x => (x.sec || 'A').trim() === key && x.pad).forEach(sl => sl.pad.t.forEach((t, j) => { const q = ppAt(sl, t), d = Math.hypot(p[0] - q[0], p[1] - q[1]); if (d < 40 && (!best || d < best.d)) best = { sl, j, d }; }));
       if (!best) return toast('Tap a purlin'); snap(); const sl = best.sl, k = best.j + 1; st.sel = sl.id;
-      if (st.mode === 'split') { const L = String(sl.splits || '').split(/[,; ]+/).map(Number).filter(x => x > 0); const i = L.indexOf(k); if (i >= 0) L.splice(i, 1); else if (ssInBand(ssBands(sl, sl.pad.t.length), k)) { st.undo.pop(); return toast('Splits cut roof sheets only - to split a rooflight, end one rooflight band at a purlin and start the next band at the same purlin'); } else if (k > 1 && k < sl.pad.t.length) L.push(k); else { st.undo.pop(); return toast('Split at an intermediate purlin'); } sl.splits = L.sort((a, b) => a - b).join(', '); }
+      if (st.mode === 'split') { const L = String(sl.splits || '').split(/[,; ]+/).map(Number).filter(x => x > 0); const i = L.indexOf(k); if (i >= 0) L.splice(i, 1); else if (k > 1 && k < sl.pad.t.length && ssInBand(ssBands(sl, sl.pad.t.length), k)) { L.push(k); toast('Split added to the roof sheets - the rooflight stays one length (to split a rooflight, use two bands sharing a purlin)'); } else if (k > 1 && k < sl.pad.t.length) L.push(k); else { st.undo.pop(); return toast('Split at an intermediate purlin'); } sl.splits = L.sort((a, b) => a - b).join(', '); }
       else { const f = +sl.rlFrom, t2 = +sl.rlTo, np = sl.pad.t.length, ex = String(sl.rlBands || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean), setCols = () => { if (!sl.rlCols) sl.rlCols = (typeof ssBaysTotal === 'function' && ssBaysTotal(s)) ? 'bays' : 'every 4'; };
         if (!(f && t2)) { if (k === f) { sl.rlFrom = ''; sl.rlTo = ''; } else if (!f) { sl.rlFrom = String(k); sl.rlTo = ''; } else { sl.rlFrom = String(Math.min(f, k)); sl.rlTo = String(Math.max(f, k)); setCols(); } }
         else if (sl.rlPend) { const a0 = +sl.rlPend; delete sl.rlPend; if (a0 !== k) { const nb = [Math.min(a0, k), Math.max(a0, k)]; if (ssBands(sl, np).some(([bf, bt]) => nb[0] < bt && nb[1] > bf)) { toast('Rooflight bands cannot overlap - they can share a purlin'); } else { ex.push(nb.join('-')); sl.rlBands = ex.join(', '); toast(`Rooflight band ${nb.join('-')} added`); } } }
@@ -8658,9 +8659,9 @@ function rdSection(doc, s, C, key, no) { const g = rdSecGeo(s, key, C); if (!g.l
     K.ln(pa, pb, 0.25); K.ln(off(pa, tk), off(pb, tk), 0.4);
     // purlins (Z / C glyph below the line)
     r.pos.forEach(p => { const c = P(pt(p)), d = Math.max(2.2, pd * k), b2 = [c[0] - n[0] * d, c[1] - n[1] * d]; K.ln(c, b2, 0.3); K.ln(c, [c[0] + e[0] * 1.1, c[1] + e[1] * 1.1], 0.3); K.ln(b2, [b2[0] - e[0] * 1.1, b2[1] - e[1] * 1.1], 0.3); });
-    // dims above: overhang, sheet pieces (rooflight captioned), top gap, check dim
+    // dims above: overhang, sheet pieces; rooflight-column pieces go below (v1.9.14), top gap, check dim
     const ds = ssDimSegs(s, sl, r), ov = r.pos[0], top = r.L - r.pos[r.pos.length - 1];
-    ds.forEach((x, j) => K.dim(off(P(pt(x.from)), tk), off(P(pt(x.to)), tk), n, 9 + (j % 2) * 9, String(x.len), x.kind === 'rl' ? 'O/A ROOFLIGHT' : '', x.kind === 'rl' ? 0 : 0, 1.5));
+    const dpp0 = Math.max(2.2, pd * k), ju = {}; ds.forEach(x => { const j = ju[x.side] = (ju[x.side] ?? -1) + 1; if (x.side === 'up') K.dim(off(P(pt(x.from)), tk), off(P(pt(x.to)), tk), n, 9 + (j % 2) * 9, String(x.len), '', 0, 1.5); else K.dim(P(pt(x.from)), P(pt(x.to)), [-n[0], -n[1]], dpp0 + 36 + (j % 2) * 10, String(x.len), x.kind === 'rl' ? 'O/A ROOFLIGHT' : '', 0, dpp0 + 1); });
     if (ov > 0) { K.dim(off(pa, tk), off(P(pt(ov)), tk), n, 4, String(Math.round(ov)), '', 0, 1.5); const cn = ssCbNote(s, sl); if (cn) { const q0 = off(pa, tk + 4), lab = rdTx(cn.toUpperCase()); K.txt(lab, [q0[0] + (q.up ? -2 : 2) + n[0] * 0, q0[1] + 9], 0, 6, q.up ? 'right' : 'left', 60); } } if (top > 0) K.dim(off(P(pt(r.pos[r.pos.length - 1])), tk), off(pb, tk), n, 4, String(Math.round(top)), '', 0, 1.5);
     K.dim(off(pa, tk), off(pb, tk), n, 30, String(r.L), 'O/A CHECK DIM', 0, 1.5);
     // dims below: purlin spacings and O/A purlins
