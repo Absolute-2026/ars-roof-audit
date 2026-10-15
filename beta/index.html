@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.8.3">
+<meta name="app-version" content="1.9.0">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.8.3';
+const APP_VERSION = '1.9.0';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -1584,6 +1584,7 @@ function render(keepScroll) {
     head = header({ title, sub, back, right: `<button class="ibtn" data-act="jobmenu" data-id="${job.id}" aria-label="Audit options">${I.dots}</button>` });
     nav = bnav(job, tab);
   } else if (r[0] === 'flash') { const v = viewFlashStandalone(r); if (!v) return; head = v.head; body = v.body; }
+  else if (r[0] === 'sheets') { const v = viewSheetStandalone(r); if (!v) return; head = v.head; body = v.body; }
   else { go('#/'); return; }
   for (const k in DL) delete DL[k];
   const y = window.scrollY;
@@ -7975,6 +7976,182 @@ function sdTplHTML() { const L = sdTpl(), P = Object.keys(REF.priorities);
   <details class="sec" id="sdtpl"><summary>Standard defects list <span class="prog">${L.length} items</span>${I.chv}</summary><div class="bd"><datalist id="dl_sdcat">${sdCats().map(c => `<option value="${esc(c)}">`).join('')}</datalist>
   ${L.map((d, i) => `<div class="ck"><input type="text" data-b="templates.stdDefects.${i}.text" value="${esc(d.text)}" aria-label="Defect"><div style="display:flex;gap:8px;margin-top:8px"><input type="text" list="dl_sdcat" data-b="templates.stdDefects.${i}.cat" value="${esc(d.cat)}" style="flex:2" aria-label="Category"><select data-b="templates.stdDefects.${i}.pri" style="flex:1" aria-label="Priority"><option value="">-</option>${P.map(k => `<option ${d.pri === k ? 'selected' : ''}>${k}</option>`).join('')}</select><button class="btn danger sm" data-act="sddel" data-i="${i}" aria-label="Remove">✕</button></div></div>`).join('')}
   <button class="btn block" data-act="sdadd">${I.plus} Add standard defect</button><button class="btn danger block" style="margin-top:10px" data-act="sdreset">Reset list to defaults</button></div></details>`; }
+
+/* ===== v1.9.0 (BETA): ROOF SHEET SCHEDULE - purlin spacings -> sheet lengths, counts, rooflights, ancillaries, supplier RFQ PDFs =====
+   Inside a job: job.sheetSchedules[] (synced with the job, no DB change). Standalone: this device only (IndexedDB key 'sheets.standalone').
+   All spans / fixings / laps are conservative defaults for a quotation request - 'check with manufacturer'. */
+const SS_LAP = 150, SS_TRANSPORT = 13500;
+// [maker, product, kind, cover mm, max length mm, thicknesses]
+const SS_PRODUCTS = [
+  ['Tata Steel', 'Trisomet 333 composite roof panel', 'composite', 1000, 13500, ['40 mm', '60 mm', '80 mm', '100 mm', '115 mm', '120 mm', '150 mm']],
+  ['Tata Steel', 'Trisomet 333 low-pitch composite roof panel', 'composite', 1000, 13500, ['80 mm', '100 mm', '115 mm', '120 mm']],
+  ['Tata Steel', 'Single-skin trapezoidal 32/1000 (Colorcoat)', 'single', 1000, 13500, ['0.5 mm', '0.7 mm']],
+  ['Tata Steel', 'Single-skin trapezoidal 35/1000 (Colorcoat)', 'single', 1000, 13500, ['0.5 mm', '0.7 mm']],
+  ['Kingspan', 'KS1000 RW trapezoidal composite roof panel', 'composite', 1000, 13500, ['40 mm', '60 mm', '80 mm', '100 mm', '115 mm', '120 mm', '150 mm']],
+  ['Kingspan', 'KS1000 LP low-pitch composite roof panel', 'composite', 1000, 13500, ['80 mm', '100 mm', '115 mm', '120 mm']],
+  ['Kingspan', 'KS1000 FireSafe RW composite roof panel', 'composite', 1000, 13500, ['80 mm', '100 mm', '120 mm']],
+  ['Kingspan', 'Single-skin KS1000 trapezoidal sheet', 'single', 1000, 13500, ['0.5 mm', '0.7 mm']],
+  ['Other', 'Single-skin 32/1000 trapezoidal', 'single', 1000, 13500, ['0.5 mm', '0.7 mm']],
+  ['Other', 'Single-skin 45/1000 trapezoidal', 'single', 1000, 13500, ['0.7 mm', '0.9 mm']],
+  ['Other', 'Single-skin 13/3 corrugated', 'single', 1064, 13500, ['0.5 mm', '0.7 mm']],
+].map(([maker, name, kind, cover, max, th]) => ({ maker, name, kind, cover, max, th }));
+const SS_RL = [['Filon', 'Filon factory-assembled insulated rooflight (to match panel)'], ['Filon', 'Filon site-assembled double / triple skin GRP rooflight'], ['Filon', 'Filon single-skin GRP rooflight sheet'],
+  ['Brett Martin', 'Brett Martin Marlon / Daylight factory-assembled insulated rooflight'], ['Brett Martin', 'Brett Martin site-assembled double / triple skin GRP rooflight'], ['Brett Martin', 'Brett Martin single-skin GRP rooflight sheet']].map(([maker, name]) => ({ maker, name }));
+const SS_SKINS = ['Single skin', 'Double skin', 'Triple skin'], SS_FRAG = ['Class A (non-fragile)', 'Class B (non-fragile)', 'Class C (fragile)', 'Unknown'];
+const SS_PURLINS = ['Zed (cold-rolled)', 'Cee section (cold-rolled)', 'Sigma (cold-rolled)', 'Ultrazed / other cold-rolled', 'Angle (steel)', 'Hot-rolled steel (I / channel)', 'Timber'];
+// conservative default max purlin centres (mm) - CHECK WITH MANUFACTURER (load tables depend on snow / wind, span type and gauge)
+const SS_SPAN = { composite: { '40': 1800, '60': 2000, '80': 2200, '100': 2400, '115': 2500, '120': 2500, '150': 2700 }, single: { '0.5': 1500, '0.7': 1800, '0.9': 2000 }, rooflight: 1500 };
+const ssProd = s => SS_PRODUCTS.find(p => p.name === s.product) || null;
+const ssRl = s => SS_RL.find(p => p.name === s.rlProduct) || null;
+function ssDefSpan(s) { const p = ssProd(s); if (!p) return ''; const t = parseFloat(s.thick) || 0; const T = SS_SPAN[p.kind]; const ks = Object.keys(T).map(Number).sort((a, b) => a - b); let v = T[ks[0]]; ks.forEach(k => { if (t >= k) v = T[k]; }); return String(v); }
+function ssFixing(s) { const pt = s.purlinType || '', p = ssProd(s), t = parseFloat(s.thick) || 0, g = parseFloat(s.purlinGauge) || 0;
+  const crown = p && p.kind === 'composite' ? t + 35 : 35; const len = Math.ceil((crown + (/Timber/.test(pt) ? 50 : 25)) / 5) * 5;
+  const kind = /Timber/.test(pt) ? 'Timber fastener (self-tapping, timber thread)' : /Hot-rolled|Angle/.test(pt) || g > 3.2 ? 'Heavy-section self-drilling fastener (drill capacity up to 12 mm steel)' : 'Light-section self-drilling fastener (drill capacity up to ~3 mm)';
+  return { kind, len, text: `${kind}, approx. ${len} mm long${p && p.kind === 'composite' ? ' with sealing washer (crown fixing through ' + (t || '?') + ' mm panel)' : ' with 16 mm sealing washer'} - check with fixing supplier` }; }
+// "1500, 4@1800, 1200" -> [1500,1800,1800,1800,1800,1200]
+function ssParse(txt) { const out = []; String(txt || '').split(/[,;\n]+/).forEach(t => { t = t.trim().replace(/mm/gi, ''); if (!t) return; const m = /^(\d+)\s*(?:@|x|×|bays?\s*@)\s*(\d+(?:\.\d+)?)$/i.exec(t.replace(/\s+/g, ' ')); if (m) { for (let i = 0; i < +m[1]; i++) out.push(+m[2]); return; } const n = parseFloat(t); if (n > 0) out.push(n < 30 ? Math.round(n * 1000) : n); }); return out; }
+function ssCols(txt, n) { const t = String(txt || '').trim(); if (!t) return []; const ev = /every\s*(\d+)(?:\D+(\d+))?/i.exec(t); const out = new Set();
+  if (ev) { const k = +ev[1], st = +(ev[2] || ev[1]); for (let i = st; i <= n; i += k) out.add(i); } else t.split(/[,; ]+/).forEach(x => { const r = /^(\d+)\s*-\s*(\d+)$/.exec(x); if (r) { for (let i = +r[1]; i <= +r[2]; i++) out.add(i); } else if (+x > 0) out.add(+x); });
+  return [...out].filter(i => i >= 1 && i <= n).sort((a, b) => a - b); }
+// one slope -> geometry, pieces, counts, warnings
+function ssSlope(s, sl) { const p = ssProd(s), sp = ssParse(sl.spacings), ov = +sl.overhang || 0, top = +sl.topExt || 0, lap = +s.lap || SS_LAP;
+  const pos = [ov]; sp.forEach(x => pos.push(pos[pos.length - 1] + x)); const L = sp.length ? Math.round(pos[pos.length - 1] + top) : 0;
+  const maxL = Math.min(+s.maxLen || SS_TRANSPORT, p ? p.max : SS_TRANSPORT); const pieces = [], warn = [];
+  if (L) { let st = 0; while (L - st > maxL) { let best = -1; for (let k = pos.length - 2; k >= 1; k--) if (pos[k] > st + lap && pos[k] + lap / 2 - st <= maxL) { best = k; break; } if (best < 0) { warn.push(`No purlin within ${maxL} mm for an end lap - check purlin positions`); break; } pieces.push({ from: st, to: pos[best] + lap / 2, at: best }); st = pos[best] - lap / 2; } pieces.push({ from: st, to: L }); }
+  pieces.forEach(x => { x.len = Math.round(x.to - x.from); }); if (L > maxL && pieces.length > 1) warn.push(`Sheet run ${(L / 1000).toFixed(2)} m exceeds ${(maxL / 1000).toFixed(1)} m (transport / manufacturer max) - split into ${pieces.length} lengths with ${lap} mm end laps over purlins`);
+  const cover = +s.cover || (p ? p.cover : 1000), bl = (+sl.bldLen || 0) * 1000, cols = bl ? Math.ceil(bl / cover) : 0, rlc = ssCols(sl.rlCols, cols);
+  const span = +s.maxSpan || +ssDefSpan(s) || 0, worst = sp.length ? Math.max(...sp) : 0; if (span && worst > span) warn.push(`Purlin spacing ${worst} mm exceeds ${span} mm max for this panel - check with manufacturer`);
+  if (rlc.length && worst > SS_SPAN.rooflight && !/factory/i.test(s.rlProduct || '')) warn.push(`Rooflight span ${worst} mm > ${SS_SPAN.rooflight} mm typical GRP max - check with rooflight manufacturer`);
+  return { sp, pos, L, pieces, cover, cols, rlc, sheetsCols: cols - rlc.length, span, worst, warn, purlins: pos.length, endLaps: pieces.length - 1 }; }
+function ssCalc(s) { const S2 = (s.slopes || []).map(sl => Object.assign({ sl }, ssSlope(s, sl))); const p = ssProd(s);
+  const sheetRows = [], rlRows = []; S2.forEach(r => r.pieces.forEach((x, i) => { if (r.sheetsCols) sheetRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.sheetsCols }); if (r.rlc.length) rlRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.rlc.length, cols: r.rlc.join(', ') }); }));
+  // ancillaries (approx.)
+  const bl = S2.reduce((t, r) => t + (+r.sl.bldLen || 0), 0), ridgeRun = Math.max(0, ...S2.map(r => +r.sl.bldLen || 0)), duo = S2.length >= 2;
+  const colsAll = S2.reduce((t, r) => t + r.cols, 0), fixPer = S2.reduce((t, r) => t + r.cols * (2 * 3 + Math.max(0, r.purlins - 2) * 2 + r.endLaps * 2), 0);
+  const sideLaps = S2.reduce((t, r) => t + Math.max(0, r.cols - 1) * r.L / 1000, 0), stitch = Math.ceil(sideLaps / 0.45), endLapM = S2.reduce((t, r) => t + r.endLaps * r.cols * r.cover / 1000, 0);
+  const sealM = endLapM * 2 + (p && p.kind === 'single' ? sideLaps : 0) + bl * 2; const fx = ssFixing(s);
+  const anc = [[duo ? 'Ridge flashing / capping (duo-pitch)' : 'Top / mono-ridge flashing', `${Math.ceil(ridgeRun * 1.05 / 3)} x 3 m`, `${ridgeRun} m run + laps`],
+    ['Eaves profile fillers / closures', `${Math.ceil(bl / 1)} m`, 'to match profile'], ['Ridge / top profile fillers', `${Math.ceil(bl)} m`, 'to match profile'],
+    ['Eaves drip / closure flashing', `${Math.ceil(bl * 1.05 / 3)} x 3 m`, ''], ['Primary fixings', `~${Math.ceil(fixPer * 1.1)} no`, fx.text], ['Side-lap stitcher fixings', `~${stitch} no`, '@ ~450 mm c/c'],
+    ['Lap sealant / butyl tape', `~${Math.ceil(sealM)} m`, `~${Math.ceil(sealM / 6)} x 310 ml tubes or tape rolls`]].concat(rlRows.length ? [['Rooflight fixings + washers', `~${Math.ceil(rlRows.reduce((t, x) => t + x.qty, 0) * 12)} no`, 'manufacturer fixings for rooflights']] : []);
+  const warn = S2.flatMap(r => r.warn.map(w => `${r.sl.name}: ${w}`)); if (rlRows.length && !/^Class [AB]/.test(s.rlFrag || '')) warn.push('Rooflights not confirmed non-fragile - allow for rooflight safety mesh / covers and fragile-roof controls');
+  return { slopes: S2, sheetRows, rlRows, anc, warn, fx, sheetsTotal: sheetRows.reduce((t, x) => t + x.qty, 0), rlTotal: rlRows.reduce((t, x) => t + x.qty, 0), m2: Math.round(S2.reduce((t, r) => t + r.cols * r.cover * r.L / 1e6, 0)) }; }
+/* ---------- data / context ---------- */
+const SSA = { loaded: false, holder: { sheetSchedules: [] } };
+async function ssaLoad() { if (SSA.loaded) return; const v = await DB.getKV('sheets.standalone'); SSA.holder = v && Array.isArray(v.sheetSchedules) ? v : { sheetSchedules: [] }; SSA.loaded = true; }
+const ssaSave = () => DB.setKV('sheets.standalone', SSA.holder);
+function ssCtx() { const c = S.ctx || {}; if (c.job) return { h: c.job, job: c.job, save: () => markDirty(c.job), base: `#/job/${c.job.id}/sheets` }; return { h: SSA.holder, save: ssaSave, base: '#/sheets' }; }
+const ssCur = () => { const r = route(); const id = r[0] === 'sheets' ? r[1] : r[3]; return (ssCtx().h.sheetSchedules || []).find(x => x.id === id); };
+const ssNewSlope = n => ({ id: uid(), name: 'Slope ' + n, spacings: '', overhang: '150', topExt: '100', bldLen: '', rlCols: '', notes: '', sketch: { strokes: [], labels: [] } });
+function newSheetSchedule(job) { const st = S.settings, c = (job && job.client) || {}, s = (job && job.site) || {};
+  return { id: uid(), ref: (job && (job.rp || job.ref)) || '', date: todayISO(), project: job ? [c.name, s.name !== c.name ? s.name : ''].filter(Boolean).join(' - ') : '', contact: c.contact || '', phone: c.phone || '', delivery: 'site',
+    address: job ? [s.address, (s.postcode || '').toUpperCase()].filter(Boolean).join(', ') : '', reqBy: '', by: (Cloud.profile && Cloud.profile.full_name) || st.surveyor || '',
+    product: 'KS1000 RW trapezoidal composite roof panel', cover: '1000', thick: '80 mm', colour: '', linerColour: 'Bright White (liner)', maxSpan: '', lap: String(SS_LAP), maxLen: String(SS_TRANSPORT),
+    purlinType: 'Zed (cold-rolled)', purlinDepth: '', purlinGauge: '', rlProduct: '', rlSkin: 'Triple skin', rlFrag: 'Class B (non-fragile)', notes: '', slopes: [ssNewSlope(1)] }; }
+/* ---------- section drawing (to scale along the slope) ---------- */
+function ssSection(s, r, W = 1100, H = 260) { const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); if (!r.L) return c.toDataURL('image/png');
+  const m = 50, k = (W - 2 * m) / r.L, X = v => m + v * k, y0 = 120; g.font = '13px sans-serif'; g.textAlign = 'center';
+  r.pos.forEach((v, i) => { g.fillStyle = '#334155'; g.fillRect(X(v) - 4, y0 + 8, 8, 34); g.fillStyle = '#64748b'; g.fillText('P' + (i + 1), X(v), y0 + 58); });
+  r.sp.forEach((v, i) => { const a = X(r.pos[i]), b = X(r.pos[i + 1]); g.strokeStyle = r.span && v > r.span ? '#dc2626' : '#94a3b8'; g.beginPath(); g.moveTo(a, y0 + 72); g.lineTo(b, y0 + 72); g.stroke(); g.fillStyle = r.span && v > r.span ? '#dc2626' : '#475569'; g.fillText(String(v), (a + b) / 2, y0 + 88); });
+  r.pieces.forEach((x, i) => { const yy = y0 - 6 - (i % 2) * 10; g.fillStyle = i % 2 ? '#1d4ed8' : '#2563eb'; g.globalAlpha = 0.85; g.fillRect(X(x.from), yy - 10, (x.to - x.from) * k, 10); g.globalAlpha = 1; g.fillStyle = '#111'; g.font = 'bold 14px sans-serif'; g.fillText(`${x.len} mm`, X((x.from + x.to) / 2), yy - 26 - (i % 2) * 6); g.font = '13px sans-serif'; });
+  g.fillStyle = '#111'; g.textAlign = 'left'; g.fillText(`Eaves (overhang ${r.sl.overhang || 0} mm)`, 6, 24); g.textAlign = 'right'; g.fillText(`Ridge (+${r.sl.topExt || 0} mm past top purlin)`, W - 6, 24); g.textAlign = 'center'; g.font = 'bold 14px sans-serif'; g.fillText(`${r.sl.name}: sheet run ${r.L} mm along the slope - not to vertical scale`, W / 2, H - 14);
+  return c.toDataURL('image/png'); }
+/* ---------- views ---------- */
+function ssResults(s) { const C = ssCalc(s), f = v => (v / 1000).toFixed(2) + ' m';
+  return `${C.warn.length ? `<div class="ss-warn">${C.warn.map(w => `<p>⚠ ${esc(w)}</p>`).join('')}</div>` : ''}
+    <table class="mtbl ss-tab"><tr><th>Slope</th><th>Sheet run</th><th>Lengths (mm)</th><th>Sheets</th><th>Rooflights</th></tr>${C.slopes.map(r => `<tr><td>${esc(r.sl.name)}</td><td>${r.L ? f(r.L) : '-'}</td><td>${r.pieces.map(x => x.len).join(' + ') || '-'}</td><td>${r.sheetsCols ? r.sheetsCols + ' x ' + r.pieces.length : '-'}</td><td>${r.rlc.length ? r.rlc.length + ' (cols ' + r.rlc.join(', ') + ')' : '-'}</td></tr>`).join('')}</table>
+    <p class="hint">${C.sheetsTotal} sheet${C.sheetsTotal === 1 ? '' : 's'}${C.rlTotal ? `, ${C.rlTotal} rooflight${C.rlTotal === 1 ? '' : 's'}` : ''} · ~${C.m2} m² · fixings: ${esc(C.fx.text)}</p>`; }
+function viewSheetList(h, base, job) { const L = h.sheetSchedules || [];
+  return `<div class="card"><h2>Roof sheet schedules <span class="prog" style="margin-left:auto">${L.length}</span></h2><p class="hint" style="margin-bottom:10px">Enter the purlin spacings measured from below; the app works out sheet lengths (with end laps if too long to transport), sheet and rooflight counts, ancillaries and an RFQ PDF per supplier.${job ? '' : ' Standalone schedules are kept on this device only.'}</p>
+    ${L.map(s => { const C = ssCalc(s); return `<a class="item" href="${base}/${s.id}"><div class="bd"><div class="t1">${esc(s.ref || 'No ref')} · ${esc(s.project || 'Untitled')}</div><div class="t2">${esc(s.product || '')} · ${s.slopes.length} slope${s.slopes.length === 1 ? '' : 's'} · ${C.sheetsTotal} sheets${C.rlTotal ? ' · ' + C.rlTotal + ' rooflights' : ''}</div></div>${I.chev}</a>`; }).join('') || '<p class="hint">No sheet schedules yet.</p>'}
+    <button class="btn primary block" style="margin-top:10px" data-act="ssnew">${I.plus} New roof sheet schedule</button></div>`; }
+function viewSheetSchedule(h, s, job) { const f = mk(h), b = `sheetSchedules#${s.id}`, p = ssProd(s), C = ssCalc(s);
+  const sel = (label, path, opts, cur, blank) => `<div class="f"><label>${label}</label><select data-b="${path}"><option value="">${blank || 'Choose…'}</option>${opts.map(o => typeof o === 'string' && o.startsWith('#') ? `<optgroup label="${esc(o.slice(1))}">` : `<option ${o === cur ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
+  const prodOpts = []; [...new Set(SS_PRODUCTS.map(x => x.maker))].forEach(m => { prodOpts.push('#' + m); SS_PRODUCTS.filter(x => x.maker === m).forEach(x => prodOpts.push(x.name)); });
+  const rlOpts = []; ['Filon', 'Brett Martin'].forEach(m => { rlOpts.push('#' + m); SS_RL.filter(x => x.maker === m).forEach(x => rlOpts.push(x.name)); });
+  const slope = (sl, i) => { const sb = `${b}.slopes#${sl.id}`, r = C.slopes[i];
+    return `<div class="card ss-sl" id="ssl_${sl.id}"><h2><input class="pit-l" data-b="${sb}.name" value="${esc(sl.name)}" aria-label="Slope name"><button type="button" class="ck-x" data-act="ssdelsl" data-id="${sl.id}" aria-label="Remove slope">×</button></h2>
+      ${f.area('Purlin centres from the eaves purlin up (mm)', sb + '.spacings', { rows: 2, ph: 'e.g. 1500, 1800, 1800, 1800  or  6@1800, 1500', hint: 'List each spacing, or use "n@x" for repeated bays. Values under 30 are read as metres.' })}
+      <div class="row">${f.text('Eaves overhang past eaves purlin (mm)', sb + '.overhang', { type: 'number' })}${f.text('Past ridge / top purlin (mm)', sb + '.topExt', { type: 'number' })}</div>
+      <div class="row">${f.text('Roof / building length (m) - for sheet count', sb + '.bldLen', { type: 'number', ph: 'e.g. 48' })}${f.text('Rooflight columns', sb + '.rlCols', { ph: 'e.g. 3, 7, 11  or  every 4' })}</div>
+      ${f.text('Notes', sb + '.notes')}
+      <div class="ss-sec">${r.L ? `<img src="${ssSection(s, r)}" alt="Section">` : '<p class="hint">Enter the purlin spacings to see the section.</p>'}</div>
+      <div class="btns"><button type="button" class="btn sm" data-act="sssketch" data-id="${sl.id}">✎ ${sl.sketch && sl.sketch.strokes.length ? 'Open sketch' : 'Sketch / handwrite dims'}</button></div>${sl.sketch && sl.sketch.strokes.length ? `<img class="fl-skimg" src="${flPNG(sl.sketch, 600, 300)}" alt="Sketch">` : ''}</div>`; };
+  return `<div class="card"><h2>Request details</h2>${f.text('Project', b + '.project')}<div class="row">${f.text('RFQ ref (RP number)', b + '.ref', { ph: 'RP5046' })}${f.text('Date', b + '.date', { type: 'date' })}</div>
+      <div class="row">${f.text('Site contact', b + '.contact')}${f.text('Contact phone', b + '.phone', { type: 'tel' })}</div>${f.seg('Delivery', b + '.delivery', [['site', 'Deliver to site'], ['collect', 'Collect']])}${f.text('Delivery address', b + '.address')}${f.text('Quote required by', b + '.reqBy', { type: 'date' })}</div>
+    <div class="card"><h2>Panel system</h2>${sel('Manufacturer / product', b + '.product', prodOpts, s.product)}
+      <div class="row">${sel('Thickness / gauge', b + '.thick', p ? p.th : [], s.thick)}${f.text('Cover width (mm)', b + '.cover', { type: 'number' })}</div>
+      <div class="row">${flPick('Colour (weather side)', b + '.colour', s.colour, 'colour', 'Choose…')}${f.text('Liner colour', b + '.linerColour')}</div>
+      <div class="row">${f.text('Max purlin centres (mm) - check with manufacturer', b + '.maxSpan', { type: 'number', ph: 'default ' + (ssDefSpan(s) || '?') })}${f.text('End lap (mm)', b + '.lap', { type: 'number' })}</div>${f.text('Max sheet length (mm, transport)', b + '.maxLen', { type: 'number' })}</div>
+    <div class="card"><h2>Purlins</h2>${sel('Purlin type', b + '.purlinType', SS_PURLINS, s.purlinType)}<div class="row">${f.text('Depth (mm)', b + '.purlinDepth', { type: 'number', ph: 'e.g. 172' })}${f.text('Gauge (mm)', b + '.purlinGauge', { type: 'number', ph: 'e.g. 1.6' })}</div><p class="hint ss-fx">Suggested fixing: ${esc(C.fx.text)}</p></div>
+    <div class="card"><h2>Rooflights</h2>${sel('Rooflight', b + '.rlProduct', rlOpts, s.rlProduct, 'None')}<div class="row">${sel('Skins', b + '.rlSkin', SS_SKINS, s.rlSkin)}${sel('Fragility', b + '.rlFrag', SS_FRAG, s.rlFrag)}</div><p class="hint">Profile to match the panel: ${esc(p ? p.name : '-')}. Choose the rooflight columns per slope below.</p></div>
+    ${s.slopes.map(slope).join('')}<button type="button" class="btn block" data-act="ssaddsl">${I.plus} Add roof slope</button>
+    <div class="card"><h2>Schedule</h2><div id="ss-calc">${ssResults(s)}</div></div>
+    <div class="card"><h2>Ancillaries (approx.)</h2><div id="ss-anc">${ssAncHTML(C)}</div>${job ? `<a class="btn block" href="#/job/${job.id}/flash">✎ Flashings schedule / RFQ</a>` : '<a class="btn block" href="#/flash">✎ Flashings RFQ</a>'}</div>
+    <div class="card"><h2>Request for quotation</h2>${f.area('Notes to the supplier', b + '.notes', { rows: 3, ph: 'e.g. Please quote delivered, with lead time. Lengths to be confirmed before order.' })}
+      <div class="btns">${ssSuppliers(s).map(x => `<button class="btn primary" data-act="sspdf" data-sup="${esc(x)}">${I.pdf} RFQ - ${esc(x)}</button>`).join('')}<button class="btn" data-act="sspdf" data-sup="">${I.pdf} Full schedule</button><button class="btn" data-act="sscopy">Duplicate</button><button class="btn danger" data-act="ssrm">Delete</button></div><div id="qout" style="margin-top:10px"></div>
+      <p class="hint">Each supplier PDF lists only what that supplier makes (panels + ancillaries, or rooflights). Nothing is sent from the app.</p></div>`; }
+const ssAncHTML = C => `<table class="mtbl"><tr><th>Item</th><th>Qty</th><th>Note</th></tr>${C.anc.map(a => `<tr><td>${esc(a[0])}</td><td>${esc(a[1])}</td><td>${esc(a[2])}</td></tr>`).join('')}</table><p class="hint">Approximate - for pricing only. Check against the manufacturer's fixing schedule.</p>`;
+const ssSuppliers = s => { const o = []; const p = ssProd(s); if (p && p.maker !== 'Other') o.push(p.maker); const rl = ssRl(s); if (rl && rl.maker !== (p && p.maker)) o.push(rl.maker); return o; };
+// live recalculation without a full re-render (keeps the keyboard up)
+document.addEventListener('input', e => { const el = e.target; if (!el.dataset || !/^sheetSchedules#/.test(el.dataset.b || '')) return; const s = ssCur(); if (!s) return;
+  if (/\.(product|thick)$/.test(el.dataset.b)) { const p = ssProd(s); if (/product$/.test(el.dataset.b) && p) { s.cover = String(p.cover); if (!p.th.includes(s.thick)) s.thick = p.th[Math.min(2, p.th.length - 1)]; } ssCtx().save(); return setTimeout(() => rerender(true), 0); }
+  clearTimeout(SSA.t); SSA.t = setTimeout(() => { const c = $('#ss-calc'); if (c) c.innerHTML = ssResults(s); const C = ssCalc(s), a = $('#ss-anc'); if (a) a.innerHTML = ssAncHTML(C); const fx = $('.ss-fx'); if (fx) fx.textContent = 'Suggested fixing: ' + C.fx.text;
+    s.slopes.forEach((sl, i) => { const box = $(`#ssl_${sl.id} .ss-sec`); if (box) box.innerHTML = C.slopes[i].L ? `<img src="${ssSection(s, C.slopes[i])}" alt="Section">` : '<p class="hint">Enter the purlin spacings to see the section.</p>'; }); }, 250); });
+Object.assign(ACTIONS, {
+  async ssnew() { const c = ssCtx(); const s = newSheetSchedule(c.job); (c.h.sheetSchedules = c.h.sheetSchedules || []).push(s); await c.save(); go(`${c.base}/${s.id}`); },
+  ssaddsl() { const c = ssCtx(), s = ssCur(); const sl = ssNewSlope(s.slopes.length + 1); const pr = s.slopes[s.slopes.length - 1]; if (pr) Object.assign(sl, { spacings: pr.spacings, overhang: pr.overhang, topExt: pr.topExt, bldLen: pr.bldLen }); s.slopes.push(sl); c.save(); rerender(true); },
+  async ssdelsl(a) { const c = ssCtx(), s = ssCur(); if (!await confirmBox('Remove slope?', 'This slope and its spacings will be removed.', 'Remove')) return; s.slopes = s.slopes.filter(x => x.id !== a.dataset.id); c.save(); rerender(true); },
+  async sssketch(a) { const c = ssCtx(), s = ssCur(), sl = s.slopes.find(x => x.id === a.dataset.id); const d = await flDraw({ drawing: sl.sketch || { strokes: [], labels: [] } }, `${sl.name} - section sketch`, { sheet: true }); if (!d) return; delete d._split; delete d._sugg; sl.sketch = d;
+    const nums = (d.labels || []).map(l => parseFloat(String(l.t).replace(/[^\d.]/g, ''))).filter(n => n >= 300 && n <= 4000); if (nums.length && !sl.spacings.trim() && await confirmBox('Use the handwritten spacings?', `Dimensions read from the sketch: ${nums.join(', ')} mm. Use them as the purlin centres (left to right)?`, 'Use them', false)) sl.spacings = nums.join(', ');
+    c.save(); rerender(true); },
+  async sspdf(a) { const s = ssCur(); toast('Building sheet schedule RFQ…', 1500); const o = await buildSheetRFQ(s, a.dataset.sup || ''); qOut(o.blob, o.name); },
+  sscopy() { const c = ssCtx(), s = ssCur(); const n = JSON.parse(JSON.stringify(s)); n.id = uid(); n.date = todayISO(); n.slopes.forEach(x => x.id = uid()); c.h.sheetSchedules.push(n); c.save(); go(`${c.base}/${n.id}`); toast('Copied'); },
+  async ssrm() { const c = ssCtx(), s = ssCur(); if (!await confirmBox('Delete sheet schedule?', `${s.ref || s.project || 'This schedule'} will be deleted.`, 'Delete')) return; c.h.sheetSchedules = c.h.sheetSchedules.filter(x => x !== s); c.save(); go(c.base); },
+});
+{ const _ve = viewExtra; viewExtra = function (job, r) { if (r[2] === 'sheets') { job.sheetSchedules = job.sheetSchedules || []; const tab = isWorks(job) ? 'details' : 'roofs', back = isWorks(job) ? `#/job/${job.id}/details` : `#/job/${job.id}/roofs`;
+      if (!r[3]) return { body: viewSheetList(job, `#/job/${job.id}/sheets`, job), title: 'Roof sheet schedule', tab, back }; const s = job.sheetSchedules.find(x => x.id === r[3]); if (!s) return { redirect: `#/job/${job.id}/sheets` };
+      return { body: viewSheetSchedule(job, s, job), title: s.ref ? `Sheets ${s.ref}` : 'Roof sheet schedule', tab, back: `#/job/${job.id}/sheets` }; } return _ve(job, r); }; }
+function viewSheetStandalone(r) { if (!SSA.loaded) { ssaLoad().then(() => { if (route()[0] === 'sheets') render(true); }); return { head: header({ title: 'Roof sheet schedule', back: '#/' }), body: '<p class="hint" style="padding:16px">Loading…</p>' }; }
+  S.ctx = { obj: SSA.holder, save: ssaSave }; if (!r[1]) return { head: header({ title: 'Roof sheet schedule', sub: 'Standalone - not linked to an audit', back: '#/' }), body: viewSheetList(SSA.holder, '#/sheets', null) };
+  const s = SSA.holder.sheetSchedules.find(x => x.id === r[1]); if (!s) { go('#/sheets'); return null; } return { head: header({ title: s.ref ? `Sheets ${s.ref}` : 'Roof sheet schedule', sub: s.project || 'Standalone', back: '#/sheets' }), body: viewSheetSchedule(SSA.holder, s, null) }; }
+{ const _vl = viewList; viewList = function () { const v = _vl(); v.body += `<div class="card fl-home"><h2>Roof sheet schedule <span class="tag">beta</span></h2><p class="hint" style="margin-bottom:10px">Purlin spacings to sheet lengths, counts and a supplier RFQ - without an audit.</p><a class="btn block" href="#/sheets">▤ Roof sheet schedule (standalone)</a></div>`; return v; }; }
+{ const _vr = viewRoofs; viewRoofs = function (job) { const n = (job.sheetSchedules || []).length; return _vr(job) + `<div class="card"><h2>Roof sheet schedule <span class="tag">optional</span></h2><p class="hint" style="margin-bottom:12px">Purlin spacings to sheet lengths, sheet / rooflight counts, ancillaries and supplier RFQs.</p><a class="btn block" href="#/job/${job.id}/sheets">▤ Roof sheet schedule${n ? ` (${n})` : ''}</a></div>`; }; }
+{ const _vw = viewWorksDetails; viewWorksDetails = function (job) { const n = (job.sheetSchedules || []).length; return _vw(job) + `<div class="card"><h2>Roof sheet schedule <span class="tag">optional</span></h2><a class="btn block" href="#/job/${job.id}/sheets">▤ Roof sheet schedule${n ? ` (${n})` : ''}</a></div>`; }; }
+/* ---------- RFQ PDF (A4 landscape, same letterhead style as the flashings RFQ) ---------- */
+async function buildSheetRFQ(s, sup) { const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape', compress: true }); const st = S.settings;
+  const W = 297, H = 210, M = 12, OR = [242, 140, 40], G = [74, 79, 85], TXT = [25, 25, 25], LG = [140, 140, 140], RED = [185, 28, 28];
+  const tx = v => String(v ?? '').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/\u2026/g, '...').replace(/\u00D7/g, 'x').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
+  const B = v => (String(v ?? '').trim() ? String(v).trim() : '[__]'); const font = (sz, w = 'normal', c = TXT) => { doc.setFont('helvetica', w); doc.setFontSize(sz); doc.setTextColor(...c); };
+  const C = ssCalc(s), p = ssProd(s), rl = ssRl(s), panels = !sup || (p && p.maker === sup), lights = !sup || (rl && rl.maker === sup);
+  const title = `REQUEST FOR QUOTATION - ${panels && lights ? 'ROOF SHEETS & ROOFLIGHTS' : lights ? 'ROOFLIGHTS' : 'ROOF SHEETS'}`;
+  const head = small => { if (st.logo && st.logoW) { const lh = small ? 16 : 30, lw = Math.min(small ? 40 : 34, lh * st.logoW / st.logoH); doc.addImage(st.logo, /png/.test(st.logo.slice(0, 20)) ? 'PNG' : 'JPEG', M, 8, lw, lw * st.logoH / st.logoW, 'sslogo', 'FAST'); }
+    font(small ? 11 : 13, 'bold', G); if (small) doc.text(title, M + 44, 15); else { const tl = doc.splitTextToSize(title, 182 - M - 40 - 4); doc.text(tl, M + 40, tl.length > 1 ? 14 : 17); }
+    if (!small) { font(8.5, 'normal'); doc.text(tx(`${st.company || 'Absolute Roofing Solutions Ltd'}${st.phone ? ' · ' + st.phone : ''}${st.website ? ' · ' + st.website.replace(/^https?:\/\//, '') : ''}`), M + 40, 31);
+      font(8.5, 'bold'); doc.text('QUOTATION ONLY', M + 40, 37); font(8.5, 'normal'); doc.text('  - please quote, do not manufacture until an order is issued with confirmed lengths.', M + 40 + doc.getTextWidth('QUOTATION ONLY'), 37);
+      const rows = [['Project', B(s.project)], ['Site contact', [s.contact, s.phone].filter(Boolean).join(' - ') || '[__]'], ['Delivery', s.delivery === 'collect' ? 'Collect from supplier' : `To site - ${B(s.address)}`], ['RFQ ref', B(s.ref)], ['Date', qDate(s.date) || '[__]'], ['Quote required by', s.reqBy ? qDate(s.reqBy) : '[__]']].concat(sup ? [['Supplier', sup]] : []);
+      let y = 12; rows.forEach(([k, v]) => { font(8.5, 'bold'); doc.text(k + ':', 182, y); const kw = doc.getTextWidth(k + ': '); font(8.5, 'normal'); const L = doc.splitTextToSize(tx(v), W - M - 182 - kw); doc.text(L, 182 + kw, y); y += 4.4 * L.length; });
+      doc.setDrawColor(...OR); doc.setLineWidth(0.8); doc.line(M, Math.max(44, y), W - M, Math.max(44, y)); return Math.max(44, y) + 6; }
+    font(8.5, 'normal', LG); doc.text(tx(`RFQ ref ${B(s.ref)} · ${s.project || ''}`), W - M, 15, { align: 'right' }); doc.setDrawColor(...OR); doc.setLineWidth(0.6); doc.line(M, 26, W - M, 26); return 32; };
+  let y = head(false); const T = { theme: 'grid', margin: { left: M, right: M, top: 32 }, styles: { font: 'helvetica', fontSize: 8.6, cellPadding: 1.8, lineColor: [150, 150, 150], lineWidth: 0.25, textColor: TXT }, headStyles: { fillColor: G, textColor: 255, fontStyle: 'normal' }, didDrawPage: d => { if (d.pageNumber > 1) head(true); } };
+  const spec = panels ? [`Panel ${B(s.product)}`, `Thickness / gauge ${B(s.thick)}`, `Cover width ${B(s.cover)} mm`, `Colour ${B(s.colour)}`, p && p.kind === 'composite' ? `Liner ${B(s.linerColour)}` : '', `End laps ${s.lap || SS_LAP} mm over purlins`, `Purlins ${B(s.purlinType)}${s.purlinDepth ? ' ' + s.purlinDepth + ' mm' : ''}${s.purlinGauge ? ' x ' + s.purlinGauge + ' mm' : ''}`].filter(Boolean)
+    : [`Rooflight ${B(s.rlProduct)}`, `${B(s.rlSkin)}`, `Fragility ${B(s.rlFrag)}`, `To match ${B(s.product)} (${B(s.thick)}, cover ${B(s.cover)} mm)`];
+  font(8.6, 'bold'); doc.text('Specification:', M, y); font(8.6, 'normal'); const sl = doc.splitTextToSize(tx(spec.join(' · ')), W - 2 * M - 24); doc.text(sl, M + 23, y); y += sl.length * 4 + 3;
+  if (panels && C.sheetRows.length) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['#', 'Roof slope', 'Sheet', 'Length (mm)', 'Qty', 'Product / colour', 'Rate / Total']], body: C.sheetRows.map((r, i) => [`S${i + 1}`, tx(r.slope), r.piece, String(r.len), String(r.qty), tx(`${s.product || ''} ${s.thick || ''} ${s.colour || ''}`), '']), columnStyles: { 0: { cellWidth: 12 }, 3: { cellWidth: 26, fontStyle: 'bold' }, 4: { cellWidth: 16 }, 6: { cellWidth: 34 } } })); y = doc.lastAutoTable.finalY + 4; }
+  if (lights && C.rlRows.length) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['#', 'Roof slope', 'Rooflight', 'Length (mm)', 'Qty', 'Columns', 'Type', 'Rate / Total']], body: C.rlRows.map((r, i) => [`R${i + 1}`, tx(r.slope), r.piece, String(r.len), String(r.qty), r.cols, tx(`${s.rlSkin || ''} ${s.rlFrag || ''}`), '']), columnStyles: { 0: { cellWidth: 12 }, 3: { cellWidth: 26, fontStyle: 'bold' }, 4: { cellWidth: 16 }, 7: { cellWidth: 34 } } })); y = doc.lastAutoTable.finalY + 4; }
+  if (panels) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['Ancillaries (approx. - please advise)', 'Qty', 'Notes', 'Rate / Total']], body: C.anc.map(a => [tx(a[0]), tx(a[1]), tx(a[2]), '']), columnStyles: { 1: { cellWidth: 30 }, 3: { cellWidth: 34 } } })); y = doc.lastAutoTable.finalY + 4; }
+  if (y > H - 34) { doc.addPage(); y = head(true); }
+  if (C.warn.length) { font(8.4, 'bold', RED); const wl = doc.splitTextToSize(tx('Notes: ' + C.warn.join(' | ')), W - 2 * M); doc.text(wl, M, y); y += wl.length * 3.8 + 2; }
+  font(8.6, 'bold'); doc.text('Please confirm:', M, y); font(8.6, 'normal'); const nt = doc.splitTextToSize(tx(`lead time, delivery charge, price per item and total ex VAT, validity, and that the lengths / purlin centres suit the product's load tables. Lengths measured on site from below - to be confirmed before order. Anything marked [__] is to be confirmed.${s.notes ? ' ' + s.notes : ''}`), W - 2 * M - 26); doc.text(nt, M + 25, y); y += nt.length * 4 + 4;
+  font(8.6, 'normal'); doc.text('Supplier name: ____________________    Quote ref: ____________    Signed: ____________________    Date: ____________', M, y); if (s.by) { font(8, 'normal', LG); doc.text(tx(`Requested by ${s.by}, ${st.company || 'Absolute Roofing Solutions Ltd'}${st.email ? ' · ' + st.email : ''}`), M, y + 5); }
+  // section per slope
+  C.slopes.filter(r => r.L).forEach(r => { doc.addPage(); let yy = head(true); font(14, 'bold', G); doc.text(tx(`${r.sl.name} - section along the slope`), M, yy + 4); doc.addImage(ssSection(s, r, 1400, 330), 'PNG', M, yy + 8, W - 2 * M, (W - 2 * M) * 330 / 1400);
+    const by = yy + 12 + (W - 2 * M) * 330 / 1400; doc.autoTable(Object.assign({}, T, { startY: by, margin: { left: M, right: W / 2 + 4, top: 32 }, body: [['Purlin centres (mm)', r.sp.join(', ')], ['Eaves overhang / past top purlin', `${r.sl.overhang || 0} / ${r.sl.topExt || 0} mm`], ['Sheet run along slope', `${r.L} mm`], ['Lengths', r.pieces.map(x => x.len).join(' + ') + ' mm'], ['Roof length / cover', `${r.sl.bldLen || '[__]'} m / ${r.cover} mm = ${r.cols} columns`], ['Rooflight columns', r.rlc.join(', ') || '-']].map(x => x.map(tx)), columnStyles: { 0: { fontStyle: 'bold', cellWidth: 52, fillColor: [244, 244, 244] } } }));
+    if (r.sl.sketch && r.sl.sketch.strokes.length) { const iw = W / 2 - M - 4, ih = iw * 0.5; doc.addImage(flPNG(r.sl.sketch, 1200, 600), 'PNG', W / 2 + 4, by, iw, ih); font(8, 'normal', LG); doc.text('Site sketch (not to scale)', W / 2 + 4, by + ih + 4); } });
+  const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); font(7.5, 'normal', LG); doc.text(`Page ${i} of ${n}`, W - M, H - 6, { align: 'right' }); doc.text('Spans, laps and fixings are guidance only - check with the manufacturer.', M, H - 6); }
+  doc.setProperties({ title: tx(`Sheet schedule RFQ ${s.ref || ''}`), author: st.company || 'Absolute Roofing Solutions Ltd' });
+  return { blob: doc.output('blob'), name: `Sheet-RFQ_${safeName(sup || 'all')}_${safeName(s.ref || s.project || 'schedule')}_${s.date || todayISO()}.pdf`, pages: n }; }
+{ const st = document.createElement('style'); st.textContent = '.ss-warn{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:8px 10px;margin-bottom:10px;font-size:14px}.ss-warn p{margin:2px 0}.ss-tab{width:100%;font-size:14px}.ss-sec img{width:100%;border:1px solid #e5e7eb;border-radius:8px;margin:6px 0}.fl-skimg{max-width:100%;border:1px solid #e5e7eb;border-radius:8px;margin-top:8px}.pit-l{font:inherit;border:0;background:transparent;flex:1;min-width:0}'; document.head.appendChild(st); }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
