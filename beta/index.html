@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.9.6">
+<meta name="app-version" content="1.9.7">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.9.6';
+const APP_VERSION = '1.9.7';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -8193,7 +8193,8 @@ async function buildSheetRFQ(s, sup) { const { jsPDF } = window.jspdf; const doc
     doc.autoTable(Object.assign({}, T, { startY: yy + ih + 3, styles: Object.assign({}, T.styles, { fontSize: 8 }), head: [['Slope', 'Pitch', 'Top gap', 'Purlin spacings, ridge down (mm)', 'Bottom end', 'Sheet run', 'Lengths (mm)', 'Roof length', 'Cols / RL']],
       body: rs.map(r => [tx(r.sl.name), `${r.sl.pitch || '[__]'}°`, `${r.sl.topExt || 0}`, r.sp.slice().reverse().join(', '), tx(`${r.sl.endType || ''} +${r.sl.overhang || 0}`), `${r.L}`, r.pieces.map(x => x.len).join(' + '), `${r.sl.bldLen || (ssBaysTotal(s) ? ssBaysTotal(s) + " (bays)" : "[__]")} m`, `${r.cols}${r.rlc.length ? ' / ' + r.rlc.length : ''}`]) }));
     const sk = rs.filter(r => r.sl.sketch && r.sl.sketch.strokes.length); if (sk.length && doc.lastAutoTable.finalY < H - 70) { const w2 = 90; sk.slice(0, 2).forEach((r, i) => { doc.addImage(flPNG(r.sl.sketch, 900, 450), 'PNG', M + i * (w2 + 6), doc.lastAutoTable.finalY + 4, w2, w2 / 2); }); } });
-  const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); font(7.5, 'normal', LG); doc.text(`Page ${i} of ${n}`, W - M, H - 6, { align: 'right' }); doc.text('Spans, laps and fixings are guidance only - check with the manufacturer.', M, H - 6); }
+  if (typeof rdAddPages === 'function' && rdIncl(s)) rdAddPages(doc, s);
+  const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); if (doc.internal.pageSize.getWidth() > 300) continue; font(7.5, 'normal', LG); doc.text(`Page ${i} of ${n}`, W - M, H - 6, { align: 'right' }); doc.text('Spans, laps and fixings are guidance only - check with the manufacturer.', M, H - 6); }
   doc.setProperties({ title: tx(`Sheet schedule RFQ ${s.ref || ''}`), author: st.company || 'Absolute Roofing Solutions Ltd' });
   return { blob: doc.output('blob'), name: `Sheet-RFQ_${safeName(sup || 'all')}_${safeName(s.ref || s.project || 'schedule')}_${s.date || todayISO()}.pdf`, pages: n }; }
 { const st = document.createElement('style'); st.textContent = '.ss-warn{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:8px 10px;margin-bottom:10px;font-size:14px}.ss-warn p{margin:2px 0}.ss-tab{width:100%;font-size:14px}.ss-sec img{width:100%;border:1px solid #e5e7eb;border-radius:8px;margin:6px 0}.fl-skimg{max-width:100%;border:1px solid #e5e7eb;border-radius:8px;margin-top:8px}.pit-l{font:inherit;border:0;background:transparent;flex:1;min-width:0}'; document.head.appendChild(st); }
@@ -8525,6 +8526,153 @@ function ppMakeValley(s, key, sl) { const B = [sl.pad.bx, sl.pad.by]; const near
   toast(`Valley: ${[sl, o].filter(Boolean).map(x => x.name).join(' + ')} - ${g.name} (girth ${ssGirth(g)} mm, see Gutters & valleys)`); }
 // choosing Valley gutter as a slope's Bottom end in the form links (or creates) the valley gutter entry
 document.addEventListener('change', e => { const el = e.target; const m = /^sheetSchedules#[^.]+\.slopes#([^.]+)\.endType$/.exec((el.dataset && el.dataset.b) || ''); if (!m || !/Valley/.test(el.value)) return; setTimeout(() => { const s = ssCur(); if (!s) return; const sl = s.slopes.find(x => x.id === m[1]); if (sl && !s.gutters?.some(g => g.id === sl.gutterId)) { ssEnsureValleyGutter(s, sl); ssCtx().save(); rerender(true); } }, 50); });
+
+/* ---------- v1.9.7 (beta): roof drawings - A3 landscape vector PDF pages from the sheet schedule ----------
+   GA01 roof plan layout (bays / gridlines, slopes, ridges / valleys / eaves, sheet columns, rooflights, end laps, lay direction, profile, dimensions)
+   GA02.. typical roof section per cross-section (sheet pieces, rooflight, check dims above; purlin spacings and O/A purlins below; overall span)
+   ARS title block in the style of the office drawings (OD687-GA01..03). Everything in model mm, drawn at a standard scale on A3. */
+const RD_SC = [20, 25, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000];
+const RD_ST = ['PRELIMINARY', 'FOR APPROVAL', 'FOR CONSTRUCTION', 'AS BUILT'];
+function rdDefaults(s) { s.dwg = Object.assign({ no: '', rev: 'P01', by: '', issue: 'FOR COMMENT & APPROVAL', status: 'FOR APPROVAL', north: '', notes: '', inRfq: 'yes' }, s.dwg || {}); return s.dwg; }
+function rdIncl(s) { return rdDefaults(s).inRfq !== 'no' && ssCalc(s).slopes.some(r => r.L); }
+const rdTx = v => String(v ?? '').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/\u2026/g, '...').replace(/\u00D7/g, 'x').replace(/\u00B0/g, ' deg').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
+function rdSecGeo(s, key, C) { const rows = C.slopes.filter(r => (r.sl.sec || 'A').trim() === key && r.L); if (typeof ssPadOrder === 'function') ssPadOrder(rows, r => r.sl);
+  const segs = []; let x = 0, y = 0, first = true, prevBottom = null, pUp = null, pBase = 0, pSl = null;
+  rows.forEach(r => { y -= +r.sl.drop || 0; const a = (+r.sl.pitch || 10) * Math.PI / 180, hx = r.L * Math.cos(a), vy = r.L * Math.sin(a), up = ssUp(r.sl);
+    if (up && pUp === true) y = pBase; if (!up && pUp === false) y += vy; const base0 = up ? y : y - vy; pUp = up; pBase = base0;
+    if (up) { if (!first && /Valley/.test(prevBottom || '') && pSl) x += ssValleyGeo(s, pSl).topW - 80; const b = [x, y], t = [x + hx, y + vy]; segs.push({ r, b, t, up, a }); x = t[0]; y = t[1]; }
+    else { if (first) y = vy; const t = [x, y], b = [x + hx, y - vy]; segs.push({ r, b, t, up, a }); x = b[0]; y = b[1]; prevBottom = r.sl.endType; pSl = r.sl; }
+    first = false; });
+  return segs; }
+function rdScale(need) { return RD_SC.find(d => d >= need) || Math.ceil(need / 100) * 100; }
+// one A3 landscape sheet: frame, ARS title block, status box, footer. Returns the drawing area.
+function rdSheet(doc, s, o) { const d = rdDefaults(s), st = S.settings || {}; doc.addPage('a3', 'landscape'); const W = 420, H = 297, L = 10, R = 410, T = 10, Bt = 287, tb = 245;
+  const f = (sz, w = 'normal', c = 20) => { doc.setFont('helvetica', w); doc.setFontSize(sz); doc.setTextColor(c); }; doc.setLineDashPattern([], 0); doc.setDrawColor(0); doc.setLineWidth(0.5); doc.rect(L, T, R - L, Bt - T);
+  doc.setLineWidth(0.3); doc.line(L, tb, R, tb);
+  // revisions (left), notes, project block, logo block
+  const xr = [L, 22, 85, 120], xn = 215, xp = 330, xs2 = 292; [xr[1], xr[2], xr[3], xn, xp].forEach(x => doc.line(x, tb, x, Bt)); for (let i = 1; i < 5; i++) doc.line(L, tb + i * 8.4, xr[3], tb + i * 8.4);
+  f(6.5); doc.text('No.', L + 1.5, Bt - 2.5); doc.text('Revision/Issue', xr[1] + 1.5, Bt - 2.5); doc.text('Date', xr[2] + 1.5, Bt - 2.5);
+  f(7.5); doc.text(rdTx(d.rev || ''), L + 1.5, Bt - 8.4 - 2.8); doc.text(rdTx(d.issue || ''), xr[1] + 1.5, Bt - 8.4 - 2.8); doc.text(rdTx(qDate(s.date) || s.date || ''), xr[2] + 1.5, Bt - 8.4 - 2.8);
+  f(9, 'bold'); doc.text('NOTES', (xr[3] + xn) / 2, tb + 5, { align: 'center' }); f(7); const nl = doc.splitTextToSize(rdTx(d.notes || ''), xn - xr[3] - 4); doc.text(nl.slice(0, 8), xr[3] + 2, tb + 10);
+  const rows = [['PROJECT.', [s.project, s.address].filter(Boolean).join(', ') || s.ref || ''], ['TITLE.', o.title], ['ISSUE', d.issue], ['DATE.', qDate(s.date) || s.date || todayISO()], ['DRAWING NO.', o.no]], rh = (Bt - tb) / 5;
+  rows.forEach(([k, v], i) => { const y = tb + i * rh; if (i) doc.line(xn, y, i >= 2 ? xs2 : xp, y); f(5.5, 'normal', 90); doc.text(k, xn + 1.2, y + 2.6); f(10.5, 'normal', 10); doc.text(doc.splitTextToSize(rdTx(v || ''), (i >= 2 ? xs2 : xp) - xn - 8)[0] || '', xn + 6, y + rh - 2.2); });
+  doc.line(xs2, tb + 2 * rh, xs2, Bt); doc.line(xs2, tb + 2 * rh, xp, tb + 2 * rh); [['DRAWN BY', d.by || ''], ['SCALE.', o.scale], ['REVISION', d.rev]].forEach(([k, v], i) => { const y = tb + (2 + i) * rh; if (i) doc.line(xs2, y, xp, y); f(5.5, 'normal', 90); doc.text(k, xs2 + 1.2, y + 2.6); f(i === 1 ? 8.5 : 10.5, 'normal', 10); doc.text(rdTx(v), (xs2 + xp) / 2, y + rh - 2.2, { align: 'center' }); });
+  if (st.logo && st.logoW) { const lw = 62, lh = Math.min(16, lw * st.logoH / st.logoW); doc.addImage(st.logo, /png/.test(st.logo.slice(0, 20)) ? 'PNG' : 'JPEG', xp + 9, tb + 3, lh * st.logoW / st.logoH, lh, 'rdlogo', 'FAST'); }
+  else { f(17, 'bold', 40); doc.text('Absolute', xp + 40, tb + 12, { align: 'center' }); f(7, 'normal', 60); doc.text('ROOFING SOLUTIONS', xp + 40, tb + 17, { align: 'center' }); }
+  f(7.5, 'normal', 20); const ad = rdTx(st.address || '').split(/,\s*/); const a1 = ad.slice(0, Math.ceil(ad.length / 2)).join(', '), a2 = ad.slice(Math.ceil(ad.length / 2)).join(', '); [a1.toUpperCase(), a2.toUpperCase(), rdTx(st.email || '')].forEach((t, i) => doc.text(t, (xp + R) / 2, tb + 26 + i * 4.4, { align: 'center' }));
+  // status box
+  const sx = 345, sy = tb - 4 * 4.2; doc.rect(sx, sy, R - sx, 4 * 4.2); RD_ST.forEach((t, i) => { const y = sy + i * 4.2; if (i) doc.line(sx, y, R, y); f(6.5); doc.text(t, sx + 1.5, y + 3.1); doc.rect(R - 7, y, 7, 4.2); if ((d.status || '').toUpperCase() === t) { doc.setFillColor(0); doc.rect(R - 7, y, 7, 4.2, 'F'); } });
+  f(6.5); doc.text('(C) This drawing and its content are Copyright', L, H - 5.5); doc.text('ALL DIMENSIONS IN MM', W / 2, H - 5.5, { align: 'center' }); if (o.dns !== false) doc.text('DO NOT SCALE THIS DRAWING', R, H - 5.5, { align: 'right' });
+  return { x0: L + 4, y0: T + 4, x1: R - 4, y1: sy - 3, f }; }
+// drawing primitives in page mm
+function rdKit(doc) { const K = {};
+  K.ln = (a, b, w = 0.25, dash) => { doc.setLineWidth(w); doc.setLineDashPattern(dash || [], 0); doc.line(a[0], a[1], b[0], b[1]); doc.setLineDashPattern([], 0); };
+  K.poly = (P, w = 0.25, dash) => { for (let i = 1; i < P.length; i++) K.ln(P[i - 1], P[i], w, dash); };
+  K.ang = (a, b) => { let g = -Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI; if (g > 90.01) g -= 180; if (g < -90.01) g += 180; return g; };
+  // boxed value centred at m, rotated by deg (CAD style)
+  K.box = (t, m, deg, sz = 7, col = 0) => { doc.setFont('helvetica', 'normal'); doc.setFontSize(sz); doc.setTextColor(col); const w = doc.getTextWidth(t) + 1.6, h = sz * 0.36 + 1.2, r = -deg * Math.PI / 180, c = Math.cos(r), sn = Math.sin(r);
+    const P = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2], [-w / 2, -h / 2]].map(([u, v]) => [m[0] + u * c - v * sn, m[1] + u * sn + v * c]); doc.setFillColor(255, 255, 255); doc.setDrawColor(col); doc.setLineWidth(0.18);
+    doc.lines(P.slice(1).map((q, i) => [q[0] - P[i][0], q[1] - P[i][1]]), P[0][0], P[0][1], [1, 1], 'FD', true); doc.setDrawColor(0);
+    const bx = [m[0] + (-w / 2 + 0.8) * c - (h / 2 - 1.0) * sn, m[1] + (-w / 2 + 0.8) * sn + (h / 2 - 1.0) * c]; doc.text(t, bx[0], bx[1], { angle: deg }); };
+  K.txt = (t, m, deg = 0, sz = 7, al = 'center', col = 0) => { doc.setFont('helvetica', 'normal'); doc.setFontSize(sz); doc.setTextColor(col); if (!deg) return doc.text(t, m[0], m[1], { align: al }); const w = al === 'center' ? doc.getTextWidth(t) / 2 : 0, r = -deg * Math.PI / 180; doc.text(t, m[0] - w * Math.cos(r), m[1] - w * Math.sin(r), { angle: deg }); };
+  // aligned dimension a->b, offset d (page mm) along unit normal n, value boxed, optional caption beyond the line
+  K.dim = (a, b, n, d, val, cap, col = 0, ext0 = 1) => { const A = [a[0] + n[0] * d, a[1] + n[1] * d], B = [b[0] + n[0] * d, b[1] + n[1] * d]; doc.setDrawColor(col);
+    K.ln([a[0] + n[0] * ext0, a[1] + n[1] * ext0], [A[0] + n[0] * 1.2, A[1] + n[1] * 1.2], 0.12); K.ln([b[0] + n[0] * ext0, b[1] + n[1] * ext0], [B[0] + n[0] * 1.2, B[1] + n[1] * 1.2], 0.12); K.ln(A, B, 0.15);
+    const L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, e = [(B[0] - A[0]) / L, (B[1] - A[1]) / L]; [A, B].forEach(P => K.ln([P[0] - (e[0] + n[0]) * 0.9, P[1] - (e[1] + n[1]) * 0.9], [P[0] + (e[0] + n[0]) * 0.9, P[1] + (e[1] + n[1]) * 0.9], 0.3));
+    const deg = K.ang(A, B), m = [(A[0] + B[0]) / 2 + n[0] * 1.9, (A[1] + B[1]) / 2 + n[1] * 1.9]; if (val !== '') K.box(String(val), m, deg, 6.6, col); if (cap) K.txt(cap, [m[0] + n[0] * 4.4, m[1] + n[1] * 4.4 + 0.8], deg, 7.5, 'center', col); doc.setDrawColor(0); };
+  K.grid = (x, y0, y1) => K.ln([x, y0], [x, y1], 0.13, [6, 1.2, 0.8, 1.2]);
+  return K; }
+/* ---------- GA01 roof plan layout ---------- */
+function rdPlan(doc, s, C, no) { const keys = ssSecs(s).length ? ssSecs(s) : ['A']; const secs = keys.map(k => ({ k, g: rdSecGeo(s, k, C) })).filter(x => x.g.length); if (!secs.length) return false;
+  const bays = ssBayList(s).map(b => b * 1000), Lx0 = bays.reduce((a, b) => a + b, 0); const rows = []; let yy = 0;
+  secs.forEach(sc => sc.g.forEach(g => { const h = Math.abs(g.t[0] - g.b[0]), len = Lx0 || (g.r.cols * g.r.cover) || 0; rows.push({ g, r: g.r, k: sc.k, y0: yy, y1: yy + h, len }); yy += h; if (g.up === false && /Valley/.test(g.r.sl.endType || '')) { /* valley gutter width in plan */ } }));
+  const D = yy, Lx = Math.max(Lx0, ...rows.map(r => r.len), 1); const A = rdSheet(doc, s, { title: 'ROOF PLAN LAYOUT', no, scale: '' });
+  const Lm = 30, Rm = 62, Tm = 14, Bm = 30, aw = A.x1 - A.x0 - Lm - Rm, ah = A.y1 - A.y0 - Tm - Bm, den = rdScale(Math.max(Lx / aw, D / ah)), k = 1 / den;
+  // fill the scale cell now we know it
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(10); doc.text(`1:${den} @ A3`, (292 + 330) / 2, 245 + 4 * 8.4 - 2.2 + 0.0001, { align: 'center' });
+  const K = rdKit(doc), ox = A.x0 + Lm + (aw - Lx * k) / 2, oy = A.y0 + Tm + (ah - D * k) / 2 + D * k, X = x => ox + x * k, Y = y => oy - y * k; // model y up from the first slope's outer edge
+  const olive = [128, 124, 48];
+  // gridlines + bubbles
+  const gx = [0]; bays.forEach(b => gx.push(gx[gx.length - 1] + b)); gx.forEach((x, i) => { K.grid(X(x), Y(D) - 9, Y(0) + 6); doc.setLineWidth(0.25); doc.circle(X(x), Y(D) - 11.5, 2.6, 'S'); K.txt(String(i + 1), [X(x), Y(D) - 10.6], 0, 7); });
+  rows.forEach(rw => { const r = rw.r, sl = r.sl, up = rw.g.up, cs = Math.cos(rw.g.a), x1 = X(rw.len), lo = up ? rw.y0 : rw.y1, dir = up ? 1 : -1, at = d => lo + dir * d * cs; // along-slope mm from the eaves edge -> plan y
+    // rooflights
+    doc.setFillColor(...olive); const ds = ssDimSegs(s, sl, r), rlSeg = ds.find(x => x.kind === 'rl'); r.rlc.forEach(cI => { const xa = X((cI - 1) * r.cover), xb = X(cI * r.cover); if (xa >= x1) return; const a0 = rlSeg ? at(rlSeg.from) : rw.y0, a1 = rlSeg ? at(rlSeg.to) : rw.y1; const ya = Y(Math.max(a0, a1)), yb = Y(Math.min(a0, a1)); doc.rect(xa + 0.15, ya, Math.max(0.3, xb - xa - 0.3), yb - ya, 'F'); });
+    // sheet columns (cover lines), purlin lines
+    doc.setDrawColor(150); if (r.cover && rw.len / r.cover < 600) for (let c = r.cover; c < rw.len - 1; c += r.cover) K.ln([X(c), Y(rw.y0)], [X(c), Y(rw.y1)], 0.06); doc.setDrawColor(0);
+    r.pos.forEach(p => K.ln([X(0), Y(at(p))], [x1, Y(at(p))], 0.14, [1.4, 0.9]));
+    // end laps: every boundary between sheet pieces
+    ds.slice(1).forEach(x => { const yl = Y(at((x.from + ds[ds.indexOf(x) - 1].to) / 2)); K.ln([X(0), yl], [x1, yl], 0.35, [3, 1]); K.txt('EndLap', [X(0) - 2, yl + 1], 0, 6.5, 'right'); });
+    doc.setLineWidth(0.4); doc.rect(X(0), Y(rw.y1), x1 - X(0), (rw.y1 - rw.y0) * k);
+    K.txt(rdTx(`${sl.name} - ${sl.pitch || '?'} deg - ${r.L} mm on slope`), [X(0) + 1.5, Y(rw.y1) + 3], 0, 6, 'left', 70);
+    // lay direction arrow at the right
+    if (sl.lay) { const ym = Y((rw.y0 + rw.y1) / 2), xa = X(Lx) + 14; K.txt(sl.lay === 'L-R' ? 'L - R' : 'R - L', [xa + 7, ym - 2.2], 0, 9); const l2r = sl.lay === 'L-R'; K.ln([xa, ym + 1.2], [xa + 14, ym + 1.2], 0.5); const tip = l2r ? xa + 14 : xa; doc.setFillColor(0); doc.triangle(tip, ym + 1.2, tip + (l2r ? -2.6 : 2.6), ym, tip + (l2r ? -2.6 : 2.6), ym + 2.4, 'F'); } });
+  // edge labels (dedupe shared lines)
+  const ed = new Map(); rows.forEach(rw => { const sl = rw.r.sl, low = /Valley/.test(sl.endType || '') ? 'VALLEY' : /Flat|abut/i.test(sl.endType || '') ? 'ABUTMENT' : 'EAVES', high = /Wall/.test(sl.topType || '') ? 'WALL' : 'RIDGE'; const L1 = rw.g.up ? [[rw.y0, low], [rw.y1, high]] : [[rw.y0, high], [rw.y1, low]]; L1.forEach(([y, t]) => { const kk = Math.round(y); if (!ed.has(kk)) ed.set(kk, t); }); });
+  ed.forEach((t, y) => { K.ln([X(Lx), Y(y)], [X(Lx) + 6, Y(y)], 0.15, [1, 1]); K.txt(t, [X(Lx) + 7, Y(y) + 1], 0, 6.5, 'left'); });
+  // section markers and the profile on the right
+  const px = X(Lx) + 44; let pmin = Infinity; secs.forEach(sc => sc.g.forEach(g => { pmin = Math.min(pmin, g.b[1], g.t[1]); }));
+  let base = 0; secs.forEach(sc => { const xs = sc.g.flatMap(g => [g.b[0], g.t[0]]), mn = Math.min(...xs), mx = Math.max(...xs); const P = g => [[px + (g.b[1] - pmin) * k * 1.0, Y(base + g.b[0] - mn)], [px + (g.t[1] - pmin) * k, Y(base + g.t[0] - mn)]]; sc.g.forEach(g => K.poly(P(g), 0.3));
+    const ym = Y(base + (mx - mn) / 2); doc.setLineWidth(0.3); doc.rect(px - 17, ym - 4, 8, 8); K.txt(sc.k, [px - 13, ym + 2.2], 0, 14); base += mx - mn; });
+  // bay dims and overall
+  const yb = Y(0) + 9; let a = 0; bays.forEach(b => { K.dim([X(a), Y(0)], [X(a + b), Y(0)], [0, 1], 9, String(Math.round(b)), '', 0, 7.5); a += b; });
+  K.dim([X(0), Y(0)], [X(Lx), Y(0)], [0, 1], 18, String(Math.round(Lx)), '', 0, 7.5);
+  const uni = bays.length && bays.every(b => Math.abs(b - bays[0]) < 1); K.txt(rdTx(bays.length ? (uni ? `${bays.length} BAYS X ${Math.round(bays[0])} MM` : `${bays.length} BAYS - ${Math.round(Lx)} MM OVERALL`) : `ROOF LENGTH ${Math.round(Lx)} MM`), [X(Lx / 2), yb + 18.5], 0, 12, 'center', 90);
+  // north point
+  if (String(rdDefaults(s).north).trim() !== '') { const ang = (+rdDefaults(s).north || 0) * Math.PI / 180, c0 = [A.x1 - 10, A.y0 + 12], v = [Math.sin(ang), -Math.cos(ang)]; doc.setLineWidth(0.3); doc.circle(c0[0], c0[1], 6, 'S'); doc.setFillColor(0); doc.triangle(c0[0] + v[0] * 6, c0[1] + v[1] * 6, c0[0] - v[1] * 2 - v[0] * 3, c0[1] + v[0] * 2 - v[1] * 3, c0[0] + v[1] * 2 - v[0] * 3, c0[1] - v[0] * 2 - v[1] * 3, 'F'); K.txt('N', [c0[0] + v[0] * 9, c0[1] + v[1] * 9 + 1.2], 0, 8); }
+  return true; }
+/* ---------- GA02.. typical roof sections ---------- */
+function rdSection(doc, s, C, key, no) { const g = rdSecGeo(s, key, C); if (!g.length) return false; const title = `TYPICAL ROOF SECTION "${key}"`; const A = rdSheet(doc, s, { title, no, scale: '' });
+  const xs = g.flatMap(q => [q.b[0], q.t[0]]), ys = g.flatMap(q => [q.b[1], q.t[1]]), mnx = Math.min(...xs), mxx = Math.max(...xs), mny = Math.min(...ys), mxy = Math.max(...ys);
+  const aw = A.x1 - A.x0 - 24, ah = A.y1 - A.y0 - 42 - 70, den = rdScale(Math.max((mxx - mnx) / aw, (mxy - mny) / Math.max(20, ah))), k = 1 / den;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(10); doc.text(`1:${den} @ A3`, (292 + 330) / 2, 245 + 4 * 8.4 - 2.2, { align: 'center' });
+  const K = rdKit(doc), ox = A.x0 + 12 + (aw - (mxx - mnx) * k) / 2, ytop = A.y0 + 58 + Math.max(0, (A.y1 - A.y0 - 12 - 58 - 70 - (mxy - mny) * k) / 2), X = x => ox + (x - mnx) * k, Y = y => ytop + (mxy - y) * k, P = q => [X(q[0]), Y(q[1])];
+  const thick = parseFloat(s.thick) || 0, pd = +s.purlinDepth || 150, yBot = Y(mny) + Math.max(26, pd * k + 20);
+  // gridlines at every slope end
+  const gl = [...new Set(g.flatMap(q => [Math.round(q.b[0]), Math.round(q.t[0])]))]; gl.forEach(x => K.grid(X(x), A.y0 + 8, yBot + 22));
+  doc.setLineWidth(0.3); doc.rect(A.x0 + 10, A.y0 + 6, 16, 14); K.txt(key, [A.x0 + 18, A.y0 + 17], 0, 26);
+  g.forEach(q => { const r = q.r, sl = r.sl, E = q.up ? q.b : q.t, T2 = q.up ? q.t : q.b; // E = eaves end, T2 = top end (model)
+    const ux = (q.up ? 1 : -1) * Math.cos(q.a), uy = Math.sin(q.a), at = d => [q.b[0] + (q.up ? ux * d : -ux * (r.L - d) * 0 + (q.t[0] - q.b[0]) * 0), 0]; // placeholder (not used)
+    const pt = d => { const t = d / r.L; const e = q.up ? q.b : q.b, tt = q.up ? q.t : q.t; return q.up ? [q.b[0] + (q.t[0] - q.b[0]) * t, q.b[1] + (q.t[1] - q.b[1]) * t] : [q.b[0] + (q.t[0] - q.b[0]) * t, q.b[1] + (q.t[1] - q.b[1]) * t]; }; // d along slope from the eaves end (b)
+    const pa = P(pt(0)), pb = P(pt(r.L)), L = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]) || 1, e = [(pb[0] - pa[0]) / L, (pb[1] - pa[1]) / L]; let n = [e[1], -e[0]]; if (n[1] > 0) n = [-n[0], -n[1]]; // n = upward normal (page)
+    const off = (p, d2) => [p[0] + n[0] * d2, p[1] + n[1] * d2]; const tk = Math.max(0.6, thick * k);
+    // sheet (two lines) on the purlins
+    K.ln(pa, pb, 0.25); K.ln(off(pa, tk), off(pb, tk), 0.4);
+    // purlins (Z / C glyph below the line)
+    r.pos.forEach(p => { const c = P(pt(p)), d = Math.max(2.2, pd * k), b2 = [c[0] - n[0] * d, c[1] - n[1] * d]; K.ln(c, b2, 0.3); K.ln(c, [c[0] + e[0] * 1.1, c[1] + e[1] * 1.1], 0.3); K.ln(b2, [b2[0] - e[0] * 1.1, b2[1] - e[1] * 1.1], 0.3); });
+    // dims above: overhang, sheet pieces (rooflight captioned), top gap, check dim
+    const ds = ssDimSegs(s, sl, r), ov = r.pos[0], top = r.L - r.pos[r.pos.length - 1];
+    ds.forEach((x, j) => K.dim(off(P(pt(x.from)), tk), off(P(pt(x.to)), tk), n, 9 + (j % 2) * 9, String(x.len), x.kind === 'rl' ? 'O/A ROOFLIGHT' : '', x.kind === 'rl' ? 0 : 0, 1.5));
+    if (ov > 0) K.dim(off(pa, tk), off(P(pt(ov)), tk), n, 4, String(Math.round(ov)), '', 0, 1.5); if (top > 0) K.dim(off(P(pt(r.pos[r.pos.length - 1])), tk), off(pb, tk), n, 4, String(Math.round(top)), '', 0, 1.5);
+    K.dim(off(pa, tk), off(pb, tk), n, 30, String(r.L), 'O/A CHECK DIM', 0, 1.5);
+    // dims below: purlin spacings and O/A purlins
+    const dn = [-n[0], -n[1]], dpp = Math.max(2.2, pd * k); for (let j = 1; j < r.pos.length; j++) K.dim(P(pt(r.pos[j - 1])), P(pt(r.pos[j])), dn, dpp + 5, String(Math.round(r.pos[j] - r.pos[j - 1])), '', 0, dpp + 1);
+    if (r.pos.length > 1) K.dim(P(pt(r.pos[0])), P(pt(r.pos[r.pos.length - 1])), dn, dpp + 17, String(Math.round(r.pos[r.pos.length - 1] - r.pos[0])), '', 0, dpp + 1);
+    if (r.pos.length > 1) { const m0 = P(pt((r.pos[0] + r.pos[r.pos.length - 1]) / 2)), m = [m0[0] + dn[0] * (dpp + 25), m0[1] + dn[1] * (dpp + 25)]; K.txt('O/A EXISTING PURLINS', m, K.ang(pa, pb), 7.5); }
+    // pitch, name
+    const mm = P(pt(r.L * 0.5)); K.txt(rdTx(`${sl.name} - ${sl.pitch || '?'} deg`), [mm[0] - n[0] * (dpp + 34), mm[1] - n[1] * (dpp + 34)], K.ang(pa, pb), 7, 'center', 90);
+    // end details: valley gutter / eaves gutter / wall
+    const Ep = P(q.b); if (/Valley/.test(sl.endType || '') && (!q.up || q === g[0])) { const G = ssValleyGeo(s, sl), x0 = q.up ? q.b[0] - G.topW : q.b[0], y0 = q.b[1] + 30; K.poly(ssValleyPts(G, x0, y0, 1).map(P), 0.35); K.txt('VALLEY GUTTER', [Ep[0] - 1.5, Ep[1] + 34], 90, 7.5, 'left'); }
+    else if (/gutter/i.test(sl.endType || '') && !/Valley/.test(sl.endType || '')) { const c = Ep, sx = q.up ? -1 : 1; K.poly([[c[0], c[1]], [c[0] + sx * 0.2, c[1] + 2.2], [c[0] + sx * 2.6, c[1] + 2.2], [c[0] + sx * 3, c[1] - 0.6]], 0.35); }
+    if (/Wall/.test(sl.topType || '')) { const c = P(q.t); K.ln([c[0], c[1] - 14], [c[0], c[1] + 6], 0.6); } });
+  // overall horizontal span
+  K.dim([X(mnx), yBot + 18], [X(mxx), yBot + 18], [0, 1], 4, String(Math.round(mxx - mnx)), '', 0, 0);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(15); doc.setTextColor(0); doc.text(rdTx(title), (A.x0 + A.x1) / 2, A.y1 - 4, { align: 'center' }); return true; }
+// add the drawing sheets to a jsPDF doc; returns the number added
+function rdAddPages(doc, s) { const C = ssCalc(s), d = rdDefaults(s), base = (d.no || s.ref || 'ARS').trim(); let n = 0; const nm = i => `${base} - GA${String(i).padStart(2, '0')}`;
+  if (rdPlan(doc, s, C, nm(n + 1))) n++; (ssSecs(s).length ? ssSecs(s) : ['A']).forEach(k => { if (rdSection(doc, s, C, k, nm(n + 1))) n++; }); return n; }
+async function buildRoofDrawings(s) { const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a3', orientation: 'landscape', compress: true }); const n = rdAddPages(doc, s); if (n) doc.deletePage(1);
+  doc.setProperties({ title: rdTx(`Roof drawings ${s.ref || ''}`), author: (S.settings || {}).company || 'Absolute Roofing Solutions Ltd' });
+  return { blob: doc.output('blob'), name: `Roof-drawings_${safeName(s.ref || s.project || 'schedule')}_${s.date || todayISO()}.pdf`, pages: n }; }
+Object.assign(ACTIONS, { async rdpdf() { const s = ssCur(); if (!ssCalc(s).slopes.some(r => r.L)) return toast('Enter the purlin spacings first'); toast('Drawing the roof…', 1500); const o = await buildRoofDrawings(s); qOut(o.blob, o.name); } });
+// schedule page: drawing details card
+{ const _vs = viewSheetSchedule; viewSheetSchedule = function (h, s, job) { const out = _vs(h, s, job); try { const d = rdDefaults(s), f = mk(h), b = `sheetSchedules#${s.id}.dwg`;
+    if (!d.by && typeof myName === 'function') { const nmx = String(myName() || ''); d.by = nmx.split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase()).join(''); }
+    const lay = (s.slopes || []).map(sl => `<div class="f"><label>${esc(sl.name)} - lay direction</label><select data-b="sheetSchedules#${s.id}.slopes#${sl.id}.lay"><option value="">-</option>${['R-L', 'L-R'].map(v => `<option${sl.lay === v ? ' selected' : ''}>${v}</option>`).join('')}</select></div>`).join('');
+    return out + `<div class="card" id="rd-card"><h2>Roof drawings (A3) <span class="tag">beta</span></h2><p class="hint" style="margin-bottom:10px">Roof plan layout and a typical section per cross-section, drawn from the slopes, bays and rooflights above, with the ARS title block.</p>
+      <div class="g3">${f.text('Drawing no. prefix', b + '.no', { ph: s.ref || 'e.g. OD687' })}${f.text('Revision', b + '.rev', { ph: 'P01' })}${f.text('Drawn by', b + '.by', { ph: 'initials' })}</div>
+      <div class="g3">${f.text('Issue', b + '.issue', { ph: 'FOR COMMENT & APPROVAL' })}${f.select('Status', b + '.status', RD_ST)}${f.text('North (degrees, blank = none)', b + '.north', { type: 'number', ph: '' })}</div>
+      ${f.text('Notes (title block)', b + '.notes', { ph: '' })}<div class="g3">${lay}</div>${f.select('Add the drawings to the RFQ PDFs', b + '.inRfq', ['yes', 'no'])}
+      <div class="btns"><button type="button" class="btn primary" data-act="rdpdf">${I.pdf} Roof drawings PDF</button></div></div>`; } catch (e) { console.error(e); return out; } }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
