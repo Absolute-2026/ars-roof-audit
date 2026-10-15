@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.9.11">
+<meta name="app-version" content="1.9.12">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.9.11';
+const APP_VERSION = '1.9.12';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -8882,6 +8882,113 @@ function rfqCardHTML(s) { const b = `sheetSchedules#${s.id}`, C = ssCalc(s); s.r
 { const _v5 = viewSheetSchedule; viewSheetSchedule = function (h, s, job) { let html = _v5(h, s, job);
   html = html.replace('<button class="btn" data-act="ssxlsx">Kingspan order form (.xlsx)</button>', '').replace('<button class="btn" data-act="sstata">Tata Trisomet order form (PDF)</button>', '');
   const k = html.lastIndexOf('<div class="btns">'); return k < 0 ? html + rfqCardHTML(s) : html.slice(0, k) + rfqCardHTML(s) + html.slice(k); }; }
+
+/* v1.9.12: operative Materials & plant request (separate from daily checks).
+   Stored like daily checks: phone first (Ops.list, data.kind = 'materials'), uploaded to public.daily_checks with a PDF,
+   then daily-check-notify emails the PDF to the job's contracts manager. No schema change.
+   Manager status (requested / ordered / delivered) lives in app_settings 'daily' value .matreq (operatives can read that key). */
+const MR_TYPES = ['Materials', 'Plant', 'Tools & equipment', 'Skips & waste', 'Other'];
+const MR_URG = [['normal', 'Normal'], ['soon', 'Soon (2-3 days)'], ['urgent', 'URGENT - work stopped / next day']];
+const MR_STATES = [['requested', 'Requested', 'amber'], ['ordered', 'Ordered', 'navy'], ['delivered', 'Delivered', 'green']];
+const DEFAULT_MR_PLANT = ['MEWP - scissor lift', 'MEWP - boom lift', 'Telehandler', 'Access tower', 'Scaffold alteration', 'Generator', 'Skip', 'Welfare unit', 'Tools'];
+const isMr = c => !!(c && c.kind === 'materials');
+const isMrRow = r => !!(r && r.data && r.data.kind === 'materials');
+const mrPlant = () => (Array.isArray(S.settings.mrPlant) && S.settings.mrPlant.length ? S.settings.mrPlant : DEFAULT_MR_PLANT);
+const mrMatOpts = () => { const out = []; (matLib() || []).forEach(g => (g.items || []).forEach(i => { const n = [i.name, i.spec].filter(Boolean).join(' - '); if (n && !out.some(x => x.n === n)) out.push({ n, u: i.unit || 'nr', g: g.title }); })); return out; };
+const mrNewItem = (type = 'Materials') => ({ id: uid(), type, name: '', qty: '', unit: type === 'Plant' ? 'days' : 'nr', note: '', hireFrom: '', hireTo: '' });
+function mrNew(job) { return { v: 1, kind: 'materials', id: 'mr-' + uid(), jobId: job.id, jobRef: job.ref || '', site: job.site_name || '', address: [job.site_address, job.postcode].filter(Boolean).join(', '), cm: job.contracts_manager_name || '',
+  owner: me(), by: myName(), date: todayISO(), time: nowTime(), created: Date.now(), updated: Date.now(), status: 'draft', urgency: 'normal', neededBy: '', delivery: '', notes: '', items: [mrNewItem()], photos: [] }; }
+const mrMine = () => Ops.list.filter(c => isMr(c) && (!c.owner || c.owner === me()));
+const mrSt = id => ((S.settings.mrStatus || {})[id] || {});
+const mrStTag = id => { const st = mrSt(id), d = MR_STATES.find(x => x[0] === (st.s || 'requested')) || MR_STATES[0]; return `<span class="tag ${d[2]}">${d[1]}${st.at && st.s && st.s !== 'requested' ? ' ' + new Date(st.at).toLocaleDateString('en-GB') : ''}</span>`; };
+const mrUrgTxt = u => (MR_URG.find(x => x[0] === u) || MR_URG[0])[1];
+const mrItemTxt = i => `${i.type && i.type !== 'Materials' ? '[' + i.type + '] ' : ''}${i.name || '-'}${i.qty ? ' x ' + i.qty + ' ' + (i.unit || '') : ''}${i.type === 'Plant' && (i.hireFrom || i.hireTo) ? ` (hire ${i.hireFrom ? fmtDate(i.hireFrom) : '?'} to ${i.hireTo ? fmtDate(i.hireTo) : '?'})` : ''}${i.note ? ' - ' + i.note : ''}`;
+// settings sync (merge newest per id)
+function mrMergeStatus(m) { const cur = S.settings.mrStatus = S.settings.mrStatus || {}; Object.entries(m || {}).forEach(([k, v]) => { if (v && (!cur[k] || (v.at || 0) > (cur[k].at || 0))) cur[k] = v; }); }
+{ const _ap = applyDailySettings; applyDailySettings = function (d) { if (d && d.matreq) mrMergeStatus(d.matreq); if (d && Array.isArray(d.mrPlant) && d.mrPlant.length) S.settings.mrPlant = d.mrPlant; if (d && Array.isArray(d.matLib) && d.matLib.length && isOp()) S.settings.matLib = d.matLib; return _ap(d); };
+}
+const mrDailyValue = () => Object.assign(dailySettingsValue(), { matreq: S.settings.mrStatus || {}, mrPlant: S.settings.mrPlant || null, matLib: S.settings.matLib || null });
+async function mrPushDaily() { const rows = await sbFetch('/rest/v1/app_settings?select=key,value&key=eq.daily') || []; if (rows[0] && rows[0].value && rows[0].value.matreq) mrMergeStatus(rows[0].value.matreq);
+  await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'daily', value: mrDailyValue() }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); }
+// managers' normal settings push writes the 'daily' value without the request statuses - write it again with them merged in
+{ const _ps = pushSettings; pushSettings = async function (force) { const sig0 = Cloud.settingsSig, b0 = Cloud.dailyPushed; await _ps(force); if (isMgr() && (force || sig0 !== Cloud.settingsSig || !b0)) { try { await mrPushDaily(); } catch (e) { } } }; }
+async function mrSetStatus(id, s) { const v = { s, at: Date.now(), by: myName() }; (S.settings.mrStatus = S.settings.mrStatus || {})[id] = v; await DB.setKV('settings', S.settings);
+  if (!signedIn()) return; try { await mrPushDaily(); S.settings.mrStatus[id] = v; toast('Status saved - the operative sees it next time they sync'); }
+  catch (e) { toast('Saved here - will need re-saving online: ' + (e.message || e)); } }
+/* ---------- PDF ---------- */
+function buildMrPDF(c) { const k = dcPdfKit('Materials & plant request'); k.letterhead(`${c.jobRef || ''} · ${c.site || ''}`);
+  k.kv([['Job / site', [c.jobRef, c.site].filter(Boolean).join(' - ')], ['Site address', c.address], ['Requested by', c.by], ['Date', `${fmtDate(c.date)} ${c.time || ''}`], ['Urgency', mrUrgTxt(c.urgency)], ['Needed by', c.neededBy ? fmtDate(c.neededBy) : ''], ['Contracts manager', c.cm], ['Status', (MR_STATES.find(x => x[0] === (mrSt(c.id).s || 'requested')) || MR_STATES[0])[1]]]);
+  if (c.urgency === 'urgent') { k.font(11, 'bold', k.RED); k.need(8); k.doc.text('URGENT - work stopped / needed next day', k.M, k.y); k.y += 6; }
+  k.h2('Items requested'); const its = (c.items || []).filter(i => i.name || i.qty);
+  k.table({ head: [['#', 'Type', 'Item', 'Qty', 'Unit', 'Hire from', 'Hire to', 'Notes']], body: its.map((i, n) => [String(n + 1), k.tx(i.type || 'Materials'), k.tx(i.name), k.tx(i.qty), k.tx(i.unit), i.type === 'Plant' && i.hireFrom ? fmtDate(i.hireFrom) : '', i.type === 'Plant' && i.hireTo ? fmtDate(i.hireTo) : '', k.tx(i.note)]), columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 24 }, 3: { cellWidth: 14 }, 4: { cellWidth: 14 }, 5: { cellWidth: 20 }, 6: { cellWidth: 20 } } });
+  if (c.delivery) { k.h2('Delivery notes'); k.para(c.delivery); } if (c.notes) { k.h2('Other notes'); k.para(c.notes); }
+  if ((c.photos || []).length) { k.h2('Photos'); k.photos(c.photos); }
+  return k.finish(`Materials & plant request · ${c.jobRef || ''} · ${c.by || ''} · ${fmtDate(c.date)}`); }
+/* ---------- upload: reuse the daily-check queue (status queued -> synced -> sent) ---------- */
+async function pushMr(c) { await dcUploadBlobs(c); const pdfPath = `${c.owner}/${c.id}/request.pdf`;
+  if (!c.pdfUp) { const blob = buildMrPDF(c).output('blob'); await sbFetch(`/storage/v1/object/${DC_BUCKET}/${encPath(pdfPath)}`, { method: 'POST', body: blob, headers: { 'Content-Type': 'application/pdf', 'x-upsert': 'true' } }); c.pdfUp = true; dcSave(); }
+  const row = { id: c.id, job_id: c.jobId, owner: c.owner, owner_name: c.by || myName(), check_date: c.date, data: dcSerialize(c), issues: 0, pdf_path: pdfPath, submitted_at: new Date(c.submitted || Date.now()).toISOString(), updated_at: new Date(c.updated || Date.now()).toISOString() };
+  try { await sbFetch('/rest/v1/daily_checks', { method: 'POST', body: row, headers: { Prefer: 'return=minimal' } }); }
+  catch (e) { if (e.status !== 409) throw e; const p = Object.assign({}, row); delete p.id; delete p.job_id; delete p.owner; await sbFetch(`/rest/v1/daily_checks?id=eq.${encodeURIComponent(c.id)}`, { method: 'PATCH', body: p, headers: { Prefer: 'return=minimal' } }); }
+  c.status = 'synced'; dcSave(); }
+{ const _pd = pushDaily; pushDaily = function (c) { return isMr(c) ? pushMr(c) : _pd(c); }; }
+/* ---------- operative screens ---------- */
+function mrFormHTML(c) { const ro = c.status !== 'draft', mats = mrMatOpts(), pl = mrPlant(), dis = ro ? 'disabled' : '';
+  const inp = (path, val, o = {}) => `<input type="${o.type || 'text'}" data-mr="${path}" value="${esc(val || '')}" ${o.list ? `list="${o.list}"` : ''} placeholder="${esc(o.ph || '')}" ${o.im ? `inputmode="${o.im}"` : ''} ${dis} aria-label="${esc(o.al || path)}">`;
+  const sel = (path, opts, cur) => `<select data-mr="${path}" ${dis}>${opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(l)}</option>`; }).join('')}</select>`;
+  const item = (i, n) => `<div class="card mr-item" data-id="${i.id}"><div class="row"><div class="f"><label>Type</label>${sel(`items.${i.id}.type`, MR_TYPES, i.type || 'Materials')}</div><div class="f" style="flex:3"><label>Item ${n + 1}</label>${inp(`items.${i.id}.name`, i.name, { list: i.type === 'Plant' || i.type === 'Skips & waste' || i.type === 'Tools & equipment' ? 'mr-plant' : 'mr-mats', ph: i.type === 'Plant' ? 'Pick plant or type' : 'Pick from the list or type', al: 'Item' })}</div></div>
+    <div class="row"><div class="f"><label>Quantity</label>${inp(`items.${i.id}.qty`, i.qty, { im: 'decimal', al: 'Quantity' })}</div><div class="f"><label>Unit</label>${inp(`items.${i.id}.unit`, i.unit, { list: 'mr-units', al: 'Unit' })}</div>${ro ? '' : `<button type="button" class="ibtn" data-act="mr-delitem" data-id="${i.id}" aria-label="Remove item">×</button>`}</div>
+    ${i.type === 'Plant' ? `<div class="row"><div class="f"><label>Hire start</label>${inp(`items.${i.id}.hireFrom`, i.hireFrom, { type: 'date', al: 'Hire start' })}</div><div class="f"><label>Hire end</label>${inp(`items.${i.id}.hireTo`, i.hireTo, { type: 'date', al: 'Hire end' })}</div></div>` : ''}
+    <div class="f"><label>Notes (size, colour, spec)</label>${inp(`items.${i.id}.note`, i.note, { al: 'Item notes' })}</div></div>`;
+  return `<datalist id="mr-mats">${mats.map(m => `<option value="${esc(m.n)}">${esc(m.g)}</option>`).join('')}</datalist><datalist id="mr-plant">${pl.map(p => `<option value="${esc(p)}">`).join('')}</datalist><datalist id="mr-units">${['nr', 'm²', 'lin m', 'box', 'roll', 'tube', 'l', 'pack', 'days', 'weeks', 'item'].map(u => `<option value="${u}">`).join('')}</datalist>
+  <div class="card"><h2>${esc(c.jobRef || '')} · ${esc(c.site || '')}</h2><p class="hint">${esc(c.address || '')}${c.cm ? ' · CM: ' + esc(c.cm) : ''}</p><div class="meta">${ro ? dcStatusTag(c) + mrStTag(c.id) : '<span class="tag amber">Draft - not sent</span>'}</div></div>
+  ${(c.items || []).map(item).join('')}${ro ? '' : `<div class="btns" style="margin-bottom:12px"><button class="btn" data-act="mr-additem">${I.plus} Add material</button><button class="btn" data-act="mr-additem" data-type="Plant">${I.plus} Add plant / hire</button></div>`}
+  <div class="card"><h2>When &amp; where</h2><div class="row"><div class="f"><label>Urgency</label>${sel('urgency', MR_URG, c.urgency)}</div><div class="f"><label>Needed by</label>${inp('neededBy', c.neededBy, { type: 'date', al: 'Needed by' })}</div></div>
+    <div class="f"><label>Delivery notes (access, contact, offload)</label><textarea data-mr="delivery" rows="2" ${dis}>${esc(c.delivery || '')}</textarea></div><div class="f"><label>Other notes</label><textarea data-mr="notes" rows="2" ${dis}>${esc(c.notes || '')}</textarea></div>
+    <div class="f"><label>Photo (optional)</label><div class="mr-ph">${(c.photos || []).map(p => `<span class="mr-th"><img src="${p.data && p.data.startsWith('data:') ? p.data : ''}" alt="Photo">${ro ? '' : `<button type="button" class="ibtn" data-act="mr-delph" data-id="${p.id}" aria-label="Remove photo">×</button>`}</span>`).join('')}${ro ? '' : '<label class="btn sm">📷 Add photo<input type="file" accept="image/*" id="mr-file" hidden multiple></label>'}</div></div></div>
+  <div class="btns">${ro ? `<button class="btn" data-act="mr-pdf" data-id="${c.id}">${I.pdf} PDF</button>` : `<button class="btn primary block" data-act="mr-submit" data-id="${c.id}">Send request to ${esc(c.cm || 'contracts manager')}</button><button class="btn" data-act="mr-pdf" data-id="${c.id}">${I.pdf} Preview PDF</button><button class="btn danger" data-act="mr-del" data-id="${c.id}">Delete draft</button>`}</div>`; }
+function mrHomeCard() { const jobs = Ops.jobs || []; const mine = mrMine().sort((a, b) => (b.created || 0) - (a.created || 0)).slice(0, 15);
+  return `<div class="card" id="mrcard"><h2>Materials &amp; plant requests</h2><p class="hint">Ask your contracts manager for materials, plant hire, tools or skips. It is logged on the job and emailed as a PDF.</p>
+    <div class="btns">${jobs.map(j => `<button class="btn primary" data-act="mr-new" data-job="${j.id}">${I.plus} Request for ${esc(j.ref || j.site_name || 'job')}</button>`).join('') || '<p class="hint">No jobs assigned yet.</p>'}</div>
+    ${mine.map(c => `<a class="item" href="#/mr/${c.id}"><div class="bd"><div class="t1">${esc(c.jobRef || '')} · ${fmtDate(c.date)}${c.urgency === 'urgent' ? ' · <b style="color:#b91c1c">URGENT</b>' : ''}</div><div class="t2">${esc((c.items || []).filter(i => i.name).map(i => i.name).join(', ').slice(0, 90) || 'No items yet')}</div><div class="meta">${c.status === 'draft' ? '<span class="tag amber">Draft</span>' : dcStatusTag(c) + mrStTag(c.id)}</div></div>${I.chev}</a>`).join('')}</div>`; }
+{ const _vh = viewOpHome; viewOpHome = function () { const all = Ops.list; Ops.list = all.filter(c => !isMr(c)); let v; try { v = _vh(); } finally { Ops.list = all; }
+  const i = v.body.indexOf('<div class="card"><h2>My weekly sheets</h2>'); v.body = i < 0 ? v.body + mrHomeCard() : v.body.slice(0, i) + mrHomeCard() + v.body.slice(i); return v; }; }
+const mrCur = () => dcGet(route()[1]);
+function mrSet(c, path, val) { const p = path.split('.'); if (p[0] === 'items') { const it = (c.items || []).find(x => x.id === p[1]); if (it) it[p[2]] = val; if (p[2] === 'type') { if (val === 'Plant' && (!it.unit || it.unit === 'nr')) it.unit = 'days'; return true; } if (p[2] === 'name') { const m = mrMatOpts().find(x => x.n === val); if (m && (!it.unit || it.unit === 'nr')) it.unit = m.u; } } else c[path] = val; return false; }
+document.addEventListener('input', e => { const el = e.target; if (!el.dataset || !el.dataset.mr) return; const c = mrCur(); if (!c || c.status !== 'draft') return; mrSet(c, el.dataset.mr, el.value); c.updated = Date.now(); dcSave(); if (/\.name$/.test(el.dataset.mr)) { const pid = el.dataset.mr.split('.')[1], it = c.items.find(x => x.id === pid), u = document.querySelector(`[data-mr="items.${pid}.unit"]`); if (it && u && u.value !== it.unit) u.value = it.unit; } });
+document.addEventListener('change', async e => { const el = e.target; if (el.id === 'mr-file') { const c = mrCur(); if (!c) return; const ph = await filesToPhotos([...el.files]); c.photos = (c.photos || []).concat(ph.filter(p => p.data && p.data.startsWith('data:image'))); c.updated = Date.now(); dcSave(); rerender(true); return; }
+  if (!el.dataset || !el.dataset.mr) return; const c = mrCur(); if (!c || c.status !== 'draft') return; const re = mrSet(c, el.dataset.mr, el.value); c.updated = Date.now(); dcSave(); if (/\.name$/.test(el.dataset.mr)) { const pid = el.dataset.mr.split('.')[1], it = c.items.find(x => x.id === pid), u = document.querySelector(`[data-mr="items.${pid}.unit"]`); if (it && u && u.value !== it.unit) u.value = it.unit; return; } if (re || el.tagName === 'SELECT') rerender(true); });
+Object.assign(ACTIONS, {
+  'mr-new'(a) { const j = (Ops.jobs || []).find(x => x.id === a.dataset.job); if (!j) return; const c = mrNew(j); Ops.list.push(c); dcSave(true); go('#/mr/' + c.id); },
+  'mr-additem'(a) { const c = mrCur(); if (!c) return; c.items.push(mrNewItem(a.dataset.type || 'Materials')); dcSave(); rerender(true); },
+  'mr-delitem'(a) { const c = mrCur(); if (!c) return; c.items = c.items.filter(i => i.id !== a.dataset.id); if (!c.items.length) c.items.push(mrNewItem()); dcSave(); rerender(true); },
+  'mr-delph'(a) { const c = mrCur(); if (!c) return; c.photos = (c.photos || []).filter(p => p.id !== a.dataset.id); dcSave(); rerender(true); },
+  async 'mr-del'(a) { if (!(await confirmBox('Delete this draft request?', '', 'Delete'))) return; Ops.list = Ops.list.filter(c => c.id !== a.dataset.id); dcSave(true); go('#/'); },
+  'mr-pdf'(a) { const c = dcGet(a.dataset.id) || (Ops.mrView && Ops.mrView.id === a.dataset.id && Ops.mrView.c); if (!c) return; qOut(buildMrPDF(c).output('blob'), `Materials-request-${safeName(c.jobRef || 'job')}-${c.date}.pdf`); },
+  async 'mr-submit'(a) { const c = dcGet(a.dataset.id); if (!c) return; const its = (c.items || []).filter(i => String(i.name || '').trim()); if (!its.length) return toast('Add at least one item');
+    const bad = its.find(i => i.type === 'Plant' && i.hireFrom && i.hireTo && i.hireTo < i.hireFrom); if (bad) return toast('Hire end is before hire start');
+    c.items = its; c.status = 'queued'; c.submitted = Date.now(); c.updated = Date.now(); dcSave(true); toast(online() ? 'Sending…' : 'Saved - sends when you have signal'); rerender(true); if (typeof kick === 'function') kick(200); },
+  async 'mr-status'(a) { await mrSetStatus(a.dataset.id, a.dataset.s); rerender(true); },
+});
+{ const _r = render; render = function (keep) { const rt = route();
+  if (isOp() && rt[0] === 'mr') { if (!Ops.loaded) { $('#app').innerHTML = header({ title: 'Materials request' }) + '<main><p class="hint">Loading…</p></main>'; dcLoad().then(() => render(keep)); return; }
+    const c = dcGet(rt[1]); if (!c || !isMr(c)) { go('#/'); return; } S.ctx = null; const y = window.scrollY; document.body.classList.remove('hasnav');
+    $('#app').innerHTML = header({ title: 'Materials & plant request', sub: `${c.jobRef} · ${fmtDate(c.date)}`, back: '#/' }) + `<main>${mrFormHTML(c)}</main>`; if (keep) window.scrollTo(0, y); else window.scrollTo(0, 0); lastHash = location.hash; return; }
+  return _r(keep); }; }
+/* ---------- managers: requests in the job's Daily tab (and status) ---------- */
+{ const _ld = loadDaily; loadDaily = async function (pid, f = {}) { const r = await _ld(pid, f) || []; Ops.mr = Ops.mr || {}; Ops.mr[pid] = r.filter(isMrRow); Ops.dc[pid] = r.filter(x => !isMrRow(x)); return Ops.dc[pid]; }; }
+function mrStaffCard(job) { const rows = ((Ops.mr || {})[job.projectId] || []).slice().sort((a, b) => String(b.submitted_at).localeCompare(String(a.submitted_at))); if (!rows.length) return '';
+  return `<div class="card" id="mrstaff"><h2>Materials &amp; plant requests <span class="prog ${rows.some(r => (mrSt(r.id).s || 'requested') === 'requested') ? 'bad' : 'full'}" style="margin-left:auto">${rows.filter(r => (mrSt(r.id).s || 'requested') === 'requested').length} open</span></h2>
+    ${rows.map(r => { const d = r.data || {}; const cur = mrSt(r.id).s || 'requested'; return `<div class="item mr-row" data-id="${r.id}"><div class="bd"><div class="t1">${fmtDate(r.check_date)} · ${esc(r.owner_name || '')}${d.urgency === 'urgent' ? ' · <b style="color:#b91c1c">URGENT</b>' : ''}${d.neededBy ? ' · needed ' + fmtDate(d.neededBy) : ''}</div><div class="t2">${esc((d.items || []).map(mrItemTxt).join('; ').slice(0, 220))}</div>
+      <div class="meta">${mrStTag(r.id)}${r.email_status === 'sent' ? '<span class="tag green">Emailed</span>' : r.email_status ? `<span class="tag">${esc(r.email_status)}</span>` : ''}</div>
+      <div class="filters" style="margin-top:6px">${MR_STATES.map(([v, l]) => `<button type="button" data-act="mr-status" data-id="${r.id}" data-s="${v}" class="${cur === v ? 'on' : ''}" ${isMgr() ? '' : 'disabled'}>${l}</button>`).join('')}<button type="button" data-act="mr-spdf" data-id="${r.id}">${I.pdf} PDF</button></div></div></div>`; }).join('')}</div>`; }
+Object.assign(ACTIONS, { async 'mr-spdf'(a) { let r = null; for (const k in (Ops.mr || {})) { r = Ops.mr[k].find(x => x.id === a.dataset.id) || r; } if (!r) return; const c = rowToCheck(r); toast('Building PDF…', 1200); try { await dcHydrate(c); } catch (e) { } qOut(buildMrPDF(c).output('blob'), `Materials-request-${safeName(c.jobRef || 'job')}-${c.date}.pdf`); } });
+{ const _vdl = viewDailyList; viewDailyList = function (job) { return mrStaffCard(job) + _vdl(job); }; }
+/* ---------- Settings: plant list (with the daily template) ---------- */
+{ const _vt = viewDailyTpl; viewDailyTpl = function () { const ro = signedIn() && !isMgr(); return _vt() + `<h3 style="margin:16px 0 6px">Materials request - plant / equipment list</h3><div class="card"><p class="hint">Shown to operatives as the plant dropdown (one per line).</p><textarea id="mr-plantlist" rows="9" ${ro ? 'disabled' : ''}>${esc(mrPlant().join('\n'))}</textarea>${ro ? '' : '<div class="btns"><button class="btn" data-act="mr-plantreset">Reset to defaults</button></div>'}</div>`; }; }
+document.addEventListener('change', e => { if (e.target.id !== 'mr-plantlist') return; const L = e.target.value.split('\n').map(s => s.trim()).filter(Boolean); S.settings.mrPlant = L.length ? L : null; saveSettings(); });
+Object.assign(ACTIONS, { 'mr-plantreset'() { S.settings.mrPlant = null; saveSettings(); rerender(true); } });
+{ const st = document.createElement('style'); st.textContent = '.mr-ph{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.mr-th{position:relative}.mr-th img{width:96px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb}.mr-th .ibtn{position:absolute;top:-6px;right:-6px;background:#fff}'; document.head.appendChild(st); }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
