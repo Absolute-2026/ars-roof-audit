@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.9.14">
+<meta name="app-version" content="1.9.15">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.9.14';
+const APP_VERSION = '1.9.15';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -8891,23 +8891,27 @@ function rfqCardHTML(s) { const b = `sheetSchedules#${s.id}`, C = ssCalc(s); s.r
 const MR_TYPES = ['Materials', 'Plant', 'Tools & equipment', 'Skips & waste', 'Other'];
 const MR_URG = [['normal', 'Normal'], ['soon', 'Soon (2-3 days)'], ['urgent', 'URGENT - work stopped / next day']];
 const MR_STATES = [['requested', 'Requested', 'amber'], ['ordered', 'Ordered', 'navy'], ['delivered', 'Delivered', 'green']];
-const DEFAULT_MR_PLANT = ['MEWP - scissor lift', 'MEWP - boom lift', 'Telehandler', 'Access tower', 'Scaffold alteration', 'Generator', 'Skip', 'Welfare unit', 'Tools'];
+// v1.9.15: skips by type (no sizes); item names carry no sizes - a per-line optional 'Size / thickness' box instead
+const MR_SKIPS = ['Skip - General waste', 'Skip - Plasterboard', 'Skip - Glass', 'Skip - ACM (asbestos)', 'Skip - Metal'];
+const mrNoSize = n => String(n || '').replace(/\s*[-,(]?\s*\b\d+(?:\.\d+)?\s*(?:x\s*\d+(?:\.\d+)?\s*)?(?:mm|cm|m|yd|yds|yard|yards|ml|l|ltr|kg|g|m²|m2)\b\.?\s*(?:core|thick|thickness)?\)?/gi, ' ').replace(/\s{2,}/g, ' ').replace(/\s*-\s*$/, '').trim();
+const mrPlantMig = L => { if (!Array.isArray(L)) return L; let o = L.map(x => /^\s*skip\b/i.test(x) && !MR_SKIPS.includes(x) ? null : mrNoSize(x)); if (o.includes(null)) { o = o.filter(x => x != null); MR_SKIPS.forEach(k => { if (!o.includes(k)) o.push(k); }); } return o.filter((x, i, a) => x && a.indexOf(x) === i); };
+const DEFAULT_MR_PLANT = ['MEWP - scissor lift', 'MEWP - boom lift', 'Telehandler', 'Access tower', 'Scaffold alteration', 'Generator', 'Welfare unit', 'Tools', ...MR_SKIPS];
 const isMr = c => !!(c && c.kind === 'materials');
 const isMrRow = r => !!(r && r.data && r.data.kind === 'materials');
-const mrPlant = () => (Array.isArray(S.settings.mrPlant) && S.settings.mrPlant.length ? S.settings.mrPlant : DEFAULT_MR_PLANT);
-const mrMatOpts = () => { const out = []; (matLib() || []).forEach(g => (g.items || []).forEach(i => { const n = [i.name, i.spec].filter(Boolean).join(' - '); if (n && !out.some(x => x.n === n)) out.push({ n, u: i.unit || 'nr', g: g.title }); })); return out; };
+const mrPlant = () => (Array.isArray(S.settings.mrPlant) && S.settings.mrPlant.length ? mrPlantMig(S.settings.mrPlant) : DEFAULT_MR_PLANT);
+const mrMatOpts = () => { const out = []; (matLib() || []).forEach(g => (g.items || []).forEach(i => { const n = mrNoSize(i.name); if (/^\s*(skip|mewp|scaffold)\b/i.test(n)) return; if (n && !out.some(x => x.n === n)) out.push({ n, u: i.unit || 'nr', g: g.title }); })); return out; };
 const mrAddDays = (iso, n) => { const d = new Date((iso || todayISO()) + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 const mrInfer = n => { const t = String(n || '').toLowerCase(); if (mrPlant().some(p => p.toLowerCase() === t)) return /skip/.test(t) ? 'Skips & waste' : /^tools?\b/.test(t) ? 'Tools & equipment' : 'Plant'; if (/\bskip|waste|grab\b/.test(t)) return 'Skips & waste'; return 'Materials'; };
 function mrPickItem(c, name) { const type = mrInfer(name), m = mrMatOpts().find(x => x.n === name), it = mrNewItem(type); it.name = name; it.qty = '1'; it.unit = type === 'Plant' ? 'days' : (m ? m.u : 'nr');
   if (type === 'Plant') { it.hireFrom = c.neededBy || mrAddDays(todayISO(), 1); it.hireTo = mrAddDays(it.hireFrom, 4); } return it; }
-const mrNewItem = (type = 'Materials') => ({ id: uid(), type, name: '', qty: '', unit: type === 'Plant' ? 'days' : 'nr', note: '', hireFrom: '', hireTo: '' });
+const mrNewItem = (type = 'Materials') => ({ id: uid(), type, name: '', qty: '', unit: type === 'Plant' ? 'days' : 'nr', note: '', size: '', hireFrom: '', hireTo: '' });
 function mrNew(job) { return { v: 1, kind: 'materials', id: 'mr-' + uid(), jobId: job.id, jobRef: job.ref || '', site: job.site_name || '', address: [job.site_address, job.postcode].filter(Boolean).join(', '), cm: job.contracts_manager_name || '',
   owner: me(), by: myName(), date: todayISO(), time: nowTime(), created: Date.now(), updated: Date.now(), status: 'draft', urgency: 'normal', neededBy: mrAddDays(todayISO(), 1), delivery: '', notes: '', items: [], photos: [] }; }
 const mrMine = () => Ops.list.filter(c => isMr(c) && (!c.owner || c.owner === me()));
 const mrSt = id => ((S.settings.mrStatus || {})[id] || {});
 const mrStTag = id => { const st = mrSt(id), d = MR_STATES.find(x => x[0] === (st.s || 'requested')) || MR_STATES[0]; return `<span class="tag ${d[2]}">${d[1]}${st.at && st.s && st.s !== 'requested' ? ' ' + new Date(st.at).toLocaleDateString('en-GB') : ''}</span>`; };
 const mrUrgTxt = u => (MR_URG.find(x => x[0] === u) || MR_URG[0])[1];
-const mrItemTxt = i => `${i.type && i.type !== 'Materials' ? '[' + i.type + '] ' : ''}${i.name || '-'}${i.qty ? ' x ' + i.qty + ' ' + (i.unit || '') : ''}${i.type === 'Plant' && (i.hireFrom || i.hireTo) ? ` (hire ${i.hireFrom ? fmtDate(i.hireFrom) : '?'} to ${i.hireTo ? fmtDate(i.hireTo) : '?'})` : ''}${i.note ? ' - ' + i.note : ''}`;
+const mrItemTxt = i => `${i.type && i.type !== 'Materials' ? '[' + i.type + '] ' : ''}${i.name || '-'}${i.size ? ' (' + i.size + ')' : ''}${i.qty ? ' x ' + i.qty + ' ' + (i.unit || '') : ''}${i.type === 'Plant' && (i.hireFrom || i.hireTo) ? ` (hire ${i.hireFrom ? fmtDate(i.hireFrom) : '?'} to ${i.hireTo ? fmtDate(i.hireTo) : '?'})` : ''}${i.note ? ' - ' + i.note : ''}`;
 // settings sync (merge newest per id)
 function mrMergeStatus(m) { const cur = S.settings.mrStatus = S.settings.mrStatus || {}; Object.entries(m || {}).forEach(([k, v]) => { if (v && (!cur[k] || (v.at || 0) > (cur[k].at || 0))) cur[k] = v; }); }
 { const _ap = applyDailySettings; applyDailySettings = function (d) { if (d && d.matreq) mrMergeStatus(d.matreq); if (d && Array.isArray(d.mrPlant) && d.mrPlant.length) S.settings.mrPlant = d.mrPlant; if (d && Array.isArray(d.matLib) && d.matLib.length && isOp()) S.settings.matLib = d.matLib; return _ap(d); };
@@ -8925,7 +8929,7 @@ function buildMrPDF(c) { const k = dcPdfKit('Materials & plant request'); k.lett
   k.kv([['Job / site', [c.jobRef, c.site].filter(Boolean).join(' - ')], ['Site address', c.address], ['Requested by', c.by], ['Date', `${fmtDate(c.date)} ${c.time || ''}`], ['Urgency', mrUrgTxt(c.urgency)], ['Needed by', c.neededBy ? fmtDate(c.neededBy) : ''], ['Contracts manager', c.cm], ['Status', (MR_STATES.find(x => x[0] === (mrSt(c.id).s || 'requested')) || MR_STATES[0])[1]]]);
   if (c.urgency === 'urgent') { k.font(11, 'bold', k.RED); k.need(8); k.doc.text('URGENT - work stopped / needed next day', k.M, k.y); k.y += 6; }
   k.h2('Items requested'); const its = (c.items || []).filter(i => i.name || i.qty);
-  k.table({ head: [['#', 'Type', 'Item', 'Qty', 'Unit', 'Hire from', 'Hire to', 'Notes']], body: its.map((i, n) => [String(n + 1), k.tx(i.type || 'Materials'), k.tx(i.name), k.tx(i.qty), k.tx(i.unit), i.type === 'Plant' && i.hireFrom ? fmtDate(i.hireFrom) : '', i.type === 'Plant' && i.hireTo ? fmtDate(i.hireTo) : '', k.tx(i.note)]), columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 24 }, 3: { cellWidth: 14 }, 4: { cellWidth: 14 }, 5: { cellWidth: 20 }, 6: { cellWidth: 20 } } });
+  k.table({ head: [['#', 'Type', 'Item', 'Size / thickness', 'Qty', 'Unit', 'Hire from', 'Hire to', 'Notes']], body: its.map((i, n) => [String(n + 1), k.tx(i.type || 'Materials'), k.tx(i.name), k.tx(i.size || ''), k.tx(i.qty), k.tx(i.unit), i.type === 'Plant' && i.hireFrom ? fmtDate(i.hireFrom) : '', i.type === 'Plant' && i.hireTo ? fmtDate(i.hireTo) : '', k.tx(i.note)]), columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 22 }, 3: { cellWidth: 34 }, 4: { cellWidth: 12 }, 5: { cellWidth: 13 }, 6: { cellWidth: 20 }, 7: { cellWidth: 20 } } });
   if (c.delivery) { k.h2('Delivery notes'); k.para(c.delivery); } if (c.notes) { k.h2('Other notes'); k.para(c.notes); }
   if ((c.photos || []).length) { k.h2('Photos'); k.photos(c.photos); }
   return k.finish(`Materials & plant request · ${c.jobRef || ''} · ${c.by || ''} · ${fmtDate(c.date)}`); }
@@ -8941,8 +8945,9 @@ async function pushMr(c) { await dcUploadBlobs(c); const pdfPath = `${c.owner}/$
 function mrFormHTML(c) { const ro = c.status !== 'draft', mats = mrMatOpts(), pl = mrPlant(), dis = ro ? 'disabled' : '';
   const inp = (path, val, o = {}) => `<input type="${o.type || 'text'}" data-mr="${path}" value="${esc(val || '')}" ${o.list ? `list="${o.list}"` : ''} placeholder="${esc(o.ph || '')}" ${o.im ? `inputmode="${o.im}"` : ''} ${o.st ? `style="${o.st}"` : ''} ${dis} aria-label="${esc(o.al || path)}">`;
   const groups = {}; mats.forEach(m => (groups[m.g || 'Materials'] = groups[m.g || 'Materials'] || []).push(m.n));
-  const pick = `<select id="mr-pick" class="mr-pick" aria-label="Add an item" style="width:100%;font-size:18px;padding:14px;border-radius:12px;border:2px solid var(--brand,#1d4ed8)"><option value="">＋ Tap to add an item…</option><optgroup label="Plant &amp; hire">${pl.map(p => `<option>${esc(p)}</option>`).join('')}</optgroup>${Object.entries(groups).map(([g, ns]) => `<optgroup label="${esc(g)}">${ns.map(n => `<option>${esc(n)}</option>`).join('')}</optgroup>`).join('')}<optgroup label="Not listed"><option value="__other">Something else (type it)</option></optgroup></select>`;
+  const pick = `<select id="mr-pick" class="mr-pick" aria-label="Add an item" style="width:100%;font-size:18px;padding:14px;border-radius:12px;border:2px solid var(--brand,#1d4ed8)"><option value="">＋ Tap to add an item…</option><optgroup label="Plant &amp; hire">${pl.filter(p => !/^\s*skip\b/i.test(p)).map(p => `<option>${esc(p)}</option>`).join('')}</optgroup><optgroup label="Skips">${pl.filter(p => /^\s*skip\b/i.test(p)).map(p => `<option>${esc(p)}</option>`).join('')}</optgroup>${Object.entries(groups).map(([g, ns]) => `<optgroup label="${esc(g)}">${ns.map(n => `<option>${esc(n)}</option>`).join('')}</optgroup>`).join('')}<optgroup label="Not listed"><option value="__other">Something else (type it)</option></optgroup></select>`;
   const item = i => `<div class="card mr-item" data-id="${i.id}" style="padding:12px"><div style="display:flex;gap:8px;align-items:center"><div style="flex:1;min-width:0">${i.custom && !ro ? inp(`items.${i.id}.name`, i.name, { ph: 'What do you need?', al: 'Item', st: 'font-size:17px' }) : `<b style="font-size:17px">${esc(i.name)}</b>${i.type !== 'Materials' ? ` <span class="tag">${esc(i.type)}</span>` : ''}`}</div>${ro ? '' : `<button type="button" class="ibtn" data-act="mr-delitem" data-id="${i.id}" aria-label="Remove item">×</button>`}</div>
+    ${ro ? (i.size ? `<div class="hint">Size / thickness: ${esc(i.size)}</div>` : '') : `<div style="margin-top:8px">${inp(`items.${i.id}.size`, i.size, { ph: 'Size / thickness (optional)', al: 'Size / thickness' })}</div>`}
     <div style="display:flex;gap:8px;align-items:center;margin-top:8px">${ro ? '' : `<button type="button" class="btn" style="min-width:52px;font-size:22px" data-act="mr-qty" data-id="${i.id}" data-d="-1" aria-label="Less">−</button>`}${inp(`items.${i.id}.qty`, i.qty, { im: 'decimal', al: 'Quantity', st: 'width:72px;text-align:center;font-size:20px' })}${ro ? '' : `<button type="button" class="btn" style="min-width:52px;font-size:22px" data-act="mr-qty" data-id="${i.id}" data-d="1" aria-label="More">+</button>`}${inp(`items.${i.id}.unit`, i.unit, { list: 'mr-units', al: 'Unit', st: 'width:80px' })}</div>
     ${i.type === 'Plant' ? `<div class="row" style="margin-top:6px"><div class="f"><label>Hire from</label>${inp(`items.${i.id}.hireFrom`, i.hireFrom, { type: 'date', al: 'Hire start' })}</div><div class="f"><label>Hire to</label>${inp(`items.${i.id}.hireTo`, i.hireTo, { type: 'date', al: 'Hire end' })}</div></div>` : ''}</div>`;
   const extras = c.delivery || c.notes || (c.photos || []).length;
