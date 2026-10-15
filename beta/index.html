@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.9.5">
+<meta name="app-version" content="1.9.6">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.9.5';
+const APP_VERSION = '1.9.6';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -8098,7 +8098,7 @@ function viewSheetSchedule(h, s, job) { const f = mk(h), b = `sheetSchedules#${s
   const rlOpts = []; ['Filon', 'Brett Martin'].forEach(m => { rlOpts.push('#' + m); SS_RL.filter(x => x.maker === m).forEach(x => rlOpts.push(x.name)); });
   const slope = (sl, i) => { const sb = `${b}.slopes#${sl.id}`, r = C.slopes[i];
     const n = Math.max(0, Math.min(40, +sl.n || 0)); sl.sp = sl.sp || []; while (sl.sp.length < n) sl.sp.push('');
-    const spF = n ? `<div class="f"><label>Purlin spacings, from the ridge down (mm)</label><div class="ss-sp">${Array.from({ length: n }, (_, k) => `<label><small>${k + 1}</small><input type="text" inputmode="numeric" pattern="[0-9]*" enterkeyhint="next" class="ss-spi" data-b="${sb}.sp.${k}" value="${esc(sl.sp[k] || '')}" aria-label="Spacing ${k + 1}"></label>`).join('')}</div><button type="button" class="btn sm ss-nx" data-sl="${sl.id}">Next ›</button></div>` : '';
+    const spF = n ? `<div class="f"><label>Purlin spacings, from the ridge down (mm)</label><div class="ss-sp">${Array.from({ length: n }, (_, k) => `<label><small>${k + 1}</small><span class="ss-spw"><input type="text" inputmode="decimal" enterkeyhint="next" autocomplete="off" class="ss-spi" data-b="${sb}.sp.${k}" value="${esc(sl.sp[k] || '')}" aria-label="Spacing ${k + 1}"><button type="button" class="ss-nx ss-nx1" data-k="${k}" aria-label="Next">›</button></span></label>`).join('')}</div><button type="button" class="btn sm ss-nx" data-sl="${sl.id}">Next ›</button><label class="ss-all"><small>…or type them all (ridge down): e.g. <b>1600 1600 1525</b> or <b>6@1600</b></small><input type="text" inputmode="decimal" autocomplete="off" class="ss-alli" data-sl="${sl.id}" placeholder="1600 1600 1525"></label></div>` : '';
     return `<div class="card ss-sl" id="ssl_${sl.id}"><h2><input class="pit-l" data-b="${sb}.name" value="${esc(sl.name)}" aria-label="Slope name"><button type="button" class="ck-x" data-act="ssdelsl" data-id="${sl.id}" aria-label="Remove slope">×</button></h2>${ssCopyBar(s, sl)}<fieldset class="ss-lk" ${sl.linkOf && s.slopes.some(x => x.id === sl.linkOf) ? 'disabled' : ''}>
       <div class="row">${f.text('Cross-section', sb + '.sec', { ph: 'A' })}${f.text('Pitch (°)', sb + '.pitch', { type: 'number', ph: 'e.g. 27' })}${sel('High end is on the', sb + '.dir', ['right', 'left'], ssUp(sl) ? 'right' : 'left')}</div>
       <div class="row">${sel('Top end', sb + '.topType', SS_TOPS, sl.topType || SS_TOPS[0])}${f.text('Step down from previous slope (mm)', sb + '.drop', { type: 'number', ph: 'e.g. 600 lean-to / canopy' })}</div>
@@ -8247,9 +8247,19 @@ Object.assign(ACTIONS, {
 let ssLastSp = null; document.addEventListener('focusin', e => { if (e.target.classList && e.target.classList.contains('ss-spi')) ssLastSp = e.target; });
 function ssFocusNext(el) { const card = el.closest('.ss-sl'); const all = [...card.querySelectorAll('.ss-spi')]; const i = all.indexOf(el); let nx = all[i + 1];
   if (!nx) nx = card.querySelector('[data-b$=".overhang"]'); if (nx) { nx.focus(); if (nx.select) nx.select(); nx.scrollIntoView({ block: 'center', behavior: 'smooth' }); } }
-document.addEventListener('keydown', e => { const el = e.target; if (e.key !== 'Enter' || !el.classList || !el.classList.contains('ss-spi')) return; e.preventDefault(); el.dispatchEvent(new Event('change', { bubbles: true })); ssFocusNext(el); });
+document.addEventListener('keydown', e => { const el = e.target; if (e.key !== 'Enter' || !el.classList || !el.classList.contains('ss-spi')) return; e.preventDefault(); ssNextFrom(el); });
 Object.assign(ACTIONS, { ssnext(a) { const card = a.closest('.ss-sl'); const el = ssLastSp && card.contains(ssLastSp) ? ssLastSp : null; if (!el) { const f = card.querySelector('.ss-spi'); if (f) f.focus(); return; } el.dispatchEvent(new Event('change', { bubbles: true })); ssFocusNext(el); } });
-document.addEventListener('pointerdown', e => { const b = e.target.closest && e.target.closest('.ss-nx'); if (!b) return; e.preventDefault(); ACTIONS.ssnext(b); }); // acts on pointerdown so the keyboard stays up (WebKit drops the click once pointerdown is prevented)
+// 1.9.6: Next › buttons act inside the tap itself (touchend on iPad, click with a mouse) so focus() opens / keeps the keyboard; the target is found by its path after the change is saved
+function ssNextFrom(el) { const path = el.dataset.b, card = el.closest('.ss-sl'), all = [...card.querySelectorAll('.ss-spi')], i = all.indexOf(el), tgt = all[i + 1] ? all[i + 1].dataset.b : null, ov = card.querySelector('[data-b$=".overhang"]'), ovb = ov && ov.dataset.b;
+  el.dispatchEvent(new Event('change', { bubbles: true })); const nx = (tgt && document.querySelector(`[data-b="${tgt}"]`)) || (ovb && document.querySelector(`[data-b="${ovb}"]`)); if (nx) { nx.focus(); try { nx.setSelectionRange(0, nx.value.length); } catch (e) { } nx.scrollIntoView({ block: 'center' }); } }
+function ssNxAct(b) { if (b.classList.contains('ss-nx1')) { const el = b.parentNode.querySelector('.ss-spi'); return ssNextFrom(el); } const card = b.closest('.ss-sl'); const el = ssLastSp && card.contains(ssLastSp) ? ssLastSp : null; if (el) return ssNextFrom(el); const f = card.querySelector('.ss-spi'); if (f) f.focus(); }
+let ssNxT = 0; document.addEventListener('pointerdown', e => { const b = e.target.closest && e.target.closest('.ss-nx'); if (b && e.pointerType === 'mouse') e.preventDefault(); }, true);
+document.addEventListener('touchend', e => { const b = e.target.closest && e.target.closest('.ss-nx'); if (!b) return; e.preventDefault(); ssNxT = Date.now(); ssNxAct(b); }, { passive: false, capture: true });
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.ss-nx'); if (!b) return; e.preventDefault(); if (Date.now() - ssNxT > 700) ssNxAct(b); }, true);
+// "type them all": 1600 1600 1525 / 6@1600 / 1600, 2x1525 - ridge down; fills the boxes and the number of spaces
+function ssParseAll(t) { t = String(t || '').replace(/(\d)\s*(@|x|×)\s*(\d)/gi, '$1$2$3').trim().replace(/\s+/g, ','); return ssParse(t); }
+document.addEventListener('change', e => { const el = e.target; if (!el.classList || !el.classList.contains('ss-alli')) return; const v = ssParseAll(el.value); if (!v.length) return; const s = ssCur(), sl = s && s.slopes.find(x => x.id === el.dataset.sl); if (!sl) return; sl.n = String(v.length); sl.sp = v.map(String); ssCtx().save(); rerender(true); toast(`${sl.name}: ${v.length} spacings filled`); });
+{ const st = document.createElement('style'); st.textContent = '.ss-spw{display:flex;align-items:center;gap:2px}.ss-nx1{border:1px solid #cbd5e1;background:#f1f5f9;border-radius:6px;min-width:34px;min-height:38px;font-size:20px;line-height:1;padding:0}.ss-all{display:block;margin-top:8px}.ss-all input{width:100%}'; document.head.appendChild(st); }
 
 /* ===== v1.9.1 (BETA): PURLIN SKETCH PAD for the roof sheet schedule =====
    Drag purlin sections, rafters and end markers from the tray onto the page; purlins snap onto slope lines; tap a gap to type its size,
@@ -8319,7 +8329,8 @@ function ppAssign(segs, found) { const pairs = []; found.forEach((f, fi) => { co
   pairs.sort((a, b) => a.d - b.d); const uf = new Set(), us = new Set(), out = []; pairs.forEach(p => { if (uf.has(p.fi) || us.has(p.si) || p.d > 260) return; uf.add(p.fi); us.add(p.si); out.push({ sg: segs[p.si], v: p.v, f: found[p.fi] }); }); return out; }
 const ppAskNum = (title, cur, withNext) => new Promise(res => { ppAskNum.next = false; const bg = document.createElement('div'); bg.className = 'fl-ask'; bg.innerHTML = `<div class="fl-askb"><h3 style="margin:0 0 8px">${esc(title)}</h3><input id="pp-num" inputmode="numeric" value="${esc(cur || '')}" placeholder="mm - type or write" style="font-size:28px;width:100%"><div class="btns" style="margin-top:10px"><button type="button" class="btn" data-r="x">Cancel</button><button type="button" class="btn" data-r="clr">Clear</button>${withNext ? '<button type="button" class="btn" data-r="ok">Done</button><button type="button" class="btn primary" data-r="next">Next ›</button>' : '<button type="button" class="btn primary" data-r="ok">OK</button>'}</div></div>`; if (withNext) bg.querySelector('#pp-num').setAttribute('enterkeyhint', 'next');
   document.body.appendChild(bg); const i = bg.querySelector('#pp-num'); i.focus(); i.select(); const done = v => { bg.remove(); res(v); }; i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ppAskNum.next = !!withNext; done(i.value); } });
-  bg.addEventListener('click', e => { const r = e.target.dataset && e.target.dataset.r; if (r === 'ok') done(i.value); else if (r === 'next') { ppAskNum.next = true; done(i.value); } else if (r === 'clr') done(''); else if (r === 'x' || e.target === bg) done(null); }); });
+  let bgDown = false; bg.addEventListener('pointerdown', e => { bgDown = e.target === bg; }); // 1.9.6: Chromium touch sends a late click from the tap that opened this box - only close on a backdrop tap that started on the backdrop
+  bg.addEventListener('click', e => { const r = e.target.dataset && e.target.dataset.r; if (e.target === bg && !bgDown) return; if (r === 'ok') done(i.value); else if (r === 'next') { ppAskNum.next = true; done(i.value); } else if (r === 'clr') done(''); else if (r === 'x' || e.target === bg) done(null); }); });
 function ppPad(s, key, save) { window._ppS = s; return new Promise(resolve => { ppLayout(s, key); s.padInk = s.padInk || {}; s.padInk[key] = s.padInk[key] || [];
   const st = { mode: 'move', sel: null, armed: null, ghost: null, undo: [] }; const W = document.createElement('div'); W.className = 'pp-wrap';
   W.innerHTML = `<div class="pp-top"><b>Purlin sketch pad - section ${esc(key)}</b><span class="pp-sp"></span><button type="button" data-x="move" class="on">Select</button><button type="button" data-x="pen">✎ Write</button><button type="button" data-x="split">✂ Split</button><button type="button" data-x="rl">☐ Rooflight</button><button type="button" data-x="addn">+n purlins</button><button type="button" data-x="flip">⇆ Flip purlin</button><button type="button" data-x="read">Read handwriting</button><button type="button" data-x="clear">Clear writing</button><button type="button" data-x="pitch">Pitch…</button><button type="button" data-x="del">Delete</button><button type="button" data-x="scale">To scale</button><button type="button" data-x="undo">Undo</button><button type="button" data-x="done" class="pri">Done</button></div>
@@ -8360,9 +8371,21 @@ function ppPad(s, key, save) { window._ppS = s; return new Promise(resolve => { 
   c.addEventListener('pointerup', async e => { const d = drag; drag = null; if (!d) return; if (!d.tap && d.tapC && !d.moved) { st.undo.pop(); d.tap = d.tapC; } if (d.tap) { const sg = d.tap, nm = sg.kind === 'over' ? `${sg.sl.name}: sheet past the bottom purlin` : sg.kind === 'top' ? `${sg.sl.name}: gap at the ${/Wall/.test(sg.sl.topType || '') ? 'wall' : 'ridge'} (top purlin to top)` : `${sg.sl.name}: purlin space ${ppGaps(sg.sl).length - sg.i} (from the ridge)`;
       return ppAskChain(sg); } ch(); });
   // tap-gap dialog with Next ›: saves and opens the next empty gap along the slope, ridge to eaves (then the next slope)
-  async function ppAskChain(sg) { for (let guard = 0; sg && guard < 80; guard++) { const nm = sg.kind === 'over' ? `${sg.sl.name}: sheet past the bottom purlin` : sg.kind === 'top' ? `${sg.sl.name}: gap at the ${/Wall/.test(sg.sl.topType || '') ? 'wall' : 'ridge'} (top purlin to top)` : `${sg.sl.name}: purlin space ${ppGaps(sg.sl).length - sg.i} (from the ridge)`;
-      const v = await ppAskNum(nm, sg.val, true); if (v === null) return; snap(); ppSetSeg(sg, v); ch(); if (!ppAskNum.next) return;
-      const order = ppOrderSegs(s, key), at = order.findIndex(x => x.sl === sg.sl && x.kind === sg.kind && x.i === sg.i); sg = order.slice(at + 1).find(x => !String(x.val ?? '').trim()) || null; if (!sg) toast('All gaps filled'); } }
+  // 1.9.6: one dialog stays open; Next › saves and loads the next empty gap into the SAME input, focused synchronously in the tap (iOS keeps the keyboard up)
+  function ppAskChain(sg) { return new Promise(res => { const nmOf = g => g.kind === 'over' ? `${g.sl.name}: sheet past the bottom purlin` : g.kind === 'top' ? `${g.sl.name}: gap at the ${/Wall/.test(g.sl.topType || '') ? 'wall' : 'ridge'} (top purlin to top)` : `${g.sl.name}: purlin space ${ppGaps(g.sl).length - g.i} (from the ridge)`;
+    const bg = document.createElement('div'); bg.className = 'fl-ask'; bg.innerHTML = `<div class="fl-askb"><h3 style="margin:0 0 8px"></h3><input id="pp-num" type="text" inputmode="decimal" enterkeyhint="next" autocomplete="off" placeholder="mm - type or write" style="font-size:28px;width:100%"><div class="btns" style="margin-top:10px"><button type="button" class="btn" data-r="x">Cancel</button><button type="button" class="btn" data-r="clr">Clear</button><button type="button" class="btn" data-r="ok">Done</button><button type="button" class="btn primary" data-r="next">Next ›</button></div></div>`;
+    document.body.appendChild(bg); const h = bg.querySelector('h3'), i = bg.querySelector('#pp-num'); let cur = null, closed = false;
+    const show = g => { cur = g; h.textContent = nmOf(g); i.value = String(g.val ?? ''); i.focus(); try { i.setSelectionRange(0, i.value.length); } catch (e) { i.select(); } };
+    const save = v => { snap(); ppSetSeg(cur, v); ch(); };
+    const close = () => { if (closed) return; closed = true; bg.remove(); res(); };
+    const next = () => { save(i.value); ppAskNum.next = true; const order = ppOrderSegs(s, key), at = order.findIndex(x => x.sl === cur.sl && x.kind === cur.kind && x.i === cur.i); const n = order.slice(at + 1).find(x => !String(x.val ?? '').trim()); if (n) show(n); else { toast('All gaps filled'); close(); } };
+    const act = r => { if (r === 'next') next(); else if (r === 'ok') { save(i.value); close(); } else if (r === 'clr') { save(''); close(); } else if (r === 'x') close(); };
+    i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); next(); } });
+    let bgDown = false, lastTouch = 0;
+    bg.addEventListener('pointerdown', e => { bgDown = e.target === bg; const b = e.target.closest && e.target.closest('[data-r]'); if (b && e.pointerType === 'mouse') e.preventDefault(); });
+    bg.addEventListener('touchend', e => { const b = e.target.closest && e.target.closest('[data-r]'); if (!b) return; e.preventDefault(); lastTouch = Date.now(); act(b.dataset.r); }, { passive: false });
+    bg.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-r]'); if (b) { if (Date.now() - lastTouch > 700) act(b.dataset.r); return; } if (e.target === bg && bgDown) close(); });
+    show(sg); }); }
   W.querySelector('.pp-top').addEventListener('click', async e => { const x = e.target.dataset && e.target.dataset.x; if (!x) return; const sl = s.slopes.find(y => y.id === st.sel);
     if (['move', 'pen', 'split', 'rl'].includes(x)) ppMode(W, st, x);
     else if (x === 'addn') { if (!sl) return toast('Tap a slope first'); const v = await ppAskNum(`${sl.name}: how many purlins (evenly along the slope)?`, String(sl.pad.t.length || 6)); const n = Math.min(41, parseInt(v) || 0); if (n < 2) return; let kk = st.armed && PP_TRAY.find(q => q[0] === st.armed)[2] ? st.armed : null; ppKF(sl); if (!kk && sl.pad.t.length) { const cnt = {}; sl.pad.k.forEach((q, i) => { const key2 = q === 'zed' && sl.pad.f[i] < 0 ? 'zedr' : q; cnt[key2] = (cnt[key2] || 0) + 1; }); kk = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0]; }
