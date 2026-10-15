@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.9.7">
+<meta name="app-version" content="1.9.8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.9.7';
+const APP_VERSION = '1.9.8';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -7980,7 +7980,7 @@ function sdTplHTML() { const L = sdTpl(), P = Object.keys(REF.priorities);
 /* ===== v1.9.0 (BETA): ROOF SHEET SCHEDULE - purlin spacings -> sheet lengths, counts, rooflights, ancillaries, supplier RFQ PDFs =====
    Inside a job: job.sheetSchedules[] (synced with the job, no DB change). Standalone: this device only (IndexedDB key 'sheets.standalone').
    All spans / fixings / laps are conservative defaults for a quotation request - 'check with manufacturer'. */
-const SS_OV = 75, SS_LAP = 150, SS_TRANSPORT = 13500;
+const SS_OV = 75, SS_CB = 75, SS_LAP = 150, SS_TRANSPORT = 13500;
 // [maker, product, kind, cover mm, max length mm, thicknesses]
 const SS_PRODUCTS = [
   ['Tata Steel', 'Trisomet 333 composite roof panel', 'composite', 1000, 13500, ['40 mm', '60 mm', '80 mm', '100 mm', '115 mm', '120 mm', '150 mm']],
@@ -8020,9 +8020,16 @@ const ssUpX = 0;
 const ssUp = sl => !(sl.dir === 'down' || sl.dir === 'left');
 const ssBL = v => { const m = /^\s*(\d+)\s*(?:bays?)?\s*[@x×]\s*([\d.]+)/i.exec(String(v || '')); return m ? +m[1] * +m[2] : parseFloat(v) || 0; };
 function ssSp(sl) { const a = (sl.sp || []).slice(0, +sl.n || 0).map(v => parseFloat(v)).filter(x => x > 0); return a.length ? a.slice().reverse() : ssParse(sl.spacings); }
-function ssSlope(s, sl) { const p = ssProd(s), sp = ssSp(sl), ov = String(sl.overhang ?? '').trim() === '' ? (+s.ovDef || SS_OV) : +sl.overhang || 0, top = +sl.topExt || 0, lap = +sl.lap || +s.lap || SS_LAP;
+// 1.9.8 eaves rule: 'sheet past last purlin' is measured from the last purlin INTO the gutter and already includes the cutback (default 75 mm).
+// Cutback is informational unless the schedule says the eaves figure is measured to the gutter edge ('add' mode). Blank = 0 (no hidden default length).
+function ssMig(s) { if (s && 'ovDef' in s) { if (s.cutback == null || s.cutback === '') s.cutback = String(+s.ovDef || SS_CB); delete s.ovDef; } return s; }
+function ssCB(s, sl) { const v = String((sl && sl.cutback) ?? '').trim(); return v !== '' ? (+v || 0) : (String(s.cutback ?? '').trim() !== '' ? +s.cutback || 0 : SS_CB); }
+const ssGutEnd = sl => /gutter/i.test(sl.endType || '');
+function ssOv(s, sl) { const raw = String(sl.overhang ?? '').trim(), ov = +raw || 0; return ov + (s.cbMode === 'add' && ssGutEnd(sl) && raw !== '' ? ssCB(s, sl) : 0); }
+function ssCbNote(s, sl) { return ssGutEnd(sl) ? (s.cbMode === 'add' ? `+ ${ssCB(s, sl)} mm cutback` : `incl. ${ssCB(s, sl)} mm cutback`) : ''; }
+function ssSlope(s, sl) { ssMig(s); const p = ssProd(s), sp = ssSp(sl), ov = ssOv(s, sl), top = +sl.topExt || 0, lap = +sl.lap || +s.lap || SS_LAP;
   const pos = [ov]; sp.forEach(x => pos.push(pos[pos.length - 1] + x)); const L = sp.length ? Math.round(pos[pos.length - 1] + top) : 0;
-  const maxL = Math.min(+s.maxLen || SS_TRANSPORT, p ? p.max : SS_TRANSPORT); const pieces = [], warn = [];
+  const maxL = Math.min(+s.maxLen || SS_TRANSPORT, p ? p.max : SS_TRANSPORT); const pieces = [], warn = []; if (ssGutEnd(sl) && sp.length && String(sl.overhang ?? '').trim() === '') warn.push(`${sl.name || 'Slope'}: enter the eaves figure - last purlin into the gutter (${ssCbNote(s, sl)})`);
   const man = String(sl.splits || '').split(/[,; ]+/).map(Number).filter(k => k >= 2 && k < pos.length).sort((a, b) => a - b).filter((k, i, a) => a.indexOf(k) === i);
   if (L && man.length) { let st = 0; man.forEach(k => { pieces.push({ from: st, to: pos[k - 1] + lap / 2, at: k - 1, man: true }); st = pos[k - 1] - lap / 2; }); pieces.push({ from: st, to: L }); pieces.forEach(x => { if (x.to - x.from > maxL) warn.push(`Manual split: a length of ${Math.round(x.to - x.from)} mm is over ${maxL} mm`); }); }
   else if (L) { let st = 0; while (L - st > maxL) { let best = -1; for (let k = pos.length - 2; k >= 1; k--) if (pos[k] > st + lap && pos[k] + lap / 2 - st <= maxL) { best = k; break; } if (best < 0) { warn.push(`No purlin within ${maxL} mm for an end lap - check purlin positions`); break; } pieces.push({ from: st, to: pos[best] + lap / 2, at: best }); st = pos[best] - lap / 2; } pieces.push({ from: st, to: L }); }
@@ -8069,11 +8076,11 @@ async function ssaLoad() { if (SSA.loaded) return; const v = await DB.getKV('she
 const ssaSave = () => DB.setKV('sheets.standalone', SSA.holder);
 function ssCtx() { const c = S.ctx || {}; if (c.job) return { h: c.job, job: c.job, save: () => markDirty(c.job), base: `#/job/${c.job.id}/sheets` }; return { h: SSA.holder, save: ssaSave, base: '#/sheets' }; }
 const ssCur = () => { const r = route(); const id = r[0] === 'sheets' ? r[1] : r[3]; return (ssCtx().h.sheetSchedules || []).find(x => x.id === id); };
-const ssNewSlope = n => ({ id: uid(), name: 'Slope ' + n, sec: 'A', pitch: '', dir: n % 2 ? 'up' : 'down', n: '', sp: [], endType: 'Eaves into gutter', spacings: '', overhang: String((window.S && ssCtx && (() => { try { const c = ssCur(); return c && c.ovDef; } catch (e) { return ''; } })()) || SS_OV), topExt: '80', bldLen: '', rlCols: '', notes: '', sketch: { strokes: [], labels: [] } });
+const ssNewSlope = n => ({ id: uid(), name: 'Slope ' + n, sec: 'A', pitch: '', dir: n % 2 ? 'up' : 'down', n: '', sp: [], endType: 'Eaves into gutter', spacings: '', overhang: '', topExt: '80', bldLen: '', rlCols: '', notes: '', sketch: { strokes: [], labels: [] } });
 function newSheetSchedule(job) { const st = S.settings, c = (job && job.client) || {}, s = (job && job.site) || {};
   return { id: uid(), ref: (job && (job.rp || job.ref)) || '', date: todayISO(), project: job ? [c.name, s.name !== c.name ? s.name : ''].filter(Boolean).join(' - ') : '', contact: c.contact || '', phone: c.phone || '', delivery: 'site',
     address: job ? [s.address, (s.postcode || '').toUpperCase()].filter(Boolean).join(', ') : '', reqBy: '', by: (Cloud.profile && Cloud.profile.full_name) || st.surveyor || '',
-    product: 'KS1000 RW trapezoidal composite roof panel', cover: '1000', thick: '80 mm', colour: '', linerColour: 'Bright White (liner)', maxSpan: '', lap: String(SS_LAP), ovDef: String(SS_OV), maxLen: String(SS_TRANSPORT),
+    product: 'KS1000 RW trapezoidal composite roof panel', cover: '1000', thick: '80 mm', colour: '', linerColour: 'Bright White (liner)', maxSpan: '', lap: String(SS_LAP), cutback: String(SS_CB), cbMode: 'incl', maxLen: String(SS_TRANSPORT),
     purlinType: 'Zed (cold-rolled)', purlinDepth: '', purlinFlange: '', purlinGauge: '', gutters: [], rlProduct: '', rlSkin: 'Triple skin', rlFrag: 'Class B (non-fragile)', notes: '', slopes: [ssNewSlope(1)] }; }
 /* ---------- section drawing (to scale along the slope) ---------- */
 function ssSection(s, r, W = 1100, H = 260) { const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); if (!r.L) return c.toDataURL('image/png');
@@ -8081,7 +8088,7 @@ function ssSection(s, r, W = 1100, H = 260) { const c = document.createElement('
   r.pos.forEach((v, i) => { g.fillStyle = '#334155'; g.fillRect(X(v) - 4, y0 + 8, 8, 34); g.fillStyle = '#64748b'; g.fillText('P' + (i + 1), X(v), y0 + 58); });
   r.sp.forEach((v, i) => { const a = X(r.pos[i]), b = X(r.pos[i + 1]); g.strokeStyle = r.span && v > r.span ? '#dc2626' : '#94a3b8'; g.beginPath(); g.moveTo(a, y0 + 72); g.lineTo(b, y0 + 72); g.stroke(); g.fillStyle = r.span && v > r.span ? '#dc2626' : '#475569'; g.fillText(String(v), (a + b) / 2, y0 + 88); });
   r.pieces.forEach((x, i) => { const yy = y0 - 6 - (i % 2) * 10; g.fillStyle = i % 2 ? '#1d4ed8' : '#2563eb'; g.globalAlpha = 0.85; g.fillRect(X(x.from), yy - 10, (x.to - x.from) * k, 10); g.globalAlpha = 1; g.fillStyle = '#111'; g.font = 'bold 14px sans-serif'; g.fillText(`${x.len} mm`, X((x.from + x.to) / 2), yy - 26 - (i % 2) * 6); g.font = '13px sans-serif'; });
-  g.fillStyle = '#111'; g.textAlign = 'left'; g.fillText(`Eaves (overhang ${r.sl.overhang || 0} mm)`, 6, 24); g.textAlign = 'right'; g.fillText(`Ridge (+${r.sl.topExt || 0} mm past top purlin)`, W - 6, 24); g.textAlign = 'center'; g.font = 'bold 14px sans-serif'; g.fillText(`${r.sl.name}: sheet run ${r.L} mm along the slope - not to vertical scale`, W / 2, H - 14);
+  g.fillStyle = '#111'; g.textAlign = 'left'; g.fillText(`Eaves (last purlin into gutter ${r.sl.overhang || 0} mm${ssCbNote(s, r.sl) ? ', ' + ssCbNote(s, r.sl) : ''})`, 6, 24); g.textAlign = 'right'; g.fillText(`Ridge (+${r.sl.topExt || 0} mm past top purlin)`, W - 6, 24); g.textAlign = 'center'; g.font = 'bold 14px sans-serif'; g.fillText(`${r.sl.name}: sheet run ${r.L} mm along the slope - not to vertical scale`, W / 2, H - 14);
   return c.toDataURL('image/png'); }
 /* ---------- views ---------- */
 function ssResults(s) { const C = ssCalc(s), f = v => (v / 1000).toFixed(2) + ' m';
@@ -8104,7 +8111,7 @@ function viewSheetSchedule(h, s, job) { const f = mk(h), b = `sheetSchedules#${s
       <div class="row">${sel('Top end', sb + '.topType', SS_TOPS, sl.topType || SS_TOPS[0])}${f.text('Step down from previous slope (mm)', sb + '.drop', { type: 'number', ph: 'e.g. 600 lean-to / canopy' })}</div>
       <div class="row">${f.text('Top gap - ridge / wall to top purlin (mm)', sb + '.topExt', { type: 'number' })}${f.text('Number of purlin spaces', sb + '.n', { type: 'number', ph: 'e.g. 6' })}</div>${spF}
       ${n ? '' : f.text('…or type the spacings in one line (eaves up)', sb + '.spacings', { ph: 'e.g. 1500, 4@1800, 1200', hint: 'Use "n@x" for repeated bays.' })}
-      <div class="row">${sel('Bottom end', sb + '.endType', SS_ENDS, sl.endType)}${f.text('Sheet past last purlin (mm)', sb + '.overhang', { type: 'number', ph: 'e.g. 200 valley, 450 eaves' })}</div>
+      <div class="row">${sel('Bottom end', sb + '.endType', SS_ENDS, sl.endType)}${f.text(`Last purlin into gutter (mm${ssGutEnd(sl) ? ', ' + ssCbNote(s, sl) : ''})`, sb + '.overhang', { type: 'number', ph: 'e.g. 250' })}${ssGutEnd(sl) ? f.text('Cutback (mm)', sb + '.cutback', { type: 'number', ph: String(ssCB(s, Object.assign({}, sl, { cutback: '' }))) }) : ''}</div>
       <div class="row">${f.text('Roof / building length (m) - for sheet count', sb + '.bldLen', { ph: 'e.g. 24  or  6@7.25' })}${f.text('Rooflight columns', sb + '.rlCols', { ph: 'e.g. 3, 7, 11 / every 4 / bays' })}</div>
       ${sl.rlCols ? `<div class="row">${f.text('Rooflight from purlin no. (eaves = 1)', sb + '.rlFrom', { type: 'number', ph: 'blank = full length' })}${f.text('to purlin no.', sb + '.rlTo', { type: 'number', ph: 'e.g. 6' })}</div>` : ''}
       </fieldset>${f.text('Notes', sb + '.notes')}
@@ -8116,7 +8123,7 @@ function viewSheetSchedule(h, s, job) { const f = mk(h), b = `sheetSchedules#${s
     <div class="card"><h2>Panel system</h2>${sel('Manufacturer / product', b + '.product', prodOpts, s.product)}
       <div class="row">${sel('Thickness / gauge', b + '.thick', p ? p.th : [], s.thick)}${f.text('Cover width (mm)', b + '.cover', { type: 'number' })}</div>
       <div class="row">${flPick('Colour (weather side)', b + '.colour', s.colour, 'colour', 'Choose…')}${f.text('Liner colour', b + '.linerColour')}</div>
-      <div class="row">${f.text('Max purlin centres (mm) - check with manufacturer', b + '.maxSpan', { type: 'number', ph: 'default ' + (ssDefSpan(s) || '?') })}${f.text('End lap onto another sheet (mm)', b + '.lap', { type: 'number', ph: '150' })}${f.text('Default eaves overhang (mm)', b + '.ovDef', { type: 'number', ph: '75' })}</div>${f.text('Max sheet length (mm, transport)', b + '.maxLen', { type: 'number' })}</div>
+      <div class="row">${f.text('Max purlin centres (mm) - check with manufacturer', b + '.maxSpan', { type: 'number', ph: 'default ' + (ssDefSpan(s) || '?') })}${f.text('End lap onto another sheet (mm)', b + '.lap', { type: 'number', ph: '150' })}${f.text('Cutback into gutter (mm)', b + '.cutback', { type: 'number', ph: '75' })}${f.seg('Eaves figure (last purlin into gutter)', b + '.cbMode', [['incl', 'Includes the cutback'], ['add', 'To gutter edge - add cutback']])}</div>${f.text('Max sheet length (mm, transport)', b + '.maxLen', { type: 'number' })}</div>
     <div class="card"><h2>Purlins</h2>${sel('Purlin type', b + '.purlinType', SS_PURLINS, s.purlinType)}<div class="row">${f.text('Depth (mm)', b + '.purlinDepth', { type: 'number', ph: 'e.g. 130' })}${f.text('Flange (mm)', b + '.purlinFlange', { type: 'number', ph: 'e.g. 65' })}${f.text('Gauge (mm)', b + '.purlinGauge', { type: 'number', ph: 'e.g. 1.6' })}</div><p class="hint ss-fx">Suggested fixing: ${esc(C.fx.text)}</p></div>
     <div class="card"><h2>Rooflights</h2>${sel('Rooflight', b + '.rlProduct', rlOpts, s.rlProduct, 'None')}<div class="row">${sel('Skins', b + '.rlSkin', SS_SKINS, s.rlSkin)}${sel('Fragility', b + '.rlFrag', SS_FRAG, s.rlFrag)}</div><p class="hint">Profile to match the panel: ${esc(p ? p.name : '-')}. Choose the rooflight columns per slope below.</p></div>
     ${s.slopes.map(slope).join('')}<button type="button" class="btn block" data-act="ssaddsl">${I.plus} Add roof slope</button>
@@ -8191,7 +8198,7 @@ async function buildSheetRFQ(s, sup) { const { jsPDF } = window.jspdf; const doc
   ssSecs(s).forEach(key => { const rs = C.slopes.filter(r => (r.sl.sec || 'A').trim() === key && r.L); if (!rs.length) return; doc.addPage(); const yy = head(true); const iw = W - 2 * M, ih = iw * 640 / 1400 * 0.82, iw2 = ih * 1400 / 640;
     doc.addImage(ssXSection(s, key, C), 'PNG', M + (iw - iw2) / 2, yy, iw2, ih);
     doc.autoTable(Object.assign({}, T, { startY: yy + ih + 3, styles: Object.assign({}, T.styles, { fontSize: 8 }), head: [['Slope', 'Pitch', 'Top gap', 'Purlin spacings, ridge down (mm)', 'Bottom end', 'Sheet run', 'Lengths (mm)', 'Roof length', 'Cols / RL']],
-      body: rs.map(r => [tx(r.sl.name), `${r.sl.pitch || '[__]'}°`, `${r.sl.topExt || 0}`, r.sp.slice().reverse().join(', '), tx(`${r.sl.endType || ''} +${r.sl.overhang || 0}`), `${r.L}`, r.pieces.map(x => x.len).join(' + '), `${r.sl.bldLen || (ssBaysTotal(s) ? ssBaysTotal(s) + " (bays)" : "[__]")} m`, `${r.cols}${r.rlc.length ? ' / ' + r.rlc.length : ''}`]) }));
+      body: rs.map(r => [tx(r.sl.name), `${r.sl.pitch || '[__]'}°`, `${r.sl.topExt || 0}`, r.sp.slice().reverse().join(', '), tx(`${r.sl.endType || ''} +${r.sl.overhang || 0}${ssCbNote(s, r.sl) ? ' (' + ssCbNote(s, r.sl) + ')' : ''}`), `${r.L}`, r.pieces.map(x => x.len).join(' + '), `${r.sl.bldLen || (ssBaysTotal(s) ? ssBaysTotal(s) + " (bays)" : "[__]")} m`, `${r.cols}${r.rlc.length ? ' / ' + r.rlc.length : ''}`]) }));
     const sk = rs.filter(r => r.sl.sketch && r.sl.sketch.strokes.length); if (sk.length && doc.lastAutoTable.finalY < H - 70) { const w2 = 90; sk.slice(0, 2).forEach((r, i) => { doc.addImage(flPNG(r.sl.sketch, 900, 450), 'PNG', M + i * (w2 + 6), doc.lastAutoTable.finalY + 4, w2, w2 / 2); }); } });
   if (typeof rdAddPages === 'function' && rdIncl(s)) rdAddPages(doc, s);
   const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); if (doc.internal.pageSize.getWidth() > 300) continue; font(7.5, 'normal', LG); doc.text(`Page ${i} of ${n}`, W - M, H - 6, { align: 'right' }); doc.text('Spans, laps and fixings are guidance only - check with the manufacturer.', M, H - 6); }
@@ -8373,7 +8380,7 @@ function ppPad(s, key, save) { window._ppS = s; return new Promise(resolve => { 
       return ppAskChain(sg); } ch(); });
   // tap-gap dialog with Next ›: saves and opens the next empty gap along the slope, ridge to eaves (then the next slope)
   // 1.9.6: one dialog stays open; Next › saves and loads the next empty gap into the SAME input, focused synchronously in the tap (iOS keeps the keyboard up)
-  function ppAskChain(sg) { return new Promise(res => { const nmOf = g => g.kind === 'over' ? `${g.sl.name}: sheet past the bottom purlin` : g.kind === 'top' ? `${g.sl.name}: gap at the ${/Wall/.test(g.sl.topType || '') ? 'wall' : 'ridge'} (top purlin to top)` : `${g.sl.name}: purlin space ${ppGaps(g.sl).length - g.i} (from the ridge)`;
+  function ppAskChain(sg) { return new Promise(res => { const nmOf = g => g.kind === 'over' ? `${g.sl.name}: ${ssGutEnd(g.sl) ? `last purlin into gutter (${ssCbNote(window._ppS || {}, g.sl)})` : 'sheet past the bottom purlin'}` : g.kind === 'top' ? `${g.sl.name}: gap at the ${/Wall/.test(g.sl.topType || '') ? 'wall' : 'ridge'} (top purlin to top)` : `${g.sl.name}: purlin space ${ppGaps(g.sl).length - g.i} (from the ridge)`;
     const bg = document.createElement('div'); bg.className = 'fl-ask'; bg.innerHTML = `<div class="fl-askb"><h3 style="margin:0 0 8px"></h3><input id="pp-num" type="text" inputmode="decimal" enterkeyhint="next" autocomplete="off" placeholder="mm - type or write" style="font-size:28px;width:100%"><div class="btns" style="margin-top:10px"><button type="button" class="btn" data-r="x">Cancel</button><button type="button" class="btn" data-r="clr">Clear</button><button type="button" class="btn" data-r="ok">Done</button><button type="button" class="btn primary" data-r="next">Next ›</button></div></div>`;
     document.body.appendChild(bg); const h = bg.querySelector('h3'), i = bg.querySelector('#pp-num'); let cur = null, closed = false;
     const show = g => { cur = g; h.textContent = nmOf(g); i.value = String(g.val ?? ''); i.focus(); try { i.setSelectionRange(0, i.value.length); } catch (e) { i.select(); } };
@@ -8642,7 +8649,7 @@ function rdSection(doc, s, C, key, no) { const g = rdSecGeo(s, key, C); if (!g.l
     // dims above: overhang, sheet pieces (rooflight captioned), top gap, check dim
     const ds = ssDimSegs(s, sl, r), ov = r.pos[0], top = r.L - r.pos[r.pos.length - 1];
     ds.forEach((x, j) => K.dim(off(P(pt(x.from)), tk), off(P(pt(x.to)), tk), n, 9 + (j % 2) * 9, String(x.len), x.kind === 'rl' ? 'O/A ROOFLIGHT' : '', x.kind === 'rl' ? 0 : 0, 1.5));
-    if (ov > 0) K.dim(off(pa, tk), off(P(pt(ov)), tk), n, 4, String(Math.round(ov)), '', 0, 1.5); if (top > 0) K.dim(off(P(pt(r.pos[r.pos.length - 1])), tk), off(pb, tk), n, 4, String(Math.round(top)), '', 0, 1.5);
+    if (ov > 0) { K.dim(off(pa, tk), off(P(pt(ov)), tk), n, 4, String(Math.round(ov)), '', 0, 1.5); const cn = ssCbNote(s, sl); if (cn) { const q0 = off(pa, tk + 4), lab = rdTx(cn.toUpperCase()); K.txt(lab, [q0[0] + (q.up ? -2 : 2) + n[0] * 0, q0[1] + 9], 0, 6, q.up ? 'right' : 'left', 60); } } if (top > 0) K.dim(off(P(pt(r.pos[r.pos.length - 1])), tk), off(pb, tk), n, 4, String(Math.round(top)), '', 0, 1.5);
     K.dim(off(pa, tk), off(pb, tk), n, 30, String(r.L), 'O/A CHECK DIM', 0, 1.5);
     // dims below: purlin spacings and O/A purlins
     const dn = [-n[0], -n[1]], dpp = Math.max(2.2, pd * k); for (let j = 1; j < r.pos.length; j++) K.dim(P(pt(r.pos[j - 1])), P(pt(r.pos[j])), dn, dpp + 5, String(Math.round(r.pos[j] - r.pos[j - 1])), '', 0, dpp + 1);
