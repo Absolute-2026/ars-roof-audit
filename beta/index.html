@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.5">
+<meta name="app-version" content="1.10.6">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.5';
+const APP_VERSION = '1.10.6';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -9180,7 +9180,7 @@ Object.assign(ACTIONS, {
 /* ===== v1.9.18 (BETA): foreman group sign-off for toolbox talks + RAMS (alongside self-sign); RAMS with several PDFs (e.g. WMP + RA), title / doc no / version / date read from page 1
    Foreman per job = a hidden entry in the shared 'brief' map ({id:'fm-<job>', fm:true, removed:true}) - nothing new to store elsewhere.
    A signature taken on the foreman's phone is the foreman's own daily_checks row with data.worker = {id?, name, company, role} and takenBy. */
-let bsFmOf = jobId => { const e = (S.settings.brief || {})['fm-' + jobId]; return e && e.uid ? e : null; };
+let bsFmOf = jobId => { const r = typeof fmJobOf === 'function' ? fmJobOf(jobId) : null; if (r) return r; const e = (S.settings.brief || {})['fm-' + jobId]; return e && e.uid ? e : null; };
 let bsIsForeman = it => !!it && (isMgr() || (bsFmOf(it.jobId) || {}).uid === me() || it.foreman === me());
 const bsWKey = (w, owner) => (w && w.id) ? w.id : w ? 'x:' + String(w.name || '').trim().toLowerCase() + '|' + String(w.company || '').trim().toLowerCase() : owner;
 const bsSignerKey = d => bsWKey(d.worker, d.owner);
@@ -9753,9 +9753,9 @@ function viewVanAdmin(v) { const ch = vanChecks(v.id), defs = vanDefects(v.id), 
   <div class="card"><h2>Documents</h2>${(v.data.docs || []).map((d, i) => `<div class="item"><div class="bd"><div class="t1">${esc(d.name)}</div><div class="t2">${fmtDate(d.date)}</div></div><button class="btn sm" data-act="van-doc" data-id="${v.id}" data-i="${i}">Open</button></div>`).join('') || '<p class="hint">V5, insurance certificate, MOT, service records…</p>'}<label class="btn block">${I.plus} Upload document (PDF / photo)<input type="file" accept="application/pdf,image/*" data-vandoc="${v.id}" hidden></label></div>
   <div class="card"><h2>Checks</h2>${ch.slice(0, 26).map(c => `<div class="item"><div class="bd"><div class="t1">${c.data.type === 'handover' ? 'Handover' : 'Weekly'} · ${fmtDate(c.data.date)} · ${esc(c.data.by || '')}</div><div class="t2">${(+c.data.mileage || 0).toLocaleString('en-GB')} miles · ${(c.data.defects || []).length ? (c.data.defects || []).length + ' defect(s)' : 'all OK'}${c.data.p_front ? ' · photos' : ''}</div></div><button class="btn sm" data-act="vc-pdf" data-id="${c.id}">PDF</button></div>`).join('') || '<p class="hint">No checks yet.</p>'}</div>
   ${inc.length ? `<div class="card"><h2>Damage / accidents</h2>${inc.map(i => `<div class="item"><div class="bd"><div class="t1">${fmtDate(i.data.date)} ${esc(i.data.time || '')} · ${esc(i.data.location || '')}</div><div class="t2">${esc(i.data.description || '')}</div><div class="t2">${esc(i.data.thirdParty || '')}</div><div style="display:flex;gap:4px;margin-top:4px">${['p1', 'p2', 'p3', 'p4'].map(k => recImgTag(i, k, 'height:50px;border-radius:6px')).join('')}</div></div></div>`).join('')}</div>` : ''}`; }
-async function vanEdit(v) { const d = v ? clone(v.data) : { reg: '', make: '', model: '', mileage: '', foreman: '' }; const fms = operatives().filter(o => o.active !== false);
+async function vanEdit(v) { const d = v ? clone(v.data) : { reg: '', make: '', model: '', mileage: '', foreman: '' }; const fms = operatives().filter(o => o.active !== false).sort((a, b) => (isForemanUid(b.id) - isForemanUid(a.id)) || String(a.full_name).localeCompare(b.full_name));
   const r = await modal(`<h3>${v ? 'Van ' + esc(d.reg) : 'Add van'}</h3><label class="f"><span class="lbl">Registration</span><input id="vn-reg" value="${esc(d.reg)}" autocapitalize="characters"></label><div class="row"><label class="f"><span class="lbl">Make</span><input id="vn-make" value="${esc(d.make || '')}"></label><label class="f"><span class="lbl">Model</span><input id="vn-model" value="${esc(d.model || '')}"></label></div>
-    <label class="f"><span class="lbl">Assigned foreman (driver)</span><select id="vn-fm"><option value="">None</option>${fms.map(o => `<option value="${o.id}" ${d.foreman === o.id ? 'selected' : ''}>${esc(o.full_name)}</option>`).join('')}</select></label><label class="f"><span class="lbl">Mileage (office record)</span><input id="vn-mi" type="number" value="${esc(d.mileage || '')}"></label>
+    <label class="f"><span class="lbl">Assigned foreman (driver)</span><select id="vn-fm"><option value="">None</option>${fms.map(o => `<option value="${o.id}" ${d.foreman === o.id ? 'selected' : ''}>${esc(o.full_name)}${isForemanUid(o.id) ? ' (foreman)' : ''}</option>`).join('')}</select></label><label class="f"><span class="lbl">Mileage (office record)</span><input id="vn-mi" type="number" value="${esc(d.mileage || '')}"></label>
     <div class="row">${VAN_DATES.map(([k, l]) => `<label class="f"><span class="lbl">${l} due</span><input type="date" id="vn-${k}" value="${esc(d[k] || '')}"></label>`).join('')}</div>
     <label class="f"><span class="lbl">Status</span><select id="vn-st"><option value="">In use (off road only if an unsafe defect is open)</option><option value="off" ${d.status === 'off' ? 'selected' : ''}>Off road</option><option value="sold" ${d.status === 'sold' ? 'selected' : ''}>Sold / gone</option></select></label>
     <button class="btn primary" id="vn-ok">Save</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#vn-ok').addEventListener('click', () => { const g = id => bg.querySelector('#' + id).value.trim(); if (!g('vn-reg')) return toast('Enter the registration'); const o = { reg: g('vn-reg').toUpperCase().replace(/\s+/g, ' '), make: g('vn-make'), model: g('vn-model'), foreman: g('vn-fm'), mileage: +g('vn-mi') || 0, status: g('vn-st') }; VAN_DATES.forEach(([k]) => o[k] = g('vn-' + k)); close(o); }));
@@ -9986,7 +9986,7 @@ bsFmOf = function (jobId) { const fm = bsFmRaw(jobId); if (!fm) return fm; const
 // records made while covering: "covering for <foreman>"
 { const _rp = recPut; recPut = function (r) { const c = coverMine(); if (c && /^van(check|defect|incident)$/.test(r.kind) && !r.data.coverFor && r.owner === me()) r.data.coverFor = c.data.fmName; return _rp(r); }; }
 { const _ds = dcSave; dcSave = function (now) { const c = coverMine(); if (c) (Ops.list || []).forEach(s => { if (isBs(s) && s.owner === me() && !s.coverFor && (s.at || 0) >= Date.parse(c.data.start + 'T00:00:00')) { s.coverFor = c.data.fmName; if (s.by && !/covering for/.test(s.by)) s.by = `${s.by} (covering for ${c.data.fmName})`; } }); return _ds(now); }; }
-async function coverLoad() { try { await recInit(); await recFetch('kind=in.(cover,holiday)'); } catch (e) { } }
+async function coverLoad() { try { await recInit(); await recFetch('kind=in.(cover,holiday,foremen)'); } catch (e) { } }
 // operatives the foreman can pick: everyone on his jobs (names from the job foreman entries), or all operatives for a manager/admin
 function coverCandidates(fm) { const out = {}; if (isAdm() || isMgr()) operatives().filter(o => o.active !== false && o.id !== fm).forEach(o => out[o.id] = o.full_name);
   Object.values(S.settings.brief || {}).filter(e => e && e.fm && e.uid === fm).forEach(e => Object.entries(e.names || {}).forEach(([id, n]) => { if (id !== fm) out[id] = out[id] || n; }));
@@ -10008,11 +10008,11 @@ function coverBanner() { const m = coverMine(), o = coverOfMe(), soon = coversAl
   return (m ? `<div class="card cv-banner" style="background:#eff6ff;border-left:6px solid #2563eb"><b>👷 Cover:</b> you are covering for <b>${esc(m.data.fmName)}</b> ${m.data.end ? 'until ' + fmtDate(m.data.end) : 'until he takes it back'}${m.data.van ? ` (van ${esc(m.data.vanReg)})` : ''}. You do the group sign-offs${m.data.van ? ' and the van check' : ''}.</div>` : '')
     + (o ? `<div class="card cv-banner" style="background:#eff6ff;border-left:6px solid #2563eb"><b>👷 Cover:</b> <b>${esc(o.data.opName)}</b> is covering for you ${coverRange(o)}. <button class="btn sm" data-act="cv-end" data-id="${o.id}">End early</button></div>` : '')
     + (!m && !o && soon ? `<div class="card cv-banner" style="border-left:6px solid #93c5fd"><b>Cover booked:</b> ${esc(soon.data.opName)} for ${esc(soon.data.fmName)}, ${coverRange(soon)}. ${soon.data.fm === me() ? `<button class="btn sm" data-act="cv-end" data-id="${soon.id}">Cancel</button>` : ''}</div>` : ''); }
-const isFmAnywhere = () => Object.values(S.settings.brief || {}).some(e => e && e.fm && e.uid === me()) || vans().some(v => v.data.foreman === me());
+const isFmAnywhere = () => isForemanUid(me()) || Object.values(S.settings.brief || {}).some(e => e && e.fm && e.uid === me() && !fmData().jobs[e.jobId]) || vans().some(v => v.data.foreman === me());
 let coverT = 0;
 { const _vh = viewOpHome; viewOpHome = function () { const v = _vh(); if (Date.now() - coverT > 60000 && signedIn() && online()) { coverT = Date.now(); const before = JSON.stringify(recAll('cover').map(c => c.id + c.status)); coverLoad().then(() => { if (JSON.stringify(recAll('cover').map(c => c.id + c.status)) !== before && !route()[0]) rerender(); }); }
   const own = isFmAnywhere() && !coverOfMe() && !coversAll().some(c => c.data.fm === me() && coverOpen(c)) ? `<button class="btn block" data-act="cv-new">👷 Cover while I'm away</button>` : '';
-  const hol = !holMine() ? `<button class="btn block" data-act="hol-new" style="margin-top:6px">🏖 I'm on holiday</button>` : '';
+  const hol = isFmAnywhere() && !holMine() ? `<button class="btn block" data-act="hol-new" style="margin-top:6px">🏖 I'm on holiday</button>` : '';
   const tools = own || hol ? `<div class="card">${own}${hol}</div>` : '';
   v.body = holBanner() + coverBanner() + v.body + tools; return v; }; }
 // manager / admin: Admin > Operatives shows covers, and a foreman's profile has "Holiday cover"
@@ -10037,6 +10037,35 @@ Object.assign(ACTIONS, { 'hol-new'() { holEdit(); }, async 'hol-end'(a) { const 
 { const _wm = wkMissing; wkMissing = function (sheet, today) { const m = _wm(sheet, today); const o = sheet && (sheet.owner || (isOp() ? me() : '')); return o ? m.filter(d => !holidayOn(o, d)) : m; }; }
 // Team page: who is on holiday
 { const _ot = opsTeamCard; opsTeamCard = function () { const H = holAll().filter(holOpen); const h = _ot(); return H.length ? h.replace('</h2>', `</h2><p class="hint" style="margin-bottom:8px">🏖 On holiday: ${H.map(x => `<b>${esc(x.data.name)}</b> ${fmtDate(x.data.start).slice(0, 5)}-${fmtDate(x.data.end).slice(0, 5)}`).join(', ')}</p>`) : h; }; }
+
+/* ===== v1.10.6 (BETA): foremen set by managers / admin. Record id 'foremen' {flags:{uid:true}, jobs:{jobId:uid}, names:{uid:name}} (everyone can read).
+   The job foreman here is used for group sign-off / briefed-by defaults (bsFmOf), cover, the van picker (foremen first) and the foreman-only holiday / cover buttons. */
+const fmRec = () => Rec.items.foremen && !Rec.items.foremen.deleted ? Rec.items.foremen : null;
+const fmData = () => Object.assign({ flags: {}, jobs: {}, names: {} }, (fmRec() || {}).data || {});
+function isForemanUid(uid) { if (!uid) return false; const d = fmData(); return !!d.flags[uid] || Object.values(d.jobs).includes(uid) || (typeof vans === 'function' && vans().some(v => v.data.foreman === uid)); }
+function fmJobOf(jobId) { const d = fmData(), uid = d.jobs[jobId]; if (!uid) return null; const j = (Ops.jobsTbl || []).find(x => x.id === jobId) || (Ops.jobs || []).find(x => x.id === jobId) || {}; const names = {};
+  const legacy = (S.settings.brief || {})['fm-' + jobId]; Object.assign(names, (legacy && legacy.names) || {}); (j.operatives || []).forEach(id => { const p = (Cloud.profiles || []).find(x => x.id === id); if (p) names[id] = p.full_name; }); names[uid] = d.names[uid] || names[uid] || '';
+  return { id: 'fm-' + jobId, fm: true, jobId, uid, name: names[uid], names }; }
+const fmJobsOf = uid => Object.entries(fmData().jobs).filter(([, u]) => u === uid).map(([j]) => j);
+function fmSave(mut) { let r = fmRec(); if (!r) { r = { id: 'foremen', kind: 'foremen', subject: null, owner: me(), status: null, data: { flags: {}, jobs: {}, names: {} }, deleted: false }; } r.data = Object.assign({ flags: {}, jobs: {}, names: {} }, r.data); mut(r.data); recPut(r); }
+const fmJobName = id => { const j = (Ops.jobsTbl || []).find(x => x.id === id) || {}; return `${j.ref || ''} ${j.site_name || ''}`.trim() || id; };
+Object.assign(ACTIONS, {
+  'fm-flag'(a) { const uid = a.dataset.id, p = (Cloud.profiles || []).find(x => x.id === uid) || {}; fmSave(d => { if (d.flags[uid]) { delete d.flags[uid]; Object.keys(d.jobs).forEach(j => { if (d.jobs[j] === uid) delete d.jobs[j]; }); } else { d.flags[uid] = true; d.names[uid] = p.full_name || ''; } }); toast(fmData().flags[uid] ? `${p.full_name} is a foreman` : 'Foreman removed'); rerender(); },
+  'fm-job'(a) { const uid = a.dataset.id, jid = a.dataset.job, p = (Cloud.profiles || []).find(x => x.id === uid) || {}; fmSave(d => { if (d.jobs[jid] === uid) delete d.jobs[jid]; else { d.jobs[jid] = uid; d.flags[uid] = true; d.names[uid] = p.full_name || ''; } }); rerender(); },
+});
+// profile (admin): Foreman toggle + jobs he runs + van
+{ const _vp = viewPerson; viewPerson = function (uid) { const h = _vp(uid); if (!isAdm() || !uid || uid === me()) return h; const on = !!fmData().flags[uid] || fmJobsOf(uid).length > 0, van = vans().find(v => v.data.foreman === uid && v.data.status !== 'sold');
+  const jobs = bsActiveJobs(); return `<div class="card" id="fm-card"><h2>Foreman <button class="btn sm ${on ? 'primary' : ''}" data-act="fm-flag" data-id="${esc(uid)}" style="margin-left:auto">${on ? '✓ Foreman' : 'Make foreman'}</button></h2>
+    ${on ? `<p class="hint">Jobs he is foreman on (group sign-off, briefed-by, cover):</p>${jobs.map(j => { const cur = fmData().jobs[j.id]; const other = cur && cur !== uid ? fmData().names[cur] || 'someone else' : ''; return `<label class="ckl"><input type="checkbox" data-act="fm-job" data-id="${esc(uid)}" data-job="${esc(j.id)}" ${cur === uid ? 'checked' : ''}> ${esc(j.ref || '')} ${esc(j.site_name || '')}${other ? ` <span class="small">(now ${esc(other)})</span>` : ''}</label>`; }).join('') || '<p class="hint">No active jobs.</p>'}<p class="hint">Van: ${van ? esc(van.data.reg) : 'none'} (set in Fleet)</p>` : '<p class="hint">Foremen run group sign-offs, can hand over cover and set holidays, and drive a van.</p>'}</div>` + h; }; }
+// Admin > Operatives: Foremen list
+{ const _o = admOpsHTML; admOpsHTML = function () { const d = fmData(), ids = [...new Set(Object.keys(d.flags).concat(Object.values(d.jobs)))];
+  return `<div class="card" id="fm-list"><h2>Foremen <span class="small" style="margin-left:auto">${ids.length}</span></h2>${ids.map(uid => { const p = (Cloud.profiles || []).find(x => x.id === uid) || {}, van = vans().find(v => v.data.foreman === uid && v.data.status !== 'sold'), J = fmJobsOf(uid);
+    return `<a class="item" href="#/person/${uid}"><div class="bd"><div class="t1">${esc(p.full_name || d.names[uid] || '?')}</div><div class="t2">${J.length ? J.map(fmJobName).map(esc).join(', ') : 'No job yet'}</div><div class="meta">${van ? `<span class="tag">🚐 ${esc(van.data.reg)}</span>` : ''}${typeof holAll === 'function' && holAll().some(h => h.subject === uid && holLive(h)) ? '<span class="tag amber">On holiday</span>' : ''}</div></div></a>`; }).join('') || '<p class="hint">No foremen yet - open an operative and tap <b>Make foreman</b>.</p>'}</div>` + _o(); }; }
+// Team page: Foreman badge
+{ const _ot = opsTeamCard; opsTeamCard = function () { let h = _ot(); operatives().filter(o => isForemanUid(o.id)).forEach(o => { h = h.replace(`<div class="t1">${esc(o.full_name || '')}</div>`, `<div class="t1">${esc(o.full_name || '')} <span class="tag green">Foreman</span></div>`); }); return h; }; }
+// staff/admin load the foremen record with the admin data; operatives with cover/holiday (coverLoad)
+{ const _ae = admEnsure; admEnsure = function (force) { const go1 = force || Date.now() - admLoadT >= 30000; _ae(force); if (go1 && signedIn() && isAdm()) recFetch('kind=eq.foremen').then(() => { if (/^(admin|person)$/.test(route()[0] || '')) rerender(); }).catch(() => { }); }; }
+setTimeout(() => { if (signedIn()) recInit().then(() => recFetch('kind=eq.foremen')).catch(() => { }); }, 1600);
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
