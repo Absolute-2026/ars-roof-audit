@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.9.18">
+<meta name="app-version" content="1.9.19">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.9.18';
+const APP_VERSION = '1.9.19';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -9068,7 +9068,7 @@ async function bsOpenPdf(path, name) { const key = 'bs.pdf.' + path; let blob = 
   if (!blob) return toast('PDF not available offline yet - open it once with signal'); const url = URL.createObjectURL(blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' })); const w = window.open(url, '_blank'); if (!w) qOut(blob, (name || 'document') + '.pdf'); }
 /* ---------- who / signed ---------- */
 function bsTargets(it) { const p = (Ops.jobsTbl || []).find(j => j.id === it.jobId); const ids = it.all ? ((p && p.operatives) || it.to || []) : (it.to || []); return [...new Set(ids)]; }
-const bsMineFor = (it, owner) => Ops.list.filter(s => isBs(s) && s.issueId === it.id && String(s.rev) === String(it.rev) && (!owner || s.owner === owner));
+const bsMineFor = (it, owner) => Ops.list.filter(s => isBs(s) && s.issueId === it.id && String(s.rev) === String(it.rev) && (!owner || s.owner === owner) && !s.worker && !s.briefer);
 function bsForMe() { const jobs = (Ops.jobs || []).map(j => j.id), uid = me(); return bsAll().filter(it => jobs.includes(it.jobId) && (it.all || (it.to || []).includes(uid))).sort((a, b) => (b.upd || 0) - (a.upd || 0)); }
 const bsSignedMe = it => bsMineFor(it, me()).length > 0;
 /* ---------- operative: home card + read & sign ---------- */
@@ -9181,7 +9181,7 @@ Object.assign(ACTIONS, {
    Foreman per job = a hidden entry in the shared 'brief' map ({id:'fm-<job>', fm:true, removed:true}) - nothing new to store elsewhere.
    A signature taken on the foreman's phone is the foreman's own daily_checks row with data.worker = {id?, name, company, role} and takenBy. */
 const bsFmOf = jobId => { const e = (S.settings.brief || {})['fm-' + jobId]; return e && e.uid ? e : null; };
-const bsIsForeman = it => !!it && (bsFmOf(it.jobId) || {}).uid === me() || (it && it.foreman === me());
+const bsIsForeman = it => !!it && (isMgr() || (bsFmOf(it.jobId) || {}).uid === me() || it.foreman === me());
 const bsWKey = (w, owner) => (w && w.id) ? w.id : w ? 'x:' + String(w.name || '').trim().toLowerCase() + '|' + String(w.company || '').trim().toLowerCase() : owner;
 const bsSignerKey = d => bsWKey(d.worker, d.owner);
 // names the foreman can show (operatives cannot read other profiles): snapshot taken when issued / foreman set
@@ -9200,16 +9200,18 @@ bsReadHTML = function (it) { const files = bsFiles(it);
   let h = _bsRead0(it).replace(/<button class="btn block" style="margin-top:8px" data-act="bs-pdf"[^]*?<\/button>/, files.map((f, i) => `<button class="btn block" style="margin-top:8px" data-act="bs-pdf" data-id="${it.id}" data-i="${i}">${I.pdf} Open ${esc(f.name || 'PDF')}${f.pages ? ` · ${f.pages} page${f.pages > 1 ? 's' : ''}` : ''}${f.size ? ` · ${(f.size / 1048576).toFixed(1)} MB` : ''}</button>`).join(''));
   if (it.docNo || it.owner) h = h.replace('</p>', `${it.docNo ? '<br>Document ' + esc(it.docNo) : ''}</p>`);
   if (!bsIsForeman(it)) return h;
-  const mine = Ops.list.filter(s => isBs(s) && s.issueId === it.id && String(s.rev) === String(it.rev)); const done = k => mine.find(s => bsSignerKey(s) === k);
+  const mine = Ops.list.filter(s => isBs(s) && !s.briefer && s.issueId === it.id && String(s.rev) === String(it.rev)); const done = k => mine.find(s => bsSignerKey(s) === k);
   const crew = bsCrew(it).filter(c => c.id !== me()); const extras = mine.filter(s => s.worker && !s.worker.id);
-  const row = (k, name, sub, s) => `<div class="item bs-crew" data-k="${esc(k)}"><div class="bd"><div class="t1">${esc(name)}</div>${sub ? `<div class="t2">${esc(sub)}</div>` : ''}<div class="meta">${s ? `<span class="tag green">Signed ${new Date(s.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>` : '<span class="tag">Not signed on this phone</span>'}</div></div>${s ? '' : `<button class="btn primary" data-act="bs-fsign" data-id="${it.id}" data-w="${esc(k)}" data-n="${esc(name)}">Sign</button>`}</div>`;
-  return h + `<div class="card" id="bsgroup"><h2>Group sign-off <span class="small" style="margin-left:auto">you are the foreman</span></h2><p class="hint">Brief each person, then hand them your phone: they tap Sign, confirm they have read and understood, and sign. Anyone can still sign on their own phone instead.</p>
-    ${crew.map(c => row(c.id, c.name, '', done(c.id))).join('')}${extras.map(s => row(bsSignerKey(s), s.worker.name, [s.worker.company, s.worker.role].filter(Boolean).join(' · '), s)).join('')}
+  const row = (k, name, sub, s) => `<div class="item bs-crew" data-k="${esc(k)}"><div class="bd"><div class="t1">${esc(name)}</div>${sub ? `<div class="t2">${esc(sub)}</div>` : ''}<div class="meta">${s ? `<span class="tag green">Signed ${new Date(s.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span> <span class="small">${s.takenBy ? 'taken by ' + esc(s.takenBy) : 'own phone'}</span>` : `<span class="tag">${isMgr() ? 'Not signed' : 'Not signed on this phone'}</span>`}</div></div>${s ? '' : `<button class="btn primary" data-act="bs-fsign" data-id="${it.id}" data-w="${esc(k)}" data-n="${esc(name)}">Sign</button>`}</div>`;
+  let list; if (isMgr()) list = bsStatus(it).map(x => row(x.id, x.name, [x.company, x.role].filter(Boolean).join(' · '), x.s && x.s.data)).join('');
+  else list = crew.map(c => row(c.id, c.name, '', done(c.id))).join('') + extras.map(s => row(bsSignerKey(s), s.worker.name, [s.worker.company, s.worker.role].filter(Boolean).join(' · '), s)).join('');
+  return h + `<div class="card" id="bsgroup"><h2>Group sign-off <span class="small" style="margin-left:auto">${isMgr() ? 'on your phone' : 'you are the foreman'}</span></h2><p class="hint">Brief each person, then hand them your phone: they tap Sign, confirm they have read and understood, and sign. Anyone can still sign on their own phone instead.</p>
+    ${list}
     <button class="btn block" style="margin-top:8px" data-act="bs-fadd" data-id="${it.id}">${I.plus} Add someone else (agency / visitor)</button></div>`; };
 async function bsTake(it, worker) { const ok = await modal(`<h3>${esc(worker.name)}</h3><p>${esc(BS_KINDS[it.kind])}: <b>${esc(it.title)}</b>${it.kind === 'rams' ? ' rev ' + esc(it.rev) : ''}</p><p>Please confirm you have been briefed on, read and understood this ${it.kind === 'rams' ? 'RAMS' : 'toolbox talk'}.</p><button class="btn primary block" data-r="ok">I've read and understood - sign</button><button class="btn" data-r="">Cancel</button>`); if (ok !== 'ok') return;
   const sig = await signaturePad(); if (!sig) return toast('Not signed');
   const c = { v: 1, kind: 'briefsign', id: 'bs-' + uid(), issueId: it.id, rev: it.rev, bkind: it.kind, title: it.title, jobId: it.jobId, jobRef: it.jobRef || '', site: it.site || '', owner: me(), by: myName(), worker, takenBy: myName(), date: todayISO(), at: Date.now(), created: Date.now(), updated: Date.now(), sig, status: 'queued', submitted: Date.now() };
-  Ops.list.push(c); await dcSave(true); toast(`Signed by ${worker.name} - next`); rerender(true); if (typeof kick === 'function') kick(400); }
+  Ops.list.push(c); await dcSave(true); bsMgrLocal(c); toast(`Signed by ${worker.name} - next`); rerender(true); if (typeof kick === 'function') kick(400); }
 Object.assign(ACTIONS, {
   'bs-fsign'(a) { const it = (S.settings.brief || {})[a.dataset.id]; if (!it) return; const k = a.dataset.w; bsTake(it, /^x:/.test(k) ? null : { id: k, name: a.dataset.n }); },
   async 'bs-fadd'(a) { const it = (S.settings.brief || {})[a.dataset.id]; if (!it) return;
@@ -9219,7 +9221,7 @@ Object.assign(ACTIONS, {
   'bs-pdf'(a) { const it = (S.settings.brief || {})[a.dataset.id]; if (!it) return; const f = bsFiles(it)[+(a.dataset.i || 0)]; if (f) bsOpenPdf(f.path, f.name || it.title); },
 });
 // weekly sheet: a group signature by the foreman is not the foreman's own toolbox talk record unless it is his own
-{ const _fw = bsFillWeek; bsFillWeek = function (sh) { const all = Ops.list; Ops.list = all.filter(s => !(isBs(s) && s.worker && s.worker.id !== s.owner)); try { return _fw(sh); } finally { Ops.list = all; } }; }
+{ const _fw = bsFillWeek; bsFillWeek = function (sh) { const all = Ops.list; Ops.list = all.filter(s => !(isBs(s) && ((s.worker && s.worker.id !== s.owner) || s.briefer))); try { return _fw(sh); } finally { Ops.list = all; } }; }
 /* ---------- RAMS files: several PDFs, details read from page 1 ---------- */
 const bsFiles = it => (Array.isArray(it.files) && it.files.length ? it.files : it.pdf ? [{ path: it.pdf, name: it.pdfName || it.title }] : []);
 const BS_MAX = 10 * 1048576;  // daily-checks bucket limit
@@ -9238,7 +9240,7 @@ document.addEventListener('change', async e => { if (e.target.id !== 'bs-file') 
   if (info) info.textContent = fs.map(f => `${f.name} (${(f.size / 1048576).toFixed(1)} MB)`).join(' · ') + (i0.pages ? ` · ${i0.pages} pages` : ''); });
 bsIssue = async function (k, pid, it) { const p = (Ops.jobsTbl || []).find(j => j.id === pid) || {};
   const r = await modal(bsIssueForm(k, pid, it), (bg, close) => { bg.querySelector('#bs-ok').addEventListener('click', () => { const v = id => { const el = bg.querySelector('#' + id); return el ? (el.type === 'checkbox' ? el.checked : el.type === 'file' ? (el._pdfs || [...el.files]) : el.value) : undefined; };
-    close({ talk: v('bs-talk'), files: v('bs-file') || [], title: v('bs-title'), rev: v('bs-rev'), ddate: v('bs-ddate'), date: v('bs-date'), by: v('bs-by'), all: v('bs-all'), rem: v('bs-rem'), fm: v('bs-fm'), ops: [...bg.querySelectorAll('.bs-op:checked')].map(x => x.value) }); }); });
+    close({ talk: v('bs-talk'), files: v('bs-file') || [], title: v('bs-title'), rev: v('bs-rev'), ddate: v('bs-ddate'), date: v('bs-date'), by: v('bs-by'), brole: v('bs-brole'), bsig: v('bs-bsig'), all: v('bs-all'), rem: v('bs-rem'), fm: v('bs-fm'), ops: [...bg.querySelectorAll('.bs-op:checked')].map(x => x.value) }); }); });
   if (!r || typeof r !== 'object') return; if (k === 'rams' && !r.files.length && !it) return toast('Choose the RAMS PDF'); if (r.files.some(isDocx)) return toast('Still converting the Word file - try again in a moment'); if (r.files.some(f => f.size > BS_MAX)) return toast('A PDF is over 10 MB - save it smaller and try again');
   const id = it ? it.id : 'bi-' + uid(), rev = k === 'rams' ? String(r.rev || 'A').trim() : '1'; let files = it ? bsFiles(it) : [];
   if (r.files.length) { files = []; for (const [n, f] of r.files.entries()) { try { toast(`Uploading ${n + 1} of ${r.files.length}…`, 1500); const inf = await bsPdfInfo(f); files.push({ path: await bsUpload(f, `${id}-r${safeName(rev)}-${n + 1}`), name: f.name.replace(/\.pdf$/i, ''), size: f.size, pages: inf.pages }); } catch (e) { return toast('Upload failed: ' + (e.message || e)); } } }
@@ -9246,7 +9248,8 @@ bsIssue = async function (k, pid, it) { const p = (Ops.jobsTbl || []).find(j => 
   let o; if (it) o = Object.assign({}, it, { rev, title: r.title || it.title, docDate: r.ddate || it.docDate, files, pdf: (files[0] || {}).path || '', pdfName: (files[0] || {}).name || '', date: todayISO(), names: Object.assign({}, it.names, names), revs: (it.revs || []).concat([{ rev: it.rev, files: bsFiles(it), date: it.date }]) });
   else if (k === 'tbt') { const t = bsLib().find(x => x.id === r.talk) || bsLib()[0]; o = { id, kind: 'tbt', talkId: t.id, title: t.title, points: (t.points || []).slice(), pdf: t.pdf || '', pdfName: t.pdfName || '', files: t.pdf ? [{ path: t.pdf, name: t.pdfName || t.title }] : [], rev: '1' }; }
   else o = { id, kind: 'rams', title: r.title || 'RAMS', points: [], files, pdf: (files[0] || {}).path || '', pdfName: (files[0] || {}).name || '', rev, docDate: r.ddate || '' };
-  if (!it) Object.assign(o, { jobId: pid, jobRef: p.ref || '', site: p.site_name || '', date: r.date || todayISO(), deliveredBy: r.by || '', all: !!r.all, to: r.all ? (p.operatives || []) : r.ops, remind: !!r.rem, by: myName(), at: Date.now(), foreman: r.fm || '', names });
+  if (!it) Object.assign(o, { jobId: pid, jobRef: p.ref || '', site: p.site_name || '', date: r.date || todayISO(), deliveredBy: r.by || '', all: !!r.all, to: r.all ? (p.operatives || []) : r.ops, remind: !!r.rem, by: myName(), at: Date.now(), foreman: r.fm || '', names, briefer: { name: r.by || '', role: r.brole || '' } });
+  if (!it && r.bsig) { const sig = await signaturePad(); if (sig) Object.assign(o.briefer, { sig, at: Date.now(), date: todayISO(), signedBy: myName() }); }
   o.upd = Date.now(); const B = S.settings.brief = S.settings.brief || {}; B[id] = o;
   if (r.fm !== undefined && (r.fm || bsFmOf(pid))) B['fm-' + pid] = { id: 'fm-' + pid, fm: true, removed: true, jobId: pid, uid: r.fm || '', name: names[r.fm] || '', names, upd: Date.now() };
   if (await bsShare()) toast(it ? `Revision ${rev} issued - everyone signs again` : 'Issued - operatives see it on their phone'); rerender(true); };
@@ -9296,6 +9299,49 @@ async function docxToPdf(file) { const buf = await file.arrayBuffer(), M = await
   // page-1 header so the details read back like a PDF RAMS
   const out = new File([doc.output('blob')], file.name.replace(/\.docx$/i, '') + '.pdf', { type: 'application/pdf' }); out._head = hd; out._pages = n; return out; }
 { const _pi = bsPdfInfo; bsPdfInfo = async function (f) { const o = await _pi(f); const h = f._head; if (h) { const dm = /(\d{1,2})[./](\d{1,2})[./](\d{4})/.exec(h.date || ''); Object.assign(o, { title: o.title || h.title, docNo: o.docNo || h.docNo, version: o.version || h.version, date: o.date || (dm ? `${dm[3]}-${dm[2].padStart(2, '0')}-${dm[1].padStart(2, '0')}` : '') }); } return o; }; }
+
+/* managers / admins run the same group sign-off: their rows (owner = manager) are shown at once in Ops.bs and pushed straight away (retried when the briefing is opened again) */
+function bsMgrLocal(c) { if (!isMgr()) return; Ops.bs = Ops.bs || {}; const L = Ops.bs[c.jobId] = Ops.bs[c.jobId] || []; if (!L.some(r => r.id === c.id)) L.push({ id: c.id, job_id: c.jobId, owner: c.owner, owner_name: c.by, check_date: c.date, data: Object.assign({}, c, { status: undefined }) }); bsMgrFlush(); }
+async function bsMgrFlush() { if (!isMgr() || !online()) return; for (const c of (Ops.list || []).filter(x => isBs(x) && x.status === 'queued')) { try { await pushBs(c); } catch (e) { if (e.offline) return; } } }
+{ const _r = render; render = function (keep) { const rt = route(); if (isMgr() && rt[0] === 'brief') { const it = (S.settings.brief || {})[rt[1]]; if (!it || it.removed) { go('#/'); return; }
+    if (!Ops.loaded || !(Ops.bs || {})[it.jobId]) { $('#app').innerHTML = header({ title: 'Briefing' }) + '<main><p class="hint">Loading…</p></main>'; Promise.resolve(Ops.loaded || dcLoad()).then(() => loadDaily(it.jobId).catch(() => { Ops.bs = Ops.bs || {}; Ops.bs[it.jobId] = Ops.bs[it.jobId] || []; })).then(() => { (Ops.list || []).filter(x => isBs(x) && x.jobId === it.jobId).forEach(bsMgrLocal); render(keep); }); return; }
+    const y = window.scrollY; $('#app').innerHTML = header({ title: BS_KINDS[it.kind], sub: `${it.jobRef || ''} · ${fmtDate(it.date)}`, back: '#/' }) + `<main>${bsReadHTML(it)}</main>`; window.scrollTo(0, keep ? y : 0); lastHash = location.hash; return; }
+  return _r(keep); }; }
+{ const _sc2 = bsStaffCard; bsStaffCard = function (job) { return _sc2(job).replace(/<button type="button" data-act="bs-reg" data-id="([^"]+)">/g, '<button type="button" data-act="bs-group" data-id="$1">Group sign-off</button><button type="button" data-act="bs-reg" data-id="$1">'); }; }
+ACTIONS['bs-group'] = a => go('#/brief/' + a.dataset.id);
+
+/* ===== v1.9.19 (BETA): "Briefed by" name + role + signature + date on toolbox talks and RAMS (as the ARS RAMS signing sheet).
+   Set by the manager at issue time (it.briefer, optional signature there) or by the foreman when he starts a group sign-off:
+   the foreman's version is his own daily_checks row {kind:'briefsign', briefer:{name, role}} (operatives cannot write shared settings). Latest wins. */
+const BS_ROLE = { mgr: 'Contracts Manager', fm: 'Foreman' };
+{ const _sr = bsSignRows; bsSignRows = function (it) { return _sr(it).filter(r => !r.data.briefer); }; }
+function bsBriefer(it) { const rows = (((Ops.bs || {})[it.jobId]) || []).filter(r => r.data.issueId === it.id && r.data.briefer && String(r.data.rev) === String(it.rev)).map(r => Object.assign({}, r.data.briefer, { sig: r.data.sig, at: r.data.at, date: r.data.date, signedBy: r.data.by }));
+  const loc = Ops.list.filter(s => isBs(s) && s.briefer && s.issueId === it.id && String(s.rev) === String(it.rev)).map(s => Object.assign({}, s.briefer, { sig: s.sig, at: s.at, date: s.date, signedBy: s.by }));
+  const b = it.briefer && (it.briefer.name || it.briefer.sig) ? [Object.assign({}, it.briefer, { at: it.briefer.at || 0 })] : it.deliveredBy ? [{ name: it.deliveredBy, role: '', at: 0 }] : [];
+  return rows.concat(loc, b).sort((x, y) => (y.sig ? 1 : 0) - (x.sig ? 1 : 0) || (y.at || 0) - (x.at || 0))[0] || null; }
+// issue form: "Briefed by" + role (+ sign now); defaults to the foreman if one is picked, else the issuing manager
+{ const _f = bsIssueForm; bsIssueForm = function (k, pid, it) { let h = _f(k, pid, it); if (it) return h; const fm = bsFmOf(pid);
+  return h.replace(/<label class="f"><span class="lbl">Delivered by \(optional\)<\/span><input id="bs-by" value="[^"]*"><\/label>/, `<label class="f"><span class="lbl">Briefed by</span><input id="bs-by" value="${esc(fm ? fm.name : myName())}"></label><label class="f"><span class="lbl">Role</span><input id="bs-brole" value="${esc(fm ? BS_ROLE.fm : BS_ROLE.mgr)}"></label></div><label class="ckl"><input type="checkbox" id="bs-bsig"> I am the briefer - sign now</label><div>`); }; }
+document.addEventListener('change', e => { if (e.target.id !== 'bs-fm') return; const o = e.target.selectedOptions[0], by = $('#bs-by'), rl = $('#bs-brole'); if (!by) return; if (e.target.value) { by.value = o.textContent.trim(); rl.value = BS_ROLE.fm; } else { by.value = myName(); rl.value = BS_ROLE.mgr; } });
+// foreman: briefer block at the top of the group sign-off
+{ const _r = bsReadHTML; bsReadHTML = function (it) { let h = _r(it); const b = bsBriefer(it);
+  const line = b ? `${esc(b.name || '')}${b.role ? ' (' + esc(b.role) + ')' : ''}${b.sig ? ` · signed ${fmtDate(b.date)}` : ''}` : '';
+  if (!bsIsForeman(it)) return b && b.name ? h.replace('</p>', `<br>Briefed by ${line}</p>`) : h;
+  const mineB = b && b.sig && b.signedBy === myName();
+  return h.replace('<div class="card" id="bsgroup"><h2>', `<div class="card" id="bsgroup"><div class="bs-briefer" style="border:1px solid #e5e7eb;border-radius:10px;padding:8px;margin-bottom:8px"><p class="lbl">Briefed by</p>${b && b.sig ? `<p><span class="tag green">Signed</span> ${line}</p>${mineB ? '' : ''}` : ''}
+    <div class="row"><label class="f"><span class="lbl">Name</span><input id="bsb-n" value="${esc(myName())}"></label><label class="f"><span class="lbl">Role</span><input id="bsb-r" value="${esc(isMgr() ? BS_ROLE.mgr : BS_ROLE.fm)}"></label></div>
+    <button class="btn block" data-act="bs-bsign" data-id="${it.id}">${b && b.sig ? 'Sign again as briefer' : 'Sign as briefer'}</button></div><h2>`); }; }
+ACTIONS['bs-bsign'] = async a => { const it = (S.settings.brief || {})[a.dataset.id]; if (!it) return; const name = ($('#bsb-n') || {}).value || myName(), role = ($('#bsb-r') || {}).value || (isMgr() ? BS_ROLE.mgr : BS_ROLE.fm); const sig = await signaturePad(); if (!sig) return toast('Not signed');
+  Ops.list.push({ v: 1, kind: 'briefsign', id: 'bs-' + uid(), issueId: it.id, rev: it.rev, bkind: it.kind, title: it.title, jobId: it.jobId, jobRef: it.jobRef || '', site: it.site || '', owner: me(), by: myName(), briefer: { name: name.trim(), role: role.trim() }, date: todayISO(), at: Date.now(), created: Date.now(), updated: Date.now(), sig, status: 'queued', submitted: Date.now() });
+  await dcSave(true); bsMgrLocal(Ops.list[Ops.list.length - 1]); toast('Signed as briefer'); rerender(true); if (typeof kick === 'function') kick(400); };
+// register: Briefed by / role / date / signature at the top
+{ const _reg = buildBsRegister; buildBsRegister = function (it) { const b = bsBriefer(it), saved = it.deliveredBy; it.deliveredBy = b ? [b.name, b.role].filter(Boolean).join(' - ') : saved;
+  const dk = dcPdfKit, _kv = null; let first = true;
+  dcPdfKit = function (...a) { const k = dk(...a); const kv0 = k.kv.bind(k); k.kv = function (rows) { kv0(rows.filter(r => !/^Briefed \/ delivered by$/.test(r[0]))); if (first) { first = false; k.h2('Briefing'); const doc = k.doc;
+      k.table({ head: [["Briefed by", "Briefer's role", 'Briefing date', "Briefer's signature"]], body: [[k.tx(b ? b.name || '' : ''), k.tx(b ? b.role || '' : ''), b && b.date ? fmtDate(b.date) : fmtDate(it.date), '']], styles: { fontSize: 9, cellPadding: 1.8 }, columnStyles: { 0: { cellWidth: 48 }, 1: { cellWidth: 40 }, 2: { cellWidth: 30 }, 3: { minCellHeight: 16 } },
+        didDrawCell: d => { if (d.section === 'body' && d.column.index === 3 && b && b.sig && /^data:image/.test(b.sig)) { try { doc.addImage(b.sig, k.fmtImg(b.sig), d.cell.x + 1, d.cell.y + 1, Math.min(d.cell.width - 2, 40), 14); } catch (e) { } } } });
+      if (!b || !b.sig) k.para('Briefer has not signed yet.', 8); } }; return k; };
+  try { return _reg(it); } finally { dcPdfKit = dk; it.deliveredBy = saved; } }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
