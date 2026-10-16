@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.9.16">
+<meta name="app-version" content="1.9.17">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.9.16';
+const APP_VERSION = '1.9.17';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -5611,7 +5611,7 @@ function buildWeeklyPDF(sheet, o = {}) {
   k.letterhead(`${sheet.jobRef ? sheet.jobRef + ' - ' : ''}${sheet.site || ''}`);
   const wf = sheet.workforce || {};
   k.kv([['Week', `Mon ${fmtDate(sheet.week)} to Sun ${fmtDate(wkAddDays(sheet.week, 6))}`], ['Job', [sheet.jobRef, sheet.site].filter(Boolean).join(' - ')], ['Site address', sheet.address], ['Operative', sheet.by], ['Contracts manager', sheet.cm],
-    ['Workforce', `${wf.count || '-'} on site${wf.names ? ' (' + wf.names + ')' : ''}`], ['Toolbox talk', wf.toolbox === 'yes' ? `Yes${wf.topic ? ' - ' + wf.topic : ''}` : wf.toolbox === 'no' ? 'No' : '-'],
+    ['Workforce', `${wf.count || '-'} on site${wf.names ? ' (' + wf.names + ')' : ''}`], ['Toolbox talk', wf.toolbox === 'yes' ? `Yes${wf.topic ? ' - ' + wf.topic : ''}` : wf.toolbox === 'no' ? 'No' : '-'], ['RAMS signed', (sheet.rams || []).join('; ')],
     ['Days ticked off', `${rows.filter(r => r.done && !r.off).length} on site · ${rows.filter(r => r.off).length} not on site · ${miss.length} missing`], ['Hours lost', `${fmtH(wx)} h weather · ${fmtH(sd)} h stood down · ${fmtH(wx + sd)} h total`], ['Signed off', wkSigned(sheet) ? `${sheet.signoff.name || ''} - ${wkStamp(sheet.signoff.at)}` : 'NOT SIGNED OFF YET']]);
   if (miss.length) { k.need(12); doc.setFillColor(255, 237, 213); doc.rect(k.M, k.y - 5, k.CW, 9, 'F'); k.font(10, 'bold', [154, 52, 18]); doc.text(tx(`MISSING DAYS (nothing ticked off): ${miss.map(x => `${wkDayName(x)} ${fmtDate(x)}`).join(', ')}`), k.M + 3, k.y + 0.8); k.y += 10; }
   if (tot) {
@@ -9035,6 +9035,147 @@ Object.assign(ACTIONS, { ssthreset() { const s = ssCur(); if (!s) return; ssThAp
 function ssThTplHTML() { const T = ssThTbl(); return `<div class="divider"></div><h2 class="sec-h" style="margin:8px 4px 0">PANEL THICKNESS BY SUPPLIER</h2><p class="hint" style="margin:4px 4px 10px">Default composite panel thickness when a schedule is created or the panel supplier is switched. Still editable on each schedule.</p>
   <div class="card" id="ssthtpl"><div class="row">${Object.keys(DEFAULT_SS_THICK).map(k => `<div class="f"><label>${k} (mm)</label><input type="number" inputmode="numeric" data-b="templates.ssThick.${k}" value="${esc(String(T[k] || ''))}"></div>`).join('')}</div></div>`; }
 { const _sd = sdTplHTML; sdTplHTML = function () { if (!S.settings.templates) S.settings.templates = clone(DEFAULT_TEMPLATES); if (!S.settings.templates.ssThick) S.settings.templates.ssThick = Object.assign({}, DEFAULT_SS_THICK); return _sd() + ssThTplHTML(); }; }
+
+/* ===== v1.9.17 (BETA): Toolbox talks + RAMS briefings - issue to a job / operatives, read + "I've read and understood" + signature, register PDF =====
+   No table changes: the talk library + issued briefings live in app_settings 'daily' (.tbtLib, .brief - managers write, operatives read);
+   each signature is the operative's own daily_checks row (data.kind = 'briefsign', never emailed); PDFs in the daily-checks bucket under {manager}/briefing/ (read policy for all signed-in users). */
+const BS_KINDS = { tbt: 'Toolbox talk', rams: 'RAMS' };
+const T_ = (title, points) => ({ id: 'tbt-' + title.toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, ''), title, points, pdf: '', pdfName: '' });
+const DEFAULT_TBT = [
+  T_('Working at height', ['Plan every job at height: avoid it where you can, then prevent falls (edge protection, scaffold, MEWP), then reduce the distance and consequences (nets, airbags, harness).', 'Collective protection (guard rails, toe boards, netting) comes before personal protection such as a harness.', 'Check edge protection is complete before you go on the roof - report missing or loose guard rails and do not remove them yourself.', 'Ladders are for short-duration, light work and access only; secure them, keep three points of contact and do not overreach.', 'Do not work at height in high winds, heavy rain or ice - stop and tell your supervisor.', 'Keep the area below clear and controlled - secure tools and materials so nothing can fall.', 'Only work at height if you are trained and competent for the equipment you are using.']),
+  T_('Fragile roofs and rooflights', ['Treat every roof as fragile until a competent person confirms otherwise - many deaths are falls through fragile surfaces.', 'Asbestos cement sheets, old rooflights, liner panels and corroded metal sheets can all be fragile; rooflights can be painted over and hard to spot.', 'Never walk on fragile sheets or rooflights, even on the purlin or fixing lines.', 'Use staging / crawling boards, covers or barriers so nobody can step or fall onto a fragile area.', 'Netting or other fall arrest must be in place below where the work plan says so - check it before starting.', 'Do not stack materials or tools on fragile sheets or rooflights.', 'If you are unsure whether a surface is fragile, stop and ask before you step onto it.']),
+  T_('MEWP use', ['Only operate a MEWP if you are trained (e.g. IPAF PAL card for that category) and familiarised with that machine.', 'Do the pre-use check every shift and record it - do not use a MEWP with a defect; tag it out and report it.', 'Check ground conditions, slopes, voids, manhole covers and overhead hazards (power lines, structures) before setting up.', 'Wear a harness with a short work-restraint lanyard clipped to the designated anchor in boom-type MEWPs.', 'Respect the safe working load and wind speed limit on the plate; never climb on or lean over the guard rails.', 'Watch for trapping / crushing between the platform and structures - keep hands inside and move slowly near steelwork.', 'A trained person on the ground must know how to use the emergency lowering controls; have a rescue plan.']),
+  T_('Manual handling', ['Avoid manual handling where you can - use telehandlers, hoists, trolleys and sheet lifters.', 'Assess the load before lifting: weight, size, grip, sharp edges and wind catch on long sheets.', 'Plan the route, clear obstructions and agree signals for team lifts; one person gives the commands.', 'Lift with a stable stance, bend the knees, keep the load close and avoid twisting.', 'Long roof sheets and panels act like sails - do not carry them in strong wind.', 'Wear suitable gloves for sheet edges and report any strains or pain early.']),
+  T_('Asbestos awareness', ['Asbestos is still found in many roofs built before 2000 - cement sheets, gutters, rooflights, bitumen coatings and fire panels.', 'Check the asbestos survey / register for the building before work starts and follow the RAMS.', 'If you find something you suspect is asbestos that was not identified, stop work, keep others away and tell your supervisor.', 'Do not break, drill, cut, sand, jet-wash or drop asbestos materials; never use power tools on them.', 'Licensed work must only be done by a licensed contractor; non-licensed work needs trained staff, controls and the right RPE.', 'Wear the RPE you have been face-fit tested for and the disposable coveralls specified; do not take dirty clothing home.', 'Asbestos waste must be wrapped, labelled and put in the designated locked skip or container.']),
+  T_('Harness and rescue', ['A harness is the last line of protection - collective measures come first.', 'Inspect your harness and lanyard before each use: webbing, stitching, buckles, karabiners, energy absorber and the label/inspection date.', 'Fit the harness correctly (snug leg and chest straps) and clip only to an approved anchor or line.', 'Use work restraint (cannot reach the edge) where possible rather than fall arrest.', 'Check there is enough clearance below for a fall-arrest lanyard to work.', 'Suspension trauma can be life-threatening - a rescue plan must be in place and able to reach someone quickly.', 'Any harness that has arrested a fall must be taken out of use.']),
+  T_('Weather and wind', ['Check the forecast before and during the shift - wind, rain, ice, heat and lightning all affect roof work.', 'Follow the wind speed limits in the RAMS and on equipment (MEWPs, sheet handling); measure on site with an anemometer.', 'Large sheets and panels can be ripped from your hands in gusts - stop handling them when the limit is reached.', 'Wet, icy or frosty roofs are slippery - do not work on them until it is safe.', 'In hot weather drink water, take breaks in shade and use sun protection.', 'Secure loose sheets, packaging and materials at the end of each day so they cannot blow off.']),
+  T_('Hot works', ['Hot works (torches, cutting, grinding, welding) need a hot works permit before starting.', 'Remove or protect combustible materials around the work, including insulation and roof voids.', 'Have the right fire extinguisher at the work point and know how to use it.', 'Keep gas cylinders upright, secured, and away from heat; check hoses and regulators before use.', 'Keep a fire watch during the work and for the period the permit requires afterwards (often at least 60 minutes).', 'Know the site fire alarm, escape routes and assembly point.']),
+  T_('PPE', ['PPE is the last line of defence - use it alongside other controls, not instead of them.', 'Wear the PPE the RAMS and site rules require: hard hat (with chin strap at height where specified), safety boots, hi-vis, gloves and eye protection.', 'Check your PPE before use and replace anything damaged or worn.', 'RPE must be the right type for the hazard and you must be face-fit tested for tight-fitting masks; be clean-shaven where it seals.', 'Use hearing protection in hearing-protection zones and when using noisy tools.', 'Look after your PPE and report any problems or shortages to your supervisor.']),
+  T_('Slips, trips and falls', ['Keep access routes, roof walkways and work areas tidy - clear offcuts, packaging and banding as you go.', 'Manage trailing cables and hoses; route them away from walkways.', 'Watch for wet, frosty or algae-covered surfaces and use the designated walkways.', 'Make sure work areas and stairs are adequately lit.', 'Wear footwear with good grip and keep the soles clean.', 'Report and fix hazards straight away - do not wait for someone else.']),
+];
+const bsLib = () => (Array.isArray(S.settings.tbtLib) && S.settings.tbtLib.length ? S.settings.tbtLib : DEFAULT_TBT);
+const bsAll = () => Object.values(S.settings.brief || {}).filter(x => x && !x.removed);
+const isBs = c => !!(c && c.kind === 'briefsign'), isBsRow = r => !!(r && r.data && r.data.kind === 'briefsign');
+function bsMerge(m) { const cur = S.settings.brief = S.settings.brief || {}; Object.entries(m || {}).forEach(([k, v]) => { if (v && (!cur[k] || (v.upd || 0) > (cur[k].upd || 0))) cur[k] = v; }); }
+{ const _ap = applyDailySettings; applyDailySettings = function (d) { if (d && d.brief) bsMerge(d.brief); if (d && Array.isArray(d.tbtLib) && d.tbtLib.length && (isOp() || !S.settings.tbtLib)) S.settings.tbtLib = d.tbtLib; return _ap(d); }; }
+// one writer for the shared 'daily' value: request statuses (v1.9.12) + briefings, merged with the server copy first
+mrPushDaily = async function () { const rows = await sbFetch('/rest/v1/app_settings?select=key,value&key=eq.daily') || []; const v0 = (rows[0] && rows[0].value) || {}; if (v0.matreq) mrMergeStatus(v0.matreq); if (v0.brief) bsMerge(v0.brief);
+  await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'daily', value: Object.assign(mrDailyValue(), { brief: S.settings.brief || {}, tbtLib: S.settings.tbtLib || null }) }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); };
+async function bsShare() { await DB.setKV('settings', S.settings); if (!signedIn()) return toast('Saved on this device - sign in to issue to operatives'); try { await mrPushDaily(); return true; } catch (e) { toast('Saved here - not shared yet: ' + (e.message || e)); } }
+const bsPdfPath = name => `${me()}/briefing/${name}.pdf`;
+async function bsUpload(file, name) { const p = bsPdfPath(name); await sbFetch(`/storage/v1/object/${DC_BUCKET}/${encPath(p)}`, { method: 'POST', body: file, headers: { 'Content-Type': 'application/pdf', 'x-upsert': 'true' } }); return p; }
+async function bsOpenPdf(path, name) { const key = 'bs.pdf.' + path; let blob = null; try { blob = await sbBlob(`/storage/v1/object/authenticated/${DC_BUCKET}/${encPath(path)}`); try { await DB.setKV(key, await blobToDataURL(blob)); } catch (e) { } } catch (e) { const d = await DB.getKV(key); if (d) blob = dataURLtoBlob(d); }
+  if (!blob) return toast('PDF not available offline yet - open it once with signal'); const url = URL.createObjectURL(blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' })); const w = window.open(url, '_blank'); if (!w) qOut(blob, (name || 'document') + '.pdf'); }
+/* ---------- who / signed ---------- */
+function bsTargets(it) { const p = (Ops.jobsTbl || []).find(j => j.id === it.jobId); const ids = it.all ? ((p && p.operatives) || it.to || []) : (it.to || []); return [...new Set(ids)]; }
+const bsMineFor = (it, owner) => Ops.list.filter(s => isBs(s) && s.issueId === it.id && String(s.rev) === String(it.rev) && (!owner || s.owner === owner));
+function bsForMe() { const jobs = (Ops.jobs || []).map(j => j.id), uid = me(); return bsAll().filter(it => jobs.includes(it.jobId) && (it.all || (it.to || []).includes(uid))).sort((a, b) => (b.upd || 0) - (a.upd || 0)); }
+const bsSignedMe = it => bsMineFor(it, me()).length > 0;
+/* ---------- operative: home card + read & sign ---------- */
+function bsHomeCard() { const L = bsForMe(); if (!L.length) return ''; const todo = L.filter(it => !bsSignedMe(it)), done = L.filter(bsSignedMe).slice(0, 6);
+  const row = it => `<a class="item" href="#/brief/${it.id}"><div class="bd"><div class="t1">${esc(BS_KINDS[it.kind])}: ${esc(it.title)}${it.kind === 'rams' ? ' · rev ' + esc(it.rev) : ''}</div><div class="t2">${esc(it.jobRef || '')} · ${fmtDate(it.date)}</div><div class="meta">${bsSignedMe(it) ? '<span class="tag green">Signed</span>' : '<span class="tag amber">To read &amp; sign</span>'}</div></div>${I.chev}</a>`;
+  return `<div class="card" id="bscard"><h2>Toolbox talks &amp; RAMS ${todo.length ? `<span class="prog bad" style="margin-left:auto">${todo.length} to sign</span>` : ''}</h2>${todo.map(row).join('') || '<p class="hint">All signed - thank you.</p>'}${done.length ? `<details><summary class="hint">Signed (${done.length})</summary>${done.map(row).join('')}</details>` : ''}</div>`; }
+{ const _vh = viewOpHome; viewOpHome = function () { const all = Ops.list; Ops.list = all.filter(c => !isBs(c)); let v; try { v = _vh(); } finally { Ops.list = all; } const card = bsHomeCard(); if (card) { const i = v.body.indexOf('<div class="card"'); v.body = i < 0 ? card + v.body : v.body.slice(0, i) + card + v.body.slice(i); } return v; }; }
+function bsReadHTML(it) { const s = bsMineFor(it, me())[0];
+  return `<div class="card"><h2>${esc(it.title)}</h2><p class="hint">${esc(BS_KINDS[it.kind])}${it.kind === 'rams' ? ` · revision ${esc(it.rev)}${it.docDate ? ' · dated ' + fmtDate(it.docDate) : ''}` : ''} · ${esc(it.jobRef || '')} ${esc(it.site || '')}<br>Issued ${fmtDate(it.date)}${it.deliveredBy ? ' · delivered by ' + esc(it.deliveredBy) : ''}</p>
+    ${(it.points || []).length ? `<ol class="bs-pts">${it.points.map(p => `<li>${esc(p)}</li>`).join('')}</ol>` : ''}${it.pdf ? `<button class="btn block" style="margin-top:8px" data-act="bs-pdf" data-id="${it.id}">${I.pdf} Open ${it.kind === 'rams' ? 'the RAMS' : 'the talk'} (PDF)</button>` : ''}</div>
+  ${s ? `<div class="card"><p><span class="tag green">Signed</span> ${new Date(s.at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</p>${s.sig ? `<img src="${s.sig}" alt="Signature" style="max-width:260px;border:1px solid #e5e7eb;border-radius:8px">` : ''}</div>`
+    : `<button class="btn primary block" style="font-size:19px;padding:18px;width:100%" data-act="bs-sign" data-id="${it.id}">✓ I've read and understood - sign</button>`}`; }
+Object.assign(ACTIONS, {
+  'bs-pdf'(a) { const it = (S.settings.brief || {})[a.dataset.id]; if (it && it.pdf) bsOpenPdf(it.pdf, it.pdfName || it.title); },
+  async 'bs-sign'(a) { const it = (S.settings.brief || {})[a.dataset.id]; if (!it) return; const sig = await signaturePad(); if (!sig) return toast('Sign in the box, then tap Save signature');
+    const c = { v: 1, kind: 'briefsign', id: 'bs-' + uid(), issueId: it.id, rev: it.rev, bkind: it.kind, title: it.title, jobId: it.jobId, jobRef: it.jobRef || '', site: it.site || '', owner: me(), by: myName(), date: todayISO(), at: Date.now(), created: Date.now(), updated: Date.now(), sig, status: 'queued', submitted: Date.now() };
+    Ops.list.push(c); bsToWeek(c); await dcSave(true); toast(online() ? 'Signed - thank you' : 'Signed - uploads when you have signal'); rerender(true); if (typeof kick === 'function') kick(200); },
+});
+// upload = the operative's own daily_checks row (no PDF, no email)
+async function pushBs(c) { const row = { id: c.id, job_id: c.jobId, owner: c.owner, owner_name: c.by || myName(), check_date: c.date, data: Object.assign({}, c, { status: undefined }), issues: 0, submitted_at: new Date(c.at).toISOString(), updated_at: new Date(c.updated || c.at).toISOString() };
+  try { await sbFetch('/rest/v1/daily_checks', { method: 'POST', body: row, headers: { Prefer: 'return=minimal' } }); } catch (e) { if (e.status !== 409) throw e; }
+  c.status = 'sent'; dcSave(); }
+{ const _pd = pushDaily; pushDaily = function (c) { return isBs(c) ? pushBs(c) : _pd(c); }; }
+{ const _nd = notifyDaily; notifyDaily = async function (c) { if (isBs(c)) { c.status = 'sent'; dcSave(); return; } return _nd(c); }; }
+// weekly sheet: toolbox talk line auto-fills, RAMS line
+function bsToWeek(c) { const ws = wkStartOf(c.date); const sh = Ops.list.find(x => isWk(x) && x.jobId === c.jobId && x.week === ws && (!x.owner || x.owner === c.owner)); if (sh) bsFillWeek(sh); }
+function bsFillWeek(sh) { const signs = Ops.list.filter(s => isBs(s) && s.jobId === sh.jobId && wkStartOf(s.date) === sh.week && (!sh.owner || s.owner === sh.owner)); if (!signs.length || wkSigned(sh)) return;
+  const tbt = [...new Set(signs.filter(s => s.bkind === 'tbt').map(s => s.title))], rams = signs.filter(s => s.bkind === 'rams').map(s => `${s.title} rev ${s.rev} (signed ${fmtDate(s.date)})`);
+  sh.workforce = sh.workforce || {}; if (tbt.length) { sh.workforce.toolbox = 'yes'; const cur = String(sh.workforce.topic || '').split(/\s*;\s*/).filter(Boolean); tbt.forEach(t => { if (!cur.includes(t)) cur.push(t); }); sh.workforce.topic = cur.join('; '); }
+  sh.rams = [...new Set(rams)]; sh.updated = Date.now(); sh.dirty = true; }
+{ const _nw = newWeekly; newWeekly = function (job, ws, prev) { const sh = _nw(job, ws, prev); try { bsFillWeek(sh); } catch (e) { } return sh; }; }
+/* ---------- managers ---------- */
+{ const _ld = loadDaily; loadDaily = async function (pid, f = {}) { const r = await _ld(pid, f) || []; Ops.bs = Ops.bs || {}; Ops.bs[pid] = (Ops.bs[pid] || []).filter(x => !r.some(y => y.id === x.id)).concat(r.filter(isBsRow)); Ops.dc[pid] = r.filter(x => !isBsRow(x)); return Ops.dc[pid]; }; }
+function bsSignRows(it) { return ((Ops.bs || {})[it.jobId] || []).filter(r => r.data.issueId === it.id); }
+function bsStatus(it) { const rows = bsSignRows(it), tg = bsTargets(it), cur = rows.filter(r => String(r.data.rev) === String(it.rev));
+  const ppl = tg.map(id => { const p = (Cloud.profiles || []).find(x => x.id === id) || {}; const s = cur.filter(r => r.owner === id).sort((a, b) => b.data.at - a.data.at)[0]; const old = !s && rows.some(r => r.owner === id); return { id, name: p.full_name || p.email || (s && s.owner_name) || 'Operative', s, old }; });
+  cur.filter(r => !tg.includes(r.owner)).forEach(r => { if (!ppl.some(x => x.id === r.owner)) ppl.push({ id: r.owner, name: r.owner_name, s: r }); }); return ppl; }
+function bsStaffCard(job) { const pid = job.projectId; if (!pid) return ''; const L = bsAll().filter(it => it.jobId === pid).sort((a, b) => (b.upd || 0) - (a.upd || 0)); const mgr = isMgr();
+  return `<div class="card" id="bsstaff"><h2>Toolbox talks &amp; RAMS</h2>${mgr ? `<div class="btns"><button class="btn" data-act="bs-issue" data-k="tbt" data-p="${esc(pid)}">${I.plus} Issue toolbox talk</button><button class="btn" data-act="bs-issue" data-k="rams" data-p="${esc(pid)}">${I.plus} Upload RAMS</button></div>` : ''}
+    ${L.map(it => { const st = bsStatus(it), n = st.filter(x => x.s).length; return `<div class="item"><div class="bd"><div class="t1">${esc(BS_KINDS[it.kind])}: ${esc(it.title)}${it.kind === 'rams' ? ' · rev ' + esc(it.rev) : ''}</div><div class="t2">Issued ${fmtDate(it.date)}${it.deliveredBy ? ' · by ' + esc(it.deliveredBy) : ''} · ${it.all ? 'everyone on the job' : st.length + ' operative' + (st.length === 1 ? '' : 's')}</div>
+      <div class="meta"><span class="tag ${n === st.length && n ? 'green' : 'amber'}">${n} of ${st.length} signed</span>${st.filter(x => !x.s).map(x => `<span class="tag">${esc(x.name)}${x.old ? ' (signed old rev)' : ''}</span>`).join('')}</div>
+      <div class="filters" style="margin-top:6px"><button type="button" data-act="bs-reg" data-id="${it.id}">${I.pdf} Register PDF</button>${it.pdf ? `<button type="button" data-act="bs-pdf" data-id="${it.id}">Open PDF</button>` : ''}${mgr && it.kind === 'rams' ? `<button type="button" data-act="bs-rev" data-id="${it.id}">New revision</button>` : ''}${mgr ? `<button type="button" data-act="bs-rm" data-id="${it.id}">Remove</button>` : ''}</div></div></div>`; }).join('') || '<p class="hint">Nothing issued yet.</p>'}</div>`; }
+{ const _vdl = viewDailyList; viewDailyList = function (job) { return bsStaffCard(job) + _vdl(job); }; }
+function bsIssueForm(k, pid, it) { const p = (Ops.jobsTbl || []).find(j => j.id === pid) || {}; const ops = operatives().filter(o => (p.operatives || []).includes(o.id) && o.active !== false);
+  return `<h3>${it ? 'New RAMS revision' : k === 'tbt' ? 'Issue a toolbox talk' : 'Upload RAMS'}</h3>
+    ${k === 'tbt' ? `<label class="f"><span class="lbl">Talk</span><select id="bs-talk">${bsLib().map(t => `<option value="${esc(t.id)}">${esc(t.title)}</option>`).join('')}</select></label>`
+      : `<label class="f"><span class="lbl">RAMS PDF</span><input type="file" id="bs-file" accept="application/pdf"></label><label class="f"><span class="lbl">Title</span><input id="bs-title" value="${esc(it ? it.title : 'RAMS - ' + (p.ref || ''))}"></label>
+      <div class="row"><label class="f"><span class="lbl">Revision / version</span><input id="bs-rev" value="${esc(it ? bsNextRev(it.rev) : 'A')}"></label><label class="f"><span class="lbl">Document date</span><input type="date" id="bs-ddate" value="${todayISO()}"></label></div>`}
+    ${it ? '' : `<div class="row"><label class="f"><span class="lbl">Date</span><input type="date" id="bs-date" value="${todayISO()}"></label><label class="f"><span class="lbl">Delivered by (optional)</span><input id="bs-by" value="${esc(k === 'tbt' ? myName() : '')}"></label></div>
+    <p class="lbl" style="margin-top:8px">Who must sign</p><label class="ckl"><input type="checkbox" id="bs-all" checked> Everyone on this job (now and added later)</label>${ops.map(o => `<label class="ckl"><input type="checkbox" class="bs-op" value="${o.id}" checked> ${esc(o.full_name || o.email)}</label>`).join('')}
+    <label class="ckl"><input type="checkbox" id="bs-rem" checked> Remind anyone not signed after 1 day (phone notification)</label>`}
+    <button class="btn primary" id="bs-ok">${it ? 'Issue revision (everyone re-signs)' : 'Issue'}</button><button class="btn" data-r="">Cancel</button>`; }
+const bsNextRev = r => { const s = String(r || 'A'); if (/^\d+$/.test(s)) return String(+s + 1); if (/^[A-Y]$/i.test(s)) return String.fromCharCode(s.toUpperCase().charCodeAt(0) + 1); const m = /^(.*?)(\d+)$/.exec(s); return m ? m[1] + (+m[2] + 1) : s + '.1'; };
+async function bsIssue(k, pid, it) { const p = (Ops.jobsTbl || []).find(j => j.id === pid) || {};
+  const r = await modal(bsIssueForm(k, pid, it), (bg, close) => { bg.querySelector('#bs-ok').addEventListener('click', () => { const v = id => { const el = bg.querySelector('#' + id); return el ? (el.type === 'checkbox' ? el.checked : el.type === 'file' ? el.files[0] : el.value) : undefined; };
+    close({ talk: v('bs-talk'), file: v('bs-file'), title: v('bs-title'), rev: v('bs-rev'), ddate: v('bs-ddate'), date: v('bs-date'), by: v('bs-by'), all: v('bs-all'), rem: v('bs-rem'), ops: [...bg.querySelectorAll('.bs-op:checked')].map(x => x.value) }); }); });
+  if (!r || typeof r !== 'object') return;
+  if (k === 'rams' && !r.file && !it) return toast('Choose the RAMS PDF');
+  const id = it ? it.id : 'bi-' + uid(), rev = k === 'rams' ? String(r.rev || 'A').trim() : '1'; let pdf = it ? it.pdf : '', pdfName = it ? it.pdfName : '';
+  if (r.file) { try { toast('Uploading PDF…', 1500); pdf = await bsUpload(r.file, `${id}-r${safeName(rev)}`); pdfName = r.file.name.replace(/\.pdf$/i, ''); } catch (e) { return toast('Upload failed: ' + (e.message || e)); } }
+  let o; if (it) o = Object.assign({}, it, { rev, title: r.title || it.title, docDate: r.ddate || it.docDate, pdf, pdfName, date: todayISO(), revs: (it.revs || []).concat([{ rev: it.rev, pdf: it.pdf, date: it.date }]) });
+  else if (k === 'tbt') { const t = bsLib().find(x => x.id === r.talk) || bsLib()[0]; o = { id, kind: 'tbt', talkId: t.id, title: t.title, points: (t.points || []).slice(), pdf: t.pdf || '', pdfName: t.pdfName || '', rev: '1' }; }
+  else o = { id, kind: 'rams', title: r.title || 'RAMS', points: [], pdf, pdfName, rev, docDate: r.ddate || '' };
+  if (!it) Object.assign(o, { jobId: pid, jobRef: p.ref || '', site: p.site_name || '', date: r.date || todayISO(), deliveredBy: r.by || '', all: !!r.all, to: r.all ? (p.operatives || []) : r.ops, remind: !!r.rem, by: myName(), at: Date.now() });
+  o.upd = Date.now(); (S.settings.brief = S.settings.brief || {})[id] = o; if (await bsShare()) toast(it ? `Revision ${rev} issued - operatives must sign again` : 'Issued - operatives see it on their phone'); rerender(true); }
+Object.assign(ACTIONS, {
+  'bs-issue'(a) { bsIssue(a.dataset.k, a.dataset.p); },
+  'bs-rev'(a) { const it = (S.settings.brief || {})[a.dataset.id]; if (it) bsIssue('rams', it.jobId, it); },
+  async 'bs-rm'(a) { const it = (S.settings.brief || {})[a.dataset.id]; if (!it || !(await confirmBox('Remove from the job?', 'Operatives will no longer see it. Signatures already given are kept.', 'Remove'))) return; it.removed = true; it.upd = Date.now(); await bsShare(); rerender(true); },
+  async 'bs-reg'(a) { const it = (S.settings.brief || {})[a.dataset.id]; if (!it) return; qOut(buildBsRegister(it).output('blob'), `${it.kind === 'rams' ? 'RAMS' : 'Toolbox-Talk'}-Register-${safeName(it.jobRef || 'job')}-${safeName(it.title).slice(0, 40)}.pdf`); },
+});
+/* ---------- register PDF (audit) ---------- */
+function buildBsRegister(it) { const k = dcPdfKit(it.kind === 'rams' ? 'RAMS briefing register' : 'Toolbox talk register'), doc = k.doc, st = bsStatus(it); k.letterhead(`${it.jobRef || ''} · ${it.site || ''}`);
+  k.kv([[BS_KINDS[it.kind], it.title], ['Job / site', [it.jobRef, it.site].filter(Boolean).join(' - ')], it.kind === 'rams' ? ['Revision', `${it.rev}${it.docDate ? ' - dated ' + fmtDate(it.docDate) : ''}`] : ['', ''], ['Issued', `${fmtDate(it.date)} by ${it.by || ''}`], ['Delivered by', it.deliveredBy], ['Document', it.pdfName ? it.pdfName + '.pdf' : ''], ['Signed', `${st.filter(x => x.s).length} of ${st.length}`]]);
+  if ((it.points || []).length) { k.h2('Key points'); it.points.forEach((p, i) => k.para(`${i + 1}. ${p}`, 9)); k.y += 2; }
+  k.h2(`Signatures - "I have read and understood"${it.kind === 'rams' ? ' (revision ' + it.rev + ')' : ''}`);
+  k.table({ head: [['Name', 'Status', 'Signed (date & time)', 'Signature']], body: st.map(x => [k.tx(x.name), x.s ? 'Signed' : x.old ? 'NOT SIGNED (signed an older revision)' : 'NOT SIGNED', x.s ? new Date(x.s.data.at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : '', '']),
+    columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 38 }, 2: { cellWidth: 36 }, 3: { minCellHeight: 16 } },
+    didParseCell: d => { if (d.section === 'body' && d.column.index === 1 && !st[d.row.index].s) d.cell.styles.textColor = k.RED; },
+    didDrawCell: d => { if (d.section !== 'body' || d.column.index !== 3) return; const s = st[d.row.index].s; const sig = s && s.data.sig; if (sig && /^data:image/.test(sig)) { try { doc.addImage(sig, k.fmtImg(sig), d.cell.x + 1, d.cell.y + 1, Math.min(d.cell.width - 2, 40), 14); } catch (e) { } } } });
+  if ((it.revs || []).length) { k.h2('Earlier revisions'); k.para(it.revs.map(r => `Rev ${r.rev} issued ${fmtDate(r.date)}`).join('\n'), 9); }
+  return k.finish(`${it.kind === 'rams' ? 'RAMS' : 'Toolbox talk'} register · ${it.jobRef || ''} · ${it.title}`); }
+/* ---------- Settings: talk library (with the daily template) ---------- */
+function bsLibHTML() { const ro = signedIn() && !isMgr(), L = bsLib();
+  return `<h3 style="margin:16px 0 6px">Toolbox talk library</h3><div class="card" id="bslib"><p class="hint">Issue these to a job from the job's Daily checks tab. Key points are one per line. Starter talks follow HSE guidance - review them for your sites.</p>
+    ${L.map((t, i) => `<details class="sec"><summary>${esc(t.title)} <span class="prog">${(t.points || []).length} points${t.pdf ? ' + PDF' : ''}</span></summary><div class="bd">
+      <label class="f"><span class="lbl">Title</span><input data-bsl="${i}.title" value="${esc(t.title)}" ${ro ? 'disabled' : ''}></label><label class="f"><span class="lbl">Key points (one per line)</span><textarea data-bsl="${i}.points" rows="8" ${ro ? 'disabled' : ''}>${esc((t.points || []).join('\n'))}</textarea></label>
+      ${ro ? '' : `<div class="btns"><label class="btn sm">${I.pdf} ${t.pdf ? 'Replace PDF' : 'Attach PDF (optional)'}<input type="file" accept="application/pdf" data-bslpdf="${i}" hidden></label><button class="btn danger sm" data-act="bs-ldel" data-i="${i}">Delete talk</button></div>`}</div></details>`).join('')}
+    ${ro ? '' : `<div class="btns"><button class="btn" data-act="bs-ladd">${I.plus} Add a talk</button><button class="btn" data-act="bs-lreset">Restore starter talks</button></div>`}</div>`; }
+{ const _vt = viewDailyTpl; viewDailyTpl = function () { return _vt() + bsLibHTML(); }; }
+const bsLibW = () => { if (!Array.isArray(S.settings.tbtLib) || !S.settings.tbtLib.length) S.settings.tbtLib = clone(DEFAULT_TBT); return S.settings.tbtLib; };
+let bsLibT = null; const bsLibSave = () => { clearTimeout(bsLibT); bsLibT = setTimeout(() => { saveSettings(); bsShare(); }, 600); };
+document.addEventListener('change', async e => { const el = e.target;
+  if (el.dataset && el.dataset.bsl) { const [i, f] = el.dataset.bsl.split('.'), t = bsLibW()[+i]; if (!t) return; t[f] = f === 'points' ? el.value.split('\n').map(s => s.trim()).filter(Boolean) : el.value.trim(); bsLibSave(); return; }
+  if (el.dataset && el.dataset.bslpdf !== undefined && el.files && el.files[0]) { const t = bsLibW()[+el.dataset.bslpdf]; if (!t) return; try { toast('Uploading PDF…', 1500); t.pdf = await bsUpload(el.files[0], 'tbt-' + safeName(t.id) + '-' + Date.now().toString(36)); t.pdfName = el.files[0].name.replace(/\.pdf$/i, ''); bsLibSave(); rerender(true); } catch (er) { toast('Upload failed: ' + (er.message || er)); } } });
+Object.assign(ACTIONS, {
+  'bs-ladd'() { bsLibW().push({ id: 'tbt-' + uid(), title: 'New toolbox talk', points: [], pdf: '', pdfName: '' }); bsLibSave(); rerender(true); },
+  async 'bs-ldel'(a) { if (!(await confirmBox('Delete this talk from the library?', 'Talks already issued to jobs are kept.', 'Delete'))) return; bsLibW().splice(+a.dataset.i, 1); bsLibSave(); rerender(true); },
+  async 'bs-lreset'() { if (!(await confirmBox('Restore the starter talks?', 'Adds back any of the 10 starter talks that are missing. Your own talks and edits are kept.', 'Restore', false))) return; const L = bsLibW(); DEFAULT_TBT.forEach(t => { if (!L.some(x => x.id === t.id)) L.push(clone(t)); }); bsLibSave(); rerender(true); },
+});
+/* ---------- operative route ---------- */
+{ const _r = render; render = function (keep) { const rt = route();
+  if (isOp() && rt[0] === 'brief') { if (!Ops.loaded) { $('#app').innerHTML = header({ title: 'Briefing' }) + '<main><p class="hint">Loading…</p></main>'; dcLoad().then(() => render(keep)); return; }
+    const it = (S.settings.brief || {})[rt[1]]; if (!it || it.removed) { go('#/'); return; } S.ctx = null; const y = window.scrollY; document.body.classList.remove('hasnav');
+    $('#app').innerHTML = header({ title: BS_KINDS[it.kind], sub: `${it.jobRef || ''} · ${fmtDate(it.date)}`, back: '#/' }) + `<main>${bsReadHTML(it)}</main>`; if (keep) window.scrollTo(0, y); else window.scrollTo(0, 0); lastHash = location.hash; return; }
+  return _r(keep); }; }
+{ const st = document.createElement('style'); st.textContent = '.bs-pts{margin:8px 0 0 20px;padding:0}.bs-pts li{margin:0 0 8px;font-size:16px;line-height:1.4}'; document.head.appendChild(st); }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
