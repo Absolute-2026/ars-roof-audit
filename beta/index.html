@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.8">
+<meta name="app-version" content="1.10.9">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.8';
+const APP_VERSION = '1.10.9';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -9844,12 +9844,13 @@ async function omGather(pk, prog) { const d = pk.data, j = omJob(d.jobId), A = o
   if (on('drawings')) { omScheds(j).filter(x => typeof rdIncl === 'function' && rdIncl(x.s)).forEach(x => add(2, `Roof drawings ${x.s.ref || ''}`.trim(), () => buildRoofDrawings(x.s))); A.filter(a => typeof spPlan === 'function' && spPlan(a) && spPlan(a).img).forEach(a => add(2, `Site plan ${a.ref || ''}`.trim(), () => spPdfDoc(a, 'plan'))); }
   (d.uploads || []).filter(u => +u.sec < 8).forEach(u => add(+u.sec, u.title || u.name, () => recBlob(u.path)));
   if (on('sched')) omScheds(j).forEach(x => add(4, `Sheet schedule ${x.s.ref || ''}`.trim(), () => buildTataPDF(x.s)));
-  const lib = (d.lib || []).map(id => omEntries().find(e => e.id === id)).filter(e => e && e.path); lib.forEach(e => add(OM_TYPE_SEC(e.t), `${e.s} - ${e.p || e.f}`, () => recBlob(e.path)));
+  const lib = (d.lib || []).map(id => omEntries().find(e => e.id === id)).filter(e => e && e.path); if (!d.libApp) lib.forEach(e => add(OM_TYPE_SEC(e.t), `${e.s} - ${e.p || e.f}`, () => recBlob(e.path)));
   let ap = 0; const L = () => String.fromCharCode(65 + ap++);
   if (on('rams')) { const R = omBriefs(j, 'rams'); if (R.length) { const l = L(); R.forEach(it => bsFiles(it).forEach((f, i) => add(8, `RAMS - ${it.title}${it.rev ? ' rev ' + it.rev : ''}${bsFiles(it).length > 1 ? ' (' + (i + 1) + ')' : ''}`, () => sbBlob(`/storage/v1/object/authenticated/${DC_BUCKET}/${encPath(f.path)}`), l + ' RAMS & briefing registers'))); R.forEach(it => add(8, `RAMS briefing register - ${it.title}`, () => buildBsRegister(it), l + ' RAMS & briefing registers')); } }
   if (on('tbt')) { const T = omBriefs(j, 'tbt'); if (T.length) { const l = L(); T.forEach(it => add(8, `Toolbox talk - ${it.title}`, () => buildBsRegister(it), l + ' Toolbox talks')); } }
   if (on('insp')) { const I2 = A.filter(omIsInsp); if (I2.length) { const l = L(); I2.forEach(a => add(8, `Inspection ${(a.works && a.works.inspNo) || a.ref || ''}`.trim(), () => buildPDF(a, {}), l + ' Inspections & photos')); } }
   if (on('daily') && j) { const l = L(); add(8, 'Daily checks, plant & permits', async () => { await loadDaily(j.id).catch(() => { }); const raw = Ops.dc[j.id] || []; if (!raw.length) return null; const rows = dcExpandRows(raw, {}); return buildDailySummaryPDF(j, rows.slice().reverse(), { weekly: raw.filter(isWkRow) }); }, l + ' Daily checks, plant & permits'); }
+  if (d.libApp && lib.length) omLibGroups(lib).forEach(([g, es]) => { const l = L(); es.forEach(e => add(8, omDocTitle(e), () => recBlob(e.path), l + ' ' + g)); });
   (d.uploads || []).filter(u => +u.sec === 8).forEach(u => add(8, u.title || u.name, () => recBlob(u.path), L() + ' ' + (u.title || u.name)));
   let i = 0; for (const p of parts) { prog && prog(`Collecting ${++i}/${parts.length}: ${p.title}`); p.blob = await omPdfBlob(p.fn); }
   return parts.filter(p => p.blob); }
@@ -9860,7 +9861,7 @@ function omTextSec(pk, n, title, k) { const d = pk.data, j = omJob(d.jobId) || {
   else if (n === 3) { const H = OM_HAZ.filter(h => d.haz.includes(h[0])); if (H.length) k.table({ head: [['Residual hazard', 'Information for anyone working on the roof in future']], body: H.map(h => [h[1], k.tx(h[2])]), columnStyles: { 0: { cellWidth: 45, fontStyle: 'bold' } } }); if (d.text[3]) k.para(d.text[3]); }
   else { if (d.text[n]) k.para(d.text[n]); }
   const lib = (d.lib || []).map(id => omEntries().find(e => e.id === id)).filter(e => e && OM_TYPE_SEC(e.t) === n && n >= 4 && n <= 6);
-  if (lib.length) { k.y += 2; k.table({ head: [['Supplier', 'Product', 'Document', 'In this file']], body: lib.map(e => [e.s, e.p || '', e.folder ? e.t : (e.f || ''), e.path ? 'Yes (see below)' : 'Library link']) }); const ln = lib.filter(e => !e.path); if (ln.length) { k.font(8, 'normal', k.GREY); k.need(6); k.doc.textWithLink('Product library (Absolute Roofing Solutions O&M library) - link', k.M, k.y + 2, { url: (omLib() && omLib().data.root) || OM_ROOT }); k.y += 6; } } }
+  if (lib.length) { k.y += 2; k.table({ head: [['Supplier', 'Product', 'Document', 'In this file']], body: lib.map(e => [e.s, e.p || '', e.folder ? e.t : (e.f || ''), e.path ? (d.libApp ? 'Yes (appendix)' : 'Yes (see below)') : 'Library link']) }); const ln = lib.filter(e => !e.path); if (ln.length) { k.font(8, 'normal', k.GREY); k.need(6); k.doc.textWithLink('Product library (Absolute Roofing Solutions O&M library) - link', k.M, k.y + 2, { url: (omLib() && omLib().data.root) || OM_ROOT }); k.y += 6; } } }
 async function buildOmPack(pk, prog) { const PL = await loadPdfLib(), { PDFDocument, PDFName, PDFHexString, PDFNumber } = PL; const d = pk.data, j = omJob(d.jobId) || {}; const title = d.title || 'Health & Safety File and O&M Manual';
   const parts = await omGather(pk, prog); prog && prog('Building sections…');
   const tab = (doc, label, sub, big) => { doc.setFillColor(15, 37, 66); doc.rect(0, 0, 210, 297, 'F'); doc.setFillColor(241, 137, 2); doc.rect(178, 30, 32, 70, 'F'); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(40); doc.text(String(big), 194, 72, { align: 'center' }); doc.setFontSize(24); doc.text(doc.splitTextToSize(label, 150), 20, 130); doc.setFont('helvetica', 'normal'); doc.setFontSize(12); if (sub) doc.text(doc.splitTextToSize(sub, 150), 20, 160); };
@@ -9871,7 +9872,7 @@ async function buildOmPack(pk, prog) { const PL = await loadPdfLib(), { PDFDocum
     else { const { jsPDF } = window.jspdf, dd = new jsPDF({ unit: 'mm', format: 'a4' }); const apps = [...new Set(ps.map(p => p.app))]; tab(dd, '8. Appendices', apps.map(a => a).join('\n') || 'None', 8); units.push({ sec: 8, title: '8. Appendices', doc: dd });
       for (const a of apps) { const td = new jsPDF({ unit: 'mm', format: 'a4' }); tab(td, 'Appendix ' + a, ps.filter(p => p.app === a).map(p => p.title).join('\n'), a[0]); units.push({ sec: 8, title: 'Appendix ' + a, doc: td, child: true }); ps.filter(p => p.app === a).forEach(p => units.push({ sec: 8, title: p.title, blob: p.blob, child: true, grand: true })); } } }
   // load units, count pages
-  for (const u of units) { const bytes = u.doc ? u.doc.output('arraybuffer') : await u.blob.arrayBuffer(); try { u.pdf = await PDFDocument.load(bytes, { ignoreEncryption: true }); u.n = u.pdf.getPageCount(); } catch (e) { u.bad = true; u.n = 0; } }
+  for (const u of units) { const bytes = u.doc ? u.doc.output('arraybuffer') : await u.blob.arrayBuffer(); try { u.pdf = await PDFDocument.load(bytes, { ignoreEncryption: true }); if (u.pdf.isEncrypted && u.blob) throw new Error('encrypted'); u.n = u.pdf.getPageCount(); } catch (e) { try { if (!u.blob) throw e; prog && prog('Flattening ' + u.title + '…'); u.pdf = await PDFDocument.load(await omRaster(bytes)); u.n = u.pdf.getPageCount(); u.flat = true; } catch (e2) { u.bad = true; u.n = 0; } } }
   const good = units.filter(u => !u.bad && u.n);
   // cover + contents (contents may run to 2 pages)
   const mkFront = start => { const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: 'mm', format: 'a4' }); const co = (S.settings || {}).company || {};
@@ -9892,7 +9893,7 @@ async function buildOmPack(pk, prog) { const PL = await loadPdfLib(), { PDFDocum
       if (i) dct.set(PDFName.of('Prev'), refs[i - 1]); if (i < list.length - 1) dct.set(PDFName.of('Next'), refs[i + 1]); if (n.kids.length) { const kr = build(n.kids, refs[i]); dct.set(PDFName.of('First'), kr[0]); dct.set(PDFName.of('Last'), kr[kr.length - 1]); dct.set(PDFName.of('Count'), PDFNumber.of(-n.kids.length)); } ctx.assign(refs[i], dct); }); return refs; };
   const tr = build(top, root); const od = ctx.obj({}); od.set(PDFName.of('Type'), PDFName.of('Outlines')); od.set(PDFName.of('First'), tr[0]); od.set(PDFName.of('Last'), tr[tr.length - 1]); od.set(PDFName.of('Count'), PDFNumber.of(top.length)); ctx.assign(root, od);
   out.catalog.set(PDFName.of('Outlines'), root); out.catalog.set(PDFName.of('PageMode'), PDFName.of('UseOutlines'));
-  const bytes = await out.save(); return { blob: new Blob([bytes], { type: 'application/pdf' }), pages: out.getPageCount(), skipped: units.filter(u => u.bad).map(u => u.title), bookmarks: top.length }; }
+  const bytes = await out.save(); return { blob: new Blob([bytes], { type: 'application/pdf' }), pages: out.getPageCount(), skipped: units.filter(u => u.bad).map(u => u.title), flattened: units.filter(u => u.flat).map(u => u.title), bookmarks: top.length }; }
 /* ---------- UI ---------- */
 S.om = S.om || { sup: '', prod: '', libq: '' };
 function omNewPackData(job, tpl) { const t = tpl.data, a = omAudits(job)[0] || {}; const cl = a.client || {};
@@ -9944,7 +9945,7 @@ Object.assign(ACTIONS, {
   async 'om-build'() { const pk = omCur(); clearTimeout(omSaveT); const pr = s => { const el = $('#om-prog'); if (el) el.textContent = s; };
     try { const o = await buildOmPack(pk, pr); pr('Uploading…'); Rec.omBlob = Rec.omBlob || {}; Rec.omBlob[pk.id] = o.blob; const path = await recUpload(me(), 'ompack', pk.id, 'file', o.blob); const old = pk.data.pdf;
       Object.assign(pk.data, { pdf: path, pdfAt: Date.now(), pages: o.pages, size: o.blob.size }); recPut(pk); if (old && old !== path) sbFetch(`/storage/v1/object/${REC_BUCKET}/${encPath(old)}`, { method: 'DELETE' }).catch(() => { });
-      toast(`PDF built - ${o.pages} pages${o.skipped.length ? ` (${o.skipped.length} unreadable PDF skipped: ${o.skipped.join(', ')})` : ''}`, 5000); rerender(); } catch (e) { pr(''); toast('Could not build: ' + (e.message || e), 6000); } },
+      toast(`PDF built - ${o.pages} pages${(o.flattened || []).length ? ` (${o.flattened.length} locked PDF flattened)` : ''}${o.skipped.length ? ` (${o.skipped.length} unreadable PDF skipped: ${o.skipped.join(', ')})` : ''}`, 5000); rerender(); } catch (e) { pr(''); toast('Could not build: ' + (e.message || e), 6000); } },
   async 'om-dl'() { const pk = omCur(), b = (Rec.omBlob || {})[pk.id] || await recBlob(pk.data.pdf); qOut(b, `${safeName(pk.data.jobRef || 'ARS')}_HS-File-OM-Manual.pdf`); },
   async 'om-send'() { const pk = omCur(), d = pk.data; const r = await modal(`<h3>Email to client</h3><label class="f"><span class="lbl">To (comma separated)</span><input id="oms-to" value="${esc(d.client.email || '')}"></label><label class="f"><span class="lbl">Message</span><textarea id="oms-m" rows="4">Dear ${esc(d.client.contact || d.client.name || 'Sir / Madam')},\n\nPlease find the Health & Safety File and O&M manual for the roofing works at ${esc(d.site || '')} at the link below.\n\nKind regards,\n${esc(myName())}\nAbsolute Roofing Solutions</textarea></label><label class="f"><span class="lbl">Link valid for (days)</span><input id="oms-d" type="number" value="30"></label><button class="btn primary" id="oms-ok">Send</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#oms-ok').addEventListener('click', () => close({ to: bg.querySelector('#oms-to').value.split(/[,;\s]+/).filter(Boolean), message: bg.querySelector('#oms-m').value, days: +bg.querySelector('#oms-d').value || 30 })));
     if (!r || typeof r !== 'object') return; if (!r.to.length) return toast('Enter an email'); await recFlush();
@@ -10185,6 +10186,18 @@ async function omTplEditor(d, title, canDel) { const sups = [...new Set(OM_SUPPL
 document.addEventListener('change', async e => { if (e.target.id !== 'om-tpl') return; const pk = omCur(); if (!pk) return; const t = e.target.value ? omTpl(e.target.value) : null;
   if (!(await confirmBox(t ? `Apply template "${t.data.name}"?` : 'Clear the template?', 'Section texts, hazards and suggested suppliers are replaced; project details, client, documents chosen and uploads are kept.', 'Apply'))) { e.target.value = pk.data.tplId || ''; return; }
   omApplyTpl(pk.data, t); if (!t) { pk.data.tplName = ''; } recPut(pk); rerender(); });
+/* real library files: product docs as grouped appendices (optional), readable titles, encrypted / unreadable PDFs flattened via pdf.js */
+const omDocTitle = e => `${e.s} - ${String(e.f || e.p || '').replace(/\.pdf$/i, '').replace(/^Web[- ]/i, '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()}`;
+function omLibGroups(lib) { const G = [['Product & safety data sheets', []], ['Installation & application guides', []], ['Maintenance', []], ['Warranties & guarantees', []], ['Certificates (BBA, fire & performance)', []]];
+  lib.forEach(e => { const f = (e.f || '') + ' ' + (e.p || ''); const i = /instruction|install|application|cut.?edge.?system/i.test(f) || omTypeIs(e.t, '02') ? 1 : omTypeIs(e.t, '03') ? 2 : omTypeIs(e.t, '04') || /warrant|guarant/i.test(f) ? 3 : omTypeIs(e.t, '05') || /bba|certif/i.test(f) ? 4 : 0; G[i][1].push(e); });
+  return G.filter(g => g[1].length); }
+async function omRaster(bytes) { const L = await loadPdfJs(), pdf = await L.getDocument({ data: new Uint8Array(bytes.slice ? bytes.slice(0) : bytes) }).promise, { jsPDF } = window.jspdf; let doc = null;
+  for (let i = 1; i <= pdf.numPages; i++) { const pg = await pdf.getPage(i), v1 = pg.getViewport({ scale: 1 }), w = v1.width * 25.4 / 72, h = v1.height * 25.4 / 72, vp = pg.getViewport({ scale: Math.min(2, 1800 / Math.max(v1.width, v1.height)) });
+    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height); const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height); await pg.render({ canvasContext: cx, viewport: vp }).promise;
+    const o = w > h ? 'l' : 'p'; if (!doc) doc = new jsPDF({ unit: 'mm', format: [w, h], orientation: o }); else doc.addPage([w, h], o); doc.addImage(c.toDataURL('image/jpeg', 0.82), 'JPEG', 0, 0, w, h); c.width = c.height = 0; }
+  return doc.output('arraybuffer'); }
+{ const _v2 = viewOmPack; viewOmPack = function (pk) { return _v2(pk).replace('<div class="card" id="om-pick"><h2>4-6. Products &amp; documents</h2>', `<div class="card" id="om-pick"><h2>4-6. Products &amp; documents</h2><label class="ckl"><input type="checkbox" id="om-libapp" ${pk.data.libApp ? 'checked' : ''}> Put product documents in appendices (grouped: data sheets, installation, maintenance, warranties, certificates) - sections 4-6 list them</label>`); }; }
+document.addEventListener('change', e => { if (e.target.id !== 'om-libapp') return; const pk = omCur(); if (!pk) return; pk.data.libApp = e.target.checked; recPut(pk); rerender(); });
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
