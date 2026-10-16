@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.1">
+<meta name="app-version" content="1.10.2">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.1';
+const APP_VERSION = '1.10.2';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -9447,9 +9447,9 @@ const recNew = (kind, subject, data = {}, status = null) => ({ id: kind.slice(0,
 async function recFetch(q) { if (!signedIn() || !online()) return []; await recInit(); const rows = (await sbFetch('/rest/v1/records?select=*&deleted=eq.false&' + q)) || []; rows.forEach(r => { const l = Rec.items[r.id]; if (!l || !l._q) Rec.items[r.id] = r; }); recSaveLocal(); return rows; }
 function recPut(r) { r.updated_at = new Date().toISOString(); r._q = true; Rec.items[r.id] = r; recSaveLocal(); recFlush(); return r; }
 function recDel(r) { r.deleted = true; return recPut(r); }
-async function recFlush() { if (Rec.busy || !signedIn() || !online()) return; Rec.busy = true; let n = 0;
-  try { for (const r of Object.values(Rec.items).filter(x => x._q)) { try { await recPush(r); n++; } catch (e) { if (e.offline) break; r._err = e.message || String(e); } } } finally { Rec.busy = false; recSaveLocal(); }
-  if (n && typeof recOnFlush === 'function') recOnFlush(); }
+function recFlush() { if (!signedIn() || !online()) return Promise.resolve(); if (Rec.busy) { Rec.again = true; return Rec.busy; }
+  Rec.busy = (async () => { let n = 0; do { Rec.again = false; for (const r of Object.values(Rec.items).filter(x => x._q)) { try { await recPush(r); n++; } catch (e) { if (e.offline) { Rec.again = false; break; } r._err = e.message || String(e); } } } while (Rec.again);
+    recSaveLocal(); if (n && typeof recOnFlush === 'function') recOnFlush(); })().finally(() => { Rec.busy = null; }); return Rec.busy; }
 let recOnFlush = null;
 async function recUpload(owner, kind, id, k, dataUrlOrBlob) { const blob = typeof dataUrlOrBlob === 'string' ? dataURLtoBlob(dataUrlOrBlob) : dataUrlOrBlob; const ext = /pdf/.test(blob.type) ? 'pdf' : /png/.test(blob.type) ? 'png' : 'jpg';
   const path = `${owner}/${kind}/${id}-${safeName(k)}-${Date.now().toString(36)}.${ext}`; await sbFetch(`/storage/v1/object/${REC_BUCKET}/${encPath(path)}`, { method: 'POST', body: blob, headers: { 'Content-Type': blob.type || 'application/octet-stream', 'x-upsert': 'true' } }); return path; }
@@ -9644,6 +9644,148 @@ const ADM_VIEWS = {};
   if (role !== 'admin' && p.role !== 'admin') return _sr.call(this, a);
   if (!(await confirmBox(role === 'admin' ? 'Make admin?' : 'Remove admin role?', role === 'admin' ? `${email} will get the Admin section (operatives, certificates, expenses, fleet, O&M files).` : `${email} goes back to surveyor.`, role === 'admin' ? 'Make admin' : 'Remove', role !== 'admin'))) return;
   try { await sbFetch('/rest/v1/rpc/set_role', { method: 'POST', body: { user_email: email, new_role: role } }); toast('Role updated'); await loadProfiles(); render(true); } catch (e) { toast(e.message, 4000); } }; }
+
+/* ===== v1.10.2 (BETA): Fleet. Admin: vans (reg, make/model, assigned FOREMAN, mileage, MOT / tax / insurance / service / tyres due, documents, defects, repair costs, status).
+   Foreman: weekly van check (Mondays), handover check after a van swap, photos (first Monday of the month / when the office asks), damage / accident report.
+   Records: van (admin), vancheck / vandefect / vanincident (foreman). A defect is closed by the office ("fixed") or when a later check says "fixed". Unsafe open defect = off road. */
+const VAN_ITEMS = [['tyres', 'Tyres'], ['lights', 'Lights'], ['mirrors', 'Mirrors'], ['wipers', 'Wipers / screenwash'], ['oil', 'Oil'], ['coolant', 'Coolant'], ['brakes', 'Brakes'], ['body', 'Bodywork'], ['load', 'Load secured'], ['firstaid', 'First aid kit'], ['extinguisher', 'Fire extinguisher']];
+const VAN_DATES = [['mot', 'MOT'], ['tax', 'Road tax'], ['insurance', 'Insurance'], ['service', 'Service'], ['tyres', 'Tyres']];
+const VAN_SIDES = [['p_front', 'Front'], ['p_back', 'Back'], ['p_left', 'Left side'], ['p_right', 'Right side']];
+const vans = () => recAll('van').sort((a, b) => String(a.data.reg).localeCompare(String(b.data.reg)));
+const vanChecks = vid => recAll('vancheck', c => c.data.van === vid).sort((a, b) => (b.data.at || 0) - (a.data.at || 0));
+const vanDefects = vid => recAll('vandefect', d => d.data.van === vid).sort((a, b) => (b.data.at || 0) - (a.data.at || 0));
+const defFixedBy = d => { if (d.status === 'fixed') return { by: d.data.fixedBy || 'office', date: d.data.fixedAt || '' }; const c = recAll('vancheck', c => c.data.van === d.data.van && (c.data.carried || []).some(x => x.id === d.id && x.state === 'fixed'))[0]; return c ? { by: c.data.by, date: c.data.date } : null; };
+const defOpen = d => !defFixedBy(d);
+const vanOffRoad = v => v.data.status === 'off' || vanDefects(v.id).some(d => d.data.unsafe && defOpen(d));
+const vanMileage = v => Math.max(+v.data.mileage || 0, ...vanChecks(v.id).map(c => +c.data.mileage || 0));
+const vanDue = v => VAN_DATES.map(([k, l]) => ({ k, l, d: v.data[k], n: daysTo(v.data[k]) })).filter(x => x.d);
+const vanWarn = v => vanDue(v).filter(x => x.n <= 30);
+const mondayOf = d => wkStartOf(d);
+const firstMondayWeek = ws => +ws.slice(8, 10) <= 7;
+const myVan = () => vans().find(v => v.data.foreman === me() && v.data.status !== 'sold');
+function vanTodo(v) { const ws = mondayOf(todayISO()), ch = vanChecks(v.id), mine = ch.filter(c => c.owner === me());
+  const weekly = !ch.some(c => c.data.week === ws && c.data.type !== 'incident');
+  const handover = v.data.assignedAt && !mine.some(c => (c.data.at || 0) >= v.data.assignedAt) && v.data.prevForeman && v.data.prevForeman !== me();
+  const photosReq = v.data.photoReqAt && !ch.some(c => (c.data.at || 0) >= v.data.photoReqAt && c.data.p_front);
+  const photos = photosReq || (firstMondayWeek(ws) && !ch.some(c => c.data.week === ws && c.data.p_front)) || handover;
+  return { ws, weekly, handover, photos, photosReq }; }
+/* ---------- foreman: home card ---------- */
+function vanHomeCard() { const v = myVan(); if (!v) return ''; const t = vanTodo(v), off = vanOffRoad(v), due = t.weekly || t.handover || t.photosReq, last = vanChecks(v.id)[0];
+  return `<div class="card van-card" style="border-left:6px solid ${off ? '#dc2626' : due ? '#f59e0b' : '#16a34a'}"><h2 style="margin:0 0 4px">🚐 Van ${esc(v.data.reg)}</h2><p class="hint">${esc([v.data.make, v.data.model].filter(Boolean).join(' '))}${off ? ' · <b style="color:#b91c1c">OFF ROAD - do not drive</b>' : ''}${last ? ` · last check ${fmtDate(last.data.date)}` : ''}</p>
+    ${due ? `<a class="btn primary block dc-big" href="#/vancheck" style="margin-top:6px">${t.handover ? 'Handover check (new van)' : t.weekly ? 'Weekly van check' : 'Van photos requested'}${t.photos ? ' + photos' : ''}</a>` : '<p><span class="tag green">This week\'s check done</span></p>'}
+    <a class="btn block" href="#/vanreport" style="margin-top:6px">Report damage / accident</a></div>`; }
+{ const _vh = viewOpHome; viewOpHome = function () { const v = _vh(); const c = vanHomeCard(); if (c) v.body = c + v.body; return v; }; }
+async function vanLoad() { try { await recFetch('kind=in.(van,vancheck,vandefect)'); } catch (e) { } }
+setTimeout(() => { if (signedIn() && isOp()) vanLoad().then(() => { if (!route()[0] && myVan() && !document.querySelector('.van-card') && !document.querySelector('.modal-bg') && document.querySelector('.pf-tile')) rerender(); }); }, 1800);
+/* ---------- foreman: weekly / handover check ---------- */
+S.vc = null;
+function vcStart(v) { const t = vanTodo(v); S.vc = { van: v.id, reg: v.data.reg, type: t.handover ? 'handover' : 'weekly', week: t.ws, mileage: '', items: {}, notes: {}, unsafe: {}, files: {}, carried: {}, photos: t.photos, last: vanMileage(v) }; }
+function viewVanCheck() { const v = myVan(); if (!v) return '<p class="hint">No van assigned to you.</p>'; if (!S.vc || S.vc.van !== v.id) vcStart(v); const c = S.vc, open = vanDefects(v.id).filter(defOpen);
+  return `<div class="card"><h2>${c.type === 'handover' ? 'Handover check' : 'Weekly van check'} - ${esc(v.data.reg)}</h2><p class="hint">${esc([v.data.make, v.data.model].filter(Boolean).join(' '))} · week of ${fmtDate(c.week)}</p>
+    <label class="f"><span class="lbl">Mileage now (last: ${c.last ? c.last.toLocaleString('en-GB') : '-'})</span><input id="vc-mi" type="number" inputmode="numeric" value="${esc(c.mileage)}" placeholder="${c.last || ''}"></label></div>
+  ${open.length ? `<div class="card" id="vc-carried"><h2>Defects from before</h2>${open.map(d => `<div class="item"><div class="bd"><div class="t1">${esc(d.data.item)}${d.data.unsafe ? ' <span class="tag red">unsafe</span>' : ''}</div><div class="t2">${esc(d.data.comment || '')} · ${fmtDate(d.data.date)}</div><div class="btns" style="margin-top:6px"><button class="btn sm ${c.carried[d.id] === 'fixed' ? 'primary' : ''}" data-act="vc-car" data-id="${d.id}" data-v="fixed">Fixed</button><button class="btn sm ${c.carried[d.id] === 'still' ? 'primary' : ''}" data-act="vc-car" data-id="${d.id}" data-v="still">Still there</button></div></div></div>`).join('')}</div>` : ''}
+  <div class="card" id="vc-items"><h2>Checks <button class="btn sm primary" data-act="vc-allok" style="margin-left:auto">All OK</button></h2>${VAN_ITEMS.map(([k, l]) => { const s = c.items[k]; return `<div class="item vc-it" data-k="${k}"><div class="bd"><div class="t1">${l}</div>${s === 'defect' ? `<input class="vc-note" data-k="${k}" placeholder="What's wrong?" value="${esc(c.notes[k] || '')}" style="width:100%;margin-top:6px"><div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn sm" data-act="vc-dph" data-k="${k}">📷 ${c.files['d_' + k] ? 'Retake' : 'Photo'}</button>${c.files['d_' + k] ? `<img src="${c.files['d_' + k]}" style="height:44px;border-radius:6px">` : ''}<label class="ckl" style="margin:0"><input type="checkbox" class="vc-unsafe" data-k="${k}" ${c.unsafe[k] ? 'checked' : ''}> Unsafe to drive</label></div>` : ''}</div>
+    <div class="btns" style="flex-wrap:nowrap"><button class="btn sm ${s === 'ok' ? 'primary' : ''}" data-act="vc-it" data-k="${k}" data-v="ok">OK</button><button class="btn sm ${s === 'defect' ? 'danger' : ''}" data-act="vc-it" data-k="${k}" data-v="defect">Defect</button></div></div>`; }).join('')}</div>
+  ${c.photos ? `<div class="card" id="vc-photos"><h2>Photos - all 4 sides</h2><p class="hint">${vanTodo(v).photosReq ? 'The office asked for photos.' : c.type === 'handover' ? 'Handover: photograph the van as you take it.' : 'First Monday of the month.'}</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${VAN_SIDES.map(([k, l]) => `<div class="vc-side" data-act="vc-ph" data-k="${k}" style="min-height:90px;border:2px dashed #cbd5e1;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">${c.files[k] ? `<img src="${c.files[k]}" style="max-width:100%;max-height:130px">` : `<span class="hint">📷 ${l}</span>`}</div>`).join('')}</div></div>` : ''}
+  <button class="btn primary block dc-big" data-act="vc-submit" style="margin:4px 0 24px">Submit van check</button>`; }
+document.addEventListener('input', e => { if (!S.vc) return; if (e.target.id === 'vc-mi') S.vc.mileage = e.target.value; if (e.target.classList.contains('vc-note')) S.vc.notes[e.target.dataset.k] = e.target.value; });
+document.addEventListener('change', e => { if (S.vc && e.target.classList.contains('vc-unsafe')) S.vc.unsafe[e.target.dataset.k] = e.target.checked; });
+Object.assign(ACTIONS, {
+  'vc-it'(a) { S.vc.items[a.dataset.k] = a.dataset.v; rerender(); }, 'vc-allok'() { VAN_ITEMS.forEach(([k]) => { if (S.vc.items[k] !== 'defect') S.vc.items[k] = 'ok'; }); rerender(); },
+  'vc-car'(a) { S.vc.carried[a.dataset.id] = a.dataset.v; rerender(); },
+  async 'vc-dph'(a) { const p = await recPickPhoto(); if (p) { S.vc.files['d_' + a.dataset.k] = p; rerender(); } }, async 'vc-ph'(a) { const p = await recPickPhoto(); if (p) { S.vc.files[a.dataset.k] = p; rerender(); } },
+  async 'vc-submit'() { const c = S.vc, v = Rec.items[c.van]; const mi = parseInt(c.mileage, 10); if (!(mi > 0)) return toast('Enter the mileage');
+    if (c.last && mi < c.last && !(await confirmBox('Mileage is lower than last time', `Last recorded ${c.last}. Is ${mi} right?`, 'Yes, submit', false))) return;
+    const miss = VAN_ITEMS.filter(([k]) => !c.items[k]); if (miss.length) return toast('Tick OK or Defect for: ' + miss.map(x => x[1]).join(', '));
+    const bad = VAN_ITEMS.filter(([k]) => c.items[k] === 'defect' && !String(c.notes[k] || '').trim()); if (bad.length) return toast('Say what is wrong with: ' + bad.map(x => x[1]).join(', '));
+    const open = vanDefects(c.van).filter(defOpen); const nc = open.filter(d => !c.carried[d.id]); if (nc.length) return toast('Say if the old defects are fixed or still there');
+    if (c.photos && VAN_SIDES.some(([k]) => !c.files[k])) return toast('Take all 4 photos');
+    const ck = recNew('vancheck', null, { van: c.van, reg: c.reg, type: c.type, week: c.week, date: todayISO(), at: Date.now(), mileage: mi, items: c.items, carried: open.map(d => ({ id: d.id, item: d.data.item, state: c.carried[d.id] })), by: myName() });
+    ck._files = {}; VAN_SIDES.forEach(([k]) => { if (c.files[k]) ck._files[k] = c.files[k]; });
+    const defs = VAN_ITEMS.filter(([k]) => c.items[k] === 'defect').map(([k, l]) => { const d = recNew('vandefect', null, { van: c.van, reg: c.reg, item: l, key: k, comment: c.notes[k].trim(), unsafe: !!c.unsafe[k], checkId: ck.id, date: todayISO(), at: Date.now(), mileage: mi, by: myName() }, 'open'); if (c.files['d_' + k]) d._files = { photo: c.files['d_' + k] }; return d; });
+    ck.data.defects = defs.map(d => d.id); recPut(ck); defs.forEach(recPut); S.vc = null;
+    const unsafe = defs.some(d => d.data.unsafe); await recFlush(); for (const d of defs) { try { await fnCall('records-notify', { id: d.id }); } catch (e) { } }
+    await modal(`<h3>${unsafe ? '⛔ Van marked OFF ROAD' : defs.length ? 'Check sent - defects reported' : '✓ Van check done'}</h3><p>${unsafe ? 'Do not drive it. The office has been told.' : defs.length ? `${defs.length} defect${defs.length > 1 ? 's' : ''} sent to the office.` : 'Thanks - all OK.'}</p><button class="btn primary block" data-r="ok">OK</button>`); go('#/'); },
+});
+/* ---------- foreman: damage / accident report ---------- */
+function viewVanReport() { const v = myVan(); S.vr = S.vr || { files: {} }; if (!v) return '<p class="hint">No van assigned to you.</p>'; const f = S.vr.files;
+  return `<div class="card"><h2>Damage / accident - ${esc(v.data.reg)}</h2><div class="row"><label class="f"><span class="lbl">Date</span><input type="date" id="vr-date" value="${todayISO()}"></label><label class="f"><span class="lbl">Time</span><input type="time" id="vr-time"></label></div>
+    <label class="f"><span class="lbl">Where</span><input id="vr-loc"></label><label class="f"><span class="lbl">What happened</span><textarea id="vr-desc" rows="3"></textarea></label><label class="f"><span class="lbl">Damage to the van</span><input id="vr-dmg"></label>
+    <label class="f"><span class="lbl">Anyone hurt?</span><input id="vr-inj" placeholder="No / details"></label><label class="f"><span class="lbl">Other vehicle / person (name, reg, insurer, phone)</span><textarea id="vr-tp" rows="2"></textarea></label><label class="f"><span class="lbl">Police reference (if any)</span><input id="vr-pol"></label>
+    <label class="ckl"><input type="checkbox" id="vr-unsafe"> Van is unsafe to drive</label>
+    <p class="lbl">Photos</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${['p1', 'p2', 'p3', 'p4'].map(k => `<div data-act="vr-ph" data-k="${k}" style="min-height:80px;border:2px dashed #cbd5e1;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">${f[k] ? `<img src="${f[k]}" style="max-width:100%;max-height:120px">` : '<span class="hint">📷 Photo</span>'}</div>`).join('')}</div></div>
+  <button class="btn primary block dc-big" data-act="vr-submit" style="margin-bottom:24px">Send report to the office</button>`; }
+Object.assign(ACTIONS, {
+  async 'vr-ph'(a) { const p = await recPickPhoto(); if (p) { const keep = {}; ['vr-date', 'vr-time', 'vr-loc', 'vr-desc', 'vr-dmg', 'vr-inj', 'vr-tp', 'vr-pol'].forEach(id => keep[id] = ($('#' + id) || {}).value); S.vr.files[a.dataset.k] = p; rerender(); Object.entries(keep).forEach(([id, val]) => { const el = $('#' + id); if (el && val != null) el.value = val; }); } },
+  async 'vr-submit'() { const v = myVan(), g = id => ($('#' + id) || {}).value || ''; if (!g('vr-desc').trim()) return toast('Say what happened');
+    const r = recNew('vanincident', null, { van: v.id, reg: v.data.reg, date: g('vr-date'), time: g('vr-time'), location: g('vr-loc'), description: g('vr-desc'), damage: g('vr-dmg'), injuries: g('vr-inj'), thirdParty: g('vr-tp'), police: g('vr-pol'), by: myName(), at: Date.now() }); r._files = Object.assign({}, S.vr.files); recPut(r);
+    let d = null; if ($('#vr-unsafe').checked) { d = recNew('vandefect', null, { van: v.id, reg: v.data.reg, item: 'Accident damage', comment: g('vr-dmg') || g('vr-desc'), unsafe: true, incident: r.id, date: todayISO(), at: Date.now(), by: myName() }, 'open'); recPut(d); }
+    S.vr = null; await recFlush(); try { await fnCall('records-notify', { id: r.id }); } catch (e) { } toast('Report sent to the office'); go('#/'); },
+});
+/* ---------- van check PDF ---------- */
+function buildVanCheckPDF(ck) { const v = Rec.items[ck.data.van] || { data: {} }, k = dcPdfKit('Van check'), doc = k.doc; k.letterhead(`${ck.data.reg || ''} · ${fmtDate(ck.data.date)}`);
+  k.kv([['Van', `${ck.data.reg || ''} ${[v.data.make, v.data.model].filter(Boolean).join(' ')}`], ['Check', ck.data.type === 'handover' ? 'Handover check' : 'Weekly check'], ['Week of', fmtDate(ck.data.week)], ['Date', new Date(ck.data.at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })], ['Driver / foreman', ck.data.by], ['Mileage', String(ck.data.mileage || '')]]);
+  const defs = (ck.data.defects || []).map(id => Rec.items[id]).filter(Boolean);
+  k.h2('Checks'); k.table({ head: [['Item', 'Result', 'Notes']], body: VAN_ITEMS.map(([key, l]) => { const d = defs.find(x => x.data.key === key); return [l, ck.data.items[key] === 'ok' ? 'OK' : 'DEFECT', d ? k.tx(d.data.comment + (d.data.unsafe ? ' - UNSAFE TO DRIVE' : '')) : '']; }), didParseCell: x => { if (x.section === 'body' && x.column.index === 1) x.cell.styles.textColor = x.cell.raw === 'OK' ? [22, 101, 52] : [185, 28, 28]; } });
+  if ((ck.data.carried || []).length) { k.h2('Defects from before'); k.table({ head: [['Defect', 'Now']], body: ck.data.carried.map(x => [k.tx(x.item), x.state === 'fixed' ? 'Fixed' : 'Still present']) }); }
+  const ph = VAN_SIDES.filter(([key]) => recSrc(ck, key) || ck._img && ck._img[key]); if (ph.length) { k.h2('Photos'); let x = 14, y = k.y; ph.forEach(([key, l], i) => { const src = recSrc(ck, key) || ck._img[key]; if (y + 62 > 280) { doc.addPage(); y = 20; } try { doc.addImage(src, 'JPEG', x, y, 88, 58); } catch (e) { } doc.setFontSize(8); doc.text(l, x, y + 62); if (i % 2) { x = 14; y += 68; } else x = 108; }); k.y = y + 70; }
+  defs.filter(d => recSrc(d, 'photo') || d._dl).forEach(d => { if (k.y > 200) { doc.addPage(); k.y = 20; } k.h2('Defect photo - ' + d.data.item); try { doc.addImage(recSrc(d, 'photo') || d._dl, 'JPEG', 14, k.y, 80, 55); } catch (e) { } k.y += 60; });
+  return k.finish(`Van check · ${ck.data.reg || ''} · ${fmtDate(ck.data.date)}`); }
+async function vanCheckPdf(ck) { ck._img = {}; for (const [key] of VAN_SIDES) if (!recSrc(ck, key) && ck.data[key]) try { ck._img[key] = await blobToDataURL(await recBlob(ck.data[key])); } catch (e) { }
+  for (const id of ck.data.defects || []) { const d = Rec.items[id]; if (d && !recSrc(d, 'photo') && d.data.photo) try { d._dl = await blobToDataURL(await recBlob(d.data.photo)); } catch (e) { } }
+  return buildVanCheckPDF(ck); }
+async function vanCheckPdfOpen(ck) { qOut((await vanCheckPdf(ck)).output('blob'), `Van-check-${safeName(ck.data.reg)}-${ck.data.date}.pdf`); }
+/* ---------- admin: fleet ---------- */
+function admFleetHTML() { const L = vans();
+  return `<div class="card"><button class="btn primary block" data-act="van-edit">${I.plus} Add van</button></div><div class="card" id="adm-fleet"><h2>Vans <span class="small" style="margin-left:auto">${L.length}</span></h2>${L.map(v => { const off = vanOffRoad(v), w = vanWarn(v), t = vanTodo(v), od = vanDefects(v.id).filter(defOpen).length, last = vanChecks(v.id)[0];
+    return `<a class="item" href="#/van/${v.id}"><div class="th" style="font-size:20px">🚐</div><div class="bd"><div class="t1">${esc(v.data.reg)} · ${esc([v.data.make, v.data.model].filter(Boolean).join(' '))}</div><div class="t2">${esc(v.data.foremanName || 'No foreman')} · ${vanMileage(v).toLocaleString('en-GB')} miles${last ? ' · checked ' + fmtDate(last.data.date) : ''}</div>
+      <div class="meta">${v.data.status === 'sold' ? '<span class="tag">Sold / gone</span>' : off ? '<span class="tag red">Off road</span>' : '<span class="tag green">On the road</span>'}${od ? `<span class="tag amber">${od} open defect${od > 1 ? 's' : ''}</span>` : ''}${w.map(x => `<span class="tag ${x.n < 0 ? 'red' : 'amber'}">${x.l} ${x.n < 0 ? 'overdue' : 'due ' + fmtDate(x.d)}</span>`).join('')}${v.data.foreman && t.weekly && new Date().getDay() !== 1 ? '<span class="tag amber">check not done</span>' : ''}</div></div></a>`; }).join('') || '<p class="hint">No vans yet.</p>'}</div>`; }
+ADM_TABS.push(['fleet', 'Fleet']); ADM_VIEWS.fleet = admFleetHTML;
+{ const _ae = admEnsure; admEnsure = function (force) { const go1 = force || Date.now() - admLoadT >= 30000; _ae(force); if (go1 && signedIn() && isAdm()) recFetch('kind=in.(van,vancheck,vandefect,vanincident)').then(() => { if (/^(admin|van)$/.test(route()[0] || '')) rerender(); }).catch(() => { }); }; }
+function viewVanAdmin(v) { const ch = vanChecks(v.id), defs = vanDefects(v.id), inc = recAll('vanincident', i => i.data.van === v.id).sort((a, b) => (b.data.at || 0) - (a.data.at || 0)), costs = v.data.costs || [], tot = costs.reduce((a, c) => a + (+c.amount || 0), 0), off = vanOffRoad(v);
+  return `<div class="card"><h2>${esc(v.data.reg)} <span class="tag ${off ? 'red' : 'green'}" style="margin-left:8px">${v.data.status === 'sold' ? 'Sold / gone' : off ? 'Off road' : 'On the road'}</span></h2><p>${esc([v.data.make, v.data.model].filter(Boolean).join(' '))} · <b>${vanMileage(v).toLocaleString('en-GB')}</b> miles</p><p>Foreman: <b>${esc(v.data.foremanName || 'none')}</b></p>
+    <div class="btns"><button class="btn" data-act="van-edit" data-id="${v.id}">Edit details / dates / foreman</button><button class="btn" data-act="van-photos" data-id="${v.id}">Request photos</button></div></div>
+  <div class="card"><h2>Due dates</h2>${VAN_DATES.map(([k, l]) => { const n = daysTo(v.data[k]); return `<div class="item"><div class="bd"><div class="t1">${l}</div><div class="meta">${v.data[k] ? `<span class="tag ${n < 0 ? 'red' : n <= 30 ? 'amber' : 'green'}">${fmtDate(v.data[k])}${n < 0 ? ' - overdue' : n <= 30 ? ` - ${n} days` : ''}</span>` : '<span class="tag">not set</span>'}</div></div></div>`; }).join('')}</div>
+  <div class="card"><h2>Defects</h2>${defs.map(d => { const f = defFixedBy(d); return `<div class="item"><div class="th" style="overflow:hidden;padding:0">${recImgTag(d, 'photo', 'width:100%;height:100%;object-fit:cover') || '⚠️'}</div><div class="bd"><div class="t1">${esc(d.data.item)}${d.data.unsafe ? ' <span class="tag red">unsafe</span>' : ''}</div><div class="t2">${esc(d.data.comment || '')} · ${fmtDate(d.data.date)} · ${esc(d.data.by || '')}</div><div class="meta">${f ? `<span class="tag green">Fixed${f.date ? ' ' + fmtDate(f.date) : ''} (${esc(f.by)})</span>` : '<span class="tag amber">Open</span>'}${d.data.cost ? `<span class="tag">${fmtGBP(d.data.cost)}</span>` : ''}</div>${f ? '' : `<button class="btn sm primary" data-act="def-fix" data-id="${d.id}" style="margin-top:6px">Mark fixed + cost</button>`}</div></div>`; }).join('') || '<p class="hint">No defects.</p>'}</div>
+  <div class="card"><h2>Repair costs <span class="small" style="margin-left:auto">${fmtGBP(tot)}</span></h2>${costs.map((c, i) => `<div class="item"><div class="bd"><div class="t1">${fmtGBP(c.amount)} · ${esc(c.desc || '')}</div><div class="t2">${fmtDate(c.date)}</div></div><button class="btn sm" data-act="van-cdel" data-id="${v.id}" data-i="${i}">✕</button></div>`).join('')}<button class="btn block" data-act="van-cost" data-id="${v.id}">${I.plus} Add repair / cost</button></div>
+  <div class="card"><h2>Documents</h2>${(v.data.docs || []).map((d, i) => `<div class="item"><div class="bd"><div class="t1">${esc(d.name)}</div><div class="t2">${fmtDate(d.date)}</div></div><button class="btn sm" data-act="van-doc" data-id="${v.id}" data-i="${i}">Open</button></div>`).join('') || '<p class="hint">V5, insurance certificate, MOT, service records…</p>'}<label class="btn block">${I.plus} Upload document (PDF / photo)<input type="file" accept="application/pdf,image/*" data-vandoc="${v.id}" hidden></label></div>
+  <div class="card"><h2>Checks</h2>${ch.slice(0, 26).map(c => `<div class="item"><div class="bd"><div class="t1">${c.data.type === 'handover' ? 'Handover' : 'Weekly'} · ${fmtDate(c.data.date)} · ${esc(c.data.by || '')}</div><div class="t2">${(+c.data.mileage || 0).toLocaleString('en-GB')} miles · ${(c.data.defects || []).length ? (c.data.defects || []).length + ' defect(s)' : 'all OK'}${c.data.p_front ? ' · photos' : ''}</div></div><button class="btn sm" data-act="vc-pdf" data-id="${c.id}">PDF</button></div>`).join('') || '<p class="hint">No checks yet.</p>'}</div>
+  ${inc.length ? `<div class="card"><h2>Damage / accidents</h2>${inc.map(i => `<div class="item"><div class="bd"><div class="t1">${fmtDate(i.data.date)} ${esc(i.data.time || '')} · ${esc(i.data.location || '')}</div><div class="t2">${esc(i.data.description || '')}</div><div class="t2">${esc(i.data.thirdParty || '')}</div><div style="display:flex;gap:4px;margin-top:4px">${['p1', 'p2', 'p3', 'p4'].map(k => recImgTag(i, k, 'height:50px;border-radius:6px')).join('')}</div></div></div>`).join('')}</div>` : ''}`; }
+async function vanEdit(v) { const d = v ? clone(v.data) : { reg: '', make: '', model: '', mileage: '', foreman: '' }; const fms = operatives().filter(o => o.active !== false);
+  const r = await modal(`<h3>${v ? 'Van ' + esc(d.reg) : 'Add van'}</h3><label class="f"><span class="lbl">Registration</span><input id="vn-reg" value="${esc(d.reg)}" autocapitalize="characters"></label><div class="row"><label class="f"><span class="lbl">Make</span><input id="vn-make" value="${esc(d.make || '')}"></label><label class="f"><span class="lbl">Model</span><input id="vn-model" value="${esc(d.model || '')}"></label></div>
+    <label class="f"><span class="lbl">Assigned foreman (driver)</span><select id="vn-fm"><option value="">None</option>${fms.map(o => `<option value="${o.id}" ${d.foreman === o.id ? 'selected' : ''}>${esc(o.full_name)}</option>`).join('')}</select></label><label class="f"><span class="lbl">Mileage (office record)</span><input id="vn-mi" type="number" value="${esc(d.mileage || '')}"></label>
+    <div class="row">${VAN_DATES.map(([k, l]) => `<label class="f"><span class="lbl">${l} due</span><input type="date" id="vn-${k}" value="${esc(d[k] || '')}"></label>`).join('')}</div>
+    <label class="f"><span class="lbl">Status</span><select id="vn-st"><option value="">In use (off road only if an unsafe defect is open)</option><option value="off" ${d.status === 'off' ? 'selected' : ''}>Off road</option><option value="sold" ${d.status === 'sold' ? 'selected' : ''}>Sold / gone</option></select></label>
+    <button class="btn primary" id="vn-ok">Save</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#vn-ok').addEventListener('click', () => { const g = id => bg.querySelector('#' + id).value.trim(); if (!g('vn-reg')) return toast('Enter the registration'); const o = { reg: g('vn-reg').toUpperCase().replace(/\s+/g, ' '), make: g('vn-make'), model: g('vn-model'), foreman: g('vn-fm'), mileage: +g('vn-mi') || 0, status: g('vn-st') }; VAN_DATES.forEach(([k]) => o[k] = g('vn-' + k)); close(o); }));
+  if (!r || typeof r !== 'object') return; const x = v || recNew('van', null, {}); if (r.foreman !== (x.data.foreman || '')) { x.data.prevForeman = x.data.foreman || ''; x.data.assignedAt = Date.now(); x.data.foremanName = r.foreman ? (operatives().find(o => o.id === r.foreman) || {}).full_name || '' : ''; x.data.history = (x.data.history || []).concat([{ foreman: x.data.foremanName, at: Date.now(), by: myName() }]); if (!v) x.data.prevForeman = ''; }
+  VAN_DATES.forEach(([k]) => { if (r[k] !== x.data[k] && x.data.warnD) delete x.data.warnD[k]; }); Object.assign(x.data, r); recPut(x); toast('Saved'); if (v) rerender(); else go('#/van/' + x.id); }
+Object.assign(ACTIONS, {
+  'van-edit'(a) { vanEdit(a.dataset.id ? Rec.items[a.dataset.id] : null); },
+  async 'van-photos'(a) { const v = Rec.items[a.dataset.id]; if (!v.data.foreman) return toast('No foreman assigned'); v.data.photoReqAt = Date.now(); recPut(v); toast(`Photos requested from ${v.data.foremanName}`); rerender(); },
+  async 'def-fix'(a) { const d = Rec.items[a.dataset.id]; const r = await modal(`<h3>Mark fixed - ${esc(d.data.item)}</h3><div class="row"><label class="f"><span class="lbl">Cost (£, optional)</span><input id="df-c" type="number" step="0.01"></label><label class="f"><span class="lbl">Date</span><input type="date" id="df-d" value="${todayISO()}"></label></div><label class="f"><span class="lbl">Note</span><input id="df-n" placeholder="e.g. new tyre, Kwik Fit"></label><button class="btn primary" id="df-ok">Mark fixed</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#df-ok').addEventListener('click', () => close({ c: +bg.querySelector('#df-c').value || 0, d: bg.querySelector('#df-d').value, n: bg.querySelector('#df-n').value.trim() })));
+    if (!r || typeof r !== 'object') return; d.status = 'fixed'; Object.assign(d.data, { fixedAt: r.d, fixedBy: myName(), fixNote: r.n, cost: r.c }); recPut(d); if (r.c) { const v = Rec.items[d.data.van]; v.data.costs = (v.data.costs || []).concat([{ date: r.d, desc: `${d.data.item}${r.n ? ' - ' + r.n : ''}`, amount: r.c, defect: d.id }]); recPut(v); } rerender(); },
+  async 'van-cost'(a) { const v = Rec.items[a.dataset.id]; const r = await modal(`<h3>Repair / cost</h3><div class="row"><label class="f"><span class="lbl">Amount (£)</span><input id="vc-a" type="number" step="0.01"></label><label class="f"><span class="lbl">Date</span><input type="date" id="vc-d" value="${todayISO()}"></label></div><label class="f"><span class="lbl">What for</span><input id="vc-w"></label><button class="btn primary" id="vco-ok">Add</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#vco-ok').addEventListener('click', () => close({ amount: +bg.querySelector('#vc-a').value || 0, date: bg.querySelector('#vc-d').value, desc: bg.querySelector('#vc-w').value.trim() })));
+    if (!r || typeof r !== 'object' || !r.amount) return; v.data.costs = (v.data.costs || []).concat([r]); recPut(v); rerender(); },
+  async 'van-cdel'(a) { const v = Rec.items[a.dataset.id]; if (!(await confirmBox('Remove this cost?', '', 'Remove'))) return; v.data.costs.splice(+a.dataset.i, 1); recPut(v); rerender(); },
+  'van-doc'(a) { const v = Rec.items[a.dataset.id], d = v.data.docs[+a.dataset.i]; if (d) recOpenFile({ data: { f: d.path }, _files: {} }, 'f', d.name); },
+  'vc-pdf'(a) { const c = Rec.items[a.dataset.id]; if (c) vanCheckPdfOpen(c); },
+});
+document.addEventListener('change', async e => { const id = e.target.dataset && e.target.dataset.vandoc; if (!id || !e.target.files[0]) return; const v = Rec.items[id], f = e.target.files[0]; if (f.size > 20e6) return toast('File too big (max 20 MB)');
+  try { toast('Uploading…', 1500); const path = await recUpload(me(), 'van', v.id, 'doc', f); v.data.docs = (v.data.docs || []).concat([{ name: f.name, path, date: todayISO() }]); recPut(v); rerender(); } catch (er) { toast('Upload failed: ' + (er.message || er)); } });
+/* ---------- routes ---------- */
+{ const _r = render; render = function (keep) { const rt = route(); if (!/^(van|vancheck|vanreport)$/.test(rt[0] || '') || !signedIn()) return _r(keep);
+  if (!Rec.ready || Rec.uid !== me()) { $('#app').innerHTML = header({ title: 'Van' }) + '<main><p class="hint">Loading…</p></main>'; recInit().then(() => render(keep)); return; }
+  S.ctx = null; const y = window.scrollY; document.body.classList.remove('hasnav'); let head, body;
+  if (rt[0] === 'van') { if (!isAdm()) { go('#/'); return; } admEnsure(); const v = Rec.items[rt[1]]; if (!v) { head = header({ title: 'Van', back: '#/admin/fleet' }); body = '<p class="hint">Loading…</p>'; } else { head = header({ title: 'Van ' + v.data.reg, back: '#/admin/fleet' }); body = viewVanAdmin(v); } }
+  else if (rt[0] === 'vancheck') { head = header({ title: 'Van check', back: '#/' }); body = viewVanCheck(); }
+  else { head = header({ title: 'Damage / accident', back: '#/' }); body = viewVanReport(); }
+  $('#app').innerHTML = head + `<main>${body}</main>`; window.scrollTo(0, keep ? y : 0); lastHash = location.hash; }; }
+// Settings > Reminders: van check reminder time (Mondays, follow-up Tuesday same time + note to the office) and certificate warnings time
+{ const _tf = rmToForm, _ff = rmFromForm; rmToForm = function (v) { const f = _tf(v); f.vanTime = (v && v.vanTime) || '08:00'; f.vanOn = v && v.vanOn === false ? 'no' : 'yes'; f.recTime = (v && v.recTime) || '08:00'; return f; };
+  rmFromForm = function (f) { const v = _ff(f); v.vanTime = /^\d\d:\d\d$/.test(f.vanTime || '') ? f.vanTime : '08:00'; v.vanOn = f.vanOn !== 'no'; v.recTime = /^\d\d:\d\d$/.test(f.recTime || '') ? f.recTime : '08:00'; return v; }; }
+{ const _vr = viewRemSettings; viewRemSettings = function () { const h = _vr(); if (!Ops.remForm) return h; const f = mk(Ops.remForm), yn = [['yes', 'On', 'ok'], ['no', 'Off', '']];
+  return h + `<div class="card" id="rm-van"><h2>Van checks &amp; certificates</h2><p class="hint" style="margin-bottom:8px">Foremen get a phone reminder on Monday if the weekly van check isn't done, and again on Tuesday (the office is emailed then). Certificate and licence warnings go out daily (30 days, 7 days, expired).</p>
+    ${f.seg('Van check reminders', 'vanOn', yn, { cls: 'yn' })}${f.text('Van check reminder time (Mon + Tue)', 'vanTime', { type: 'time' })}${f.text('Certificate / licence warnings at', 'recTime', { type: 'time' })}</div>`; }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
