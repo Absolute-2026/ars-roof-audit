@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.6">
+<meta name="app-version" content="1.10.7">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.6';
+const APP_VERSION = '1.10.7';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -10066,6 +10066,47 @@ Object.assign(ACTIONS, {
 // staff/admin load the foremen record with the admin data; operatives with cover/holiday (coverLoad)
 { const _ae = admEnsure; admEnsure = function (force) { const go1 = force || Date.now() - admLoadT >= 30000; _ae(force); if (go1 && signedIn() && isAdm()) recFetch('kind=eq.foremen').then(() => { if (/^(admin|person)$/.test(route()[0] || '')) rerender(); }).catch(() => { }); }; }
 setTimeout(() => { if (signedIn()) recInit().then(() => recFetch('kind=eq.foremen')).catch(() => { }); }, 1600);
+
+/* ===== v1.10.7 (BETA): roles (job titles) + reporting lines. Record id 'people' {title:{uid:key}, reportsTo:{uid:uid}}.
+   Titles sit on the existing permissions: Admin=admin, Director/Manager + Contracts Manager=manager, Sales/Estimator + Surveyor=surveyor, Foreman + Operative=operative.
+   'Reports to' routes emails (daily checks, materials requests, expenses, van defects) on the server (_shared/route.ts). */
+const ROLES = [['director', 'Director / Manager', 'manager'], ['cm', 'Contracts Manager', 'manager'], ['admin', 'Admin', 'admin'], ['sales', 'Sales / Estimator', 'surveyor'], ['surveyor', 'Surveyor', 'surveyor'], ['foreman', 'Foreman', 'operative'], ['operative', 'Operative', 'operative']];
+const roleLabel = k => (ROLES.find(r => r[0] === k) || [k, k])[1];
+const pplRec = () => Rec.items.people && !Rec.items.people.deleted ? Rec.items.people : null;
+const pplData = () => Object.assign({ title: {}, reportsTo: {} }, (pplRec() || {}).data || {});
+function titleOf(p) { if (!p) return ''; const base = p.role; if (base === 'operative') return isForemanUid(p.id) ? 'foreman' : 'operative'; const t = pplData().title[p.id]; const r = ROLES.find(x => x[0] === t); return r && r[2] === base ? t : base === 'manager' ? 'director' : base; }
+function pplSave(mut) { let r = pplRec(); if (!r) r = { id: 'people', kind: 'people', subject: null, owner: me(), status: null, data: { title: {}, reportsTo: {} }, deleted: false }; r.data = Object.assign({ title: {}, reportsTo: {} }, r.data); mut(r.data); recPut(r); }
+const peopleAll = () => (Cloud.profiles || []).filter(p => p.active !== false);
+const pName = p => p.full_name || p.email || '?';
+function reportsToChoices(p) { const t = titleOf(p); const want = /^(foreman|operative)$/.test(t) ? ['cm', 'director'] : /^(cm|sales|surveyor|admin)$/.test(t) ? ['director', 'cm'] : ['director']; return peopleAll().filter(x => x.id !== p.id && want.includes(titleOf(x))).sort((a, b) => want.indexOf(titleOf(a)) - want.indexOf(titleOf(b))); }
+async function roleEdit(uid) { const p = (Cloud.profiles || []).find(x => x.id === uid); if (!p) return; const t = titleOf(p), staff = p.role !== 'operative', rt = pplData().reportsTo[uid] || '';
+  const opts = ROLES.filter(r => staff ? r[2] !== 'operative' : r[2] === 'operative');
+  const r = await modal(`<h3>${esc(pName(p))}</h3><label class="f"><span class="lbl">Role</span><select id="ro-t">${opts.map(o => `<option value="${o[0]}" ${o[0] === t ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></label>
+    <label class="f"><span class="lbl">Reports to</span><select id="ro-r"><option value="">Nobody (top)</option>${reportsToChoices(p).map(x => `<option value="${x.id}" ${x.id === rt ? 'selected' : ''}>${esc(pName(x))} - ${roleLabel(titleOf(x))}</option>`).join('')}</select></label>
+    <p class="hint">${staff ? 'Office / site staff sign in with email. Operatives sign in with mobile + PIN, so an operative cannot become office staff here (add them on the Team page).' : 'Foremen run group sign-offs and van checks; set their jobs on the profile.'}</p><button class="btn primary" id="ro-ok">Save</button><button class="btn" data-r="">Cancel</button>`,
+    (bg, close) => bg.querySelector('#ro-ok').addEventListener('click', () => close({ t: bg.querySelector('#ro-t').value, r: bg.querySelector('#ro-r').value })));
+  if (!r || typeof r !== 'object') return; const role = (ROLES.find(x => x[0] === r.t) || [])[2];
+  if (staff && role !== p.role) { if (!isMgr()) return toast('Only a manager can change office permissions (Admin / Manager / Surveyor)'); try { await sbFetch('/rest/v1/rpc/set_role', { method: 'POST', body: { user_email: p.email, new_role: role } }); p.role = role; } catch (e) { return toast(e.message || String(e), 4000); } }
+  if (!staff) { const isF = isForemanUid(uid); if ((r.t === 'foreman') !== isF) fmSave(d => { if (r.t === 'foreman') { d.flags[uid] = true; d.names[uid] = pName(p); } else { delete d.flags[uid]; Object.keys(d.jobs).forEach(j => { if (d.jobs[j] === uid) delete d.jobs[j]; }); } }); }
+  pplSave(d => { d.title[uid] = r.t; if (r.r) d.reportsTo[uid] = r.r; else delete d.reportsTo[uid]; }); toast('Saved'); rerender(); }
+ACTIONS['ro-edit'] = a => roleEdit(a.dataset.id);
+function peopleHTML() { const P = peopleAll(), rt = pplData().reportsTo, byId = Object.fromEntries(P.map(p => [p.id, p]));
+  const row = (p, lvl) => `<div class="item" style="margin-left:${lvl * 18}px"><div class="bd"><div class="t1">${lvl ? '↳ ' : ''}${esc(pName(p))} <span class="tag">${roleLabel(titleOf(p))}</span></div><div class="t2">${rt[p.id] && byId[rt[p.id]] ? 'reports to ' + esc(pName(byId[rt[p.id]])) : '<i>no line manager</i>'}</div></div>${isAdm() ? `<button class="btn sm" data-act="ro-edit" data-id="${p.id}">Edit</button>` : ''}</div>`;
+  const kids = id => P.filter(x => rt[x.id] === id).sort((a, b) => ROLES.findIndex(r => r[0] === titleOf(a)) - ROLES.findIndex(r => r[0] === titleOf(b)) || pName(a).localeCompare(pName(b)));
+  const seen = new Set(), tree = (p, lvl) => { if (seen.has(p.id) || lvl > 6) return ''; seen.add(p.id); return row(p, lvl) + kids(p.id).map(k => tree(k, lvl + 1)).join(''); };
+  const roots = P.filter(p => !rt[p.id] || !byId[rt[p.id]]).sort((a, b) => ROLES.findIndex(r => r[0] === titleOf(a)) - ROLES.findIndex(r => r[0] === titleOf(b)) || pName(a).localeCompare(pName(b)));
+  const groups = ROLES.map(([k, l]) => [l, P.filter(p => titleOf(p) === k)]).filter(g => g[1].length);
+  return `<div class="card" id="ppl-tree"><h2>Reporting lines</h2><p class="hint">Emails (daily checks, materials requests, expenses, van defects) go to the person's <b>Reports to</b>, else the job's contracts manager, else all managers.</p>${roots.map(p => tree(p, 0)).join('')}</div>
+    <div class="card" id="ppl-roles"><h2>By role</h2>${groups.map(([l, L]) => `<p style="margin:8px 0 2px"><b>${l}</b> (${L.length})</p><p class="t2">${L.map(p => esc(pName(p))).join(', ')}</p>`).join('')}</div>`; }
+ADM_TABS.splice(1, 0, ['people', 'People']); ADM_VIEWS.people = peopleHTML;
+{ const _vt = viewTeam; viewTeam = function () { return _vt() + (isAdm() ? peopleHTML() : ''); }; }
+// profile + Team badge use the title
+{ const _vp = viewPerson; viewPerson = function (uid) { const h = _vp(uid); if (!isAdm() || !uid || uid === me()) return h; const p = (Cloud.profiles || []).find(x => x.id === uid); if (!p) return h; const rt = pplData().reportsTo[uid], b = rt && (Cloud.profiles || []).find(x => x.id === rt);
+  return `<div class="card"><h2>${roleLabel(titleOf(p))} <button class="btn sm" data-act="ro-edit" data-id="${esc(uid)}" style="margin-left:auto">Role / reports to</button></h2><p class="hint">Reports to: ${b ? esc(pName(b)) : 'not set'}</p></div>` + h; }; }
+// loading
+{ const _ae = admEnsure; admEnsure = function (force) { const go1 = force || Date.now() - admLoadT >= 30000; _ae(force); if (go1 && signedIn() && isAdm()) recFetch('kind=eq.people').then(() => { if (/^(admin|person)$/.test(route()[0] || '')) rerender(); }).catch(() => { }); }; }
+// expenses: email the operative's line manager when submitted
+{ const _rp = recPut; recPut = function (r) { const send = r.kind === 'expense' && (r.status || 'submitted') === 'submitted' && !r.data.notified && r.owner === me() && !isAdm(); if (send) r.data.notified = Date.now(); const x = _rp(r); if (send) setTimeout(async () => { await recFlush(); try { await fnCall('records-notify', { id: r.id }); } catch (e) { } }, 0); return x; }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
