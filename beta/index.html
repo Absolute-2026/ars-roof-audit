@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.9.15">
+<meta name="app-version" content="1.9.16">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.9.15';
+const APP_VERSION = '1.9.16';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -5298,7 +5298,9 @@ function wkPlantDay(p, d) {
   d = d || {}; const ans = d.ans || ''; const items = Array.isArray(d.items) ? d.items.slice() : [];
   if (ans === 'defect' && !items.some(i => i.answer === 'defect')) items.unshift({ id: p.id + '-daily', text: 'Daily pre-use check', answer: 'defect', comment: d.note || '', photos: d.photos || [] });
   if (!items.length) items.push({ id: p.id + '-daily', text: 'Daily pre-use check', answer: ans === 'ok' ? 'ok' : ans === 'defect' ? 'defect' : '', comment: ans === 'out' ? '' : (d.note || ''), photos: ans === 'out' ? [] : (d.photos || []) });
-  return Object.assign({}, p, { hours: d.hours || '', quarantine: ans === 'out' ? 'yes' : '', qNote: ans === 'out' ? (d.note || '') : '', qPhotos: ans === 'out' ? (d.photos || []) : [], items, dayAns: ans, full: Array.isArray(d.items) && d.items.length > 0 });
+  return Object.assign({}, p, { hours: d.hours || '', quarantine: ans === 'out' ? 'yes' : '', qNote: ans === 'out' ? (d.note || '') : '', qPhotos: ans === 'out' ? (d.photos || []) : [], items, dayAns: ans, full: Array.isArray(d.items) && d.items.length > 0,
+    // fix: OK only counts when the machine's own pre-use checks were all answered
+    checksIncomplete: ans === 'ok' && !(Array.isArray(d.items) && d.items.length && d.items.every(i => i.answer)) });
 }
 // one day of a weekly sheet as a v1.5-style daily check (so issues, PDFs and emails reuse the daily-check logic)
 function dayAsCheck(sheet, date) {
@@ -5474,15 +5476,16 @@ function wkPlantItemHTML(p, i) {
   return `<div class="dck ${ans}" id="dck_${i.id}"><div class="dq">${esc(i.text)}</div><div class="seg dcs pl" data-b="${b}.answer">${[['ok', 'OK'], ['defect', 'Defect'], ['na', 'N/A']].map(([v, l]) => `<button type="button" data-v="${v}" class="${ans === v ? 'on' : ''}" aria-pressed="${ans === v}">${l}</button>`).join('')}</div>
     ${ans === 'defect' ? `<div class="dci"><textarea data-b="${b}.comment" rows="2" placeholder="What is the defect? (required)">${esc(i.comment)}</textarea>${dcPhotos(b + '.photos', i.photos, 'Photo (optional)')}</div>` : ''}</div>`;
 }
+function wkPlantItems(p, t) { if (!Array.isArray(t.items) || !t.items.length) { const ty = plantTypes().find(y => y.key === p.type) || plantTypes().find(y => y.custom) || { items: [] }; t.items = (ty.items || []).map(s => ({ id: uid(), text: s, answer: '', comment: '', photos: [] })); } return t.items; }
 function wkPlantRowHTML(d, p) {
+  d.plant = d.plant || {}; if (!d.plant[p.id]) d.plant[p.id] = { ans: '', note: '', hours: '' }; wkPlantItems(p, d.plant[p.id]);
   const t = (d.plant || {})[p.id] || {}, b = `plant.${p.id}`, ans = t.ans || ''; const f = mk(d); const ty = plantTypes().find(x => x.key === p.type) || {};
   const nf = Array.isArray(t.items) ? t.items.length : (ty.items || []).length;
   return `<div class="wkpl ${ans}" id="wkpl_${p.id}"><div class="wkplh"><span class="t1">${esc(plantLabel(p))}</span><span class="small">${esc([p.custom ? p.typeName : '', p.hire].filter(Boolean).join(' · '))}</span></div>
     <div class="seg dcs pl wk3" data-b="${b}.ans">${[['ok', 'OK'], ['defect', 'Defect'], ['out', 'Out of use']].map(([v, l]) => `<button type="button" data-v="${v}" class="${ans === v ? 'on' : ''}" aria-pressed="${ans === v}">${l}</button>`).join('')}</div>
     ${ans === 'defect' || ans === 'out' ? `<div class="dci"><textarea data-b="${b}.note" rows="2" placeholder="${ans === 'out' ? 'Why is it out of use / who was told? (required)' : 'What is the defect? (required)'}">${esc(t.note || '')}</textarea>${dcPhotos(b + '.photos', t.photos, 'Photo (optional)')}</div>` : ''}
     ${p.meter ? f.text('Hours / meter reading (optional)', b + '.hours', { type: 'number' }) : ''}
-    <button type="button" class="linkbtn" data-act="wk-full" data-p="${p.id}">${t.showFull ? 'Hide full checklist' : `Full pre-use checklist (${nf} checks)`}</button>
-    ${t.showFull && Array.isArray(t.items) ? `<div class="wkfull"><button class="btn block dc-allok" data-act="wk-fullok" data-p="${p.id}">✓ All OK (fill unanswered)</button>${t.items.map(i => wkPlantItemHTML(p, i)).join('')}</div>` : ''}</div>`;
+    ${ans === 'out' ? '' : `<div class="wkfull"><p class="small" style="margin:8px 0 4px"><b>Pre-use checks (${nf})</b> - ${t.items.filter(i => i.answer).length} of ${nf} answered</p><button class="btn block dc-allok" data-act="wk-fullok" data-p="${p.id}">✓ All checks OK (fill unanswered)</button>${t.items.map(i => wkPlantItemHTML(p, i)).join('')}</div>`}</div>`;
 }
 function wkSdRowHTML(d, e) {
   const f = mk(d), b = `sd#${e.id}`;
@@ -5533,6 +5536,7 @@ function wkDayProblems(sheet, d) {
   });
   (sheet.plant || []).forEach(x => { const t = (d.plant || {})[x.id] || {}; const l = plantLabel(x);
     if (!t.ans) p.push(`${l}: tap OK, Defect or Out of use`);
+    if (t.ans !== 'out') { const un = (Array.isArray(t.items) ? t.items : [null]).filter(i => !i || !i.answer).length; if (un) p.push(`${l}: ${un} pre-use check${un > 1 ? 's' : ''} not answered (tap ✓ All checks OK)`); }
     if ((t.ans === 'defect' || t.ans === 'out') && !String(t.note || '').trim()) p.push(`${l}: say what is wrong`);
     if (Array.isArray(t.items)) { const nc = t.items.filter(i => i.answer === 'defect' && !String(i.comment || '').trim()).length; if (nc) p.push(`${l}: ${nc} defect${nc > 1 ? 's' : ''} without a comment`); } });
   if (d.weather.lostAny === 'yes') (d.weather.lost || []).forEach((e, n) => { if (!e.reason) p.push(`Time lost ${n + 1}: reason`); if (!(lostHours(e) > 0)) p.push(`Time lost ${n + 1}: from / to times or hours`); });
@@ -5555,7 +5559,7 @@ function wkGridHTML(sheet, link) {
   const secCell = (x, title) => { if (!x.r.done) return cell(miss.includes(x.r.date) ? '✗' : '', miss.includes(x.r.date) ? 'miss' : ''); if (x.r.off) return cell('off', 'off'); const s = (x.d.sections || []).find(y => y.title === title); if (!s) return cell('-'); const bad = s.items.some(i => i.answer === 'issue'); return cell(bad ? '!' : s.status === 'na' ? 'N/A' : '✓', bad ? 'bad' : s.status === 'na' ? 'na' : 'ok'); };
   const plants = []; D.forEach(x => (x.c.plant || []).forEach(p => { if (!plants.some(q => q.id === p.id)) plants.push(p); })); (sheet.plant || []).forEach(p => { if (!plants.some(q => q.id === p.id)) plants.push(p); });
   const plBad = q => q.dayAns === 'out' || q.dayAns === 'defect' || q.items.some(i => i.answer === 'defect');
-  const plCell = (x, p) => { if (!x.r.done || x.r.off) return cell(x.r.off ? 'off' : '', x.r.off ? 'off' : ''); const q = (x.c.plant || []).find(y => y.id === p.id); if (!q) return cell(''); return cell(q.dayAns === 'out' ? 'OUT' : plBad(q) ? 'DEF' : q.dayAns === 'ok' ? '✓' : '-', plBad(q) ? 'bad' : q.dayAns === 'ok' ? 'ok' : ''); };
+  const plCell = (x, p) => { if (!x.r.done || x.r.off) return cell(x.r.off ? 'off' : '', x.r.off ? 'off' : ''); const q = (x.c.plant || []).find(y => y.id === p.id); if (!q) return cell(''); return cell(q.dayAns === 'out' ? 'OUT' : plBad(q) ? 'DEF' : q.checksIncomplete ? '?' : q.dayAns === 'ok' ? '✓' : '-', plBad(q) ? 'bad' : q.checksIncomplete ? 'miss' : q.dayAns === 'ok' ? 'ok' : ''); };
   const hd = D.map(x => `<th>${link && x.r.done ? `<a href="${link}/${x.r.date}">${x.r.day}<br>${x.r.date.slice(8)}</a>` : `${x.r.day}<br>${x.r.date.slice(8)}`}</th>`).join('');
   const line = (lbl, fn) => `<tr><th class="l">${esc(lbl)}</th>${D.map(fn).join('')}</tr>`;
   return `<div class="wkgridw"><table class="wkgrid"><thead><tr><th></th>${hd}</tr></thead><tbody>
@@ -5621,7 +5625,7 @@ function buildWeeklyPDF(sheet, o = {}) {
   const D = rows.map(r => ({ r, d: sheet.days[r.date] || {}, c: r.c })); const G = [];
   (sheet.tpl || []).forEach(s => G.push([s.title, ...D.map(x => { if (!x.r.done) return miss.includes(x.r.date) ? 'MISSING' : ''; if (x.r.off) return 'OFF'; const q = (x.d.sections || []).find(y => y.title === s.title); if (!q) return '-'; return q.items.some(i => i.answer === 'issue') ? 'ISSUE' : q.status === 'na' ? 'N/A' : 'OK'; })]));
   const plants = []; D.forEach(x => (x.c.plant || []).forEach(p => { if (!plants.some(q => q.id === p.id)) plants.push(p); }));
-  plants.forEach(p => G.push([plantLabel(p), ...D.map(x => { if (!x.r.done || x.r.off) return x.r.off ? 'OFF' : ''; const q = (x.c.plant || []).find(y => y.id === p.id); if (!q) return ''; return q.dayAns === 'out' ? 'OUT' : (q.dayAns === 'defect' || q.items.some(i => i.answer === 'defect')) ? 'DEFECT' : q.dayAns === 'ok' ? 'OK' : '-'; })]));
+  plants.forEach(p => G.push([plantLabel(p), ...D.map(x => { if (!x.r.done || x.r.off) return x.r.off ? 'OFF' : ''; const q = (x.c.plant || []).find(y => y.id === p.id); if (!q) return ''; return q.dayAns === 'out' ? 'OUT' : (q.dayAns === 'defect' || q.items.some(i => i.answer === 'defect')) ? 'DEFECT' : q.checksIncomplete ? 'NOT CHECKED' : q.dayAns === 'ok' ? 'OK' : '-'; })]));
   G.push(['Weather lost (h)', ...D.map(x => x.r.wx ? fmtH(x.r.wx) : '')]); G.push(['Stood down (h)', ...D.map(x => x.r.sd ? fmtH(x.r.sd) : '')]);
   G.push(['Incident / near miss', ...D.map(x => x.r.done && !x.r.off ? ((x.c.incident || {}).any === 'yes' ? 'YES' : 'No') : '')]);
   G.push(['Ticked off at', ...D.map(x => x.r.done ? wkClock(x.r.savedAt) + (x.r.late ? '*' : '') : '')]);
@@ -5646,10 +5650,10 @@ function buildWeeklyPDF(sheet, o = {}) {
   rows.filter(r => r.done && !r.off).forEach(r => {
     const c = r.c; k.h2(`${r.day} ${fmtDate(r.date)} - ticked off ${wkClock(r.savedAt)}${r.late ? ' (filled in late)' : ''}`);
     const w = c.weather || {}; const L = dcLost(c);
-    k.kv([['Checks', (c.sections || []).map(s => `${s.title}: ${s.items.some(i => i.answer === 'issue') ? 'ISSUE' : s.status === 'na' ? 'N/A' : 'All OK'}`).join('  ·  ')], ['Plant', (c.plant || []).map(p => `${plantLabel(p)}: ${p.dayAns === 'out' ? 'OUT OF USE' : p.dayAns === 'defect' ? 'DEFECT' : p.dayAns === 'ok' ? 'OK' : '-'}${p.hours ? ' (' + p.hours + ' h)' : ''}`).join('  ·  ')], ['Weather', [(w.conditions || []).join(', '), ...readings(w)].filter(Boolean).join(' - ')], ['Time lost', L.hours ? `${fmtH(L.hours)} h (${L.reasons.join(', ')})` : ''], ['Stood down', r.sd ? `${fmtH(r.sd)} h` : ''], ['Incident', (c.incident || {}).any === 'yes' ? 'YES - ' + (c.incident.detail || '') : ''], ['Progress', (c.progress || {}).note]]);
+    k.kv([['Checks', (c.sections || []).map(s => `${s.title}: ${s.items.some(i => i.answer === 'issue') ? 'ISSUE' : s.status === 'na' ? 'N/A' : 'All OK'}`).join('  ·  ')], ['Plant', (c.plant || []).map(p => `${plantLabel(p)}: ${p.dayAns === 'out' ? 'OUT OF USE' : p.dayAns === 'defect' ? 'DEFECT' : p.checksIncomplete ? 'Checks not completed' : p.dayAns === 'ok' ? 'OK' : '-'}${p.hours ? ' (' + p.hours + ' h)' : ''}`).join('  ·  ')], ['Weather', [(w.conditions || []).join(', '), ...readings(w)].filter(Boolean).join(' - ')], ['Time lost', L.hours ? `${fmtH(L.hours)} h (${L.reasons.join(', ')})` : ''], ['Stood down', r.sd ? `${fmtH(r.sd)} h` : ''], ['Incident', (c.incident || {}).any === 'yes' ? 'YES - ' + (c.incident.detail || '') : ''], ['Progress', (c.progress || {}).note]]);
     (c.sections || []).forEach(s => { const bad = s.items.filter(i => i.answer === 'issue'); if (bad.length) { k.table({ head: [[tx(s.title + ' - issues'), 'Comment']], body: bad.map(i => [tx(i.text), tx(i.comment)]), headStyles: { fillColor: k.RED, textColor: [255, 255, 255] }, columnStyles: { 0: { cellWidth: 80, fontStyle: 'bold' } } }); bad.forEach(i => k.photos(i.photos, i.text)); } });
-    (c.plant || []).filter(p => p.quarantine === 'yes' || p.items.some(i => i.answer === 'defect') || p.full).forEach(p => {
-      const q = p.quarantine === 'yes'; k.need(16); k.font(10, 'bold', q ? k.RED : k.NAVY); doc.text(tx(plantLabel(p) + (q ? '  -  OUT OF USE (quarantined / tagged)' : '')), k.M, k.y + 1); k.y += 4;
+    (c.plant || []).filter(p => p.dayAns || p.full).map(p => { if (p.full) return p; const ty = plantTypes().find(y => y.key === p.type) || { items: [] }; const extra = (ty.items || []).map((s, n) => ({ id: p.id + '-t' + n, text: s, answer: '', comment: '', photos: [] })); return Object.assign({}, p, { items: p.items.filter(i => i.answer === 'defect' || i.comment).concat(extra) }); }).forEach(p => {
+      const q = p.quarantine === 'yes'; k.need(16); k.font(10, 'bold', q ? k.RED : p.checksIncomplete ? [180, 83, 9] : k.NAVY); doc.text(tx(plantLabel(p) + (q ? '  -  OUT OF USE (quarantined / tagged)' : p.checksIncomplete ? '  -  CHECKS NOT COMPLETED' : '')), k.M, k.y + 1); k.y += 4;
       if (q && p.qNote) { k.para('Out of use: ' + p.qNote, 8.5, 'normal', k.RED); k.photos(p.qPhotos, ''); }
       k.table({ head: [['Pre-use check', 'Result', 'Comment']], body: p.items.map(i => [tx(i.text), i.answer === 'defect' ? 'DEFECT' : ANS_TXT[i.answer || ''] || '-', tx(i.comment)]), styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.3, textColor: k.TXT, lineColor: k.LINE, lineWidth: 0.2 }, columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 18, halign: 'center', fontStyle: 'bold' } },
         didParseCell: d => { if (d.section === 'body' && d.column.index === 1 && (p.items[d.row.index] || {}).answer === 'defect') { d.cell.styles.textColor = k.RED; d.cell.styles.fillColor = [254, 226, 226]; } } });
@@ -5712,7 +5716,7 @@ Object.assign(ACTIONS, {
     x.obj.plant[p.id] = { ans: '', note: '', hours: r.hours || '' }; x.save(); rerender();
     setTimeout(() => { const el = $('#wkpl_' + p.id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60);
   },
-  'wk-plantok'() { const x = wkCtx(); if (!x) return; (x.week.plant || []).forEach(p => { const t = x.obj.plant[p.id] = x.obj.plant[p.id] || {}; if (!t.ans) t.ans = 'ok'; }); x.save(); rerender(); },
+  'wk-plantok'() { const x = wkCtx(); if (!x) return; (x.week.plant || []).forEach(p => { const t = x.obj.plant[p.id] = x.obj.plant[p.id] || {}; wkPlantItems(p, t); if (!t.ans) t.ans = 'ok'; if (t.ans !== 'out') t.items.forEach(i => { if (!i.answer) i.answer = 'ok'; }); }); x.save(); rerender(); },
   async 'wk-plantlist'() {
     const x = wkCtx(); if (!x) return; const pl = x.week.plant || [];
     const keep = await modal(`<h3>This week's plant list</h3><p>Untick anything that has left site. Days already saved keep their record.</p>${pl.map(p => `<label class="ckl"><input type="checkbox" class="wk-keep" value="${p.id}" checked> ${esc(plantLabel(p))}</label>`).join('')}<button class="btn primary" id="wkpok">Save list</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#wkpok').addEventListener('click', () => close([...bg.querySelectorAll('.wk-keep')].filter(c => c.checked).map(c => c.value))));
