@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.9.19">
+<meta name="app-version" content="1.9.20">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.9.19';
+const APP_VERSION = '1.9.20';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -9238,16 +9238,17 @@ document.addEventListener('change', async e => { if (e.target.id !== 'bs-file') 
   if (fs.some(isDocx)) { if (info) info.textContent = 'Converting Word to PDF…'; if (okb) okb.disabled = true; try { fs = await Promise.all(fs.map(f => isDocx(f) ? docxToPdf(f) : f)); el._pdfs = fs; } catch (er) { if (info) info.innerHTML = `<b style="color:#b91c1c">Could not convert the Word file</b> - in Word use File > Save as > PDF and upload that instead.`; if (okb) okb.disabled = false; return; } if (okb) okb.disabled = false; } const big = fs.filter(f => f.size > BS_MAX); if (big.length && info) { info.innerHTML = `<b style="color:#b91c1c">${esc(big[0].name)} is over 10 MB</b> - save it smaller (e.g. "Reduce file size") and try again.`; return; }
   const i0 = await bsPdfInfo(fs[0]); const set = (id, v) => { const el = $('#' + id); if (el && v) el.value = v; }; set('bs-title', [i0.title, i0.docNo].filter(Boolean).join(' - ')); set('bs-rev', i0.version); set('bs-ddate', i0.date);
   if (info) info.textContent = fs.map(f => `${f.name} (${(f.size / 1048576).toFixed(1)} MB)`).join(' · ') + (i0.pages ? ` · ${i0.pages} pages` : ''); });
-bsIssue = async function (k, pid, it) { const p = (Ops.jobsTbl || []).find(j => j.id === pid) || {};
-  const r = await modal(bsIssueForm(k, pid, it), (bg, close) => { bg.querySelector('#bs-ok').addEventListener('click', () => { const v = id => { const el = bg.querySelector('#' + id); return el ? (el.type === 'checkbox' ? el.checked : el.type === 'file' ? (el._pdfs || [...el.files]) : el.value) : undefined; };
+bsIssue = async function (k, pid, it, pre) { const p = (Ops.jobsTbl || []).find(j => j.id === pid) || {};
+  const r = await modal(bsIssueForm(k, pid, it), (bg, close) => { if (pre) { const st = (id, v) => { const el = bg.querySelector('#' + id); if (el && v) el.value = v; }; st('bs-title', pre.title); st('bs-rev', pre.rev); st('bs-ddate', pre.docDate); const fi = bg.querySelector('#bs-finfo'); if (fi) fi.innerHTML = `From the RAMS library: <b>${esc(bsFiles(pre).map(f => f.name).join(', '))}</b> (choose files only to replace them)`; } bg.querySelector('#bs-ok').addEventListener('click', () => { const v = id => { const el = bg.querySelector('#' + id); return el ? (el.type === 'checkbox' ? el.checked : el.type === 'file' ? (el._pdfs || [...el.files]) : el.value) : undefined; };
     close({ talk: v('bs-talk'), files: v('bs-file') || [], title: v('bs-title'), rev: v('bs-rev'), ddate: v('bs-ddate'), date: v('bs-date'), by: v('bs-by'), brole: v('bs-brole'), bsig: v('bs-bsig'), all: v('bs-all'), rem: v('bs-rem'), fm: v('bs-fm'), ops: [...bg.querySelectorAll('.bs-op:checked')].map(x => x.value) }); }); });
-  if (!r || typeof r !== 'object') return; if (k === 'rams' && !r.files.length && !it) return toast('Choose the RAMS PDF'); if (r.files.some(isDocx)) return toast('Still converting the Word file - try again in a moment'); if (r.files.some(f => f.size > BS_MAX)) return toast('A PDF is over 10 MB - save it smaller and try again');
-  const id = it ? it.id : 'bi-' + uid(), rev = k === 'rams' ? String(r.rev || 'A').trim() : '1'; let files = it ? bsFiles(it) : [];
+  if (!r || typeof r !== 'object') return; if (k === 'rams' && !r.files.length && !it && !pre) return toast('Choose the RAMS PDF'); if (r.files.some(isDocx)) return toast('Still converting the Word file - try again in a moment'); if (r.files.some(f => f.size > BS_MAX)) return toast('A PDF is over 10 MB - save it smaller and try again');
+  const id = it ? it.id : 'bi-' + uid(), rev = k === 'rams' ? String(r.rev || 'A').trim() : '1'; let files = it ? bsFiles(it) : pre ? bsFiles(pre).slice() : [];
   if (r.files.length) { files = []; for (const [n, f] of r.files.entries()) { try { toast(`Uploading ${n + 1} of ${r.files.length}…`, 1500); const inf = await bsPdfInfo(f); files.push({ path: await bsUpload(f, `${id}-r${safeName(rev)}-${n + 1}`), name: f.name.replace(/\.pdf$/i, ''), size: f.size, pages: inf.pages }); } catch (e) { return toast('Upload failed: ' + (e.message || e)); } } }
   const names = {}; (p.operatives || []).forEach(u => { const q = (Cloud.profiles || []).find(x => x.id === u); if (q) names[u] = q.full_name || q.email; });
   let o; if (it) o = Object.assign({}, it, { rev, title: r.title || it.title, docDate: r.ddate || it.docDate, files, pdf: (files[0] || {}).path || '', pdfName: (files[0] || {}).name || '', date: todayISO(), names: Object.assign({}, it.names, names), revs: (it.revs || []).concat([{ rev: it.rev, files: bsFiles(it), date: it.date }]) });
   else if (k === 'tbt') { const t = bsLib().find(x => x.id === r.talk) || bsLib()[0]; o = { id, kind: 'tbt', talkId: t.id, title: t.title, points: (t.points || []).slice(), pdf: t.pdf || '', pdfName: t.pdfName || '', files: t.pdf ? [{ path: t.pdf, name: t.pdfName || t.title }] : [], rev: '1' }; }
   else o = { id, kind: 'rams', title: r.title || 'RAMS', points: [], files, pdf: (files[0] || {}).path || '', pdfName: (files[0] || {}).name || '', rev, docDate: r.ddate || '' };
+  if (pre && !it) o.libId = pre.id;
   if (!it) Object.assign(o, { jobId: pid, jobRef: p.ref || '', site: p.site_name || '', date: r.date || todayISO(), deliveredBy: r.by || '', all: !!r.all, to: r.all ? (p.operatives || []) : r.ops, remind: !!r.rem, by: myName(), at: Date.now(), foreman: r.fm || '', names, briefer: { name: r.by || '', role: r.brole || '' } });
   if (!it && r.bsig) { const sig = await signaturePad(); if (sig) Object.assign(o.briefer, { sig, at: Date.now(), date: todayISO(), signedBy: myName() }); }
   o.upd = Date.now(); const B = S.settings.brief = S.settings.brief || {}; B[id] = o;
@@ -9342,6 +9343,95 @@ ACTIONS['bs-bsign'] = async a => { const it = (S.settings.brief || {})[a.dataset
         didDrawCell: d => { if (d.section === 'body' && d.column.index === 3 && b && b.sig && /^data:image/.test(b.sig)) { try { doc.addImage(b.sig, k.fmtImg(b.sig), d.cell.x + 1, d.cell.y + 1, Math.min(d.cell.width - 2, 40), 14); } catch (e) { } } } });
       if (!b || !b.sig) k.para('Briefer has not signed yet.', 8); } }; return k; };
   try { return _reg(it); } finally { dcPdfKit = dk; it.deliveredBy = saved; } }; }
+
+/* ===== v1.9.20 (BETA): stand-alone "RAMS & Toolbox talks" section (#/briefings)
+   Managers: overview across all jobs (n of m signed, outstanding names, filters), quick Issue talk / Upload RAMS / Group sign-off, talk library, RAMS library (upload once, issue to jobs, revisions).
+   Operatives / foremen: to sign, group sign-off (foreman), signed. RAMS library entries live in the shared 'brief' map as hidden entries {id:'rl-…', rl:true, removed:true}. */
+const bsLibR = () => Object.values(S.settings.brief || {}).filter(x => x && x.rl && !x.gone).sort((a, b) => String(a.title).localeCompare(String(b.title)));
+const bsJob = pid => (Ops.jobsTbl || []).find(j => j.id === pid) || {};
+const bsActiveJobs = () => (Ops.jobsTbl || []).filter(j => j.active !== false);
+S.bsF = S.bsF || { job: '', kind: '', out: false, tab: 'issued' };
+let bsLoadT = 0;
+function bsEnsureLoaded() { if (!isMgr() || !signedIn()) return; const need = [...new Set(bsAll().map(it => it.jobId))].filter(pid => !(Ops.bs || {})[pid]); const jobs = !(Ops.jobsTbl || []).length;
+  if ((!need.length && !jobs) || Date.now() - bsLoadT < 15000) return; bsLoadT = Date.now();
+  Promise.all([jobs ? loadJobsTbl().catch(() => { }) : 0].concat(need.map(pid => loadDaily(pid).catch(() => { Ops.bs = Ops.bs || {}; Ops.bs[pid] = Ops.bs[pid] || []; })))).then(() => { if (route()[0] === 'briefings') rerender(true); }); }
+/* ---------- manager section ---------- */
+function bsMgrRow(it) { const st = bsStatus(it), n = st.filter(x => x.s).length, out = st.filter(x => !x.s), j = bsJob(it.jobId), files = bsFiles(it);
+  return `<div class="item bs-row" data-id="${it.id}"><div class="bd"><div class="t1">${esc(BS_KINDS[it.kind])}: ${esc(it.title)}${it.kind === 'rams' ? ' · rev ' + esc(it.rev) : ''}</div><div class="t2">${esc(it.jobRef || j.ref || '')} ${esc(it.site || j.site_name || '')} · issued ${fmtDate(it.date)}</div>
+    <div class="meta"><span class="tag ${n === st.length && n ? 'green' : 'amber'}">${n} of ${st.length} signed</span>${out.map(x => `<span class="tag">${esc(x.name)}${x.old ? ' (old rev)' : ''}</span>`).join('')}</div>
+    <div class="bs-acts" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"><button type="button" class="btn sm" data-act="bs-group" data-id="${it.id}">Group sign-off</button><button type="button" class="btn sm" data-act="bs-reg" data-id="${it.id}">Register PDF</button>${files.length ? `<button type="button" class="btn sm" data-act="bs-pdf" data-id="${it.id}">Open PDF</button>` : ''}${it.kind === 'rams' ? `<button type="button" class="btn sm" data-act="bs-rev" data-id="${it.id}">New revision</button>` : ''}<button type="button" class="btn sm" data-act="bs-rm" data-id="${it.id}">Remove</button></div></div></div>`; }
+function viewBriefingsMgr() { bsEnsureLoaded(); const F = S.bsF, jobs = bsActiveJobs();
+  let L = bsAll().filter(it => (!F.job || it.jobId === F.job) && (!F.kind || it.kind === F.kind)).sort((a, b) => (b.upd || 0) - (a.upd || 0));
+  if (F.out) L = L.filter(it => bsStatus(it).some(x => !x.s));
+  const tab = (k, l) => `<button type="button" data-act="bs-tab" data-v="${k}" class="${F.tab === k ? 'on' : ''}">${l}</button>`;
+  let body = `<div class="card"><div class="btns"><button class="btn primary" data-act="bs-q" data-k="tbt">${I.plus} Issue talk</button><button class="btn primary" data-act="bs-q" data-k="rams">${I.plus} Upload RAMS</button><button class="btn" data-act="bs-qgroup">Group sign-off</button></div></div>
+    <div class="filters">${tab('issued', 'Issued')}${tab('tbt', 'Talk library')}${tab('rams', 'RAMS library')}</div>`;
+  if (F.tab === 'tbt') return body + bsLibHTML().replace('Issue these to a job from the job\'s Daily checks tab.', 'Issue with <b>Issue talk</b> above.');
+  if (F.tab === 'rams') return body + bsRLibHTML();
+  return body + `<div class="card"><div class="row"><label class="f"><span class="lbl">Job</span><select id="bsf-job"><option value="">All jobs</option>${jobs.map(j => `<option value="${esc(j.id)}" ${F.job === j.id ? 'selected' : ''}>${esc(j.ref || '')} ${esc(j.site_name || '')}</option>`).join('')}</select></label>
+    <label class="f"><span class="lbl">Type</span><select id="bsf-kind"><option value="">All</option><option value="tbt" ${F.kind === 'tbt' ? 'selected' : ''}>Toolbox talks</option><option value="rams" ${F.kind === 'rams' ? 'selected' : ''}>RAMS</option></select></label></div>
+    <label class="ckl"><input type="checkbox" id="bsf-out" ${F.out ? 'checked' : ''}> Outstanding only (someone still to sign)</label></div>
+    <div class="card" id="bs-over"><h2>Issued briefings <span class="small" style="margin-left:auto">${L.length}</span></h2>${L.map(bsMgrRow).join('') || '<p class="hint">Nothing here yet - use Issue talk or Upload RAMS.</p>'}</div>`; }
+document.addEventListener('change', e => { const id = e.target.id; if (!/^bsf-/.test(id)) return; const F = S.bsF; if (id === 'bsf-job') F.job = e.target.value; if (id === 'bsf-kind') F.kind = e.target.value; if (id === 'bsf-out') F.out = e.target.checked; rerender(true); });
+async function bsPickJob(title) { const jobs = bsActiveJobs(); if (!jobs.length) { toast('No jobs yet'); return null; } if (jobs.length === 1) return jobs[0].id;
+  const r = await modal(`<h3>${esc(title)}</h3><label class="f"><span class="lbl">Job</span><select id="bsq-job">${jobs.map(j => `<option value="${esc(j.id)}" ${S.bsF.job === j.id ? 'selected' : ''}>${esc(j.ref || '')} ${esc(j.site_name || '')}</option>`).join('')}</select></label><button class="btn primary" id="bsq-ok">Next</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#bsq-ok').addEventListener('click', () => close({ id: bg.querySelector('#bsq-job').value })));
+  return r && r.id ? r.id : null; }
+async function bsPickBriefing() { const L = bsAll().filter(it => !S.bsF.job || it.jobId === S.bsF.job).sort((a, b) => (b.upd || 0) - (a.upd || 0)); if (!L.length) return toast('Nothing issued yet');
+  const r = await modal(`<h3>Group sign-off</h3><p class="hint">Pick the briefing, then hand your phone to each person.</p>${L.map(it => `<button class="btn block" style="margin-top:6px;text-align:left" data-r="${it.id}">${esc(BS_KINDS[it.kind])}: ${esc(it.title)} · ${esc(it.jobRef || '')}</button>`).join('')}<button class="btn" data-r="">Cancel</button>`);
+  if (r) go('#/brief/' + r); }
+Object.assign(ACTIONS, {
+  'bs-tab'(a) { S.bsF.tab = a.dataset.v; rerender(); },
+  async 'bs-q'(a) { const pid = await bsPickJob(a.dataset.k === 'tbt' ? 'Issue a toolbox talk' : 'Upload RAMS'); if (pid) bsIssue(a.dataset.k, pid); },
+  'bs-qgroup'() { bsPickBriefing(); },
+  'bs-open'(a) { go('#/briefings' + (a.dataset.p ? '/' + a.dataset.p : '')); },
+});
+/* ---------- RAMS library ---------- */
+function bsRLibHTML() { const L = bsLibR(); return `<div class="card" id="bsrlib"><h2>RAMS library</h2><p class="hint">Upload a RAMS once (PDF or Word, several files allowed), then issue it to any job. A new revision can be re-issued to every job using it - everyone signs again.</p>
+  ${L.map(r => { const used = bsAll().filter(it => it.libId === r.id); return `<div class="item"><div class="bd"><div class="t1">${esc(r.title)} · rev ${esc(r.rev)}</div><div class="t2">${r.docDate ? 'dated ' + fmtDate(r.docDate) + ' · ' : ''}${bsFiles(r).map(f => esc(f.name) + (f.pages ? ` (${f.pages} p)` : '')).join(', ')}</div><div class="meta"><span class="tag">${used.length ? 'on ' + used.length + ' job' + (used.length > 1 ? 's' : '') : 'not issued'}</span></div>
+    <div class="bs-acts" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"><button type="button" class="btn sm" data-act="bs-rlissue" data-id="${r.id}">Issue to a job</button><button type="button" class="btn sm" data-act="bs-rlpdf" data-id="${r.id}">Open PDF</button><button type="button" class="btn sm" data-act="bs-rladd" data-id="${r.id}">New revision</button><button type="button" class="btn sm" data-act="bs-rldel" data-id="${r.id}">Delete</button></div></div></div>`; }).join('') || '<p class="hint">No RAMS in the library yet.</p>'}
+  <button class="btn block" data-act="bs-rladd">${I.plus} Add RAMS to library</button></div>`; }
+async function bsRLibEdit(cur) { const r = await modal(`<h3>${cur ? 'New revision - ' + esc(cur.title) : 'Add RAMS to library'}</h3><label class="f"><span class="lbl">RAMS files (PDF or Word .docx)</span><input type="file" id="bs-file" accept="application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple></label><p class="hint" id="bs-finfo">Title, version and date are read from page 1 / the Word header. Max 10 MB per file.</p>
+    <label class="f"><span class="lbl">Title</span><input id="bs-title" value="${esc(cur ? cur.title : '')}"></label><div class="row"><label class="f"><span class="lbl">Revision / version</span><input id="bs-rev" value="${esc(cur ? bsNextRev(cur.rev) : '1.0')}"></label><label class="f"><span class="lbl">Document date</span><input type="date" id="bs-ddate" value="${todayISO()}"></label></div>
+    <button class="btn primary" id="bs-ok">Save</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#bs-ok').addEventListener('click', () => { const el = bg.querySelector('#bs-file'); close({ files: el._pdfs || [...el.files], title: bg.querySelector('#bs-title').value.trim(), rev: bg.querySelector('#bs-rev').value.trim(), ddate: bg.querySelector('#bs-ddate').value }); }));
+  if (!r || typeof r !== 'object') return; if (!r.files.length) return toast('Choose the RAMS file(s)'); if (r.files.some(isDocx)) return toast('Still converting the Word file - try again'); if (r.files.some(f => f.size > BS_MAX)) return toast('A PDF is over 10 MB - save it smaller and try again');
+  const id = cur ? cur.id : 'rl-' + uid(), files = [];
+  for (const [n, f] of r.files.entries()) { try { toast(`Uploading ${n + 1} of ${r.files.length}…`, 1500); const inf = await bsPdfInfo(f); files.push({ path: await bsUpload(f, `${id}-r${safeName(r.rev || '1')}-${n + 1}`), name: f.name.replace(/\.pdf$/i, ''), size: f.size, pages: inf.pages }); } catch (e) { return toast('Upload failed: ' + (e.message || e)); } }
+  const o = Object.assign({}, cur || { id, rl: true, removed: true, kind: 'rams' }, { title: r.title || (cur && cur.title) || 'RAMS', rev: r.rev || '1.0', docDate: r.ddate || '', files, pdf: files[0].path, pdfName: files[0].name, upd: Date.now(), revs: cur ? (cur.revs || []).concat([{ rev: cur.rev, files: bsFiles(cur), date: cur.docDate }]) : [] });
+  const B = S.settings.brief = S.settings.brief || {}; B[id] = o;
+  const used = cur ? bsAll().filter(it => it.libId === id && String(it.rev) !== String(o.rev)) : [];
+  if (used.length && await confirmBox(`Issue revision ${o.rev} to ${used.length} job${used.length > 1 ? 's' : ''}?`, 'Everyone on those jobs will be asked to sign again.', 'Issue revision', false))
+    used.forEach(it => { B[it.id] = Object.assign({}, it, { rev: o.rev, title: o.title, docDate: o.docDate, files: o.files, pdf: o.pdf, pdfName: o.pdfName, date: todayISO(), revs: (it.revs || []).concat([{ rev: it.rev, files: bsFiles(it), date: it.date }]), upd: Date.now() }); });
+  if (await bsShare()) toast(cur ? `Revision ${o.rev} saved` : 'Added to the RAMS library'); rerender(true); }
+Object.assign(ACTIONS, {
+  'bs-rladd'(a) { bsRLibEdit(a.dataset.id ? S.settings.brief[a.dataset.id] : null); },
+  async 'bs-rlissue'(a) { const r = S.settings.brief[a.dataset.id]; if (!r) return; const pid = await bsPickJob('Issue ' + r.title); if (pid) bsIssue('rams', pid, null, r); },
+  'bs-rlpdf'(a) { const r = S.settings.brief[a.dataset.id], f = r && bsFiles(r)[0]; if (f) bsOpenPdf(f.path, f.name || r.title); },
+  async 'bs-rldel'(a) { const r = S.settings.brief[a.dataset.id]; if (!r || !(await confirmBox('Delete from the RAMS library?', 'Briefings already issued to jobs are kept.', 'Delete'))) return; r.gone = true; r.upd = Date.now(); await bsShare(); rerender(true); },
+});
+/* ---------- operatives / foremen ---------- */
+const bsFmList = () => { const jobs = (Ops.jobs || []).map(j => j.id); return bsAll().filter(it => jobs.includes(it.jobId) && !isMgr() && bsIsForeman(it)); };
+function viewBriefingsOp() { const L = bsForMe(), todo = L.filter(it => !bsSignedMe(it)), done = L.filter(bsSignedMe), fm = bsFmList();
+  const row = (it, meta) => `<a class="item" href="#/brief/${it.id}"><div class="bd"><div class="t1">${esc(BS_KINDS[it.kind])}: ${esc(it.title)}${it.kind === 'rams' ? ' · rev ' + esc(it.rev) : ''}</div><div class="t2">${esc(it.jobRef || '')} · ${fmtDate(it.date)}</div><div class="meta">${meta}</div></div></a>`;
+  return `<div class="card"><h2>To sign <span class="small" style="margin-left:auto">${todo.length}</span></h2>${todo.map(it => row(it, '<span class="tag amber">Read &amp; sign</span>')).join('') || '<p class="hint">Nothing to sign - all done.</p>'}</div>
+    ${fm.length ? `<div class="card"><h2>Group sign-off (foreman)</h2><p class="hint">Open one, brief the gang, and let each person sign on your phone.</p>${fm.map(it => row(it, '<span class="tag">Group sign-off</span>')).join('')}</div>` : ''}
+    <div class="card"><h2>Signed</h2>${done.map(it => { const s = bsMineFor(it, me())[0]; return row(it, `<span class="tag green">Signed ${s ? fmtDate(s.date) : ''}</span>`); }).join('') || '<p class="hint">Nothing signed yet.</p>'}</div>`; }
+// operative home: one simple tile instead of the long card
+bsHomeCard = function () { const L = bsForMe(), fm = bsFmList(); if (!L.length && !fm.length) return ''; const todo = L.filter(it => !bsSignedMe(it)).length;
+  return `<a class="card bs-tile" href="#/briefings" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;border-left:6px solid ${todo ? '#f59e0b' : '#16a34a'}"><div style="flex:1"><h2 style="margin:0">RAMS &amp; Toolbox talks</h2><div class="t2">${todo ? `<b>${todo} to sign</b>` : 'All signed'}${fm.length ? ' · Group sign-off' : ''}</div></div><span style="font-size:22px">›</span></a>`; };
+/* ---------- route + entry points ---------- */
+{ const _r = render; render = function (keep) { const rt = route(); if (rt[0] !== 'briefings' || !signedIn()) return _r(keep);
+  if (!isMgr() && !Ops.loaded) { $('#app').innerHTML = header({ title: 'RAMS & Toolbox talks' }) + '<main><p class="hint">Loading…</p></main>'; dcLoad().then(() => render(keep)); return; }
+  if (rt[1] && isMgr()) { S.bsF.job = rt[1]; S.bsF.tab = 'issued'; }
+  S.ctx = null; const y = window.scrollY; document.body.classList.remove('hasnav');
+  $('#app').innerHTML = header({ title: 'RAMS & Toolbox talks', back: '#/' }) + `<main>${isMgr() ? viewBriefingsMgr() : viewBriefingsOp()}</main>`; window.scrollTo(0, keep ? y : 0); lastHash = location.hash; }; }
+// briefing page "back" goes to the section
+{ const _r2 = render; render = function (keep) { _r2(keep); if (route()[0] === 'brief') { const b = document.querySelector('header a[href="#/"]'); if (b) b.setAttribute('href', '#/briefings'); } }; }
+// manager home: tile at the top
+{ const _vl = viewList; viewList = function () { const v = _vl(); if (!signedIn() || !isMgr()) return v; const L = bsAll(); bsEnsureLoaded(); const out = L.filter(it => bsStatus(it).some(x => !x.s)).length;
+  v.body = `<a class="card bs-tile" href="#/briefings" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;border-left:6px solid #0f766e"><div style="flex:1"><h2 style="margin:0">RAMS &amp; Toolbox talks</h2><div class="t2">${L.length ? `${L.length} issued · ${out} with signatures outstanding` : 'Issue talks, upload RAMS, group sign-off'}</div></div><span style="font-size:22px">›</span></a>` + v.body; return v; }; }
+// job Daily checks card + Settings library link into the section
+{ const _sc3 = bsStaffCard; bsStaffCard = function (job) { const h = _sc3(job); return h ? h.replace('</h2>', `</h2><a class="btn sm" href="#/briefings/${esc(job.projectId)}" style="margin-bottom:8px">Open RAMS &amp; Toolbox talks section ›</a>`) : h; }; }
+{ const _vt = viewDailyTpl; viewDailyTpl = function () { return _vt().replace('<h3 style="margin:16px 0 6px">Toolbox talk library</h3>', '<h3 style="margin:16px 0 6px">Toolbox talk library</h3><p class="hint"><a href="#/briefings">Open the RAMS &amp; Toolbox talks section ›</a> (talk library, RAMS library, all jobs)</p>'); }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
