@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.8.4">
+<meta name="app-version" content="1.8.5">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.8.4';
+const APP_VERSION = '1.8.5';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"prod","allowLocal":false,"beta":false,"db":"ars-roof-audit","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -4276,7 +4276,7 @@ async function loadDaily(pid, f = {}) {
   const _ps = pushSettings;
   pushSettings = async function (force) {
     const sig0 = Cloud.settingsSig; await _ps(force);
-    if (isMgr() && (force || sig0 !== Cloud.settingsSig || !Cloud.dailyPushed)) { await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'daily', value: dailySettingsValue() }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); Cloud.dailyPushed = true; }
+    if (isMgr() && (force || sig0 !== Cloud.settingsSig || !Cloud.dailyPushed)) { let dv = dailySettingsValue(); try { const cur = ((await sbFetch('/rest/v1/app_settings?select=key,value&key=eq.daily')) || [])[0]; const v0 = (cur && cur.value) || {}; ['matreq', 'brief', 'tbtLib', 'mrPlant', 'matLib'].forEach(k => { if (v0[k] !== undefined) dv[k] = v0[k]; }); } catch (e) { } await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'daily', value: dv }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); Cloud.dailyPushed = true; }
   };
   const _pl = pullSettings;
   pullSettings = async function () { await _pl(); try { const rows = await sbFetch('/rest/v1/app_settings?select=key,value&key=eq.daily') || []; if (rows[0] && rows[0].value) { applyDailySettings(rows[0].value); Cloud.settingsSig = settingsSig(); await DB.setKV('cloud.settingsSig', Cloud.settingsSig); } } catch (e) { } };
