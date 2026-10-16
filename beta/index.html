@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.9.20">
+<meta name="app-version" content="1.10.0">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.9.20';
+const APP_VERSION = '1.10.0';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -4087,7 +4087,7 @@ function applyHSReqToWorks(src, j) {
 const DC_BUCKET = 'daily-checks', DC_PREFIX = 'sb:daily-checks/';
 const OPS_DOMAIN = 'ops.absoluteroofingsolutions.invalid';
 const isOp = () => !!(Cloud.profile && Cloud.profile.role === 'operative');
-const isStaffRole = r => r === 'manager' || r === 'surveyor';
+const isStaffRole = r => r === 'manager' || r === 'surveyor' || r === 'admin';
 const roleName = r => ({ manager: 'Manager', surveyor: 'Surveyor', operative: 'Operative' })[r] || 'Surveyor';
 const Ops = { jobs: [], list: [], loaded: false, busy: false, jobsTbl: [], dc: {}, dcErr: '' };
 
@@ -9432,6 +9432,112 @@ bsHomeCard = function () { const L = bsForMe(), fm = bsFmList(); if (!L.length &
 // job Daily checks card + Settings library link into the section
 { const _sc3 = bsStaffCard; bsStaffCard = function (job) { const h = _sc3(job); return h ? h.replace('</h2>', `</h2><a class="btn sm" href="#/briefings/${esc(job.projectId)}" style="margin-bottom:8px">Open RAMS &amp; Toolbox talks section ›</a>`) : h; }; }
 { const _vt = viewDailyTpl; viewDailyTpl = function () { return _vt().replace('<h3 style="margin:16px 0 6px">Toolbox talk library</h3>', '<h3 style="margin:16px 0 6px">Toolbox talk library</h3><p class="hint"><a href="#/briefings">Open the RAMS &amp; Toolbox talks section ›</a> (talk library, RAMS library, all jobs)</p>'); }; }
+
+/* ===== v1.10.0 (BETA): records (generic table 'records' + private bucket 'records') + operative profile: certificates, driving licence, expenses.
+   Offline-first: records are kept on the phone (IndexedDB KV) and queued; photos are kept as data URLs until uploaded. */
+const isAdmRole = r => r === 'manager' || r === 'admin';
+const isAdm = () => !!(Cloud.profile && isAdmRole(Cloud.profile.role));
+const REC_BUCKET = 'records';
+const Rec = { items: {}, ready: false, busy: false, urls: {} };
+const recKey = () => 'rec.' + (me() || 'local');
+async function recInit() { if (Rec.ready && Rec.uid === me()) return; Rec.items = (await DB.getKV(recKey())) || {}; Rec.uid = me(); Rec.ready = true; }
+let recSaveT = 0; const recSaveLocal = () => { clearTimeout(recSaveT); recSaveT = setTimeout(() => DB.setKV(recKey(), Rec.items), 150); };
+const recAll = (kind, f) => Object.values(Rec.items).filter(r => r && r.kind === kind && !r.deleted && (!f || f(r)));
+const recNew = (kind, subject, data = {}, status = null) => ({ id: kind.slice(0, 3) + '-' + uid(), kind, subject: subject || null, owner: me(), status, data, created_at: new Date().toISOString() });
+async function recFetch(q) { if (!signedIn() || !online()) return []; await recInit(); const rows = (await sbFetch('/rest/v1/records?select=*&deleted=eq.false&' + q)) || []; rows.forEach(r => { const l = Rec.items[r.id]; if (!l || !l._q) Rec.items[r.id] = r; }); recSaveLocal(); return rows; }
+function recPut(r) { r.updated_at = new Date().toISOString(); r._q = true; Rec.items[r.id] = r; recSaveLocal(); recFlush(); return r; }
+function recDel(r) { r.deleted = true; return recPut(r); }
+async function recFlush() { if (Rec.busy || !signedIn() || !online()) return; Rec.busy = true; let n = 0;
+  try { for (const r of Object.values(Rec.items).filter(x => x._q)) { try { await recPush(r); n++; } catch (e) { if (e.offline) break; r._err = e.message || String(e); } } } finally { Rec.busy = false; recSaveLocal(); }
+  if (n && typeof recOnFlush === 'function') recOnFlush(); }
+let recOnFlush = null;
+async function recUpload(owner, kind, id, k, dataUrlOrBlob) { const blob = typeof dataUrlOrBlob === 'string' ? dataURLtoBlob(dataUrlOrBlob) : dataUrlOrBlob; const ext = /pdf/.test(blob.type) ? 'pdf' : /png/.test(blob.type) ? 'png' : 'jpg';
+  const path = `${owner}/${kind}/${id}-${safeName(k)}-${Date.now().toString(36)}.${ext}`; await sbFetch(`/storage/v1/object/${REC_BUCKET}/${encPath(path)}`, { method: 'POST', body: blob, headers: { 'Content-Type': blob.type || 'application/octet-stream', 'x-upsert': 'true' } }); return path; }
+async function recPush(r) { for (const [k, v] of Object.entries(r._files || {})) { r.data[k] = await recUpload(r.owner || me(), r.kind, r.id, k, v); delete r._files[k]; recSaveLocal(); }
+  const row = { id: r.id, kind: r.kind, subject: r.subject || null, owner: r.owner || me(), status: r.status || null, data: r.data, deleted: !!r.deleted };
+  await sbFetch('/rest/v1/records?on_conflict=id', { method: 'POST', body: [row], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); delete r._q; delete r._err; }
+// images / files: local data URL first, else authenticated download (cached as object URL; KV cache for offline)
+const recSrc = (r, k) => (r._files && r._files[k]) || '';
+const recImgTag = (r, k, st = '') => { const d = recSrc(r, k), p = (r.data || {})[k]; return d ? `<img src="${d}" alt="" style="${st}">` : p ? `<img data-rp="${esc(p)}" alt="" style="background:#f1f5f9;${st}">` : ''; };
+async function recBlob(path) { const key = 'rec.f.' + path; try { const b = await sbBlob(`/storage/v1/object/authenticated/${REC_BUCKET}/${encPath(path)}`); if (b.size < 3e6) try { await DB.setKV(key, await blobToDataURL(b)); } catch (e) { } return b; } catch (e) { const d = await DB.getKV(key); if (d) return dataURLtoBlob(d); throw e; } }
+async function recHydrate(root = document) { for (const im of root.querySelectorAll('img[data-rp]:not([src])')) { const p = im.dataset.rp; try { if (!Rec.urls[p]) Rec.urls[p] = URL.createObjectURL(await recBlob(p)); im.src = Rec.urls[p]; } catch (e) { im.alt = 'photo (offline)'; } } }
+new MutationObserver(() => { clearTimeout(Rec.hyT); Rec.hyT = setTimeout(() => recHydrate(), 60); }).observe(document.documentElement, { childList: true, subtree: true });
+async function recOpenFile(r, k, name) { const d = recSrc(r, k); let b = d ? dataURLtoBlob(d) : null; if (!b) { try { b = await recBlob(r.data[k]); } catch (e) { return toast('Not available offline yet'); } } const u = URL.createObjectURL(b); const w = window.open(u, '_blank'); if (!w) qOut(b, name || 'file'); }
+async function recPickPhoto(capture = true) { return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; if (capture) i.capture = 'environment'; i.onchange = async () => { const f = i.files[0]; if (!f) return res(null); try { res((await compressImage(f, 1600, 0.72)).data); } catch (e) { res(null); } }; i.click(); }); }
+const daysTo = d => d ? Math.round((Date.parse(d + 'T12:00:00Z') - Date.parse(todayISO() + 'T12:00:00Z')) / 864e5) : null;
+const addMonths = (d, m) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCMonth(x.getUTCMonth() + m); return x.toISOString().slice(0, 10); };
+/* ---------- certificates ---------- */
+const CERT_TYPES = ['CSCS', 'IPAF', 'PASMA', 'SMSTS', 'SSSTS', 'Asbestos awareness', 'First aid', 'Working at height', 'Harness', 'Other'];
+const certName = c => c.data.type === 'Other' ? (c.data.other || 'Other') : c.data.type;
+function certState(c) { if (!c.data.expiry) return { k: 'none', t: 'No expiry', cls: '' }; const n = daysTo(c.data.expiry); return n < 0 ? { k: 'expired', t: 'Expired ' + fmtDate(c.data.expiry), cls: 'red', n } : n <= 30 ? { k: 'expiring', t: `Expires in ${n} day${n === 1 ? '' : 's'}`, cls: 'amber', n } : { k: 'ok', t: 'Valid to ' + fmtDate(c.data.expiry), cls: 'green', n }; }
+const certsOf = pid => recAll('cert', c => c.subject === pid).sort((a, b) => certName(a).localeCompare(certName(b)));
+async function certEdit(pid, c) { const d = c ? clone(c.data) : { type: 'CSCS', number: '', expiry: '', other: '' }; const files = Object.assign({}, c && c._files || {});
+  const ph = k => `<div class="rc-ph" data-k="${k}" style="flex:1;min-height:90px;border:2px dashed #cbd5e1;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">${files[k] ? `<img src="${files[k]}" style="max-width:100%;max-height:140px">` : c && c.data[k] ? recImgTag(c, k, 'max-width:100%;max-height:140px') : `<span class="hint">${I.camera || '📷'} ${k === 'front' ? 'Front' : 'Back'}</span>`}</div>`;
+  const r = await modal(`<h3>${c ? 'Certificate' : 'Add certificate'}</h3><label class="f"><span class="lbl">Type</span><select id="ce-type">${CERT_TYPES.map(t => `<option ${t === d.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <label class="f" id="ce-ow" ${d.type === 'Other' ? '' : 'hidden'}><span class="lbl">Which certificate?</span><input id="ce-other" value="${esc(d.other || '')}"></label>
+    <div class="row"><label class="f"><span class="lbl">Card / certificate number</span><input id="ce-num" value="${esc(d.number || '')}"></label><label class="f"><span class="lbl">Expiry date</span><input type="date" id="ce-exp" value="${esc(d.expiry || '')}"></label></div>
+    <p class="lbl">Photos (tap to take)</p><div style="display:flex;gap:8px">${ph('front')}${ph('back')}</div>
+    <button class="btn primary block" id="ce-ok" style="margin-top:12px">Save</button>${c ? '<button class="btn danger" data-r="del">Delete</button>' : ''}<button class="btn" data-r="">Cancel</button>`,
+    (bg, close) => { bg.querySelector('#ce-type').addEventListener('change', e => { bg.querySelector('#ce-ow').hidden = e.target.value !== 'Other'; });
+      bg.querySelectorAll('.rc-ph').forEach(el => el.addEventListener('click', async () => { const p = await recPickPhoto(); if (p) { files[el.dataset.k] = p; el.innerHTML = `<img src="${p}" style="max-width:100%;max-height:140px">`; } }));
+      bg.querySelector('#ce-ok').addEventListener('click', () => close({ type: bg.querySelector('#ce-type').value, other: bg.querySelector('#ce-other').value.trim(), number: bg.querySelector('#ce-num').value.trim(), expiry: bg.querySelector('#ce-exp').value })); });
+  if (r === 'del') { if (await confirmBox('Delete this certificate?', '', 'Delete')) { recDel(c); rerender(); } return; }
+  if (!r || typeof r !== 'object') return; const x = c || recNew('cert', pid); Object.assign(x.data, r, { by: myName(), byId: me() }); delete x.data.warn; x._files = Object.assign(x._files || {}, files); recPut(x); toast('Certificate saved'); rerender(); }
+/* ---------- driving licence (one per person, id lic-<uid>) ---------- */
+const licOf = pid => Rec.items['lic-' + pid] && !Rec.items['lic-' + pid].deleted ? Rec.items['lic-' + pid] : null;
+const licNext = l => l && l.data.checkDate ? addMonths(l.data.checkDate, 6) : '';
+async function licEdit(pid) { const l = licOf(pid), d = l ? l.data : {}, adm = isAdm();
+  const r = await modal(`<h3>Driving licence</h3><label class="f"><span class="lbl">Licence number</span><input id="li-num" value="${esc(d.number || '')}" autocapitalize="characters"></label>
+    ${adm ? `<label class="f"><span class="lbl">Licence checked on (DVLA / sight check)</span><input type="date" id="li-chk" value="${esc(d.checkDate || '')}"></label><p class="hint">Re-check every 6 months - the app reminds you.</p>` : `<p class="hint">${d.checkDate ? `Last checked ${fmtDate(d.checkDate)} - next check due ${fmtDate(licNext(l))}.` : 'The office checks your licence every 6 months.'}</p>`}
+    <button class="btn primary" id="li-ok">Save</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#li-ok').addEventListener('click', () => close({ number: bg.querySelector('#li-num').value.trim().toUpperCase(), checkDate: adm ? bg.querySelector('#li-chk').value : d.checkDate || '' })));
+  if (!r || typeof r !== 'object') return; const x = l || Object.assign(recNew('licence', pid), { id: 'lic-' + pid }); if (adm && r.checkDate !== d.checkDate) { x.data.checkedBy = myName(); delete x.data.warn; } Object.assign(x.data, r); recPut(x); toast('Saved'); rerender(); }
+/* ---------- expenses ---------- */
+const EXP_TYPES = ['Fuel', 'Parking', 'Tolls / congestion', 'Materials', 'Tools / equipment', 'Subsistence', 'Accommodation', 'Train / public transport', 'Other'];
+const EXP_ST = { submitted: ['Submitted', 'amber'], approved: ['Approved', 'green'], paid: ['Paid', 'green'], rejected: ['Rejected', 'red'] };
+const expOf = pid => recAll('expense', e => e.subject === pid).sort((a, b) => (b.data.date || '').localeCompare(a.data.date || ''));
+const expJobs = () => isAdm() ? bsActiveJobs().map(j => ({ id: j.id, ref: j.ref, site: j.site_name })) : (Ops.jobs || []).map(j => ({ id: j.id, ref: j.ref, site: j.site_name }));
+async function expEdit(pid, e) { const d = e ? clone(e.data) : { date: todayISO(), type: 'Fuel', amount: '', jobId: (expJobs()[0] || {}).id || '', note: '' }; let rc = e && e._files && e._files.receipt || '';
+  const ro = e && e.status && e.status !== 'submitted' && !isAdm();
+  const r = await modal(`<h3>${e ? 'Expense' : 'New expense'}</h3>${e && e.status ? `<p><span class="tag ${EXP_ST[e.status][1]}">${EXP_ST[e.status][0]}</span>${e.data.reason ? ' ' + esc(e.data.reason) : ''}</p>` : ''}
+    <div id="ex-rc" style="min-height:110px;border:2px dashed #cbd5e1;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:8px">${rc ? `<img src="${rc}" style="max-width:100%;max-height:200px">` : e && e.data.receipt ? recImgTag(e, 'receipt', 'max-width:100%;max-height:200px') : '<span class="hint">📷 Tap to photograph the receipt</span>'}</div>
+    <div class="row"><label class="f"><span class="lbl">Amount (£)</span><input id="ex-amt" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(d.amount)}"></label><label class="f"><span class="lbl">Date</span><input type="date" id="ex-date" value="${esc(d.date)}"></label></div>
+    <label class="f"><span class="lbl">Type</span><select id="ex-type">${EXP_TYPES.map(t => `<option ${t === d.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <label class="f"><span class="lbl">Job</span><select id="ex-job"><option value="">No job / general</option>${expJobs().map(j => `<option value="${esc(j.id)}" ${j.id === d.jobId ? 'selected' : ''}>${esc(j.ref || '')} ${esc(j.site || '')}</option>`).join('')}</select></label>
+    <label class="f"><span class="lbl">Note</span><input id="ex-note" value="${esc(d.note || '')}" placeholder="e.g. diesel for van, Hams Hall"></label>
+    ${ro ? '' : `<button class="btn primary block" id="ex-ok">${e ? 'Save' : 'Submit to the office'}</button>`}${e && !ro && (!e.status || e.status === 'submitted') ? '<button class="btn danger" data-r="del">Delete</button>' : ''}<button class="btn" data-r="">${ro ? 'Close' : 'Cancel'}</button>`,
+    (bg, close) => { if (ro) { bg.querySelectorAll('input,select').forEach(x => x.disabled = true); return; } bg.querySelector('#ex-rc').addEventListener('click', async () => { const p = await recPickPhoto(); if (p) { rc = p; bg.querySelector('#ex-rc').innerHTML = `<img src="${p}" style="max-width:100%;max-height:200px">`; } });
+      bg.querySelector('#ex-ok').addEventListener('click', () => { const amt = parseFloat(bg.querySelector('#ex-amt').value); if (!(amt > 0)) return toast('Enter the amount'); const jid = bg.querySelector('#ex-job').value, j = expJobs().find(x => x.id === jid) || {};
+        close({ amount: Math.round(amt * 100) / 100, date: bg.querySelector('#ex-date').value || todayISO(), type: bg.querySelector('#ex-type').value, jobId: jid, jobRef: j.ref || '', note: bg.querySelector('#ex-note').value.trim() }); }); });
+  if (r === 'del') { if (await confirmBox('Delete this expense?', '', 'Delete')) { recDel(e); rerender(); } return; }
+  if (!r || typeof r !== 'object') return; if (!rc && !(e && e.data.receipt) && !(await confirmBox('No receipt photo?', 'The office normally needs a receipt. Submit anyway?', 'Submit', false))) return;
+  const x = e || recNew('expense', pid, {}, 'submitted'); Object.assign(x.data, r, { name: (Cloud.profiles || []).concat([Cloud.profile]).find(p => p && p.id === pid)?.full_name || myName() }); if (!e) x.data.history = [{ st: 'submitted', by: myName(), at: Date.now() }]; if (rc) x._files = Object.assign(x._files || {}, { receipt: rc });
+  recPut(x); toast(e ? 'Saved' : 'Submitted to the office'); rerender(); }
+/* ---------- profile screen (operative: own; admin: anyone - v1.10.1) ---------- */
+function viewPerson(pid) { const cs = certsOf(pid), l = licOf(pid), ex = expOf(pid), adm = isAdm(), ln = licNext(l), ld = ln ? daysTo(ln) : null;
+  const bad = cs.filter(c => /expired|expiring/.test(certState(c).k));
+  return `${bad.length ? `<div class="lg-msg ${bad.some(c => certState(c).k === 'expired') ? 'err' : 'warn'}" style="margin:0 0 12px">${bad.map(c => `${esc(certName(c))}: ${certState(c).t}`).join('<br>')}</div>` : ''}
+  <div class="card" id="pf-certs"><h2>Certificates <span class="small" style="margin-left:auto">${cs.length}</span></h2>${cs.map(c => { const s = certState(c); return `<div class="item" data-act="ce-open" data-id="${c.id}" style="cursor:pointer"><div class="th" style="overflow:hidden;padding:0">${recImgTag(c, 'front', 'width:100%;height:100%;object-fit:cover') || '🪪'}</div><div class="bd"><div class="t1">${esc(certName(c))}</div><div class="t2">${c.data.number ? 'No. ' + esc(c.data.number) : 'No number'}${c._q ? ' · not uploaded yet' : ''}</div><div class="meta"><span class="tag ${s.cls}">${s.t}</span></div></div></div>`; }).join('') || '<p class="hint">No certificates yet - add your CSCS card first.</p>'}
+    <button class="btn block" data-act="ce-add" data-p="${pid}">${I.plus} Add certificate</button></div>
+  <div class="card" id="pf-lic"><h2>Driving licence</h2>${l ? `<p>No. <b>${esc(l.data.number || '-')}</b></p><p class="hint">${l.data.checkDate ? `Checked ${fmtDate(l.data.checkDate)}${l.data.checkedBy ? ' by ' + esc(l.data.checkedBy) : ''} · next check <span class="tag ${ld < 0 ? 'red' : ld <= 30 ? 'amber' : 'green'}">${fmtDate(ln)}</span>` : 'Not checked yet'}</p>` : '<p class="hint">Not added.</p>'}<button class="btn block" data-act="li-edit" data-p="${pid}">${l ? 'Edit' : 'Add licence'}</button></div>
+  <div class="card" id="pf-exp"><h2>Expenses</h2><button class="btn primary block" data-act="ex-add" data-p="${pid}">${I.plus} New expense</button>
+    ${ex.slice(0, 30).map(e => `<div class="item" data-act="ex-open" data-id="${e.id}" style="cursor:pointer"><div class="bd"><div class="t1">${fmtGBP(e.data.amount)} · ${esc(e.data.type)}</div><div class="t2">${fmtDate(e.data.date)}${e.data.jobRef ? ' · ' + esc(e.data.jobRef) : ''}${e.data.note ? ' · ' + esc(e.data.note) : ''}</div><div class="meta"><span class="tag ${EXP_ST[e.status || 'submitted'][1]}">${EXP_ST[e.status || 'submitted'][0]}</span>${e._q ? '<span class="tag">waiting for signal</span>' : ''}</div></div></div>`).join('') || '<p class="hint" style="margin-top:8px">No expenses yet.</p>'}</div>`; }
+Object.assign(ACTIONS, {
+  'ce-add'(a) { certEdit(a.dataset.p); }, 'ce-open'(a) { const c = Rec.items[a.dataset.id]; if (c) certEdit(c.subject, c); },
+  'li-edit'(a) { licEdit(a.dataset.p); }, 'ex-add'(a) { expEdit(a.dataset.p); }, 'ex-open'(a) { const e = Rec.items[a.dataset.id]; if (e) expEdit(e.subject, e); },
+});
+async function recLoadMine() { await recInit(); try { await recFetch(`or=(subject.eq.${me()},owner.eq.${me()})`); } catch (e) { } recFlush(); }
+// operative home: one tile
+function pfTile() { if (!signedIn()) return ''; const cs = certsOf(me()), bad = cs.filter(c => /expired|expiring/.test(certState(c).k)).length, l = licOf(me()), ex = expOf(me()).filter(e => (e.status || 'submitted') === 'submitted').length;
+  return `<a class="card pf-tile" href="#/me" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;border-left:6px solid ${bad ? '#dc2626' : '#2563eb'}"><div style="flex:1"><h2 style="margin:0">My certificates &amp; expenses</h2><div class="t2">${bad ? `<b style="color:#b91c1c">${bad} certificate${bad > 1 ? 's' : ''} expiring / expired</b>` : cs.length ? cs.length + ' certificate' + (cs.length > 1 ? 's' : '') : 'Add your cards'}${ex ? ` · ${ex} expense${ex > 1 ? 's' : ''} with the office` : ''}${!l ? ' · add driving licence' : ''}</div></div><span style="font-size:22px">›</span></a>`; }
+{ const _vh = viewOpHome; viewOpHome = function () { const v = _vh(); const t = pfTile(); if (t) { const i = v.body.indexOf('<a class="card bs-tile"'); if (i >= 0) { const j = v.body.indexOf('</a>', i) + 4; v.body = v.body.slice(0, j) + t + v.body.slice(j); } else v.body = t + v.body; } return v; }; }
+{ const _r = render; render = function (keep) { const rt = route(); if (rt[0] !== 'me' || !signedIn()) return _r(keep);
+  if (!Rec.ready || Rec.uid !== me()) { $('#app').innerHTML = header({ title: 'My certificates & expenses' }) + '<main><p class="hint">Loading…</p></main>'; recInit().then(() => render(keep)); return; }
+  if (!Rec.mineT || Date.now() - Rec.mineT > 60000) { Rec.mineT = Date.now(); recLoadMine().then(() => { if (route()[0] === 'me') render(true); }); }
+  S.ctx = null; const y = window.scrollY; document.body.classList.remove('hasnav'); $('#app').innerHTML = header({ title: 'My certificates & expenses', sub: myName(), back: '#/' }) + `<main>${viewPerson(me())}</main>`; window.scrollTo(0, keep ? y : 0); lastHash = location.hash; }; }
+recOnFlush = () => { if (/^(me|admin|person)/.test(route()[0] || '')) rerender(); };
+window.addEventListener('online', () => recFlush());
+// preload on start for operatives so the home tile has data
+setTimeout(() => { if (signedIn()) recLoadMine().then(() => { if (!route()[0] && document.querySelector('.pf-tile') && !document.querySelector('.modal-bg')) rerender(); }); }, 1500);
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
