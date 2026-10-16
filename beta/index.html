@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.4">
+<meta name="app-version" content="1.10.5">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.4';
+const APP_VERSION = '1.10.5';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -9180,8 +9180,8 @@ Object.assign(ACTIONS, {
 /* ===== v1.9.18 (BETA): foreman group sign-off for toolbox talks + RAMS (alongside self-sign); RAMS with several PDFs (e.g. WMP + RA), title / doc no / version / date read from page 1
    Foreman per job = a hidden entry in the shared 'brief' map ({id:'fm-<job>', fm:true, removed:true}) - nothing new to store elsewhere.
    A signature taken on the foreman's phone is the foreman's own daily_checks row with data.worker = {id?, name, company, role} and takenBy. */
-const bsFmOf = jobId => { const e = (S.settings.brief || {})['fm-' + jobId]; return e && e.uid ? e : null; };
-const bsIsForeman = it => !!it && (isMgr() || (bsFmOf(it.jobId) || {}).uid === me() || it.foreman === me());
+let bsFmOf = jobId => { const e = (S.settings.brief || {})['fm-' + jobId]; return e && e.uid ? e : null; };
+let bsIsForeman = it => !!it && (isMgr() || (bsFmOf(it.jobId) || {}).uid === me() || it.foreman === me());
 const bsWKey = (w, owner) => (w && w.id) ? w.id : w ? 'x:' + String(w.name || '').trim().toLowerCase() + '|' + String(w.company || '').trim().toLowerCase() : owner;
 const bsSignerKey = d => bsWKey(d.worker, d.owner);
 // names the foreman can show (operatives cannot read other profiles): snapshot taken when issued / foreman set
@@ -9663,7 +9663,7 @@ const vanDue = v => VAN_DATES.map(([k, l]) => ({ k, l, d: v.data[k], n: daysTo(v
 const vanWarn = v => vanDue(v).filter(x => x.n <= 30);
 const mondayOf = d => wkStartOf(d);
 const firstMondayWeek = ws => +ws.slice(8, 10) <= 7;
-const myVan = () => vans().find(v => v.data.foreman === me() && v.data.status !== 'sold');
+const myVan = () => vans().find(v => v.data.status !== 'sold' && (typeof coverVanOk === 'function' ? coverVanOk(v) : v.data.foreman === me()));
 function vanTodo(v) { const ws = mondayOf(todayISO()), ch = vanChecks(v.id), mine = ch.filter(c => c.owner === me());
   const weekly = !ch.some(c => c.data.week === ws && c.data.type !== 'incident');
   const handover = v.data.assignedAt && !mine.some(c => (c.data.at || 0) >= v.data.assignedAt) && v.data.prevForeman && v.data.prevForeman !== me();
@@ -9968,6 +9968,75 @@ Object.assign(ACTIONS, {
   if (!Rec.ready || Rec.uid !== me()) { $('#app').innerHTML = header({ title: 'O&M file' }) + '<main><p class="hint">Loading…</p></main>'; recInit().then(() => render(keep)); return; }
   admEnsure(); S.ctx = null; const y = window.scrollY; document.body.classList.remove('hasnav'); const pk = Rec.items[rt[1]];
   $('#app').innerHTML = header({ title: 'O&M / H&S file', sub: pk ? `${pk.data.jobRef || ''} ${pk.data.site || ''}` : '', back: '#/admin/om' }) + `<main>${pk && !pk.deleted ? viewOmPack(pk) : '<p class="hint">Loading…</p>'}</main>`; window.scrollTo(0, keep ? y : 0); lastHash = location.hash; }; }
+
+/* ===== v1.10.5 (BETA): (1) 'Cover while I'm away' (delegation) and (2) 'I'm on holiday' flag (kind 'holiday'), independent of each other. Cover: A foreman (or manager/admin) picks an operative on his job(s) to cover his holiday (start + end date).
+   During cover the operative gets the foreman's duties: group sign-off + briefed-by default for toolbox talks / RAMS, foreman reminders, and the van check if "takes the van".
+   Record: records kind 'cover' {owner: foreman, subject: covering operative, status active|ended, data {fm, fmName, opName, start, end, jobs[], van, by}}. Ends itself after the end date. */
+const coverLive = c => c && !c.deleted && c.status === 'active' && c.data.start <= todayISO() && (!c.data.end || c.data.end >= todayISO());
+const coverOpen = c => c.status === 'active' && (!c.data.end || c.data.end >= todayISO());
+const coversAll = () => recAll('cover').sort((a, b) => String(b.data.start).localeCompare(a.data.start));
+const coverFor = fm => coversAll().find(c => coverLive(c) && c.data.fm === fm); // who covers this foreman now
+const coverMine = () => coversAll().find(c => coverLive(c) && c.subject === me()); // I am covering
+const coverOfMe = () => coversAll().find(c => coverLive(c) && c.data.fm === me()); // I am covered (on holiday)
+function coverVanOk(v) { const mine = v.data.foreman === me(), cv = coverFor(v.data.foreman); if (mine) return !(cv && cv.data.van === v.id); const c = coverMine(); return !!(c && c.data.van === v.id && c.data.fm === v.data.foreman); }
+// briefings: the covering operative is the job foreman while the cover runs (group sign-off, briefed-by default); the real foreman keeps his rights too
+const bsFmRaw = bsFmOf;
+bsFmOf = function (jobId) { const fm = bsFmRaw(jobId); if (!fm) return fm; const c = coverFor(fm.uid); if (!c || (c.data.jobs && c.data.jobs.length && !c.data.jobs.includes(jobId))) return fm; return Object.assign({}, fm, { uid: c.subject, name: c.data.opName, coverFor: fm.name, realUid: fm.uid }); };
+{ const _f = bsIsForeman; bsIsForeman = function (it) { return _f(it) || (!!it && (bsFmRaw(it.jobId) || {}).uid === me()); }; }
+// records made while covering: "covering for <foreman>"
+{ const _rp = recPut; recPut = function (r) { const c = coverMine(); if (c && /^van(check|defect|incident)$/.test(r.kind) && !r.data.coverFor && r.owner === me()) r.data.coverFor = c.data.fmName; return _rp(r); }; }
+{ const _ds = dcSave; dcSave = function (now) { const c = coverMine(); if (c) (Ops.list || []).forEach(s => { if (isBs(s) && s.owner === me() && !s.coverFor && (s.at || 0) >= Date.parse(c.data.start + 'T00:00:00')) { s.coverFor = c.data.fmName; if (s.by && !/covering for/.test(s.by)) s.by = `${s.by} (covering for ${c.data.fmName})`; } }); return _ds(now); }; }
+async function coverLoad() { try { await recInit(); await recFetch('kind=in.(cover,holiday)'); } catch (e) { } }
+// operatives the foreman can pick: everyone on his jobs (names from the job foreman entries), or all operatives for a manager/admin
+function coverCandidates(fm) { const out = {}; if (isAdm() || isMgr()) operatives().filter(o => o.active !== false && o.id !== fm).forEach(o => out[o.id] = o.full_name);
+  Object.values(S.settings.brief || {}).filter(e => e && e.fm && e.uid === fm).forEach(e => Object.entries(e.names || {}).forEach(([id, n]) => { if (id !== fm) out[id] = out[id] || n; }));
+  (Ops.jobs || []).forEach(j => (j.operatives || []).forEach(id => { if (id !== fm && !out[id]) { const p = (Cloud.profiles || []).find(x => x.id === id); if (p) out[id] = p.full_name; } })); return out; }
+const coverJobsOf = fm => Object.values(S.settings.brief || {}).filter(e => e && e.fm && e.uid === fm).map(e => e.jobId);
+async function coverEdit(fm, fmName, pre = {}) { const C = coverCandidates(fm), ids = Object.keys(C); if (!ids.length) return toast('No operatives on your jobs to pick'); const van = vans().find(v => v.data.foreman === fm && v.data.status !== 'sold');
+  const r = await modal(`<h3>Cover while I'm away</h3><p class="hint">Who covers ${esc(fmName)}. They get the foreman's jobs: group sign-off for toolbox talks / RAMS, briefed-by, foreman reminders${van ? ' and the van check if they take the van' : ''}.</p>
+    <label class="f"><span class="lbl">Covered by</span><select id="cv-op">${ids.map(id => `<option value="${id}">${esc(C[id])}</option>`).join('')}</select></label>
+    <div class="row"><label class="f"><span class="lbl">From</span><input type="date" id="cv-s" value="${pre.start || todayISO()}"></label><label class="f"><span class="lbl">To (last day)</span><input type="date" id="cv-e" value="${pre.end || ''}"></label></div><label class="ckl"><input type="checkbox" id="cv-open"> Until I take it back (no end date)</label>
+    ${van ? `<label class="ckl"><input type="checkbox" id="cv-van"> Takes the van (${esc(van.data.reg)})</label>` : ''}<button class="btn primary" id="cv-ok">Start cover</button><button class="btn" data-r="">Cancel</button>`,
+    (bg, close) => bg.querySelector('#cv-ok').addEventListener('click', () => { const s = bg.querySelector('#cv-s').value, op = bg.querySelector('#cv-open').checked, e = op ? '' : bg.querySelector('#cv-e').value; if (!s || (!e && !op)) return toast('Enter the dates (or tick "until I take it back")'); if (e && e < s) return toast('The end date is before the start'); if (e && e < todayISO()) return toast('The end date has passed'); close({ op: bg.querySelector('#cv-op').value, s, e, van: !!(bg.querySelector('#cv-van') || {}).checked }); }));
+  if (!r || typeof r !== 'object') return; const old = coversAll().find(c => c.data.fm === fm && coverOpen(c)); if (old) { old.status = 'ended'; old.data.endedAt = Date.now(); old.data.endedBy = myName(); recPut(old); }
+  const c = recNew('cover', r.op, { fm, fmName, opName: C[r.op], start: r.s, end: r.e, jobs: coverJobsOf(fm), van: r.van && van ? van.id : '', vanReg: r.van && van ? van.data.reg : '', by: myName(), at: Date.now(), reason: pre.holiday ? 'Holiday' : '' }, 'active');
+  if (!isAdm()) c.owner = me(); recPut(c); await recFlush(); try { await fnCall('records-notify', { id: c.id, action: 'cover', phase: 'start' }); } catch (e) { } toast(`${C[r.op]} covers ${fmName} from ${fmtDate(r.s)}${r.e ? ' to ' + fmtDate(r.e) : ''}`); rerender(); }
+async function coverEnd(c) { if (!(await confirmBox('End cover now?', `${c.data.fmName} takes the foreman duties back today.`, 'End cover'))) return; c.status = 'ended'; c.data.endedAt = Date.now(); c.data.endedBy = myName(); recPut(c); await recFlush(); try { await fnCall('records-notify', { id: c.id, action: 'cover', phase: 'end' }); } catch (e) { } toast('Cover ended'); rerender(); }
+Object.assign(ACTIONS, { 'cv-new'(a) { coverEdit(a.dataset.fm || me(), a.dataset.name || myName()); }, 'cv-end'(a) { const c = Rec.items[a.dataset.id]; if (c) coverEnd(c); } });
+const coverRange = c => c.data.end ? `${fmtDate(c.data.start)} - ${fmtDate(c.data.end)}` : `from ${fmtDate(c.data.start)} until taken back`;
+function coverBanner() { const m = coverMine(), o = coverOfMe(), soon = coversAll().find(c => c.status === 'active' && c.data.start > todayISO() && (c.data.fm === me() || c.subject === me()));
+  return (m ? `<div class="card cv-banner" style="background:#eff6ff;border-left:6px solid #2563eb"><b>👷 Cover:</b> you are covering for <b>${esc(m.data.fmName)}</b> ${m.data.end ? 'until ' + fmtDate(m.data.end) : 'until he takes it back'}${m.data.van ? ` (van ${esc(m.data.vanReg)})` : ''}. You do the group sign-offs${m.data.van ? ' and the van check' : ''}.</div>` : '')
+    + (o ? `<div class="card cv-banner" style="background:#eff6ff;border-left:6px solid #2563eb"><b>👷 Cover:</b> <b>${esc(o.data.opName)}</b> is covering for you ${coverRange(o)}. <button class="btn sm" data-act="cv-end" data-id="${o.id}">End early</button></div>` : '')
+    + (!m && !o && soon ? `<div class="card cv-banner" style="border-left:6px solid #93c5fd"><b>Cover booked:</b> ${esc(soon.data.opName)} for ${esc(soon.data.fmName)}, ${coverRange(soon)}. ${soon.data.fm === me() ? `<button class="btn sm" data-act="cv-end" data-id="${soon.id}">Cancel</button>` : ''}</div>` : ''); }
+const isFmAnywhere = () => Object.values(S.settings.brief || {}).some(e => e && e.fm && e.uid === me()) || vans().some(v => v.data.foreman === me());
+let coverT = 0;
+{ const _vh = viewOpHome; viewOpHome = function () { const v = _vh(); if (Date.now() - coverT > 60000 && signedIn() && online()) { coverT = Date.now(); const before = JSON.stringify(recAll('cover').map(c => c.id + c.status)); coverLoad().then(() => { if (JSON.stringify(recAll('cover').map(c => c.id + c.status)) !== before && !route()[0]) rerender(); }); }
+  const own = isFmAnywhere() && !coverOfMe() && !coversAll().some(c => c.data.fm === me() && coverOpen(c)) ? `<button class="btn block" data-act="cv-new">👷 Cover while I'm away</button>` : '';
+  const hol = !holMine() ? `<button class="btn block" data-act="hol-new" style="margin-top:6px">🏖 I'm on holiday</button>` : '';
+  const tools = own || hol ? `<div class="card">${own}${hol}</div>` : '';
+  v.body = holBanner() + coverBanner() + v.body + tools; return v; }; }
+// manager / admin: Admin > Operatives shows covers, and a foreman's profile has "Holiday cover"
+{ const _o = admOpsHTML; admOpsHTML = function () { coverT || (coverT = 1, coverLoad().then(() => rerender())); const L = coversAll().filter(coverOpen), H = holAll().filter(holOpen);
+  return `<div class="card" id="hol-list"><h2>On holiday</h2>${H.map(h => `<div class="item"><div class="bd"><div class="t1">${esc(h.data.name)}</div><div class="t2">${fmtDate(h.data.start)} - ${fmtDate(h.data.end)}${holLive(h) ? ' · <b>now</b>' : ''}${coverFor(h.subject) ? ' · covered by ' + esc(coverFor(h.subject).data.opName) : ''}</div></div></div>`).join('') || '<p class="hint">Nobody on holiday.</p>'}</div><div class="card" id="cv-list"><h2>Cover</h2>${L.map(c => `<div class="item"><div class="bd"><div class="t1">${esc(c.data.opName)} covers ${esc(c.data.fmName)}</div><div class="t2">${coverRange(c)}${c.data.van ? ' · van ' + esc(c.data.vanReg) : ''}${coverLive(c) ? ' · <b>now</b>' : ''}</div></div><button class="btn sm" data-act="cv-end" data-id="${c.id}">End</button></div>`).join('') || '<p class="hint">Nobody covering.</p>'}<p class="hint">Set it up from the foreman's profile (Cover while away) - the foreman can also do it on his phone.</p></div>` + _o(); }; }
+{ const _vp = viewPerson; viewPerson = function (uid) { const h = _vp(uid); if (!isAdm() || !uid || uid === me()) return h; const p = (Cloud.profiles || []).find(x => x.id === uid) || {}; return h + `<div class="card"><button class="btn block" data-act="cv-new" data-fm="${esc(uid)}" data-name="${esc(p.full_name || '')}">👷 Cover while ${esc(p.full_name || 'this foreman')} is away</button>${holAll().filter(h => h.subject === uid && holOpen(h)).map(h => `<p class="hint" style="margin-top:6px">🏖 On holiday ${fmtDate(h.data.start)} - ${fmtDate(h.data.end)}</p>`).join('')}</div>`; }; }
+
+/* ---------- (2) I'm on holiday ---------- */
+const holAll = () => recAll('holiday').sort((a, b) => String(a.data.start).localeCompare(b.data.start));
+const holOpen = h => h.status === 'active' && h.data.end >= todayISO();
+const holLive = h => holOpen(h) && h.data.start <= todayISO();
+const holMine = () => holAll().find(h => h.subject === me() && holOpen(h));
+const holidayOn = (uid, d) => holAll().some(h => h.subject === uid && h.status === 'active' && h.data.start <= d && h.data.end >= d);
+function holBanner() { const h = holMine(); if (!h) return ''; return `<div class="card hol-banner" style="background:#fefce8;border-left:6px solid #eab308"><b>🏖 ${holLive(h) ? "You're on holiday" : 'Holiday booked'}</b> ${fmtDate(h.data.start)} - ${fmtDate(h.data.end)}. Your reminders${vans().some(v => v.data.foreman === me()) ? ', van check' : ''} and missing-day flags are paused for those dates. <button class="btn sm" data-act="hol-end" data-id="${h.id}">${holLive(h) ? "I'm back" : 'Cancel'}</button></div>`; }
+async function holEdit() { const r = await modal(`<h3>I'm on holiday</h3><p class="hint">The office sees you are on holiday. Your reminders, van check prompts and missing-day flags are paused for these dates.</p><div class="row"><label class="f"><span class="lbl">From</span><input type="date" id="hl-s" value="${todayISO()}"></label><label class="f"><span class="lbl">To (last day)</span><input type="date" id="hl-e"></label></div><button class="btn primary" id="hl-ok">Save</button><button class="btn" data-r="">Cancel</button>`,
+  (bg, close) => bg.querySelector('#hl-ok').addEventListener('click', () => { const s = bg.querySelector('#hl-s').value, e = bg.querySelector('#hl-e').value; if (!s || !e) return toast('Enter both dates'); if (e < s) return toast('The end date is before the start'); if (e < todayISO()) return toast('The end date has passed'); close({ s, e }); }));
+  if (!r || typeof r !== 'object') return; const h = recNew('holiday', me(), { name: myName(), start: r.s, end: r.e, at: Date.now() }, 'active'); recPut(h); recFlush(); toast('Holiday saved'); rerender();
+  if (isFmAnywhere() && !coversAll().some(c => c.data.fm === me() && coverOpen(c)) && await confirmBox('Pass cover to an operative?', "Optional: someone does your group sign-offs, foreman reminders and van check while you're away.", 'Pick someone', false)) coverEdit(me(), myName(), { start: r.s, end: r.e, holiday: true }); }
+Object.assign(ACTIONS, { 'hol-new'() { holEdit(); }, async 'hol-end'(a) { const h = Rec.items[a.dataset.id]; if (!h || !(await confirmBox(holLive(h) ? 'Back from holiday?' : 'Cancel this holiday?', 'Reminders start again.', 'Yes'))) return; h.status = 'ended'; h.data.endedAt = Date.now(); if (holLive(h)) h.data.end = wkAddDays(todayISO(), -1) >= h.data.start ? wkAddDays(todayISO(), -1) : h.data.start; recPut(h); rerender(); } });
+// pauses: van card prompts (hidden while on holiday and not covered by someone else), missing-day flags on weekly sheets
+{ const _vc = vanHomeCard; vanHomeCard = function () { return holidayOn(me(), todayISO()) ? '' : _vc(); }; }
+{ const _wm = wkMissing; wkMissing = function (sheet, today) { const m = _wm(sheet, today); const o = sheet && (sheet.owner || (isOp() ? me() : '')); return o ? m.filter(d => !holidayOn(o, d)) : m; }; }
+// Team page: who is on holiday
+{ const _ot = opsTeamCard; opsTeamCard = function () { const H = holAll().filter(holOpen); const h = _ot(); return H.length ? h.replace('</h2>', `</h2><p class="hint" style="margin-bottom:8px">🏖 On holiday: ${H.map(x => `<b>${esc(x.data.name)}</b> ${fmtDate(x.data.start).slice(0, 5)}-${fmtDate(x.data.end).slice(0, 5)}`).join(', ')}</p>`) : h; }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
