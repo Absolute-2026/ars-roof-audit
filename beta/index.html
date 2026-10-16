@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.3">
+<meta name="app-version" content="1.10.4">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.3';
+const APP_VERSION = '1.10.4';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -9440,7 +9440,8 @@ const isAdm = () => !!(Cloud.profile && isAdmRole(Cloud.profile.role));
 const REC_BUCKET = 'records';
 const Rec = { items: {}, ready: false, busy: false, urls: {} };
 const recKey = () => 'rec.' + (me() || 'local');
-async function recInit() { if (Rec.ready && Rec.uid === me()) return; Rec.items = (await DB.getKV(recKey())) || {}; Rec.uid = me(); Rec.ready = true; }
+function recInit() { const u = me(); if (Rec.ready && Rec.uid === u) return Promise.resolve(); if (Rec.initP && Rec.initU === u) return Rec.initP; // single-flight: two parallel inits used to overwrite records fetched in between (v1.10.3 van card bug)
+  Rec.initU = u; Rec.initP = (async () => { const items = (await DB.getKV(recKey())) || {}; if (me() !== u) return; if (Rec.uid === u && Rec.ready) return; const live = Rec.uid === u ? Rec.items : {}; Rec.items = Object.assign(items, live); Rec.uid = u; Rec.ready = true; })().finally(() => { if (Rec.initU === u) Rec.initP = null; }); return Rec.initP; }
 let recSaveT = 0; const recSaveLocal = () => { clearTimeout(recSaveT); recSaveT = setTimeout(() => DB.setKV(recKey(), Rec.items), 150); };
 const recAll = (kind, f) => Object.values(Rec.items).filter(r => r && r.kind === kind && !r.deleted && (!f || f(r)));
 const recNew = (kind, subject, data = {}, status = null) => ({ id: kind.slice(0, 3) + '-' + uid(), kind, subject: subject || null, owner: me(), status, data, created_at: new Date().toISOString() });
@@ -9674,8 +9675,9 @@ function vanHomeCard() { const v = myVan(); if (!v) return ''; const t = vanTodo
   return `<div class="card van-card" style="border-left:6px solid ${off ? '#dc2626' : due ? '#f59e0b' : '#16a34a'}"><h2 style="margin:0 0 4px">🚐 Van ${esc(v.data.reg)}</h2><p class="hint">${esc([v.data.make, v.data.model].filter(Boolean).join(' '))}${off ? ' · <b style="color:#b91c1c">OFF ROAD - do not drive</b>' : ''}${last ? ` · last check ${fmtDate(last.data.date)}` : ''}</p>
     ${due ? `<a class="btn primary block dc-big" href="#/vancheck" style="margin-top:6px">${t.handover ? 'Handover check (new van)' : t.weekly ? 'Weekly van check' : 'Van photos requested'}${t.photos ? ' + photos' : ''}</a>` : '<p><span class="tag green">This week\'s check done</span></p>'}
     <a class="btn block" href="#/vanreport" style="margin-top:6px">Report damage / accident</a></div>`; }
-{ const _vh = viewOpHome; viewOpHome = function () { const v = _vh(); const c = vanHomeCard(); if (c) v.body = c + v.body; return v; }; }
-async function vanLoad() { try { await recFetch('kind=in.(van,vancheck,vandefect)'); } catch (e) { } }
+let vanLoadT = 0; function vanRefresh() { if (!signedIn() || !isOp() || !online() || Date.now() - vanLoadT < 60000) return; vanLoadT = Date.now(); const had = !!myVan(); vanLoad().then(() => { if (!!myVan() !== had && !route()[0] && !document.querySelector('.modal-bg')) rerender(); }); }
+{ const _vh = viewOpHome; viewOpHome = function () { const v = _vh(); vanRefresh(); const c = vanHomeCard(); if (c) v.body = c + v.body; return v; }; }
+async function vanLoad() { try { await recInit(); await recFetch('kind=in.(van,vancheck,vandefect)'); } catch (e) { } }
 setTimeout(() => { if (signedIn() && isOp()) vanLoad().then(() => { if (!route()[0] && myVan() && !document.querySelector('.van-card') && !document.querySelector('.modal-bg') && document.querySelector('.pf-tile')) rerender(); }); }, 1800);
 /* ---------- foreman: weekly / handover check ---------- */
 S.vc = null;
