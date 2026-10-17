@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.12">
+<meta name="app-version" content="1.10.13">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.12';
+const APP_VERSION = '1.10.13';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -10334,9 +10334,9 @@ function bsOtherPanel(pid) { return `<div class="bs-oth" id="bs-oth" data-p="${e
     return h.replace(/(<select id="bs-talk">[^]*?)(<\/select><\/label>)/, (m, a, b) => a + `<option value="${BS_OTHER}">Other - describe the issue, generate a talk…</option>` + b + bsOtherPanel(pid)); }; }
 document.addEventListener('change', e => { if (e.target.id !== 'bs-talk') return; const p = $('#bs-oth'); if (p) { p.hidden = e.target.value !== BS_OTHER; if (!p.hidden) setTimeout(() => $('#bs-oth-d') && $('#bs-oth-d').focus(), 50); } });
 async function bsGenerate() { const d = ($('#bs-oth-d') || {}).value || '', btn = $('#bs-oth-gen'), stt = $('#bs-oth-st'); if (d.trim().length < 10) return toast('Describe the issue in a sentence or two first');
-  if (!navigator.onLine) return toast('You need a signal to generate a talk'); const p = (Ops.jobsTbl || []).find(j => j.id === ($('#bs-oth') || {}).dataset.p) || {};
+  if (!navigator.onLine) return toast('You need a signal to generate a talk'); const pid = ($('#bs-pj') || {}).value || ($('#bs-oth') || {}).dataset.p, p = (Ops.jobsTbl || []).find(j => j.id === pid) || {}, project = typeof bsProjCtx === 'function' && pid ? bsProjCtx(pid) : null; // v1.10.13: project context
   btn.disabled = true; btn.textContent = 'Writing the talk…'; if (stt) stt.textContent = 'This usually takes 20-40 seconds.';
-  try { const r = await sbFetch('/functions/v1/toolbox-talk', { method: 'POST', body: { issue: d.trim(), site: p.site_name || '', job: p.ref || '' } }); const t = r && r.talk; if (!t || !Array.isArray(t.sections) || !t.sections.length) throw new Error('No talk came back - try again');
+  try { const r = await sbFetch('/functions/v1/toolbox-talk', { method: 'POST', body: Object.assign({ issue: d.trim(), site: p.site_name || '', job: p.ref || '' }, project ? { project } : {}) }); const t = r && r.talk; if (!t || !Array.isArray(t.sections) || !t.sections.length) throw new Error('No talk came back - try again');
     $('#bs-oth-t').value = t.title || ''; $('#bs-oth-b').value = bsGenLines(t).join('\n'); $('#bs-oth-out').hidden = false; $('#bs-oth-ok').checked = false; if (stt) stt.textContent = 'Review and edit the talk below, then tick to confirm it has been checked.';
     btn.textContent = 'Generate again'; setTimeout(() => { try { $('#bs-oth-out').scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) { } }, 50);
   } catch (e) { const m = String(e && e.message || e); btn.textContent = 'Generate talk'; if (stt) stt.textContent = ''; toast(/not_configured/.test(m) ? 'Talk writing is not set up on the server yet' : e && e.offline ? 'You need a signal to generate a talk' : 'Could not generate: ' + m, 4000); }
@@ -10356,6 +10356,63 @@ const bsTmpDrop = () => { if (!BS_TMP.length) return; [S.settings.tbtLib, DEFAUL
 // a one-off talk (not saved to the library) is only in the list while bsIssue copies it - dropped before anything is saved or shared
 { const _s = bsShare; bsShare = function (...a) { bsTmpDrop(); return _s.apply(this, a); }; }
 { const _i = bsIssue; bsIssue = async function (...a) { try { return await _i.apply(this, a); } finally { bsTmpDrop(); } }; }
+
+/* ===== v1.10.13 (BETA): project on the toolbox talk / RAMS issue sheet
+   - "Project" picker at the top of the issue sheet (defaults to the project it was opened from; tap to change - the sheet reopens for that
+     project keeping what was typed), with the project's details filled in: job no, site, address, client, contracts manager, works / roof.
+   - "Other" talks: the project context (project details + its surveys / works inspections on this phone: works type, roof areas, access,
+     hazards, open defects / snags, programme stage; issued RAMS + earlier talks) goes to the toolbox-talk function so the talk is tailored.
+   - Every issued talk / RAMS keeps a snapshot of the project details (it.project): shown as a "Project details" header on the operative's
+     screen and in the register PDF; logged against the project (jobId) as before. Operatives only see the client if the project allows it. ===== */
+(() => { const st = document.createElement('style'); st.textContent = `.bs-proj{background:#eef3f9;border-radius:12px;padding:10px;margin:0 0 12px}.bs-proj .f{margin-bottom:6px}.bs-pjd{font-size:14px;line-height:1.45;color:#334155}.bs-pjd b{color:var(--navy)}
+.bs-pjh{background:#eef3f9;border-radius:10px;padding:8px 10px;margin:8px 0 10px;font-size:14px;line-height:1.45;color:#334155}.bs-pjh .t{font-weight:800;color:var(--navy);font-size:12px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:2px}`; document.head.appendChild(st); })();
+const bsClip = (s, n) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+const bsProfName = id => { const q = (Cloud.profiles || []).find(x => x.id === id); return q ? q.full_name || q.email || '' : ''; };
+function bsAuditsOf(pid) { const p = bsJob(pid); const ids = p.audit_ids || []; return (S.jobs || []).filter(j => j && (j.projectId === pid || ids.includes(j.id))).sort((a, b) => (b.updated || 0) - (a.updated || 0)); }
+function bsWorksLine(au) { const L = au.slice(0, 3).map(j => { const w = isWorks(j) ? j.works || {} : null; return w ? `Works inspection ${w.inspNo || ''}${w.stage ? ' - ' + w.stage : ''}${w.pct ? ' (' + w.pct + '% complete)' : ''}`.replace(/\s+/g, ' ').trim() : `Roof condition survey${j.buildingUse ? ' - ' + j.buildingUse : ''}`; }); return [...new Set(L)].join('; '); }
+function bsRoofLine(au) { const r = []; au.slice(0, 2).forEach(j => (j.areas || []).forEach(a => { const t = [a.type, a.profile].filter(Boolean).join(' '); if (t) r.push(`${a.name || 'Roof'}: ${t}${a.pitch ? ', ' + a.pitch + '°' : ''}${a.rlType || a.rlCount ? `, rooflights ${[a.rlCount, a.rlType].filter(Boolean).join(' ')}` : ''}`); })); return [...new Set(r)].slice(0, 4).join('; '); }
+function bsProjSnap(pid) { const p = bsJob(pid); if (!p || !p.id) return null; const au = bsAuditsOf(pid);
+  return { id: p.id, ref: p.ref || '', site: p.site_name || '', address: [p.site_address, p.postcode].filter(Boolean).join(', '), client: p.client_name || '', showClient: !!p.show_client,
+    cm: p.contracts_manager_name || bsProfName(p.contracts_manager) || '', works: bsWorksLine(au), roof: bsRoofLine(au) }; }
+// fuller context for the generator (never shown; capped)
+function bsProjCtx(pid) { const s = bsProjSnap(pid); if (!s) return null; const au = bsAuditsOf(pid); const o = { job: s.ref, site: s.site, address: s.address, client: s.client, contractsManager: s.cm, works: s.works, roof: s.roof, audits: [] };
+  au.slice(0, 2).forEach(j => { const w = isWorks(j) ? j.works || {} : {}; o.audits.push({ type: isWorks(j) ? 'Works inspection' : 'Roof condition survey', date: j.date || '', buildingUse: j.buildingUse || '', era: j.era || '', access: (j.access || []).join(', '), accessNotes: bsClip(j.accessNotes, 300),
+      liveServices: ((j.hs || {}).liveServices || []).join(', '), otherHazards: ((j.hs || {}).otherHazards || []).join(', '), limitations: bsClip(j.limitations, 300), weather: (j.weather || []).join(', '),
+      stage: w.stage || '', pct: w.pct || '', programme: bsClip(w.programme, 200), subcontractor: w.subcontractor || '',
+      roofAreas: (j.areas || []).slice(0, 6).map(a => bsClip([a.name, a.type, a.profile, a.pitch && a.pitch + '°', a.rlType && 'rooflights: ' + [a.rlCount, a.rlType].filter(Boolean).join(' '), a.insType && 'insulation: ' + a.insType, a.overall && 'condition: ' + a.overall].filter(Boolean).join(', '), 200)),
+      openIssues: [].concat(isWorks(j) ? openSnags(j).map(x => [x.description, x.location, x.priority].filter(Boolean).join(' - ')) : [], ...(j.areas || []).map(a => (a.defects || []).map(d => [d.element, d.description, d.location, d.priority].filter(Boolean).join(' - ')))).filter(Boolean).slice(0, 10).map(x => bsClip(x, 200)),
+      summary: bsClip((j.summary || {}).exec, 500) }); });
+  const B = bsAll().filter(it => it.jobId === pid); o.rams = B.filter(it => it.kind === 'rams').slice(0, 5).map(it => bsClip(`${it.title}${it.rev ? ' rev ' + it.rev : ''}`, 160)); o.earlierTalks = B.filter(it => it.kind === 'tbt').slice(0, 10).map(it => bsClip(it.title, 120));
+  let j = JSON.stringify(o); while (j.length > 6000 && o.audits.length) { o.audits.pop(); j = JSON.stringify(o); } return o; }
+function bsProjLines(s, forOp) { if (!s) return []; return [[s.ref, s.site].filter(Boolean).join(' · '), s.address, (!forOp || s.showClient) && s.client ? 'Client: ' + s.client : '', s.cm ? 'Contracts manager: ' + s.cm : '', s.works ? 'Works: ' + s.works : '', s.roof ? 'Roof: ' + s.roof : ''].filter(Boolean); }
+const bsProjBox = (s, forOp) => { const L = bsProjLines(s, forOp); return L.length ? `<div class="bs-pjh"><div class="t">Project details</div>${L.map((l, i) => i ? `<div>${esc(l)}</div>` : `<div><b>${esc(l)}</b></div>`).join('')}</div>` : ''; };
+/* ---- issue sheet: project picker + details ---- */
+{ const _f = bsIssueForm; bsIssueForm = function (k, pid, it) { const h = _f(k, pid, it); if (it) return h; const s = bsProjSnap(pid), jobs = bsActiveJobs(); if (!s) return h;
+    const box = `<div class="bs-proj" id="bs-proj" data-k="${esc(k)}"><label class="f"><span class="lbl">Project</span><select id="bs-pj">${(jobs.some(j => j.id === pid) ? jobs : [bsJob(pid)].concat(jobs)).map(j => `<option value="${esc(j.id)}" ${j.id === pid ? 'selected' : ''}>${esc(j.ref || '')} · ${esc(j.site_name || '')}</option>`).join('')}</select></label>
+      <div class="bs-pjd">${bsProjLines(s).map((l, i) => i ? esc(l) : `<b>${esc(l)}</b>`).join('<br>')}</div><p class="hint" style="margin:6px 0 0">Shown on the talk and the register, and logged against this project.</p></div>`;
+    return h.replace(/(<h3>[^]*?<\/h3>)/, (m) => m + box); }; }
+let BS_LAST = null, BS_CARRY = null, BS_PEND = null;
+{ const _i = bsIssue; bsIssue = function (...a) { BS_LAST = a; return _i.apply(this, a); }; }
+const BS_NOCARRY = /^(bs-pj|bs-fm|bs-file|bs-all)$/;
+document.addEventListener('change', e => { if (e.target.id !== 'bs-pj' || !BS_LAST) return; const m = e.target.closest('.modal'); const st = {};
+  m.querySelectorAll('[id]').forEach(el => { if (BS_NOCARRY.test(el.id) || !/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName) || el.classList.contains('bs-op')) return; st[el.id] = el.type === 'checkbox' ? el.checked : el.value; });
+  const out = m.querySelector('#bs-oth-out'); st.__out = !!(out && !out.hidden); const hadFiles = !!(m.querySelector('#bs-file') && m.querySelector('#bs-file').files.length);
+  const [k, , it, pre] = BS_LAST; BS_CARRY = st; const np = e.target.value; const c = m.querySelector('.modal-act [data-r=""], [data-r=""]'); if (c) c.click();
+  setTimeout(() => { bsIssue(k, np, it, pre); if (hadFiles) toast('Choose the RAMS files again for the new project'); }, 30); });
+document.addEventListener('ars-modal', e => { const bg = e.detail; if (!BS_CARRY || !bg.querySelector('#bs-ok')) return; const st = BS_CARRY; BS_CARRY = null;
+  Object.entries(st).forEach(([id, v]) => { const el = bg.querySelector('#' + id); if (!el || id === '__out') return; if (el.type === 'checkbox') el.checked = v; else if (el.tagName !== 'SELECT' || [...el.options].some(o => o.value === v)) el.value = v; });
+  const t = bg.querySelector('#bs-talk'); if (t) t.dispatchEvent(new Event('change', { bubbles: true }));
+  if (st.__out) { const o = bg.querySelector('#bs-oth-out'); if (o) o.hidden = false; const x = bg.querySelector('#bs-oth-st'); if (x) x.textContent = 'Project changed - tap Generate again to tailor the talk to this project, or keep the text below.'; const g = bg.querySelector('#bs-oth-gen'); if (g) g.textContent = 'Generate again'; } });
+{ const _m = modal; modal = function (html, onMount) { return _m(html, (bg, close) => { if (onMount) onMount(bg, close); try { document.dispatchEvent(new CustomEvent('ars-modal', { detail: bg })); } catch (x) { } }); }; }
+/* ---- snapshot on issue ---- */
+document.addEventListener('click', e => { const ok = e.target.closest && e.target.closest('#bs-ok'); if (!ok) return; const pj = $('#bs-pj'); if (pj) BS_PEND = { pid: pj.value, t0: Date.now(), snap: bsProjSnap(pj.value) }; }, true);
+{ const _s = bsShare; bsShare = function (...a) { if (BS_PEND) { const P = BS_PEND; Object.values(S.settings.brief || {}).forEach(x => { if (x && !x.removed && x.jobId === P.pid && !x.project && (x.at || 0) >= P.t0 - 1000) x.project = P.snap; }); BS_PEND = null; } return _s.apply(this, a); }; }
+/* ---- show it: operative screen + register PDF ---- */
+{ const _r = bsReadHTML; bsReadHTML = function (it) { const h = _r(it); const s = it.project || (isMgr() ? bsProjSnap(it.jobId) : null); const box = bsProjBox(s, !isMgr()); return box ? h.replace('</p>', '</p>' + box) : h; }; }
+{ const _reg = buildBsRegister; buildBsRegister = function (it) { const s = it.project; if (!s) return _reg(it); const dk = dcPdfKit; let first = true;
+    dcPdfKit = function (...a) { const k = dk(...a), kv0 = k.kv.bind(k); k.kv = function (rows) { if (first) { first = false; const i = rows.findIndex(r => /^Job \/ site$/.test(r[0])); const add = [['Site address', s.address], ['Client', s.client], ['Contracts manager', s.cm], ['Works', s.works], ['Roof', s.roof]];
+        rows = i < 0 ? rows.concat(add) : rows.slice(0, i + 1).concat(add, rows.slice(i + 1)); } return kv0(rows); }; return k; };
+    try { return _reg(it); } finally { dcPdfKit = dk; } }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
