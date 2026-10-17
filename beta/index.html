@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.11">
+<meta name="app-version" content="1.10.12">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -53,7 +53,7 @@ main{padding:14px 12px calc(110px + var(--safe-b));max-width:860px;margin:0 auto
 @media (max-width:520px){.row{grid-template-columns:1fr}.row3{grid-template-columns:1fr 1fr}.row3>.wide{grid-column:1/-1}}
 .f{margin:0 0 14px}
 .f>label,.lbl{display:block;font-weight:700;font-size:15px;margin:0 0 6px;color:var(--navy2)}
-input[type=text],input[type=password],input[type=number],input[type=date],input[type=time],input[type=email],input[type=tel],input[type=search],select,textarea{
+input[type=text],input:not([type]),input[type=password],input[type=number],input[type=date],input[type=time],input[type=email],input[type=tel],input[type=search],select,textarea{
   width:100%;min-height:var(--tap);border:2px solid var(--line);border-radius:12px;padding:12px 14px;background:#fff;font-size:17px;outline:none;appearance:none;-webkit-appearance:none}
 select{background-image:linear-gradient(45deg,transparent 50%,var(--navy) 50%),linear-gradient(135deg,var(--navy) 50%,transparent 50%);
   background-position:calc(100% - 22px) 50%,calc(100% - 15px) 50%;background-size:7px 7px;background-repeat:no-repeat;padding-right:40px}
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.11';
+const APP_VERSION = '1.10.12';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -9263,8 +9263,9 @@ buildBsRegister = function (it) { const k = dcPdfKit(it.kind === 'rams' ? 'RAMS 
   k.h2(`Signatures - "I have read and understood"${it.kind === 'rams' ? ' (revision ' + it.rev + ')' : ''}`);
   k.table({ head: [['Name', 'Company / role', 'Status', 'Method', 'Signed', 'Signature']], body: st.map(x => [k.tx(x.name), k.tx([x.company || (x.extra ? '' : 'ARS'), x.role].filter(Boolean).join(' · ')), x.s ? 'Signed' : x.old ? 'NOT SIGNED (older rev signed)' : 'NOT SIGNED', k.tx(bsMethod(x.s)), x.s ? new Date(x.s.data.at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : '', '']),
     styles: { fontSize: 8.5, cellPadding: 1.6 }, columnStyles: { 0: { cellWidth: 34 }, 1: { cellWidth: 30 }, 2: { cellWidth: 22 }, 3: { cellWidth: 30 }, 4: { cellWidth: 24 }, 5: { minCellHeight: 15 } },
-    didParseCell: d => { if (d.section === 'body' && d.column.index === 2 && !st[d.row.index].s) d.cell.styles.textColor = k.RED; },
-    didDrawCell: d => { if (d.section !== 'body' || d.column.index !== 5) return; const s = st[d.row.index].s; const sig = s && s.data.sig; if (sig && /^data:image/.test(sig)) { try { doc.addImage(sig, k.fmtImg(sig), d.cell.x + 1, d.cell.y + 1, Math.min(d.cell.width - 2, 36), 12.5); } catch (e) { } } } });
+    rowPageBreak: 'avoid', // v1.10.12: never split a signature row across pages (a split row crashed the hooks below)
+    didParseCell: d => { if (d.section === 'body' && d.column.index === 2 && !(st[d.row.index] || {}).s) d.cell.styles.textColor = k.RED; },
+    didDrawCell: d => { if (d.section !== 'body' || d.column.index !== 5) return; const s = (st[d.row.index] || {}).s; const sig = s && s.data.sig; if (sig && /^data:image/.test(sig)) { try { doc.addImage(sig, k.fmtImg(sig), d.cell.x + 1, d.cell.y + 1, Math.min(d.cell.width - 2, 36), 12.5); } catch (e) { } } } });
   if ((it.revs || []).length) { k.h2('Earlier revisions'); k.para(it.revs.map(r => `Rev ${r.rev} issued ${fmtDate(r.date)}`).join('\n'), 9); }
   return k.finish(`${it.kind === 'rams' ? 'RAMS' : 'Toolbox talk'} register · ${it.jobRef || ''} · ${it.title}`); };
 
@@ -10278,6 +10279,83 @@ signaturePad = function (o = {}) { let cv; const own = !o.other, nm0 = o.name !=
 (() => { const API = window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API; if (!API || API.__sigHook) return; API.__sigHook = true; const _a = API.addImage;
   API.addImage = function (img, fmt, x, y, w, h, ...rest) { const r = _a.call(this, img, fmt, x, y, w, h, ...rest); try { const m = sigMethodOf(typeof img === 'string' ? img : img && img.imageData); if (m && typeof y === 'number' && typeof h === 'number') {
       const f = this.getFont(), fsz = this.getFontSize(), tc = this.getTextColor(); this.setFont('helvetica', 'italic'); const sz = Math.max(4, Math.min(7, h * 0.19 / 0.3528 * 0.72)); this.setFontSize(sz); this.setTextColor(100, 116, 139); this.text(sigMethodLabel(m), x + w * 0.045, y + h * 0.955); /* inside the pad's blank strip below its baseline, so it never clashes with report lines */ this.setFont(f.fontName, f.fontStyle); this.setFontSize(fsz); this.setTextColor(tc); } } catch (e) { } return r; }; })();
+
+/* ===== v1.10.12 (BETA) =====
+   1) Bug fix - modals / sheets on phones (reported on the managers' toolbox talks screen: hard to drag down to the options / Issue button).
+      Cause: .modal was max-height 90vh. On iPhone Safari vh is the *large* viewport (toolbars hidden) and ignores the keyboard, so the sheet's
+      bottom (the buttons) sat under the browser toolbar / keyboard and its scroll range ended there; drags at the ends also chained to the page
+      behind (which kept scrolling under the sheet). Fix: size the sheet to the visual viewport, contain overscroll, lock the page behind
+      while any modal is open, and keep the action buttons in a sticky footer so they are always on screen.
+   2) "Other" toolbox talk: the manager describes the issue (typing or keyboard dictation), "Generate talk" asks the toolbox-talk Edge Function
+      (OpenAI key stays server-side) for an in-depth UK talk, the manager reviews / edits, confirms it was checked by a competent person, issues it
+      like any other talk (own-phone + group sign-off + register PDF) and can save it to the talk library. Section headings are stored in the
+      talk's points as lines starting "## ", so every existing screen / sync / PDF path carries them unchanged. ===== */
+(() => { const st = document.createElement('style'); st.textContent = `html.modal-open,html.modal-open body{overflow:hidden}
+.modal-bg{top:var(--vvt,0px);bottom:auto;height:var(--vvh,100%);overscroll-behavior:contain}
+.modal{max-height:90vh;max-height:min(90vh,calc(var(--vvh,100dvh) - 16px - env(safe-area-inset-top,0px)));overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+@media (max-width:699px){.modal{max-height:calc(var(--vvh,100dvh) - 16px - env(safe-area-inset-top,0px))}}
+.modal.has-act{padding-bottom:0}.modal-act{position:sticky;bottom:0;z-index:3;background:#fff;margin:8px -16px 0;padding:10px 16px calc(8px + var(--safe-b));border-top:1px solid #e2e8f0;box-shadow:0 -6px 10px -8px rgba(15,37,66,.35)}.modal-act .btn:last-child{margin-bottom:0}
+.bs-oth{background:#f6f8fb;border-radius:12px;padding:10px;margin:0 0 12px}.bs-oth textarea{width:100%}.bs-disc{background:#fff7ed;border:1px solid #fdba74;color:#7c2d12;border-radius:10px;padding:8px 10px;font-size:14px;margin:10px 0}
+.bs-sh{font-size:16px;margin:14px 0 4px;color:var(--navy)}.bs-sl{margin:0 0 6px;padding-left:20px}.bs-sl li{margin:5px 0}.bs-decl{list-style:none;padding:10px 12px;background:#fff7ed;border-radius:10px;font-style:italic}`; document.head.appendChild(st); })();
+/* ---- 1) modal fit ---- */
+(() => { const v = window.visualViewport, R = document.documentElement.style; const set = () => { if (!v) return; R.setProperty('--vvh', Math.round(v.height) + 'px'); R.setProperty('--vvt', Math.round(v.offsetTop) + 'px'); };
+  if (v) { v.addEventListener('resize', set); v.addEventListener('scroll', set); } window.addEventListener('orientationchange', () => setTimeout(set, 300)); set();
+  const lock = () => document.documentElement.classList.toggle('modal-open', !!document.querySelector('body > .modal-bg')); new MutationObserver(lock).observe(document.body, { childList: true }); })();
+function modalFit(m) { if (!m || m.querySelector(':scope > .modal-act')) return; const kids = [...m.children]; let i = kids.length; while (i > 0 && kids[i - 1].matches('button.btn, a.btn')) i--; const tail = kids.slice(i); if (!tail.length || !i) return;
+  const w = document.createElement('div'); w.className = 'modal-act'; tail.forEach(b => w.appendChild(b)); m.appendChild(w); m.classList.add('has-act');
+  const pad = () => { m.style.scrollPaddingBottom = (w.offsetHeight + 8) + 'px'; }; pad(); if (window.ResizeObserver) new ResizeObserver(pad).observe(w); } // focus / scrollIntoView keep fields clear of the sticky bar
+{ const _m = modal; modal = function (html, onMount) { return _m(html, (bg, close) => { if (onMount) onMount(bg, close); modalFit(bg.querySelector('.modal')); }); }; }
+// keep a focused field visible above the keyboard
+document.addEventListener('focusin', e => { const el = e.target; if (!el.closest || !el.closest('.modal') || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return; setTimeout(() => { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (x) { } }, 350); });
+/* ---- 2) "Other" toolbox talk ---- */
+const BS_OTHER = '__other';
+const bsIsStruct = pts => (pts || []).some(p => /^##\s/.test(p));
+const bsGenLines = t => [].concat(...(t.sections || []).map(s => ['## ' + s.heading].concat(s.items || [])));
+const bsParseLines = txt => String(txt || '').split('\n').map(s => s.trim()).filter(Boolean).map(s => /^#{1,3}\s*/.test(s) ? '## ' + s.replace(/^#{1,3}\s*/, '') : s.replace(/^([-•*]|\d+[.)])\s+/, ''));
+function bsStructHTML(pts) { let h = '', open = false; const close = () => { if (open) h += '</ul>'; open = false; };
+  pts.forEach(p => { const m = /^##\s*(.*)$/.exec(p); if (m) { close(); h += `<h3 class="bs-sh">${esc(m[1])}</h3><ul class="bs-sl${/declaration/i.test(m[1]) ? ' bs-decl' : ''}">`; open = true; } else { if (!open) { h += '<ul class="bs-sl">'; open = true; } h += `<li>${esc(p)}</li>`; } }); close(); return `<div class="bs-struct">${h}</div>`; }
+{ const _r = bsReadHTML; bsReadHTML = function (it) { const h = _r(it); return bsIsStruct(it.points) ? h.replace(/<ol class="bs-pts">[^]*?<\/ol>/, () => bsStructHTML(it.points)) : h; }; }
+{ const _reg = buildBsRegister; buildBsRegister = function (it) { if (!bsIsStruct(it.points)) return _reg(it); const dk = dcPdfKit;
+    dcPdfKit = function (...a) { const k = dk(...a), h2 = k.h2.bind(k), para = k.para.bind(k); let skip = false;
+      k.h2 = function (t, ...r) { if (t === 'Key points') { h2('Toolbox talk', ...r); let decl = false; it.points.forEach(p => { const m = /^##\s*(.*)$/.exec(p); if (m) { decl = /declaration/i.test(m[1]); para(m[1], 10.5, 'bold'); } else para((decl ? '' : '•  ') + p, 9, decl ? 'italic' : 'normal'); }); skip = true; return; } skip = false; return h2(t, ...r); };
+      k.para = function (...r) { if (!skip) return para(...r); }; return k; };
+    try { return _reg(it); } finally { dcPdfKit = dk; } }; }
+{ const _l = bsLibHTML; bsLibHTML = function () { return _l().replace('Key points are one per line.', 'Key points are one per line (lines starting ## are section headings - used by generated "Other" talks).'); }; }
+function bsOtherPanel(pid) { return `<div class="bs-oth" id="bs-oth" data-p="${esc(pid || '')}" hidden>
+  <label class="f"><span class="lbl">Describe the issue</span><textarea id="bs-oth-d" rows="4" autocapitalize="sentences" autocorrect="on" spellcheck="true" placeholder="e.g. Two lads seen leaning over the unprotected gable end to take sheets off the MEWP; wind picking up in the afternoon."></textarea></label>
+  <p class="hint" style="margin:-4px 0 8px">Tip: tap the microphone on your phone's keyboard to dictate.</p>
+  <button type="button" class="btn block" id="bs-oth-gen">Generate talk</button><p class="hint" id="bs-oth-st" style="margin:6px 0 0"></p>
+  <div id="bs-oth-out" hidden><div class="bs-disc"><b>Check before you issue.</b> This talk was written by AI from your description. It must be checked - and corrected where needed - by a competent person before it is issued: make sure the hazards, controls and legal references are right and match the RAMS and this site.</div>
+    <label class="f"><span class="lbl">Talk title</span><input id="bs-oth-t"></label>
+    <label class="f"><span class="lbl">Talk - edit freely (lines starting ## are section headings)</span><textarea id="bs-oth-b" rows="16"></textarea></label>
+    <label class="ckl"><input type="checkbox" id="bs-oth-lib" checked> Save to the talk library for reuse</label>
+    <label class="ckl"><input type="checkbox" id="bs-oth-ok"> I have checked this talk (or had it checked by a competent person) and it is right for this site</label></div></div>`; }
+{ const _f = bsIssueForm; bsIssueForm = function (k, pid, it) { const h = _f(k, pid, it); if (k !== 'tbt' || it) return h;
+    return h.replace(/(<select id="bs-talk">[^]*?)(<\/select><\/label>)/, (m, a, b) => a + `<option value="${BS_OTHER}">Other - describe the issue, generate a talk…</option>` + b + bsOtherPanel(pid)); }; }
+document.addEventListener('change', e => { if (e.target.id !== 'bs-talk') return; const p = $('#bs-oth'); if (p) { p.hidden = e.target.value !== BS_OTHER; if (!p.hidden) setTimeout(() => $('#bs-oth-d') && $('#bs-oth-d').focus(), 50); } });
+async function bsGenerate() { const d = ($('#bs-oth-d') || {}).value || '', btn = $('#bs-oth-gen'), stt = $('#bs-oth-st'); if (d.trim().length < 10) return toast('Describe the issue in a sentence or two first');
+  if (!navigator.onLine) return toast('You need a signal to generate a talk'); const p = (Ops.jobsTbl || []).find(j => j.id === ($('#bs-oth') || {}).dataset.p) || {};
+  btn.disabled = true; btn.textContent = 'Writing the talk…'; if (stt) stt.textContent = 'This usually takes 20-40 seconds.';
+  try { const r = await sbFetch('/functions/v1/toolbox-talk', { method: 'POST', body: { issue: d.trim(), site: p.site_name || '', job: p.ref || '' } }); const t = r && r.talk; if (!t || !Array.isArray(t.sections) || !t.sections.length) throw new Error('No talk came back - try again');
+    $('#bs-oth-t').value = t.title || ''; $('#bs-oth-b').value = bsGenLines(t).join('\n'); $('#bs-oth-out').hidden = false; $('#bs-oth-ok').checked = false; if (stt) stt.textContent = 'Review and edit the talk below, then tick to confirm it has been checked.';
+    btn.textContent = 'Generate again'; setTimeout(() => { try { $('#bs-oth-out').scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) { } }, 50);
+  } catch (e) { const m = String(e && e.message || e); btn.textContent = 'Generate talk'; if (stt) stt.textContent = ''; toast(/not_configured/.test(m) ? 'Talk writing is not set up on the server yet' : e && e.offline ? 'You need a signal to generate a talk' : 'Could not generate: ' + m, 4000); }
+  finally { btn.disabled = false; } }
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#bs-oth-gen')) { e.preventDefault(); bsGenerate(); } });
+let BS_TMP = [];
+document.addEventListener('click', e => { const ok = e.target.closest && e.target.closest('#bs-ok'); const sel = $('#bs-talk'); if (!ok || !sel || sel.value !== BS_OTHER) return;
+  const stop = m => { e.stopImmediatePropagation(); e.preventDefault(); toast(m, 3500); };
+  if ($('#bs-oth-out').hidden) return stop('Generate the talk first - or pick a talk from the list');
+  const title = $('#bs-oth-t').value.trim(), points = bsParseLines($('#bs-oth-b').value);
+  if (!title) return stop('Give the talk a title'); if (!points.some(p => !/^##\s/.test(p))) return stop('The talk is empty');
+  if (!$('#bs-oth-ok').checked) return stop('Tick to confirm the talk has been checked by a competent person');
+  const t = { id: 'tbt-ai-' + uid(), title, points, pdf: '', pdfName: '', ai: { by: myName(), at: Date.now(), issue: $('#bs-oth-d').value.trim().slice(0, 3000), checked: true } };
+  if ($('#bs-oth-lib').checked) { bsLibW().push(t); bsLibSave(); } else { bsLib().push(t); BS_TMP.push(t.id); }
+  const o = document.createElement('option'); o.value = t.id; o.textContent = title; sel.appendChild(o); sel.value = t.id; }, true);
+const bsTmpDrop = () => { if (!BS_TMP.length) return; [S.settings.tbtLib, DEFAULT_TBT].forEach(L => { if (Array.isArray(L)) for (let j = L.length - 1; j >= 0; j--) if (BS_TMP.includes(L[j].id)) L.splice(j, 1); }); BS_TMP = []; };
+// a one-off talk (not saved to the library) is only in the list while bsIssue copies it - dropped before anything is saved or shared
+{ const _s = bsShare; bsShare = function (...a) { bsTmpDrop(); return _s.apply(this, a); }; }
+{ const _i = bsIssue; bsIssue = async function (...a) { try { return await _i.apply(this, a); } finally { bsTmpDrop(); } }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };

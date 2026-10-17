@@ -8181,5 +8181,23 @@ init();
 
 </script>
 <script>if ('serviceWorker' in navigator && location.protocol !== 'file:') { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js', { scope: './' }).catch(e => console.warn('SW failed', e))); }</script>
+<script>/* root-1.8.5-modal-fix */
+/* ARS Site Audit root (live v1.8.5) - bug fix 17 Oct 2026, same as beta v1.10.12: on phones a long sheet (modal) was hard to scroll to its
+   bottom options / buttons (max-height 90vh = the large iPhone viewport, ignores toolbars + keyboard; overscroll chained to the page behind).
+   Sheet now fits the visual viewport, overscroll is contained, the page behind is locked while a sheet is open, action buttons sit in a sticky footer. */
+(() => { const st = document.createElement('style'); st.textContent = `html.modal-open,html.modal-open body{overflow:hidden}
+.modal-bg{top:var(--vvt,0px);bottom:auto;height:var(--vvh,100%);overscroll-behavior:contain}
+.modal{max-height:90vh;max-height:min(90vh,calc(var(--vvh,100dvh) - 16px - env(safe-area-inset-top,0px)));overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+@media (max-width:699px){.modal{max-height:calc(var(--vvh,100dvh) - 16px - env(safe-area-inset-top,0px))}}
+.modal.has-act{padding-bottom:0}.modal-act{position:sticky;bottom:0;z-index:3;background:#fff;margin:8px -16px 0;padding:10px 16px calc(8px + var(--safe-b));border-top:1px solid #e2e8f0;box-shadow:0 -6px 10px -8px rgba(15,37,66,.35)}.modal-act .btn:last-child{margin-bottom:0}`; document.head.appendChild(st);
+  const v = window.visualViewport, R = document.documentElement.style; const set = () => { if (!v) return; R.setProperty('--vvh', Math.round(v.height) + 'px'); R.setProperty('--vvt', Math.round(v.offsetTop) + 'px'); };
+  if (v) { v.addEventListener('resize', set); v.addEventListener('scroll', set); } window.addEventListener('orientationchange', () => setTimeout(set, 300)); set();
+  const lock = () => document.documentElement.classList.toggle('modal-open', !!document.querySelector('body > .modal-bg')); new MutationObserver(lock).observe(document.body, { childList: true }); })();
+function modalFit(m) { if (!m || m.querySelector(':scope > .modal-act')) return; const kids = [...m.children]; let i = kids.length; while (i > 0 && kids[i - 1].matches('button.btn, a.btn')) i--; const tail = kids.slice(i); if (!tail.length || !i) return;
+  const w = document.createElement('div'); w.className = 'modal-act'; tail.forEach(b => w.appendChild(b)); m.appendChild(w); m.classList.add('has-act');
+  const pad = () => { m.style.scrollPaddingBottom = (w.offsetHeight + 8) + 'px'; }; pad(); if (window.ResizeObserver) new ResizeObserver(pad).observe(w); }
+{ const _m = modal; modal = function (html, onMount) { return _m(html, (bg, close) => { if (onMount) onMount(bg, close); modalFit(bg.querySelector('.modal')); }); }; }
+document.addEventListener('focusin', e => { const el = e.target; if (!el.closest || !el.closest('.modal') || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return; setTimeout(() => { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (x) { } }, 350); });
+</script>
 </body>
 </html>
