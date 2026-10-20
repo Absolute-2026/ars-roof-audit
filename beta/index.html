@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.16">
+<meta name="app-version" content="1.10.17">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.16';
+const APP_VERSION = '1.10.17';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -8034,6 +8034,10 @@ function ssCB(s, sl) { const v = String((sl && sl.cutback) ?? '').trim(); return
 const ssGutEnd = sl => /gutter/i.test(sl.endType || '');
 function ssOv(s, sl) { const raw = String(sl.overhang ?? '').trim(), ov = +raw || 0; return ov + (s.cbMode === 'add' && ssGutEnd(sl) && raw !== '' ? ssCB(s, sl) : 0); }
 function ssOrd(s, sl) { const v = String((sl && sl.spOrder) || (s && s.spOrder) || 'ridge'); return /gutter/i.test(v) ? 'gutter' : 'ridge'; } // v1.9.9 entry order only - sl.sp is always stored ridge-down
+// v1.10.17: composite panels / factory rooflights at an end lap - the UPPER (overlapping) piece has its core + liner cut back by the lap at its LOWER end,
+// so its top skin laps over the piece below. The lap is already inside the lengths (pieces overlap by the lap) - the cutback is never added to a length.
+function ssComposite(s) { const p = ssProd(s); return p ? p.kind === 'composite' : /composite|insulated/i.test((s && s.product) || ''); }
+function ssLapCB(s, sl) { return +(sl && sl.lap) || +s.lap || SS_LAP; }
 function ssCbNote(s, sl) { return ssGutEnd(sl) ? (s.cbMode === 'add' ? `+ ${ssCB(s, sl)} mm cutback` : `incl. ${ssCB(s, sl)} mm cutback`) : ''; }
 function ssSlope(s, sl) { ssMig(s); const p = ssProd(s), sp = ssSp(sl), ov = ssOv(s, sl), top = +sl.topExt || 0, lap = +sl.lap || +s.lap || SS_LAP;
   const pos = [ov]; sp.forEach(x => pos.push(pos[pos.length - 1] + x)); const L = sp.length ? Math.round(pos[pos.length - 1] + top) : 0;
@@ -8048,7 +8052,17 @@ function ssSlope(s, sl) { ssMig(s); const p = ssProd(s), sp = ssSp(sl), ov = ssO
   let band = null; const BL = ssBands(sl, pos.length); if (rlc.length && BL.length) { const segs = ssBandSegs(sl, pos, lap, L, BL);
     segs.forEach(x => { if (x.len > maxL) warn.push(`${x.kind === 'rl' ? 'Rooflight' : 'Sheet ' + x.kind + ' rooflight'} ${x.len} mm is over ${maxL} mm - ${x.kind === 'rl' ? 'use two rooflight bands sharing a purlin' : 'add a split'}`); });
     const one = k => segs.filter(x => x.kind === k); band = { segs, bands: BL, from: BL[0][0], to: BL[BL.length - 1][1], lo: one('below').reduce((t, x) => t + x.len, 0), rl: one('rl').reduce((t, x) => t + x.len, 0), hi: one('above').reduce((t, x) => t + x.len, 0) }; }
-  return { band, sp, pos, L, pieces, cover, cols, rlc, sheetsCols: cols - rlc.length, span, worst, warn, purlins: pos.length, endLaps: pieces.length - 1 }; }
+  // v1.10.17: part (cut) sheet - the roof length is rarely an exact number of covers; the last column is a full sheet cut to width on site
+  const cut = cols && bl ? Math.round(bl - (cols - 1) * cover) : 0, cutW = cut > 0 && cut < cover - 1 ? cut : 0;
+  // v1.10.17: rooflights must stay >= rlEdge (default 2000 mm) from every building edge - gables (actual building length, not the sheet grid) and both ends of the slope (plan distance)
+  if (rlc.length && L) { const E = ssRlEdge(s), off = typeof ssSlOwn === 'function' && ssSlOwn(sl) ? ssSlOff(s, sl) : 0, Bt = Math.max((typeof ssBaysTotal === 'function' ? ssBaysTotal(s) : 0) * 1000, off + bl);
+    const bad = rlc.filter(c => !ssRlColOK(c, cover, off, bl, Bt, E)); if (bad.length) warn.push(`Rooflight within ${E} mm of a gable / building end: column${bad.length > 1 ? 's' : ''} ${bad.join(', ')}${cutW && bad.includes(cols) ? ` (column ${cols} is the ${cutW} mm cut sheet)` : ''} - move ${bad.length > 1 ? 'them' : 'it'} in from the edge`);
+    const cs = Math.cos((+sl.pitch || 0) * Math.PI / 180), rs = band ? band.segs.filter(x => x.kind === 'rl') : [{ from: 0, to: L }], a0 = Math.min(...rs.map(x => x.from)), a1 = Math.max(...rs.map(x => x.to));
+    if (a0 * cs < E - 1 || (L - a1) * cs < E - 1) warn.push(`Rooflight within ${E} mm of the ${a0 * cs < E - 1 ? (ssGutEnd(sl) || /eaves/i.test(sl.endType || '') ? 'eaves' : 'bottom edge') : 'ridge / top edge'} along the slope (${Math.round(a0 * cs)} mm / ${Math.round((L - a1) * cs)} mm in plan) - ${band ? 'move the rooflight band in' : 'set a rooflight band (from / to purlin) clear of the edges'}`); }
+  return { band, sp, pos, L, pieces, cover, cols, rlc, sheetsCols: cols - rlc.length, span, worst, warn, purlins: pos.length, endLaps: pieces.length - 1, cut: cutW, bl }; }
+const ssRlEdge = s => { const v = String((s && s.rlEdge) ?? '').trim(); return v !== '' ? Math.max(0, +v || 0) : 2000; };
+// column c (1-based, from the slope start at building position off) is fully inside the allowed zone: >= E from both building ends, measured on the real building length
+function ssRlColOK(c, cover, off, bl, Bt, E) { const a = off + (c - 1) * cover, z = off + Math.min(c * cover, bl); return a >= E - 0.5 && z <= Bt - E + 0.5 && c * cover <= bl + 0.5; }
 // v1.9.10: rooflight bands - main rlFrom/rlTo + sl.rlBands ("6-8, 8-10"). Splits cut roof sheets only, never a rooflight; two bands sharing a purlin = a rooflight in two lengths with an end lap
 function ssBands(sl, np) { const B = []; const add = (f, t) => { f = +f; t = +t; if (f >= 1 && t > f && t <= np) B.push([f, t]); }; add(sl.rlFrom, sl.rlTo); String(sl.rlBands || '').split(/[,;]+/).forEach(x => { const m = /(\d+)\s*[-–to]+\s*(\d+)/.exec(x); if (m) add(Math.min(+m[1], +m[2]), Math.max(+m[1], +m[2])); });
   B.sort((a, b) => a[0] - b[0]); return B.filter((b, i) => !i || b[0] >= B[i - 1][1]); }
@@ -8070,9 +8084,9 @@ function ssDimLine(g, a, b, n, d, label, col, sz, rot) { const A = [a[0] + n[0] 
   g.translate(m[0], m[1]); if (rot !== false) g.rotate(ang); g.font = `bold ${sz}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; const w = g.measureText(label).width; g.fillStyle = '#fff'; g.fillRect(-w / 2 - 3, -sz / 2 - 2, w + 6, sz + 4); g.fillStyle = col; g.fillText(label, 0, 0); g.restore(); }
 const SS_DIMC = { sheet: '#111', rl: '#d97706', rlsheet: '#78716c' };
 function ssCalc(s) { if (typeof ssSyncLinks === 'function') ssSyncLinks(s); const S2 = (s.slopes || []).map(sl => Object.assign({ sl }, ssSlope(s, sl))); const p = ssProd(s);
-  const sheetRows = [], rlRows = []; S2.forEach(r => r.pieces.forEach((x, i) => { if (r.sheetsCols) sheetRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.sheetsCols }); if (r.rlc.length && !r.band) rlRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.rlc.length, cols: r.rlc.join(', ') }); }));
+  const sheetRows = [], rlRows = []; S2.forEach(r => r.pieces.forEach((x, i) => { if (r.sheetsCols) sheetRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.sheetsCols, bot: Math.round(x.from) }); if (r.rlc.length && !r.band) rlRows.push({ slope: r.sl.name, piece: r.pieces.length > 1 ? `${i + 1} of ${r.pieces.length}` : 'Full length', len: x.len, qty: r.rlc.length, cols: r.rlc.join(', '), bot: Math.round(x.from) }); }));
   S2.forEach(r => { if (!r.band || !r.rlc.length) return; const q = r.rlc.length; ['below', 'rl', 'above'].forEach(kd => { const L2 = r.band.segs.filter(x => x.kind === kd); L2.forEach((x, i) => { const nm = (kd === 'rl' ? 'Rooflight' : `Sheet ${kd} rooflight`) + (L2.length > 1 ? ` (${i + 1} of ${L2.length})` : '') + ` P${x.p0 || 'eaves'}-${x.p1 ? 'P' + x.p1 : 'top'}`;
-    if (kd === 'rl') rlRows.push({ slope: r.sl.name, piece: nm, len: x.len, qty: q, cols: r.rlc.join(', ') }); else sheetRows.push({ slope: r.sl.name, piece: nm, len: x.len, qty: q }); }); }); });
+    if (kd === 'rl') rlRows.push({ slope: r.sl.name, piece: nm, len: x.len, qty: q, cols: r.rlc.join(', '), bot: Math.round(x.from) }); else sheetRows.push({ slope: r.sl.name, piece: nm, len: x.len, qty: q, bot: Math.round(x.from) }); }); }); });
   // ancillaries (approx.)
   const bl = S2.reduce((t, r) => t + r.cols * r.cover / 1000, 0), ridgeRun = Math.max(0, ...S2.map(r => r.cols * r.cover / 1000)), duo = S2.length >= 2;
   const colsAll = S2.reduce((t, r) => t + r.cols, 0), fixPer = S2.reduce((t, r) => t + r.cols * (2 * 3 + Math.max(0, r.purlins - 2) * 2 + r.endLaps * 2), 0);
@@ -8198,8 +8212,10 @@ async function buildSheetRFQ(s, sup, pkg) { const { jsPDF } = window.jspdf; cons
   const spec = (panels || pkg === 'flashings') ? [`Panel ${B(s.product)}`, `Thickness / gauge ${B(s.thick)}`, `Cover width ${B(s.cover)} mm`, `Colour ${B(s.colour)}`, p && p.kind === 'composite' ? `Liner ${B(s.linerColour)}` : '', `End laps ${s.lap || SS_LAP} mm over purlins`, `Purlins ${B(s.purlinType)}${s.purlinDepth ? ' ' + s.purlinDepth + ' mm' : ''}${s.purlinGauge ? ' x ' + s.purlinGauge + ' mm' : ''}`].filter(Boolean)
     : [`Rooflight ${B(s.rlProduct)}`, `${B(s.rlSkin)}`, `Fragility ${B(s.rlFrag)}`, typeof rlU === 'function' && rlU(s) ? `U-value ${rlU(s)} W/m2K (typical - check with manufacturer)` : '', s.rlWeight ? `Top sheet ${B(s.rlWeight)}` : '', ...(typeof rlOrderLines === 'function' ? rlOrderLines(s) : []), typeof rlArea === 'function' && rlArea(s).rl ? `Rooflights ${rlArea(s).pct.toFixed(1)}% of roof area` : '', `To match ${B(s.product)} (${B(s.thick)}, cover ${B(s.cover)} mm)`];
   font(8.6, 'bold'); doc.text('Specification:', M, y); font(8.6, 'normal'); const sl = doc.splitTextToSize(tx(spec.join(' · ')), W - 2 * M - 24); doc.text(sl, M + 23, y); y += sl.length * 4 + 3;
-  if (panels && C.sheetRows.length) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['#', 'Roof slope', 'Sheet', 'Length (mm)', 'Cutback (mm)', 'Qty', 'Product / colour', 'Rate / Total']], body: C.sheetRows.map((r, i) => [`S${i + 1}`, tx(r.slope), r.piece, String(r.len) + (typeof rlLenWarn === 'function' && rlLenWarn(s, r.len) ? ' (!)' : ''), typeof ssRowCB === 'function' ? ssRowCB(s, r) : '', String(r.qty), tx(`${s.product || ''} ${s.thick || ''} ${s.colour || ''}`), '']), columnStyles: { 0: { cellWidth: 12 }, 3: { cellWidth: 26, fontStyle: 'bold' }, 4: { cellWidth: 22 }, 5: { cellWidth: 16 }, 7: { cellWidth: 34 } } })); y = doc.lastAutoTable.finalY + 4; }
-  if (lights && C.rlRows.length) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['#', 'Roof slope', 'Rooflight', 'Length (mm)', 'Qty', 'Columns', 'Type', 'Rate / Total']], body: C.rlRows.map((r, i) => [`R${i + 1}`, tx(r.slope), r.piece, String(r.len) + (typeof ssRowCB === 'function' && ssRowCB(s, r) ? ` (cutback ${ssRowCB(s, r)})` : ''), String(r.qty), r.cols, tx(`${s.rlSkin || ''} ${s.rlFrag || ''}${typeof rlU === 'function' && rlU(s) ? ' U ' + rlU(s) : ''}`), '']), columnStyles: { 0: { cellWidth: 12 }, 3: { cellWidth: 26, fontStyle: 'bold' }, 4: { cellWidth: 16 }, 7: { cellWidth: 34 } } })); y = doc.lastAutoTable.finalY + 4; }
+  if (panels && C.sheetRows.length) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['#', 'Roof slope', 'Sheet', 'Length (mm)', 'Cutback (mm)', 'Qty', 'Product / colour', 'Rate / Total']], body: C.sheetRows.map((r, i) => [`S${i + 1}`, tx(r.slope), r.piece, String(r.len) + (typeof rlLenWarn === 'function' && rlLenWarn(s, r.len) ? ' (!)' : ''), typeof ssRowCB === 'function' ? ssRowCB(s, r) : '', String(r.qty), tx(`${s.product || ''} ${s.thick || ''} ${s.colour || ''}`), '']), columnStyles: { 0: { cellWidth: 12 }, 3: { cellWidth: 26, fontStyle: 'bold' }, 4: { cellWidth: 36 }, 5: { cellWidth: 16 }, 7: { cellWidth: 34 } } })); y = doc.lastAutoTable.finalY + 4;
+    { const cs = C.slopes.filter(r => r.cut && r.cols && r.sheetsCols + r.rlc.length > 0); if (cs.length) { font(7.6, 'bold', G); const nt = doc.splitTextToSize(tx(`Cut sheets: the roof length is not a whole number of ${cs[0].cover} mm covers, so the last column on ${cs.map(r => `${r.sl.name} (~${r.cut} mm wide)`).join(', ')} is a full sheet cut to width on site - included in the quantities above as full sheets.`), W - 2 * M); doc.text(nt, M, y + 1); y += nt.length * 3.4 + 2; } }
+    if (typeof ssRowCBs === 'function' && C.sheetRows.concat(C.rlRows).some(r => ssRowCBs(s, r))) { font(7.6, 'normal', G); const nt = doc.splitTextToSize(tx(`Cutback = core / liner cut back at the BOTTOM (lower) end of the piece: "eaves" = into the gutter${ssComposite(s) ? `; "end lap" = the upper piece at an end lap, cut back ${ssLapCB(s)} mm so its top skin laps over the piece below` : ''}. Lengths are overall lengths and already include the lap - do not add the cutback to the length.`), W - 2 * M); doc.text(nt, M, y + 1); y += nt.length * 3.4 + 3; } }
+  if (lights && C.rlRows.length) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['#', 'Roof slope', 'Rooflight', 'Length (mm)', 'Qty', 'Columns', 'Type', 'Rate / Total']], body: C.rlRows.map((r, i) => [`R${i + 1}`, tx(r.slope), r.piece, String(r.len) + (typeof ssRowCB === 'function' && ssRowCB(s, r) ? `\ncutback ${ssRowCB(s, r)}` : ''), String(r.qty), r.cols, tx(`${s.rlSkin || ''} ${s.rlFrag || ''}${typeof rlU === 'function' && rlU(s) ? ' U ' + rlU(s) : ''}`), '']), columnStyles: { 0: { cellWidth: 12 }, 3: { cellWidth: 38, fontStyle: 'bold' }, 4: { cellWidth: 16 }, 7: { cellWidth: 34 } } })); y = doc.lastAutoTable.finalY + 4; }
   if (typeof rfqFlashTable === 'function' && pkg === 'flashings') { y = rfqFlashTable(doc, s, T, y, tx); if ((s.gutters || []).length) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['Gutters & valleys', 'Girth legs (mm)', 'Girth', 'Length x runs', 'Outlets', 'Material', 'Rate / Total']], body: s.gutters.map(g => [tx(g.name || g.type), tx(g.legs), ssGirth(g) ? ssGirth(g) + ' mm' : '[__]', `${g.length || '[__]'} m x ${g.qty || 1}`, tx(g.outlets || '-'), tx(g.material || '[__]'), '']) })); y = doc.lastAutoTable.finalY + 4; } }
   if (anc) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['Ancillaries (approx. - please advise)', 'Qty', 'Notes', 'Rate / Total']], body: C.anc.map(a => [tx(a[0]), tx(a[1]), tx(a[2]), '']), columnStyles: { 1: { cellWidth: 30 }, 3: { cellWidth: 34 } } })); y = doc.lastAutoTable.finalY + 4; }
   if (y > H - 34) { doc.addPage(); y = head(true); }
@@ -8255,7 +8271,7 @@ function ssXSection(s, key, C, W = 1400, H = 640) { C = C || ssCalc(s); const ro
     else if (/Flat/.test(et)) { line([B, [B[0] + side * 900, B[1]], [B[0] + side * 900, B[1] + 500]], '#111', 2.5); txt('Flat', B[0] + side * 450, B[1] - 30 * u, 0, 13, '#555', true); }
     else if (/Valley/.test(et)) { const nb = segs[i + 1]; if (!sg.up) { const G = ssValleyGeo(s, r.sl); line(ssValleyPts(G, B[0] - 40, B[1] + 60, 1), '#334155', 3); txt(`Valley gutter (girth ${G.girth})`, B[0] - 40 + G.topW / 2, B[1] + 60 - G.depth - 40 * u * 1.4, 0, 12, '#555'); } else if (sg.up && !(segs[i - 1] && !segs[i - 1].up && /Valley/.test(segs[i - 1].r.sl.endType))) { const G = ssValleyGeo(s, r.sl); line(ssValleyPts(G, B[0] + 40 - G.topW, B[1] + 60, 1), '#334155', 3); txt(`Valley gutter (girth ${G.girth})`, B[0] + 40 - G.topW / 2, B[1] + 60 - G.depth - 40 * u * 1.4, 0, 12, '#555'); } }
   });
-  g.font = 'bold 16px sans-serif'; g.fillStyle = '#111'; g.textAlign = 'left'; g.fillText(`Cross-section ${key}`, 14, 24); g.font = '13px sans-serif'; g.fillStyle = '#555'; g.fillText('To scale along the slopes. Purlin spacings in mm (ridge gap and sheet past last purlin in grey). Red = end lap, amber = rooflight band.', 14, H - 14);
+  g.font = 'bold 16px sans-serif'; g.fillStyle = '#111'; g.textAlign = 'left'; g.fillText(`Cross-section ${key}`, 14, 24); g.font = '13px sans-serif'; g.fillStyle = '#555'; g.fillText(`To scale along the slopes. Purlin spacings in mm (ridge gap and sheet past last purlin in grey). Red = roof end lap${ssComposite(s) ? ` (upper sheet core / liner cut back ${ssLapCB(s)} mm at its lower end)` : ''}, amber = rooflight band.`, 14, H - 14);
   return c.toDataURL('image/png'); }
 Object.assign(ACTIONS, {
   ssaddgut() { const c = ssCtx(), s = ssCur(); (s.gutters = s.gutters || []).push({ id: uid(), name: 'Valley gutter', type: 'Valley gutter', legs: '', material: '', length: s.slopes[0] ? s.slopes[0].bldLen : '', qty: '1', outlets: '' }); c.save(); rerender(true); },
@@ -8508,12 +8524,17 @@ function ssBayList(s) { const out = []; String(s.bays || '').split(/[,;\n]+/).fo
 const ssBaysTotal = s => Math.round(ssBayList(s).reduce((a, b) => a + b, 0) * 1000) / 1000;
 function ssBayCounts(s) { const B = ssBayList(s), n = B.length; if (s.rlBayMode === 'per') { const L = String(s.rlPerList || '').split(/[,; ]+/).map(x => parseInt(x) || 0); return B.map((_, i) => L[i] || 0); }
   const c = parseInt(s.rlPer) || 0, which = String(s.rlBaysWhich || '').trim(); const sel = which ? ssCols(which, n) : B.map((_, i) => i + 1); return B.map((_, i) => sel.includes(i + 1) ? c : 0); }
-function ssBayCols(s, cols, cover) { const B = ssBayList(s), C = ssBayCounts(s), out = new Set(); let st = 0;
-  B.forEach((b, i) => { const a = st * 1000, z = (st + b) * 1000; st += b; const c = C[i]; if (!c) return; const c0 = Math.floor(a / cover) + 1, c1 = Math.max(c0, Math.ceil(z / cover)), nC = c1 - c0 + 1; for (let k = 0; k < Math.min(c, nC); k++) out.add(c0 + Math.floor((k + 0.5) * nC / c)); });
+// v1.10.17: only whole columns >= the edge clearance from both gables (real building length) - never the cut sheet; a bay places what fits
+function ssBayAllowed(s, cover) { const B = ssBayList(s), Bt = B.reduce((a, b) => a + b, 0) * 1000, E = typeof ssRlEdge === 'function' ? ssRlEdge(s) : 0; let st = 0;
+  return B.map(b => { const a = st * 1000, z = (st + b) * 1000; st += b; const c0 = Math.floor(a / cover) + 1, c1 = Math.max(c0, Math.ceil(z / cover)), L = [];
+    for (let c = c0; c <= c1; c++) { const ca = (c - 1) * cover, cz = c * cover; const mid = ca + cover / 2; if (mid >= a && mid < z && ca >= E - 0.5 && cz <= Bt - E + 0.5) L.push(c); } return L; }); }
+function ssBayCols(s, cols, cover) { const C = ssBayCounts(s), out = new Set(), AL = ssBayAllowed(s, cover);
+  AL.forEach((L, i) => { const c = Math.min(C[i] || 0, L.length); for (let k = 0; k < c; k++) out.add(L[Math.floor((k + 0.5) * L.length / c)]); });
   return [...out].filter(x => x >= 1 && x <= cols).sort((a, b) => a - b); }
 function ssBaysCard(s) { const f = mk(ssCtx().h), b = `sheetSchedules#${s.id}`, B = ssBayList(s), C = ssBayCounts(s);
   return `<div class="card" id="ss-bays"><h2>Bays &amp; rooflights</h2><div class="row">${f.text('Bays (m) - each size, or n@x, mixed', b + '.bays', { ph: 'e.g. 6@7.25  or  7.2, 4@7.5, 6.1' })}</div>
     <p class="hint" id="ss-bsum">${B.length ? `${B.length} bays = <b>${ssBaysTotal(s)} m</b> roof length (used by any slope without its own length)` : 'Enter the bays to set the roof length.'}</p>
+    <div class="row">${f.text('Rooflights: min. distance from building edges (mm)', b + '.rlEdge', { type: 'number', ph: '2000' })}</div>
     ${f.seg('Rooflights per bay', b + '.rlBayMode', [['same', 'Same for all'], ['per', 'Per bay']])}
     ${s.rlBayMode === 'per' ? f.text('Rooflights in each bay (in order)', b + '.rlPerList', { ph: 'e.g. 2, 2, 0, 2, 2, 2' }) : `<div class="row">${f.text('Rooflights per bay', b + '.rlPer', { type: 'number', ph: 'e.g. 2' })}${f.text('Which bays', b + '.rlBaysWhich', { ph: 'blank = all, or 1, 3, 5 / every 2' })}</div>`}
     <p class="hint" id="ss-bsum2">${C.some(x => x) ? `Rooflights per slope: ${C.reduce((a, b) => a + b, 0)} (bays ${C.map((x, i) => x ? `${i + 1}:${x}` : '').filter(Boolean).join(', ')})` : ''}</p>
@@ -8610,6 +8631,13 @@ function rdKit(doc) { const K = {};
   K.grid = (x, y0, y1) => K.ln([x, y0], [x, y1], 0.13, [6, 1.2, 0.8, 1.2]);
   return K; }
 /* ---------- GA01 roof plan layout ---------- */
+// v1.10.17: end-lap positions (mm along the slope from the eaves) - boundaries inside each run (sheet pieces / rooflight-column pieces), merged when
+// within half a lap of each other (a split at a rooflight band end, or old data with a split typed twice) so each lap is drawn and labelled once.
+// rl = a rooflight-to-sheet / rooflight-to-rooflight lap only (no sheet split there) -> "Rooflight end lap"; anything with a sheet split -> "Roof end lap"
+function rdLaps(s, sl, ds) { const tol = (+sl.lap || +s.lap || SS_LAP) / 2, out = [];
+  ['up', 'down'].forEach(sd => { const R = ds.filter(x => x.side === sd); R.forEach((x, i) => { if (!i) return; const pv = R[i - 1], at = (x.from + pv.to) / 2, rl = x.kind === 'rl' || pv.kind === 'rl';
+    const ex = out.find(q => Math.abs(q.at - at) < tol); if (ex) { if (!rl) ex.rl = false; } else out.push({ at, rl }); }); });
+  return out.sort((a, b) => a.at - b.at); }
 function rdPlan(doc, s, C, no) { const keys = ssSecs(s).length ? ssSecs(s) : ['A']; const secs = keys.map(k => ({ k, g: rdSecGeo(s, k, C) })).filter(x => x.g.length); if (!secs.length) return false;
   const bays = ssBayList(s).map(b => b * 1000), Lx0 = bays.reduce((a, b) => a + b, 0); const rows = []; let yy = 0;
   secs.forEach(sc => sc.g.forEach(g => { const h = Math.abs(g.t[0] - g.b[0]), own = typeof ssSlOwn === 'function' && ssSlOwn(g.r.sl), len = own ? ssSlLen(s, g.r.sl) : (Lx0 || (g.r.cols * g.r.cover) || 0), off = own ? ssSlOff(s, g.r.sl) : 0; rows.push({ g, r: g.r, k: sc.k, y0: yy, y1: yy + h, len, off, own }); yy += h; if (g.up === false && /Valley/.test(g.r.sl.endType || '')) { /* valley gutter width in plan */ } }));
@@ -8626,9 +8654,13 @@ function rdPlan(doc, s, C, no) { const keys = ssSecs(s).length ? ssSecs(s) : ['A
     doc.setFillColor(...olive); const ds = ssDimSegs(s, sl, r), RLS = ds.filter(x => x.kind === 'rl'); r.rlc.forEach(cI => { const xa = X((cI - 1) * r.cover), xb = X(cI * r.cover); if (xa >= x1) return; (RLS.length ? RLS : [null]).forEach(rlSeg => { const a0 = rlSeg ? at(rlSeg.from) : rw.y0, a1 = rlSeg ? at(rlSeg.to) : rw.y1; const ya = Y(Math.max(a0, a1)), yb = Y(Math.min(a0, a1)); doc.rect(xa + 0.15, ya, Math.max(0.3, xb - xa - 0.3), yb - ya, 'F'); }); });
     // sheet columns (cover lines), purlin lines
     doc.setDrawColor(150); if (r.cover && rw.len / r.cover < 600) for (let c = r.cover; c < rw.len - 1; c += r.cover) K.ln([X(c), Y(rw.y0)], [X(c), Y(rw.y1)], 0.06); doc.setDrawColor(0);
+    // v1.10.17: the last column is a part sheet when the length is not a whole number of covers - hatched + labelled (ordered as a full sheet, cut on site)
+    if (r.cut && Math.abs(rw.len - (r.bl || rw.len)) < 1) { const xa = X(rw.len - r.cut), xb = x1, ya = Y(rw.y1), yb = Y(rw.y0); doc.setDrawColor(120); for (let yy = ya + 1.2; yy < yb; yy += 1.6) K.ln([xa, yy], [xb, Math.min(yb, yy + (xb - xa))], 0.08); doc.setDrawColor(0);
+      K.txt(rdTx(`CUT SHEET ~${r.cut} MM`), [x1 + 2.6, (ya + yb) / 2], 90, 5, 'center'); }
     r.pos.forEach(p => K.ln([X(0), Y(at(p))], [x1, Y(at(p))], 0.14, [1.4, 0.9]));
-    // end laps: every boundary between sheet pieces
-    ds.slice(1).forEach(x => { const yl = Y(at((x.from + ds[ds.indexOf(x) - 1].to) / 2)); K.ln([X(0), yl], [x1, yl], 0.35, [3, 1]); K.txt('EndLap', [X(0) - 2, yl + 1], 0, 6.5, 'right'); });
+    // end laps - v1.10.17 fix: one line per lap position. The sheet pieces (side 'up') and the rooflight-column pieces (side 'down') are two separate runs
+    // up the same slope; the old code walked them as one list, so a split drew its lap twice (once per run) plus a stray lap where the runs joined.
+    rdLaps(s, sl, ds).forEach(L => { const yl = Y(at(L.at)); K.ln([X(0), yl], [x1, yl], 0.35, [3, 1]); K.txt(L.rl ? 'Rooflight end lap' : 'Roof end lap', [X(0) - 2, yl + 1], 0, 6.5, 'right'); });
     doc.setLineWidth(0.4); doc.rect(X(0), Y(rw.y1), x1 - X(0), (rw.y1 - rw.y0) * k);
     if (rows.some(q => q.own)) { const yt = Y(rw.y1); K.dim([X(0), yt], [X(rw.len), yt], [0, -1], 3, `${Math.round(rw.len)}${rw.off ? ' FROM ' + Math.round(rw.off) : ''}`, '', 0, 6.5); } K.txt(rdTx(`${sl.name} - ${sl.pitch || '?'} deg - ${r.L} mm on slope - ${r.cols} sheets${r.rlc.length ? ' incl ' + r.rlc.length + ' rooflights' : ''}`), [X(0) + 1.5, Y(rw.y1) + 3], 0, 6, 'left', 70);
     // lay direction arrow at the right
@@ -8644,6 +8676,10 @@ function rdPlan(doc, s, C, no) { const keys = ssSecs(s).length ? ssSecs(s) : ['A
   const yb = Y(0) + 9; let a = 0; bays.forEach(b => { K.dim([X(a), Y(0)], [X(a + b), Y(0)], [0, 1], 9, String(Math.round(b)), '', 0, 7.5); a += b; });
   K.dim([X(0), Y(0)], [X(Lx), Y(0)], [0, 1], 18, String(Math.round(Lx)), '', 0, 7.5);
   const uni = bays.length && bays.every(b => Math.abs(b - bays[0]) < 1); K.txt(rdTx(bays.length ? (uni ? `${bays.length} BAYS X ${Math.round(bays[0])} MM` : `${bays.length} BAYS - ${Math.round(Lx)} MM OVERALL`) : `ROOF LENGTH ${Math.round(Lx)} MM`), [X(Lx / 2), yb + 18.5], 0, 12, 'center', 90);
+  { const E = typeof ssRlEdge === 'function' ? ssRlEdge(s) : 2000, nt = []; const sg = String(s.rlPct ?? '').trim() && typeof rlSuggest === 'function' ? rlSuggest(s, s.rlPct) : null;
+    if (sg && sg.short) nt.push(`ROOFLIGHTS KEPT ${E} MM CLEAR OF THE BUILDING EDGES - ONLY ${sg.total} OF ${sg.want} PER SLOPE FIT, TARGET ${s.rlPct}% NOT MET`);
+    if ((C.warn || []).some(w => /Rooflight within/.test(w))) nt.push(`WARNING: ROOFLIGHT(S) WITHIN ${E} MM OF A BUILDING EDGE - SEE SCHEDULE NOTES`);
+    nt.forEach((t, i) => K.txt(rdTx(t), [A.x0 + 2, A.y1 - 5.6 - i * 3.6], 0, 7, 'left', '#b91c1c')); }
   if (typeof rlArea === 'function') { const RA = rlArea(s, C); if (RA.rl) K.txt(rdTx(`ROOFLIGHTS ${RA.rl.toFixed(1)} M2 = ${RA.pct.toFixed(1)}% OF ROOF AREA${String(s.rlPct ?? '').trim() ? ` (TARGET ${s.rlPct}%)` : ''}${rlU(s) ? ` - U ${rlU(s)} W/M2K TYPICAL, CHECK WITH MANUFACTURER` : ''}`), [A.x0 + 2, A.y1 - 2], 0, 7, 'left'); }
   // north point
   if (String(rdDefaults(s).north).trim() !== '') { const ang = (+rdDefaults(s).north || 0) * Math.PI / 180, c0 = [A.x1 - 10, A.y0 + 12], v = [Math.sin(ang), -Math.cos(ang)]; doc.setLineWidth(0.3); doc.circle(c0[0], c0[1], 6, 'S'); doc.setFillColor(0); doc.triangle(c0[0] + v[0] * 6, c0[1] + v[1] * 6, c0[0] - v[1] * 2 - v[0] * 3, c0[1] + v[0] * 2 - v[1] * 3, c0[0] + v[1] * 2 - v[0] * 3, c0[1] - v[0] * 2 - v[1] * 3, 'F'); K.txt('N', [c0[0] + v[0] * 9, c0[1] + v[1] * 9 + 1.2], 0, 8); }
@@ -8669,7 +8705,7 @@ function rdSection(doc, s, C, key, no) { const g = rdSecGeo(s, key, C); if (!g.l
     r.pos.forEach(p => { const c = P(pt(p)), d = Math.max(2.2, pd * k), b2 = [c[0] - n[0] * d, c[1] - n[1] * d]; K.ln(c, b2, 0.3); K.ln(c, [c[0] + e[0] * 1.1, c[1] + e[1] * 1.1], 0.3); K.ln(b2, [b2[0] - e[0] * 1.1, b2[1] - e[1] * 1.1], 0.3); });
     // dims above: overhang, sheet pieces; rooflight-column pieces go below (v1.9.14), top gap, check dim
     const ds = ssDimSegs(s, sl, r), ov = r.pos[0], top = r.L - r.pos[r.pos.length - 1];
-    const dpp0 = Math.max(2.2, pd * k), ju = {}; ds.forEach(x => { const j = ju[x.side] = (ju[x.side] ?? -1) + 1; if (x.side === 'up') K.dim(off(P(pt(x.from)), tk), off(P(pt(x.to)), tk), n, 9 + (j % 2) * 9, String(x.len), '', 0, 1.5); else K.dim(P(pt(x.from)), P(pt(x.to)), [-n[0], -n[1]], dpp0 + 36 + (j % 2) * 10, String(x.len), x.kind === 'rl' ? 'O/A ROOFLIGHT' : '', 0, dpp0 + 1); });
+    const dpp0 = Math.max(2.2, pd * k), ju = {}; ds.forEach(x => { const j = ju[x.side] = (ju[x.side] ?? -1) + 1; const lc = x.from > 0 && x.kind !== 'rlsheet' && ssComposite(s) ? `${ssLapCB(s, sl)} LAP CUTBACK AT LOWER END` : ''; /* sheets above a rooflight: shown in the RFQ table only (labels would clash near the ridge) */ /* v1.10.17 */ if (x.side === 'up') K.dim(off(P(pt(x.from)), tk), off(P(pt(x.to)), tk), n, 9 + (j % 2) * 9, String(x.len), lc, 0, 1.5); else K.dim(P(pt(x.from)), P(pt(x.to)), [-n[0], -n[1]], dpp0 + 36 + (j % 2) * 10, String(x.len), [x.kind === 'rl' ? 'O/A ROOFLIGHT' : '', lc].filter(Boolean).join(' - '), 0, dpp0 + 1); });
     if (ov > 0) { K.dim(off(pa, tk), off(P(pt(ov)), tk), n, 4, String(Math.round(ov)), '', 0, 1.5); const cn = ssCbNote(s, sl); if (cn) { const q0 = off(pa, tk + 4), lab = rdTx(cn.toUpperCase()); K.txt(lab, [q0[0] + (q.up ? -2 : 2) + n[0] * 0, q0[1] + 9], 0, 6, q.up ? 'right' : 'left', 60); } } if (top > 0) K.dim(off(P(pt(r.pos[r.pos.length - 1])), tk), off(pb, tk), n, 4, String(Math.round(top)), '', 0, 1.5);
     K.dim(off(pa, tk), off(pb, tk), n, 30, String(r.L), 'O/A CHECK DIM', 0, 1.5);
     // dims below: purlin spacings and O/A purlins
@@ -8748,23 +8784,33 @@ document.addEventListener('change', e => { const el = e.target; if (!el.dataset 
   if (t.skin) s.rlSkin = SS_SKINS.includes(t.skin) ? t.skin : s.rlSkin; if (t.frag && SS_FRAG.includes(t.frag)) s.rlFrag = t.frag; s.rlU = t.u || ''; ssCtx().save(); rerender(true); }, 0); });
 /* ---------- rooflight % of roof area ---------- */
 function rlLenOf(r, s) { if (r.band) return r.band.rl; const x = s && typeof ssDimSegs === 'function' ? ssDimSegs(s, r.sl, r).filter(q => q.kind === 'rl') : []; return x.length ? x.reduce((t, q) => t + q.len, 0) : r.L; } // rooflight sheet length on that slope
-function rlArea(s, C) { C = C || ssCalc(s); let roof = 0, rl = 0; C.slopes.forEach(r => { if (!r.L || !r.cols) return; roof += r.L * r.cols * r.cover; rl += r.rlc.length * r.cover * rlLenOf(r, s); }); return { roof: roof / 1e6, rl: rl / 1e6, pct: roof ? rl / roof * 100 : 0 }; }
+function rlArea(s, C) { C = C || ssCalc(s); let roof = 0, rl = 0; C.slopes.forEach(r => { if (!r.L || !r.cols) return; roof += r.L * (r.cut && r.bl ? r.bl : r.cols * r.cover); /* v1.10.17: real roof length - the cut sheet is not full width */ rl += r.rlc.length * r.cover * rlLenOf(r, s); }); return { roof: roof / 1e6, rl: rl / 1e6, pct: roof ? rl / roof * 100 : 0 }; }
 // suggestion: count per slope per bay so rooflight area ~ target % of the roof, spread evenly over the bays
 function rlSuggest(s, target) { const C = ssCalc(s), A = rlArea(s, C), B = ssBayList(s), t = (+target || 10) / 100; const R = C.slopes.filter(r => r.L && r.cols);
   const per1 = R.reduce((a, r) => a + r.cover * rlLenOf(r, s), 0) / 1e6; // m² of one rooflight on every slope
   if (!A.roof || !per1) return null; const total = Math.max(0, Math.round(t * A.roof / per1)); // rooflights per slope
-  if (!B.length) { const cols = Math.min(...R.map(r => r.cols)); const every = total ? Math.max(1, Math.round(cols / total)) : 0; return { mode: 'cols', total, every, rlArea: total * per1, pct: total * per1 / A.roof * 100, roof: A.roof, per1 }; }
+  // v1.10.17: only whole columns >= ssRlEdge from the building ends (never the cut sheet); if the target does not fit, place what fits (short = true)
+  if (!B.length) { const r0 = R.reduce((a, r) => r.cols < a.cols ? r : a), E = ssRlEdge(s), al = []; for (let c = 1; c <= r0.cols; c++) if (ssRlColOK(c, r0.cover, 0, r0.bl || r0.cols * r0.cover, r0.bl || r0.cols * r0.cover, E)) al.push(c);
+    const got = Math.min(total, al.length), list = Array.from({ length: got }, (_, k) => al[Math.floor((k + 0.5) * al.length / got)]); const every = got ? Math.max(1, Math.round(r0.cols / got)) : 0;
+    return { mode: 'cols', total: got, want: total, short: got < total, every, list, rlArea: got * per1, pct: got * per1 / A.roof * 100, roof: A.roof, per1 }; }
   const n = B.length, base = Math.floor(total / n), extra = total - base * n, list = B.map((_, i) => base + (extra && Math.floor((i + 1) * extra / n) > Math.floor(i * extra / n) ? 1 : 0));
-  const maxIn = B.map(b => Math.floor(b * 1000 / (R[0].cover || 1000))); const L2 = list.map((c, i) => Math.min(c, maxIn[i])); const got = L2.reduce((a, b) => a + b, 0);
-  return { mode: 'bays', total: got, list: L2, rlArea: got * per1, pct: got * per1 / A.roof * 100, roof: A.roof, per1 }; }
+  const cap = ssBayAllowed(s, R[0].cover || 1000).map(L => L.length); const L2 = list.map((c, i) => Math.min(c, cap[i])); let left = total - L2.reduce((a, b) => a + b, 0);
+  while (left > 0) { let bi = -1; L2.forEach((c, i) => { if (c < cap[i] && (bi < 0 || c < L2[bi] || (c === L2[bi] && cap[i] - c > cap[bi] - L2[bi]))) bi = i; }); if (bi < 0) break; L2[bi]++; left--; }
+  const got = L2.reduce((a, b) => a + b, 0);
+  return { mode: 'bays', total: got, want: total, short: got < total, list: L2, rlArea: got * per1, pct: got * per1 / A.roof * 100, roof: A.roof, per1 }; }
+// v1.10.17: a slope with no rooflight band gets one clear of both ends of the slope (plan distance >= ssRlEdge), so auto-placed rooflights never run to the eaves / ridge
+function rlAutoBand(s, sl) { if (sl.linkOf || +sl.rlFrom || String(sl.rlBands || '').trim()) return false; const r = ssSlope(s, sl); if (!r.L || r.pos.length < 2) return false;
+  const E = ssRlEdge(s), cs = Math.cos((+sl.pitch || 0) * Math.PI / 180), lap = +sl.lap || +s.lap || SS_LAP; let f = 0, t = 0;
+  for (let k = 1; k <= r.pos.length; k++) if (!f && (r.pos[k - 1] - lap / 2) * cs >= E) f = k; for (let k = r.pos.length; k >= 1; k--) if (!t && (r.L - r.pos[k - 1] - lap / 2) * cs >= E) t = k;
+  if (f && t > f) { sl.rlFrom = String(f); sl.rlTo = String(t); return true; } return null; }
 function rlPctHTML(s) { const A = rlArea(s), tg = String(s.rlPct ?? '').trim(), sg = rlSuggest(s, tg || 10), f = mk(ssCtx().h), b = `sheetSchedules#${s.id}`;
   const st = !A.roof ? 'Enter slopes, spacings and the bays / roof length to work out the roof area.' : `Roof area <b>${A.roof.toFixed(1)} m²</b> · rooflights now <b>${A.rl.toFixed(1)} m² = ${A.pct.toFixed(1)}%</b>${tg ? ` (target ${tg}%)` : ''}`;
-  const sug = sg ? (sg.mode === 'bays' ? `Suggested for ${tg || 10}%: <b>${sg.list.join(', ')}</b> per bay on each slope = ${sg.total} per slope, ${sg.rlArea.toFixed(1)} m² = <b>${sg.pct.toFixed(1)}%</b>` : `Suggested for ${tg || 10}%: ${sg.total} per slope - every ${sg.every} columns = <b>${sg.pct.toFixed(1)}%</b>`) : '';
+  const sug = sg ? (sg.mode === 'bays' ? `Suggested for ${tg || 10}%: <b>${sg.list.join(', ')}</b> per bay on each slope = ${sg.total} per slope, ${sg.rlArea.toFixed(1)} m² = <b>${sg.pct.toFixed(1)}%</b>` : `Suggested for ${tg || 10}%: ${sg.total} per slope - columns ${sg.list.join(', ')} = <b>${sg.pct.toFixed(1)}%</b>`) + ` · kept ${ssRlEdge(s)} mm clear of the building edges, never in the cut sheet${sg.short ? ` - <b>only ${sg.total} of ${sg.want} fit</b>, so the target is not met` : ''}` : '';
   return `<div class="rl-pct" id="rl-pct"><h3 style="margin:14px 0 6px">Rooflight % of roof area</h3><div class="row">${f.text('Target % (typically 10-20%)', b + '.rlPct', { type: 'number', ph: '10' })}</div>
     <p class="hint" id="rl-pst">${st}</p>${sug ? `<p class="hint">${sug}. Rooflight size: cover × rooflight length on each slope.</p><div class="btns"><button type="button" class="btn primary" data-act="rlapply">Apply to bays &amp; slopes</button></div>` : ''}</div>`; }
-Object.assign(ACTIONS, { rlapply() { const c = ssCtx(), s = ssCur(), sg = rlSuggest(s, String(s.rlPct ?? '').trim() || 10); if (!sg) return toast('Need slopes and a roof length first');
-  if (sg.mode === 'bays') { s.rlBayMode = 'per'; s.rlPerList = sg.list.join(', '); s.slopes.forEach(sl => { if (!sl.linkOf) sl.rlCols = 'bays'; }); } else s.slopes.forEach(sl => { if (!sl.linkOf) sl.rlCols = sg.total ? `every ${sg.every}` : ''; });
-  if (!s.rlPct) s.rlPct = '10'; c.save(); rerender(true); const A = rlArea(s); toast(`Rooflights applied: ${A.pct.toFixed(1)}% of the roof (target ${s.rlPct}%)`); } });
+Object.assign(ACTIONS, { rlapply() { const c = ssCtx(), s = ssCur(); const bands = s.slopes.map(sl => rlAutoBand(s, sl)); const sg = rlSuggest(s, String(s.rlPct ?? '').trim() || 10); if (!sg) return toast('Need slopes and a roof length first');
+  if (sg.mode === 'bays') { s.rlBayMode = 'per'; s.rlPerList = sg.list.join(', '); s.slopes.forEach(sl => { if (!sl.linkOf) sl.rlCols = 'bays'; }); } else s.slopes.forEach(sl => { if (!sl.linkOf) sl.rlCols = sg.total ? sg.list.join(', ') : ''; });
+  if (!s.rlPct) s.rlPct = '10'; c.save(); rerender(true); const A = rlArea(s); toast(`Rooflights applied: ${A.pct.toFixed(1)}% of the roof (target ${s.rlPct}%)${sg.short ? ` - only ${sg.total} per slope fit ${ssRlEdge(s)} mm clear of the building edges` : ''}${bands.some(x => x) ? ' - rooflight band set clear of the eaves / ridge' : ''}${bands.some(x => x === null) ? ' - a slope is too short for a rooflight band clear of both ends' : ''}`, 5000); } });
 { const _bc = ssBaysCard; ssBaysCard = function (s) { const h = _bc(s); const i = h.lastIndexOf('</div>'); return h.slice(0, i) + rlPctHTML(s) + h.slice(i); }; }
 // schedule page: keep SS_RL in step, show U-value under the rooflight choice, % in the results
 { const _v = viewSheetSchedule; viewSheetSchedule = function (h, s, job) { rlSync(); let html = _v(h, s, job); const f = mk(h), b = `sheetSchedules#${s.id}`; const t = rlType(s.rlProduct);
@@ -8809,7 +8855,7 @@ function xBook(sheets) { const n = sheets.length, ws = (i) => `xl/worksheets/she
     ...sheets.map((s, i) => [ws(i), xSheet(s.rows, s.widths)])]); }
 function ksOrderRows(s) { const C = ssCalc(s), idx = {}; (s.slopes || []).forEach((sl, i) => { idx[sl.name] = { i, sl }; });
   const eavesPiece = p => /Full length|^1 of|Peaves/.test(p);
-  return C.sheetRows.filter(r => r.qty).map(r => { const k = idx[r.slope] || { i: 0, sl: null }; const lr = k.i % 2 === 0; return { qty: r.qty, len: r.len, cb: k.sl && ssGutEnd(k.sl) && eavesPiece(r.piece) ? ssCB(s, k.sl) : '', lr, ref: `${r.slope} - ${r.piece}` }; }); }
+  return C.sheetRows.filter(r => r.qty).map(r => { const k = idx[r.slope] || { i: 0, sl: null }; const lr = k.i % 2 === 0; return { qty: r.qty, len: r.len, cb: ssRowCBmm(s, r), lr, ref: `${r.slope} - ${r.piece}${ssRowCB(s, r) ? ' - cutback ' + ssRowCB(s, r) : ''}` }; }); }
 function buildKingspanXLSX(s) { const st = S.settings || {}, co = st.company || {}, H = v => ({ v, b: 1 }), rows = [];
   rows.push([{ v: 'Kingspan', h: 1 }], [{ v: 'RW Panel Order Form (prepared by ARS app - transfer to / attach with the Kingspan form)', h: 1 }], []);
   const kv = (a, av, b, bv) => rows.push([H(a), av || '', '', '', '', '', '', '', H(b), bv || '']);
@@ -8822,13 +8868,13 @@ function buildKingspanXLSX(s) { const st = S.settings || {}, co = st.company || 
   const r0 = rows.length + 1, P = ksOrderRows(s);
   P.forEach((p, i) => { const n = r0 + i; rows.push([p.qty, p.len, p.cb === '' ? '' : +p.cb, p.lr ? 'X' : '', p.lr ? '' : 'X', '', '', '', 'X', '', '', p.ref, '', '', { f: `A${n}*B${n}/1000` }]); });
   rows.push([H('TOTAL'), '', '', '', '', '', '', '', '', '', '', '', '', '', { f: `SUM(O${r0}:O${r0 + Math.max(P.length, 1) - 1})` }]);
-  rows.push([], ['Dimension A = sheet length; Dimension B = cut back at the eaves (gutter) end. Handing alternates by slope as on the Kingspan form - check against the handing diagram.']);
+  rows.push([], ['Dimension A = sheet length (overall, includes any end lap); Dimension B = cut back at the bottom end: the gutter cutback on eaves sheets, the end-lap cutback on an upper sheet at an end lap (core / liner cut back so the top skin laps over the sheet below). Handing alternates by slope as on the Kingspan form - check against the handing diagram.']);
   const sheets = [{ name: 'RW', rows, widths: [12, 16, 16, 6, 6, 9, 9, 3, 7, 9, 9, 40, 3, 3, 10] }];
   const t = rlType(s.rlProduct) || {}, C = ssCalc(s);
   if (C.rlRows.length) { const R = [[{ v: /Day-Lite/.test(t.name || '') ? 'Day-Lite Trapezoidal Order Form' : (/Filon FAIR/.test(t.name || '') ? 'Customer Order Form for Factory Assembled Insulated Rooflights (Filon FAIR)' : 'Rooflight Order'), h: 1 }], [],
       [H('Product'), s.rlProduct || ''], [H('U value (W/m2K)'), rlU(s) || ''], [H('Top sheet weight'), s.rlWeight || ''], [H('Composite system'), 'KS1000RW'], [H('Box depth req\'d'), s.thick || ''], [H('Company name'), co.name || ''], [H('Order No.'), s.ref || ''], [],
       [H('Quantity'), H('Top Sheet Length Dim A (mm)'), H('Cut-Back Length Dim B (mm)'), H('LH / L-R'), H('RH / R-L'), H('Reference')]];
-    C.rlRows.forEach(r => { const k = (s.slopes || []).findIndex(sl => sl.name === r.slope), lr = k % 2 === 0; const sl0 = (s.slopes || [])[k]; R.push([r.qty, r.len, sl0 && ssGutEnd(sl0) && /Full length|^1 of|Peaves/.test(r.piece) ? +ssCB(s, sl0) : '', lr ? r.qty : '', lr ? '' : r.qty, `${r.slope} - ${r.piece}`]); });
+    C.rlRows.forEach(r => { const k = (s.slopes || []).findIndex(sl => sl.name === r.slope), lr = k % 2 === 0; const sl0 = (s.slopes || [])[k]; R.push([r.qty, r.len, ssRowCBmm(s, r), lr ? r.qty : '', lr ? '' : r.qty, `${r.slope} - ${r.piece}`]); });
     sheets.push({ name: 'Rooflights', rows: R, widths: [10, 18, 18, 10, 10, 40] }); }
   return xBook(sheets); }
 Object.assign(ACTIONS, { ssxlsx() { const s = ssCur(); const b = buildKingspanXLSX(s); qOut(b, `Kingspan-RW-order-${String(s.ref || s.project || 'schedule').replace(/[^\w-]+/g, '-')}.xlsx`); } });
@@ -8874,7 +8920,12 @@ function ssSlLen(s, sl) { const br = ssBaysRange(sl.bldLen); if (br) return ssGr
 function ssSlBayCols(s, sl, cols, cover) { if (!ssSlOwn(sl)) return ssBayCols(s, cols, cover); const tot = (ssBaysTotal(s) || 0) * 1000, full = ssBayCols(s, Math.ceil(tot / cover), cover), off = ssSlOff(s, sl), sh = Math.floor(off / cover);
   return full.filter(c => (c - 1) * cover >= off - 1 && c * cover <= off + cols * cover + 1).map(c => c - sh).filter(c => c >= 1 && c <= cols); }
 /* v1.9.10: separate ARS-style RFQs per package (panels / rooflights / flashings & ancillaries) so different companies can quote; order-form replicas stay as secondary exports */
-function ssRowCB(s, r) { const sl = (s.slopes || []).find(x => x.name === r.slope); return sl && ssGutEnd(sl) && /Full length|^1 of|Peaves/.test(r.piece || '') ? String(ssCB(s, sl)) : ''; }
+// v1.10.17: per-piece cutback, always at the piece's BOTTOM end - eaves piece into a gutter: the gutter cutback (75); a piece that starts at an end lap
+// (upper sheet of a split, sheet above a rooflight, rooflight above a sheet) on composite panels: the lap (150). Rows carry bot (mm from the eaves).
+function ssRowCBs(s, r) { const sl = (s.slopes || []).find(x => x.name === r.slope); if (!sl) return null; const bot = r.bot != null ? r.bot : (/Full length|^1 of|Peaves/.test(r.piece || '') ? 0 : 1);
+  if (bot <= 0) return ssGutEnd(sl) ? { mm: ssCB(s, sl), why: 'eaves' } : null; return ssComposite(s) ? { mm: ssLapCB(s, sl), why: 'end lap' } : null; }
+function ssRowCB(s, r) { const c = ssRowCBs(s, r); return c ? `${c.mm} bottom (${c.why})` : ''; }
+const ssRowCBmm = (s, r) => { const c = ssRowCBs(s, r); return c ? c.mm : ''; };
 const RFQ_SUP = { panels: ['Tata Steel', 'Kingspan'], rooflights: ['Filon', 'Brett Martin', 'Kingspan Day-Lite'], flashings: [] };
 function rfqFlashTable(doc, s, T, y, tx) { const c = ssCtx(), job = c && c.job, L = ((job && job.flashRfqs) || []).flatMap(fr => (fr.items || []).filter(i => i.desc || i.girth).map(i => [tx(i.desc || i.code || 'Flashing'), tx(i.girth ? i.girth + ' mm' : '[__]'), tx(i.bends || '-'), tx([i.material, i.gauge, i.colour].filter(Boolean).join(' ') || '[__]'), tx(`${i.length || '[__]'} m x ${i.qty || '[__]'}`), tx(i.notes || ''), '']));
   if (!L.length) return y; doc.autoTable(Object.assign({}, T, { startY: y, head: [['Flashings (from the linked flashings RFQ)', 'Girth', 'Bends', 'Material / colour', 'Length x qty', 'Notes', 'Rate / Total']], body: L, columnStyles: { 6: { cellWidth: 30 } } })); return doc.lastAutoTable.finalY + 4; }
