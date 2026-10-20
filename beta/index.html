@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.20">
+<meta name="app-version" content="1.11.0">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.20';
+const APP_VERSION = '1.11.0';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -4236,10 +4236,14 @@ async function opSync() {
 }
 function applyDailySettings(d) {
   if (Array.isArray(d.template) && d.template.length) S.settings.dailyTpl = d.template;
-  if (d.plant !== undefined) S.settings.plantTypes = Array.isArray(d.plant) && d.plant.length ? d.plant : null;
+  if (d.plant !== undefined && !(d.plant == null && !isOp() && Array.isArray(S.settings.plantTypes) && S.settings.plantTypes.length)) S.settings.plantTypes = Array.isArray(d.plant) && d.plant.length ? d.plant : null;
   if (d.company && isOp()) ['company', 'address', 'phone', 'email', 'website', 'legal', 'logo', 'logoW', 'logoH'].forEach(k => { if (d.company[k] !== undefined) S.settings[k] = d.company[k]; });
   DB.setKV('settings', S.settings);
 }
+/* v1.11.0: a device that has not got a shared list (e.g. a phone that was on v1.8.5 and has never pulled the talk library) must never
+   blank the server copy - keep the server's value wherever this device would write null / nothing */
+const DAILY_KEEP = ['template', 'plant', 'tbtLib', 'matLib', 'mrPlant'];
+const dailyKeep = (v0, v) => { DAILY_KEEP.forEach(k => { const e = v[k] == null || (Array.isArray(v[k]) && !v[k].length); if (e && v0 && v0[k] != null) v[k] = v0[k]; }); if (v0 && v0.brief && typeof v0.brief === 'object') v.brief = Object.assign({}, v0.brief, v.brief || {}); return v; };
 const dailySettingsValue = () => ({ template: S.settings.dailyTpl || null, plant: S.settings.plantTypes || null, company: (() => { const o = {}; ['company', 'address', 'phone', 'email', 'website', 'legal', 'logo', 'logoW', 'logoH'].forEach(k => { o[k] = S.settings[k]; }); return o; })() });
 
 // staff: the jobs table + daily checks per job
@@ -4282,7 +4286,7 @@ async function loadDaily(pid, f = {}) {
   const _ps = pushSettings;
   pushSettings = async function (force) {
     const sig0 = Cloud.settingsSig; await _ps(force);
-    if (isMgr() && (force || sig0 !== Cloud.settingsSig || !Cloud.dailyPushed)) { await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'daily', value: dailySettingsValue() }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); Cloud.dailyPushed = true; }
+    if (isMgr() && (force || sig0 !== Cloud.settingsSig || !Cloud.dailyPushed)) { /* v1.11.0 (= root 1.8.5 fix): keep the shared keys other people write (requests, briefings, talk library, AI note...) - only overwrite the settings this push owns */ let dv = dailySettingsValue(); try { const cur = ((await sbFetch('/rest/v1/app_settings?select=key,value&key=eq.daily')) || [])[0]; const v0 = (cur && cur.value) || {}; dv = dailyKeep(v0, Object.assign({}, v0, dv)); } catch (e) { if (e && e.offline) throw e; } await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'daily', value: dv }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); Cloud.dailyPushed = true; }
   };
   const _pl = pullSettings;
   pullSettings = async function () { await _pl(); try { const rows = await sbFetch('/rest/v1/app_settings?select=key,value&key=eq.daily') || []; if (rows[0] && rows[0].value) { applyDailySettings(rows[0].value); Cloud.settingsSig = settingsSig(); await DB.setKV('cloud.settingsSig', Cloud.settingsSig); } } catch (e) { } };
@@ -8205,7 +8209,7 @@ Object.assign(ACTIONS, {
 function viewSheetStandalone(r) { if (!SSA.loaded) { ssaLoad().then(() => { if (route()[0] === 'sheets') render(true); }); return { head: header({ title: 'Roof sheet schedule', back: '#/' }), body: '<p class="hint" style="padding:16px">Loading…</p>' }; }
   S.ctx = { obj: SSA.holder, save: ssaSave }; if (!r[1]) return { head: header({ title: 'Roof sheet schedule', sub: 'Standalone - not linked to an audit', back: '#/' }), body: viewSheetList(SSA.holder, '#/sheets', null) };
   const s = SSA.holder.sheetSchedules.find(x => x.id === r[1]); if (!s) { go('#/sheets'); return null; } return { head: header({ title: s.ref ? `Sheets ${s.ref}` : 'Roof sheet schedule', sub: s.project || 'Standalone', back: '#/sheets' }), body: viewSheetSchedule(SSA.holder, s, null) }; }
-{ const _vl = viewList; viewList = function () { const v = _vl(); v.body += `<div class="card fl-home"><h2>Roof sheet schedule <span class="tag">beta</span></h2><p class="hint" style="margin-bottom:10px">Purlin spacings to sheet lengths, counts and a supplier RFQ - without an audit.</p><a class="btn block" href="#/sheets">▤ Roof sheet schedule (standalone)</a></div>`; return v; }; }
+{ const _vl = viewList; viewList = function () { const v = _vl(); v.body += `<div class="card fl-home"><h2>Roof sheet schedule ${BUILD.beta ? '<span class="tag">beta</span>' : ''}</h2><p class="hint" style="margin-bottom:10px">Purlin spacings to sheet lengths, counts and a supplier RFQ - without an audit.</p><a class="btn block" href="#/sheets">▤ Roof sheet schedule (standalone)</a></div>`; return v; }; }
 { const _vr = viewRoofs; viewRoofs = function (job) { const n = (job.sheetSchedules || []).length; return _vr(job) + `<div class="card"><h2>Roof sheet schedule <span class="tag">optional</span></h2><p class="hint" style="margin-bottom:12px">Purlin spacings to sheet lengths, sheet / rooflight counts, ancillaries and supplier RFQs.</p><a class="btn block" href="#/job/${job.id}/sheets">▤ Roof sheet schedule${n ? ` (${n})` : ''}</a></div>`; }; }
 { const _vw = viewWorksDetails; viewWorksDetails = function (job) { const n = (job.sheetSchedules || []).length; return _vw(job) + `<div class="card"><h2>Roof sheet schedule <span class="tag">optional</span></h2><a class="btn block" href="#/job/${job.id}/sheets">▤ Roof sheet schedule${n ? ` (${n})` : ''}</a></div>`; }; }
 /* ---------- RFQ PDF (A4 landscape, same letterhead style as the flashings RFQ) ---------- */
@@ -8749,7 +8753,7 @@ Object.assign(ACTIONS, { async rdpdf() { const s = ssCur(); if (!ssCalc(s).slope
 { const _vs = viewSheetSchedule; viewSheetSchedule = function (h, s, job) { const out = _vs(h, s, job); try { const d = rdDefaults(s), f = mk(h), b = `sheetSchedules#${s.id}.dwg`;
     if (!d.by && typeof myName === 'function') { const nmx = String(myName() || ''); d.by = nmx.split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase()).join(''); }
     const lay = (s.slopes || []).map(sl => `<div class="f"><label>${esc(sl.name)} - lay direction</label><select data-b="sheetSchedules#${s.id}.slopes#${sl.id}.lay"><option value="">-</option>${['R-L', 'L-R'].map(v => `<option${sl.lay === v ? ' selected' : ''}>${v}</option>`).join('')}</select></div>`).join('');
-    return out + `<div class="card" id="rd-card"><h2>Roof drawings (A3) <span class="tag">beta</span></h2><p class="hint" style="margin-bottom:10px">Roof plan layout and a typical section per cross-section, drawn from the slopes, bays and rooflights above, with the ARS title block.</p>
+    return out + `<div class="card" id="rd-card"><h2>Roof drawings (A3) ${BUILD.beta ? '<span class="tag">beta</span>' : ''}</h2><p class="hint" style="margin-bottom:10px">Roof plan layout and a typical section per cross-section, drawn from the slopes, bays and rooflights above, with the ARS title block.</p>
       <div class="g3">${f.text('Drawing no. prefix', b + '.no', { ph: s.ref || 'e.g. OD687' })}${f.text('Revision', b + '.rev', { ph: 'P01' })}${f.text('Drawn by', b + '.by', { ph: 'initials' })}</div>
       <div class="g3">${f.text('Issue', b + '.issue', { ph: 'FOR COMMENT & APPROVAL' })}${f.select('Status', b + '.status', RD_ST)}${f.text('North (degrees, blank = none)', b + '.north', { type: 'number', ph: '' })}</div>
       ${f.text('Notes (title block)', b + '.notes', { ph: '' })}<div class="g3">${lay}</div>${f.select('Add the drawings to the RFQ PDFs', b + '.inRfq', ['yes', 'no'])}
@@ -9132,7 +9136,7 @@ function bsMerge(m) { const cur = S.settings.brief = S.settings.brief || {}; Obj
 { const _ap = applyDailySettings; applyDailySettings = function (d) { if (d && d.brief) bsMerge(d.brief); if (d && Array.isArray(d.tbtLib) && d.tbtLib.length && (isOp() || !S.settings.tbtLib)) S.settings.tbtLib = d.tbtLib; return _ap(d); }; }
 // one writer for the shared 'daily' value: request statuses (v1.9.12) + briefings, merged with the server copy first
 mrPushDaily = async function () { const rows = await sbFetch('/rest/v1/app_settings?select=key,value&key=eq.daily') || []; const v0 = (rows[0] && rows[0].value) || {}; if (v0.matreq) mrMergeStatus(v0.matreq); if (v0.brief) bsMerge(v0.brief);
-  await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'daily', value: Object.assign(mrDailyValue(), { brief: S.settings.brief || {}, tbtLib: S.settings.tbtLib || null }) }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); };
+  await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'daily', value: dailyKeep(v0, Object.assign({}, v0, mrDailyValue(), { brief: S.settings.brief || {}, tbtLib: S.settings.tbtLib || null })) }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); };
 async function bsShare() { await DB.setKV('settings', S.settings); if (!signedIn()) return toast('Saved on this device - sign in to issue to operatives'); try { await mrPushDaily(); return true; } catch (e) { toast('Saved here - not shared yet: ' + (e.message || e)); } }
 const bsPdfPath = name => `${me()}/briefing/${name}.pdf`;
 async function bsUpload(file, name) { const p = bsPdfPath(name); await sbFetch(`/storage/v1/object/${DC_BUCKET}/${encPath(p)}`, { method: 'POST', body: file, headers: { 'Content-Type': 'application/pdf', 'x-upsert': 'true' } }); return p; }
@@ -9617,7 +9621,7 @@ setTimeout(() => { if (signedIn()) recLoadMine().then(() => { if (!route()[0] &&
 /* ---------- tiny .xlsx writer (stored zip, inline strings) ---------- */
 const XCRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 const xcrc = u => { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = XCRC[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
-function zipStore(files) { const enc = new TextEncoder(), parts = [], cent = []; let off = 0;
+function zipStoreA(files) { /* v1.11.0: own name - it used to replace the quote .docx writer zipStore (app17), which broke "Download Word" since v1.10.1 */ const enc = new TextEncoder(), parts = [], cent = []; let off = 0;
   for (const [name, str] of files) { const n = enc.encode(name), d = typeof str === 'string' ? enc.encode(str) : str, crc = xcrc(d); const h = new DataView(new ArrayBuffer(30));
     h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(8, 0, true); h.setUint32(14, crc, true); h.setUint32(18, d.length, true); h.setUint32(22, d.length, true); h.setUint16(26, n.length, true);
     parts.push(new Uint8Array(h.buffer), n, d); const c = new DataView(new ArrayBuffer(46)); c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint32(16, crc, true); c.setUint32(20, d.length, true); c.setUint32(24, d.length, true); c.setUint16(28, n.length, true); c.setUint32(42, off, true);
@@ -9633,7 +9637,7 @@ function xlsxBlob(sheets) { const x = s => String(s == null ? '' : s).replace(/[
     ['xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
     ['xl/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`]]
     .concat(sheets.map((s, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXml(s.rows)]));
-  return new Blob([zipStore(files)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }); }
+  return new Blob([zipStoreA(files)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }); }
 /* ---------- data ---------- */
 S.adm = S.adm || { tab: 'ops', q: '', leavers: false, ctype: '', cjob: '', cst: 'attention', est: 'submitted', emonth: '', eop: '' };
 let admLoadT = 0;
@@ -10296,7 +10300,7 @@ async function buildOmZip(pk, prog) { const o = await buildOmPack(pk, prog), d =
   links.forEach(l => { const pg = ix.getPage(l.pg), H = pg.getHeight(); const act = ctx.obj({ Type: 'Action', S: 'GoToR', F: ctx.obj({ Type: 'Filespec', F: PDFString.of(l.f), UF: PDFString.of(l.f) }), D: ctx.obj([PDFNumber.of(0), PDFName.of('Fit')]), NewWindow: true });
     const an = ctx.register(ctx.obj({ Type: 'Annot', Subtype: 'Link', Rect: [l.x * k2pt, H - (l.y + l.h) * k2pt, (l.x + l.w) * k2pt, H - l.y * k2pt], Border: [0, 0, 0], A: act })); let A = pg.node.lookup(PDFName.of('Annots')); if (!A) { A = ctx.obj([]); pg.node.set(PDFName.of('Annots'), A); } A.push(an); });
   files.unshift(['00 Index.pdf', new Uint8Array(await ix.save())]);
-  const name = omFn(`${d.jobRef || 'ARS'} ${d.site || ''} - HS File & OM Manual`); const zip = zipStore(files.map(([f, b]) => [name + '/' + f, b]));
+  const name = omFn(`${d.jobRef || 'ARS'} ${d.site || ''} - HS File & OM Manual`); const zip = zipStoreA(files.map(([f, b]) => [name + '/' + f, b]));
   return { zip: new Blob([zip], { type: 'application/zip' }), combined: d.combined ? o.blob : null, pages: o.pages, files: files.map(f => f[0]), skipped: o.skipped, flattened: o.flattened, name }; }
 Object.assign(ACTIONS, {
   async 'om-build'() { const pk = omCur(); clearTimeout(omSaveT); const pr = s => { const el = $('#om-prog'); if (el) el.textContent = s; };
@@ -10778,6 +10782,15 @@ function flGutSkHTML(r) { const L = (r.gutSketches || []).filter(k => k.data); i
 Object.assign(ACTIONS, { flgskdel(a) { const c = flCtx(), r = flRfq(); r.gutSketches = (r.gutSketches || []).filter(k => k.id !== a.dataset.id); c.save(); rerender(true); } });
 { const _b = buildFlashRFQ; buildFlashRFQ = async function (r) { const L = (r.gutSketches || []).filter(k => k.data && !String(k.data).startsWith('sb:')); if (!L.length || !rfqDrw()) return _b(r);
     const G = []; L.forEach(k => { let g = G.find(x => x.name === k.gutter); if (!g) G.push(g = { name: k.gutter, sketches: [] }); g.sketches.push({ id: k.id, caption: k.caption, data: k.data, w: k.w, h: k.h }); }); r._gutSkPage = G; try { return await _b(r); } finally { delete r._gutSkPage; } }; }
+
+/* ===== v1.11.0 (go-live of the v1.9-1.10 features on the main app): shared settings safety =====
+   A device updated from v1.8.5 still has its old "settings already synced" stamp, so its first sync of a session pushed the shared
+   'daily' settings BEFORE pulling them - and blanked the parts v1.8.5 never had on the phone (toolbox talk library, plant list for
+   requests...). Now every session pulls the shared settings first; nothing is pushed until that pull has worked. ===== */
+{ const _pl = pullSettings, _ps = pushSettings;
+  pullSettings = async function (...a) { const r = await _pl.apply(this, a); Cloud.pulledS = true; return r; };
+  pushSettings = async function (...a) { if (!Cloud.pulledS) { if (Cloud.pullingS) return; Cloud.pullingS = true; try { await pullSettings(); } finally { Cloud.pullingS = false; } if (!Cloud.pulledS) return; } return _ps.apply(this, a); };
+  const _mp = mrPushDaily; mrPushDaily = async function (...a) { if (!Cloud.pulledS && !Cloud.pullingS) { Cloud.pullingS = true; try { await pullSettings(); } finally { Cloud.pullingS = false; } } return _mp.apply(this, a); }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
