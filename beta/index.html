@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.14">
+<meta name="app-version" content="1.10.15">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.14';
+const APP_VERSION = '1.10.15';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -1724,7 +1724,7 @@ document.addEventListener('click', async e => {
   const ta = t.closest('[data-tauto] button'); if (ta) { const o = getPath(S.settings, ta.parentElement.dataset.tauto); o.auto = ta.dataset.v === '1'; saveSettings(); rerender(); return; }
   const a = t.closest('[data-act]'); if (!a) return;
   const act = a.dataset.act; const job = S.ctx && S.ctx.job;
-  const A = ACTIONS[act]; if (A) { e.preventDefault(); try { await A(a, job); } catch (err) { console.error(err); toast('Error: ' + (err.message || err)); } }
+  const A = ACTIONS[act]; if (A) { if (!a.matches('input[type=checkbox],input[type=radio]')) e.preventDefault(); try { await A(a, job); } catch (err) { console.error(err); toast('Error: ' + (err.message || err)); } }
 });
 const ACTIONS = {
   async newjob() {
@@ -6317,6 +6317,7 @@ function qGuessTypes(src) {
   if (/rooflight|roof light/.test(t)) out.push('rooflight'); if (/gutter/.test(t)) out.push('gutter'); if (/flashing/.test(t)) out.push('flashing'); if (/mansafe|hatch|ladder|fall arrest/.test(t)) out.push('mansafe');
   return out.length ? [...new Set(out)].slice(0, 2) : ['composite'];
 }
+function qPrelAllLbl(q) { const b = document.getElementById('qprel-all'); if (b) b.textContent = Object.keys(qSettings().prelims).every(k => q.prelims.includes(k)) ? 'Uncheck all' : 'Check all'; }
 function qGuessPrelims(src) {
   const sc = (typeof scafLines === 'function' ? scafLines(src) : []).map(i => i.text + ' ' + (i.mewpType || '')).join(' ').toLowerCase(); const hs = src.hs || {}; const H = JSON.stringify(hs).toLowerCase(); const k = [];
   if (/independent/.test(sc)) k.push('scaffold'); if (/edge protection|handrail|edge prot/.test(sc + H)) k.push('edge');
@@ -6408,6 +6409,7 @@ function viewQuote(job, q) {
   ${q.options.map(opt).join('')}
   ${q.options.length < 3 || q.layout === 'full' ? `<button type="button" class="btn block" data-act="qoptadd">${I.plus} Add option ${q.options.length + 1}</button><div style="height:12px"></div>` : ''}
   <div class="card"><h2>Preliminaries</h2><p class="hint">Ticked from the H&amp;S checklist and scaffold / access list. Edit the wording in Settings &gt; Quotes.</p>
+    <button type="button" class="btn" id="qprel-all" data-act="qprelall" style="margin:0 0 8px">${Object.keys(P).every(k => q.prelims.includes(k)) ? 'Uncheck all' : 'Check all'}</button>
     ${Object.keys(P).map(k => `<label class="ckl"><input type="checkbox" data-act="qprelim" data-k="${k}" ${q.prelims.includes(k) ? 'checked' : ''}> ${esc(P[k].title)}</label>`).join('')}
     ${f.seg('Add "no allowance for access / cranage by others" wording', b + '.noAllowance', [['true', 'Yes'], ['false', 'No']])}
     ${f.area('Extra notes / exclusions (optional)', b + '.notes', { rows: 3 })}</div>
@@ -6446,7 +6448,9 @@ Object.assign(ACTIONS, {
   qapply(a, job) { const q = qOf(job); const o = q.options.find(x => x.id === a.dataset.oid); const B = qBuild(o); if (o.prices.length > 1) o.prices = [o.prices[0]]; o.prices[0].amount = String(B.sell); markDirty(job); rerender(); },
   qoptadd(a, job) { const q = qOf(job); const src = getJob(q.srcId) || qSrc(job); q.options.push(qOption(src, q.options.length + 1, [])); q.options[q.options.length - 1].title = `Option ${q.options.length} - `; markDirty(job); rerender(); },
   async qoptdel(a, job) { const q = qOf(job); if (!await confirmBox('Remove option?', 'The option and its prices will be removed from this quote.', 'Remove')) return; q.options = q.options.filter(x => x.id !== a.dataset.id); markDirty(job); rerender(); },
-  qprelim(a, job) { const q = qOf(job); const k = a.dataset.k; q.prelims = q.prelims.includes(k) ? q.prelims.filter(x => x !== k) : [...q.prelims, k]; markDirty(job); },
+  qprelim(a, job) { const q = qOf(job); const k = a.dataset.k; q.prelims = q.prelims.includes(k) ? q.prelims.filter(x => x !== k) : [...q.prelims, k]; markDirty(job); qPrelAllLbl(q); },
+  qprelall(a, job) { const q = qOf(job), K = Object.keys(qSettings().prelims), all = K.every(k => q.prelims.includes(k)); q.prelims = all ? [] : K.slice(); markDirty(job);
+    $$('[data-act="qprelim"]').forEach(c => { c.checked = q.prelims.includes(c.dataset.k); }); qPrelAllLbl(q); },
   qlink(a, job) { const q = qOf(job); const l = q.links.find(x => x.id === a.dataset.id); l.on = !l.on; markDirty(job); },
   qphoto(a, job) { const q = qOf(job); const id = a.dataset.id; q.photoIds = q.photoIds.includes(id) ? q.photoIds.filter(x => x !== id) : [...q.photoIds, id].slice(-4); markDirty(job); rerender(); },
   async qrefresh(a, job) { const q = qOf(job); if (!await confirmBox('Refresh from survey?', 'Client, site, visit, roof areas, defects, links and preliminaries are re-read from the latest survey / contracts copy. Prices and specifications are kept.', 'Refresh', false)) return;
