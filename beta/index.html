@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.17">
+<meta name="app-version" content="1.10.18">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.17';
+const APP_VERSION = '1.10.18';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -998,6 +998,7 @@ const S = { jobs: [], settings: clone(DEFAULT_SETTINGS), filter: 'all', q: '', d
 const getJob = id => S.jobs.find(j => j.id === id);
 
 function markDirty(job) {
+  if (job && job._save) { job._save(); return; }
   job.updated = Date.now();
   S.dirty.add(job.id);
   setSaved(false);
@@ -2108,6 +2109,9 @@ async function buildPDF(job, opts) {
     measBlock(a, 'Measurements');
     y += 3;
   });
+  { const gs = (job.sheetSchedules || []).flatMap(ss => (ss.gutters || []).map(g => ({ ss, g }))).filter(x => (x.g.sketches || []).some(k => k && k.data));
+    if (gs.length) { h3('Gutters & valleys - sketches'); table({ head: [['Gutter / valley', 'Type', 'Girth legs (mm)', 'Girth', 'Length x runs', 'Outlets', 'Material']], body: gs.map(({ g }) => [tx(g.name || g.type), tx(g.type), tx(g.legs), ssGirth(g) ? ssGirth(g) + ' mm' : '-', `${g.length || '-'} m x ${g.qty || 1}`, tx(g.outlets || '-'), tx(g.material || '-')]), styles: { fontSize: 8 } });
+      need(CW * 0.375 + 22); measBlock({ measurements: gs.flatMap(({ g }) => g.sketches.filter(k => k && k.data).map(k => ({ id: 'gsk-' + k.id, kind: 'sketch', data: k.data, w: k.w || 1200, h: k.h || 900, caption: `${g.name || g.type || 'Gutter'}${k.caption ? ' - ' + k.caption : ''}` }))) }, 'Gutter & valley sketches'); y += 3; } }
 
   /* ----- 5. Defects schedule ----- */
   const P = { P1: 0, P2: 1, P3: 2, P4: 3 };
@@ -7355,8 +7359,8 @@ function viewFlashRfq(h, r) {
     <button type="button" class="btn block" data-act="flsketch">✎ ${r.sketch && r.sketch.strokes.length ? 'Open site sketch' : 'Start a site sketch'}</button>${r.sketch && r.sketch.strokes.length ? `<label class="ckl"><input type="checkbox" data-act="flskpdf" ${r.sketchInPdf !== false ? 'checked' : ''}> Attach the site sketch to the PDF (last page)</label>` : ''}</div><div style="height:12px"></div>
   <div class="card"><h2>Extras</h2><p class="hint">Stop ends, gutter arms, outlets, rivets, sealant…</p>${qRows(`${b}.extras`, r.extras, [['desc', 'Item'], ['spec', 'Material / colour'], ['qty', 'Qty']], { desc: '', spec: '', qty: '' })}</div>
   <div class="card"><h2>Request for quotation</h2>${f.area('Notes to the supplier', b + '.notes', { rows: 3, ph: 'e.g. Please quote per 3m length. Lead time and delivery charge.' })}
-    <div class="btns"><button class="btn primary" data-act="flpdf">${I.pdf} Flashings RFQ PDF</button><button class="btn" data-act="flcopy">Duplicate</button><button class="btn danger" data-act="flrm">Delete</button></div><div id="qout" style="margin-top:10px"></div>
-    <p class="hint">The PDF has a summary table with a thumbnail of each drawing, then a larger drawing page per flashing. Nothing is sent from the app.</p></div>`;
+    ${typeof rfqDrwHTML === 'function' ? rfqDrwHTML('A larger drawing page per flashing and the site sketch. The profile thumbnails always stay in the list') : ''}<div class="btns"><button class="btn primary" data-act="flpdf">${I.pdf} Flashings RFQ PDF</button><button class="btn" data-act="flcopy">Duplicate</button><button class="btn danger" data-act="flrm">Delete</button></div><div id="qout" style="margin-top:10px"></div>
+    <p class="hint">The PDF has a summary table with a thumbnail of each drawing; with Include drawings ticked it also has a larger drawing page per flashing. Nothing is sent from the app.</p></div>`;
 }
 Object.assign(ACTIONS, {
   async flnew() { const c = flCtx(); const r = newFlashRfq(S.ctx && S.ctx.job); (c.h.flashRfqs = c.h.flashRfqs || []).push(r); await c.save(); go(`${c.base}/${r.id}`); },
@@ -7389,7 +7393,7 @@ function viewFlashStandalone(r) {
 { const _vr = viewRoofs; viewRoofs = function (job) { const n = (job.flashRfqs || []).length; return _vr(job) + `<div class="card"><h2>Flashings RFQ <span class="tag">optional</span></h2><p class="hint" style="margin-bottom:12px">Draw each flashing profile and get a price from your supplier.</p><a class="btn block" href="#/job/${job.id}/flash">✎ Flashings RFQ${n ? ` (${n})` : ''}</a></div>`; }; }
 { const _vw = viewWorksDetails; viewWorksDetails = function (job) { const n = (job.flashRfqs || []).length; return _vw(job) + `<div class="card"><h2>Flashings RFQ <span class="tag">optional</span></h2><a class="btn block" href="#/job/${job.id}/flash">✎ Flashings RFQ${n ? ` (${n})` : ''}</a></div>`; }; }
 /* ---------- PDF (A4 landscape, matches the ARS flashing RFQ sheet) ---------- */
-async function buildFlashRFQ(r) {
+async function buildFlashRFQ(r) { const DRW = typeof rfqDrw === 'function' ? rfqDrw() : true;
   const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape', compress: true }); const st = S.settings;
   const W = 297, H = 210, M = 12; const OR = [242, 140, 40], G = [74, 79, 85], TXT = [25, 25, 25], LG = [140, 140, 140];
   const tx = s => String(s ?? '').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/\u2026/g, '...').replace(/\u00D7/g, 'x').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
@@ -7422,13 +7426,13 @@ async function buildFlashRFQ(r) {
   font(8.6, 'normal'); doc.text('Supplier name: ____________________    Quote ref: ____________    Signed: ____________________    Date: ____________', M, y);
   if (r.by) { font(8, 'normal', LG); doc.text(tx(`Requested by ${r.by}, ${st.company || 'Absolute Roofing Solutions Ltd'}${st.email ? ' · ' + st.email : ''}`), M, y + 5); }
   // one larger drawing page per item
-  r.items.forEach((it, i) => { doc.addPage(); let yy = head(true); font(15, 'bold', G); doc.text(tx(`${flCode(r, i)}  ${it.desc || 'Flashing'}`), M, yy + 4);
+  if (DRW) r.items.forEach((it, i) => { doc.addPage(); let yy = head(true); font(15, 'bold', G); doc.text(tx(`${flCode(r, i)}  ${it.desc || 'Flashing'}`), M, yy + 4);
     const img = thumbs[i] ? flPNG(it.drawing, 1400, 980) : null; const bw = 190, bh = 133;
     doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.3); doc.rect(M, yy + 9, bw, bh); if (img) doc.addImage(img, 'PNG', M + 1, yy + 10, bw - 2, bh - 2); else { font(11, 'normal', LG); doc.text('No drawing', M + bw / 2, yy + 9 + bh / 2, { align: 'center' }); }
     const kv = [['Girth (mm)', B(it.girth) + (flGN(it) ? '  (' + tx(flGN(it)) + ')' : '')], ['Bends', B(flBendsOut(it))], ['Material', B(it.material || r.material)], ['Gauge', B(it.gauge || r.gauge)], ['Colour / finish', B(it.colour || r.colour)], ['Colour side', it.colourSide || r.colourSide || '[__]'], ['Length', B(flLenFmt(it.length || flLenDef()))], ['Quantity', it.qty ? it.qty + (/^\d+$/.test(it.qty) ? ' no' : '') : '[__]'], ['Notes', it.notes || '-']];
     doc.autoTable({ startY: yy + 9, margin: { left: M + bw + 6, right: M }, body: kv.map(([k, v]) => [k, tx(v)]), theme: 'grid', styles: { fontSize: 9.5, cellPadding: 2.2, lineColor: [190, 190, 190], lineWidth: 0.25 }, columnStyles: { 0: { fontStyle: 'bold', cellWidth: 30, fillColor: [244, 244, 244] } } });
     font(8, 'normal', LG); doc.text('Not to scale - dimensions in mm. Red = dimensions, blue = angles.', M, yy + bh + 14); });
-  if (r.sketch && r.sketch.strokes.length && r.sketchInPdf !== false) { doc.addPage(); let yy = head(true); font(15, 'bold', G); doc.text('Appendix - original site sketch', M, yy + 4);
+  if (DRW && r.sketch && r.sketch.strokes.length && r.sketchInPdf !== false) { doc.addPage(); let yy = head(true); font(15, 'bold', G); doc.text('Appendix - original site sketch', M, yy + 4);
     const bb = flBounds(r.sketch), ar = bb ? (bb.x1 - bb.x0 + 80) / (bb.y1 - bb.y0 + 80) : 1.4, bw = W - M * 2, bh = Math.min(H - yy - 30, bw / ar), iw = bh * ar;
     doc.addImage(flPNG(r.sketch, 2000, Math.round(2000 / ar)), 'PNG', M + (bw - iw) / 2, yy + 10, iw, bh); font(8, 'normal', LG); doc.text('As drawn on site - not to scale. The flashings above were taken from this sketch.', M, yy + 14 + bh); }
   const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); font(7.5, 'normal', LG); doc.text(`Page ${i} of ${n}`, W - M, H - 6, { align: 'right' }); }
@@ -8159,12 +8163,12 @@ function viewSheetSchedule(h, s, job) { const f = mk(h), b = `sheetSchedules#${s
     <div class="card"><h2>Cross-sections</h2><div id="ss-xs">${ssXsHTML(s)}</div><div class="btns">${(ssSecs(s).length ? ssSecs(s) : ["A"]).map(k => `<button type="button" class="btn primary" data-act="sspad" data-sec="${esc(k)}">✎ Purlin sketch pad - section ${esc(k)}</button>`).join('')}</div><p class="hint">Drag purlins and slopes onto the pad and write or type the gaps - it fills in the slopes above. Edits here update the pad.</p></div>
     <div class="card"><h2>Gutters &amp; valleys</h2>${(s.gutters || []).map(g => { const gb = `${b}.gutters#${g.id}`; return `<div class="ss-gut"><div class="row">${f.text('Gutter', gb + '.name')}${sel('Type', gb + '.type', ['Valley gutter', 'Eaves gutter', 'Box gutter', 'Boundary wall gutter'], g.type)}<button type="button" class="ck-x" data-act="ssdelgut" data-id="${g.id}" aria-label="Remove gutter">×</button></div>
       <div class="row">${f.text('Girth legs (mm)', gb + '.legs', { ph: 'e.g. 100, 265, 460, 305, 70, 230', hint: 'Each fold-to-fold leg; the girth is the sum.' })}${f.text('Material', gb + '.material', { ph: 'e.g. 2 mm galv / GRP lined' })}</div>
-      <div class="row">${f.text('Length (m)', gb + '.length', { type: 'number' })}${f.text('Number of runs', gb + '.qty', { type: 'number', ph: '1' })}${f.text('Outlets', gb + '.outlets', { ph: 'e.g. 6in x1, 4in x1' })}</div><p class="hint">Girth ${ssGirth(g) || '-'} mm${ssGirth(g) ? ` · ${String(g.legs).split(/[,; ]+/).filter(Boolean).length - 1} bends` : ''}</p></div>`; }).join('')}
+      <div class="row">${f.text('Length (m)', gb + '.length', { type: 'number' })}${f.text('Number of runs', gb + '.qty', { type: 'number', ph: '1' })}${f.text('Outlets', gb + '.outlets', { ph: 'e.g. 6in x1, 4in x1' })}</div><p class="hint">Girth ${ssGirth(g) || '-'} mm${ssGirth(g) ? ` · ${String(g.legs).split(/[,; ]+/).filter(Boolean).length - 1} bends` : ''}</p>${typeof ssGutSketchHTML === 'function' ? ssGutSketchHTML(s, g, gb) : ''}</div>`; }).join('')}
       <div class="btns"><button type="button" class="btn" data-act="ssaddgut">${I.plus} Add gutter / valley</button>${(s.gutters || []).length ? '<button type="button" class="btn" data-act="ssgutfl">→ Send to a flashings RFQ</button>' : ''}</div></div>
     <div class="card"><h2>Schedule</h2><div id="ss-calc">${ssResults(s)}</div></div>
     <div class="card"><h2>Ancillaries (approx.)</h2><div id="ss-anc">${ssAncHTML(C)}</div>${job ? `<a class="btn block" href="#/job/${job.id}/flash">✎ Flashings schedule / RFQ</a>` : '<a class="btn block" href="#/flash">✎ Flashings RFQ</a>'}</div>
     <div class="card"><h2>Request for quotation</h2>${f.area('Notes to the supplier', b + '.notes', { rows: 3, ph: 'e.g. Please quote delivered, with lead time. Lengths to be confirmed before order.' })}
-      <div class="btns">${ssSuppliers(s).map(x => `<button class="btn primary" data-act="sspdf" data-sup="${esc(x)}">${I.pdf} RFQ - ${esc(x)}</button>`).join('')}<button class="btn" data-act="sspdf" data-sup="">${I.pdf} Full schedule</button><button class="btn" data-act="sscopy">Duplicate</button><button class="btn danger" data-act="ssrm">Delete</button></div><div id="qout" style="margin-top:10px"></div>
+      ${typeof rfqDrwHTML === 'function' ? rfqDrwHTML() : ''}<div class="btns">${ssSuppliers(s).map(x => `<button class="btn primary" data-act="sspdf" data-sup="${esc(x)}">${I.pdf} RFQ - ${esc(x)}</button>`).join('')}<button class="btn" data-act="sspdf" data-sup="">${I.pdf} Full schedule</button><button class="btn" data-act="sscopy">Duplicate</button><button class="btn danger" data-act="ssrm">Delete</button></div><div id="qout" style="margin-top:10px"></div>
       <p class="hint">Each supplier PDF lists only what that supplier makes (panels + ancillaries, or rooflights). Nothing is sent from the app.</p></div>`; }
 const ssAncHTML = C => `<table class="mtbl"><tr><th>Item</th><th>Qty</th><th>Note</th></tr>${C.anc.map(a => `<tr><td>${esc(a[0])}</td><td>${esc(a[1])}</td><td>${esc(a[2])}</td></tr>`).join('')}</table><p class="hint">Approximate - for pricing only. Check against the manufacturer's fixing schedule.</p>`;
 const ssSuppliers = s => { const o = []; const p = ssProd(s); if (p && p.maker !== 'Other') o.push(p.maker); const rl = ssRl(s); if (rl && rl.maker !== (p && p.maker)) o.push(rl.maker); return o; };
@@ -8199,7 +8203,7 @@ async function buildSheetRFQ(s, sup, pkg) { const { jsPDF } = window.jspdf; cons
   const W = 297, H = 210, M = 12, OR = [242, 140, 40], G = [74, 79, 85], TXT = [25, 25, 25], LG = [140, 140, 140], RED = [185, 28, 28];
   const tx = v => String(v ?? '').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/\u2026/g, '...').replace(/\u00D7/g, 'x').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
   const B = v => (String(v ?? '').trim() ? String(v).trim() : '[__]'); const font = (sz, w = 'normal', c = TXT) => { doc.setFont('helvetica', w); doc.setFontSize(sz); doc.setTextColor(...c); };
-  const C = ssCalc(s), p = ssProd(s), rl = ssRl(s), panels = pkg ? pkg === 'panels' : (!sup || (p && p.maker === sup)), lights = pkg ? pkg === 'rooflights' : (!sup || (rl && rl.maker === sup)), anc = pkg ? pkg === 'flashings' : panels;
+  const DRW = typeof rfqDrw === 'function' ? rfqDrw() : true; const C = ssCalc(s), p = ssProd(s), rl = ssRl(s), panels = pkg ? pkg === 'panels' : (!sup || (p && p.maker === sup)), lights = pkg ? pkg === 'rooflights' : (!sup || (rl && rl.maker === sup)), anc = pkg ? pkg === 'flashings' : panels;
   const title = `REQUEST FOR QUOTATION - ${pkg === 'flashings' ? 'FLASHINGS & ANCILLARIES' : panels && lights ? 'ROOF SHEETS & ROOFLIGHTS' : lights ? 'ROOFLIGHTS' : 'ROOF SHEETS'}`;
   const head = small => { if (st.logo && st.logoW) { const lh = small ? 16 : 30, lw = Math.min(small ? 40 : 34, lh * st.logoW / st.logoH); doc.addImage(st.logo, /png/.test(st.logo.slice(0, 20)) ? 'PNG' : 'JPEG', M, 8, lw, lw * st.logoH / st.logoW, 'sslogo', 'FAST'); }
     font(small ? 11 : 13, 'bold', G); if (small) doc.text(title, M + 44, 15); else { const tl = doc.splitTextToSize(title, 182 - M - 40 - 4); doc.text(tl, M + 40, tl.length > 1 ? 14 : 17); }
@@ -8216,22 +8220,23 @@ async function buildSheetRFQ(s, sup, pkg) { const { jsPDF } = window.jspdf; cons
     { const cs = C.slopes.filter(r => r.cut && r.cols && r.sheetsCols + r.rlc.length > 0); if (cs.length) { font(7.6, 'bold', G); const nt = doc.splitTextToSize(tx(`Cut sheets: the roof length is not a whole number of ${cs[0].cover} mm covers, so the last column on ${cs.map(r => `${r.sl.name} (~${r.cut} mm wide)`).join(', ')} is a full sheet cut to width on site - included in the quantities above as full sheets.`), W - 2 * M); doc.text(nt, M, y + 1); y += nt.length * 3.4 + 2; } }
     if (typeof ssRowCBs === 'function' && C.sheetRows.concat(C.rlRows).some(r => ssRowCBs(s, r))) { font(7.6, 'normal', G); const nt = doc.splitTextToSize(tx(`Cutback = core / liner cut back at the BOTTOM (lower) end of the piece: "eaves" = into the gutter${ssComposite(s) ? `; "end lap" = the upper piece at an end lap, cut back ${ssLapCB(s)} mm so its top skin laps over the piece below` : ''}. Lengths are overall lengths and already include the lap - do not add the cutback to the length.`), W - 2 * M); doc.text(nt, M, y + 1); y += nt.length * 3.4 + 3; } }
   if (lights && C.rlRows.length) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['#', 'Roof slope', 'Rooflight', 'Length (mm)', 'Qty', 'Columns', 'Type', 'Rate / Total']], body: C.rlRows.map((r, i) => [`R${i + 1}`, tx(r.slope), r.piece, String(r.len) + (typeof ssRowCB === 'function' && ssRowCB(s, r) ? `\ncutback ${ssRowCB(s, r)}` : ''), String(r.qty), r.cols, tx(`${s.rlSkin || ''} ${s.rlFrag || ''}${typeof rlU === 'function' && rlU(s) ? ' U ' + rlU(s) : ''}`), '']), columnStyles: { 0: { cellWidth: 12 }, 3: { cellWidth: 38, fontStyle: 'bold' }, 4: { cellWidth: 16 }, 7: { cellWidth: 34 } } })); y = doc.lastAutoTable.finalY + 4; }
-  if (typeof rfqFlashTable === 'function' && pkg === 'flashings') { y = rfqFlashTable(doc, s, T, y, tx); if ((s.gutters || []).length) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['Gutters & valleys', 'Girth legs (mm)', 'Girth', 'Length x runs', 'Outlets', 'Material', 'Rate / Total']], body: s.gutters.map(g => [tx(g.name || g.type), tx(g.legs), ssGirth(g) ? ssGirth(g) + ' mm' : '[__]', `${g.length || '[__]'} m x ${g.qty || 1}`, tx(g.outlets || '-'), tx(g.material || '[__]'), '']) })); y = doc.lastAutoTable.finalY + 4; } }
+  if (typeof rfqFlashTable === 'function' && pkg === 'flashings') { y = rfqFlashTable(doc, s, T, y, tx); if ((s.gutters || []).length) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['Gutters & valleys', 'Girth legs (mm)', 'Girth', 'Length x runs', 'Outlets', 'Material', 'Rate / Total']], body: s.gutters.map(g => [tx(g.name || g.type), tx(g.legs), ssGirth(g) ? ssGirth(g) + ' mm' : '[__]', `${g.length || '[__]'} m x ${g.qty || 1}`, tx(g.outlets || '-'), tx(g.material || '[__]'), '']) })); y = doc.lastAutoTable.finalY + 4; { const nk = s.gutters.reduce((t, g) => t + (typeof gskList === 'function' ? gskList(g).length : 0), 0); if (nk && DRW) { font(8, 'bold', G); doc.text(tx(`${nk} gutter / valley sketch${nk === 1 ? '' : 'es'} attached - see the 'Gutter & valley sketches' page.`), M, y + 1); y += 6; } } } }
   if (anc) { doc.autoTable(Object.assign({}, T, { startY: y, head: [['Ancillaries (approx. - please advise)', 'Qty', 'Notes', 'Rate / Total']], body: C.anc.map(a => [tx(a[0]), tx(a[1]), tx(a[2]), '']), columnStyles: { 1: { cellWidth: 30 }, 3: { cellWidth: 34 } } })); y = doc.lastAutoTable.finalY + 4; }
   if (y > H - 34) { doc.addPage(); y = head(true); }
   if (C.warn.length) { font(8.4, 'bold', RED); const wl = doc.splitTextToSize(tx('Notes: ' + C.warn.join(' | ')), W - 2 * M); doc.text(wl, M, y); y += wl.length * 3.8 + 2; }
   font(8.6, 'bold'); doc.text('Please confirm:', M, y); font(8.6, 'normal'); const nt = doc.splitTextToSize(tx(`lead time, delivery charge, price per item and total ex VAT, validity, and that the lengths / purlin centres suit the product's load tables. Lengths measured on site from below - to be confirmed before order. Anything marked [__] is to be confirmed.${s.notes ? ' ' + s.notes : ''}`), W - 2 * M - 26); doc.text(nt, M + 25, y); y += nt.length * 4 + 4;
   font(8.6, 'normal'); doc.text('Supplier name: ____________________    Quote ref: ____________    Signed: ____________________    Date: ____________', M, y); if (s.by) { font(8, 'normal', LG); doc.text(tx(`Requested by ${s.by}, ${st.company || 'Absolute Roofing Solutions Ltd'}${st.email ? ' · ' + st.email : ''}`), M, y + 5); }
   // gutters (full schedule / panel supplier)
-  if (!pkg && panels && (s.gutters || []).length) { doc.autoTable(Object.assign({}, T, { startY: Math.max(y + 10, doc.lastAutoTable ? doc.lastAutoTable.finalY + 6 : 0), head: [[pkg ? 'Gutters & valleys' : 'Gutters & valleys (for information - see flashings RFQ)', 'Girth legs (mm)', 'Girth', 'Length x runs', 'Outlets', 'Material']], body: s.gutters.map(g => [tx(g.name || g.type), tx(g.legs), ssGirth(g) ? ssGirth(g) + ' mm' : '[__]', `${g.length || '[__]'} m x ${g.qty || 1}`, tx(g.outlets || '-'), tx(g.material || '[__]')]) })); }
-  if (typeof ssPlanPage === 'function') ssPlanPage(doc, s, C, head, T, W, H, M, tx);
+  if (!pkg && panels && (s.gutters || []).length) { let gy = Math.max(y + 10, doc.lastAutoTable ? doc.lastAutoTable.finalY + 6 : 0); if (gy + 9 + s.gutters.length * 7 > H - 14) { doc.addPage(); gy = head(true); } doc.autoTable(Object.assign({}, T, { startY: gy, head: [[pkg ? 'Gutters & valleys' : 'Gutters & valleys (for information - see flashings RFQ)', 'Girth legs (mm)', 'Girth', 'Length x runs', 'Outlets', 'Material']], body: s.gutters.map(g => [tx(g.name || g.type), tx(g.legs), ssGirth(g) ? ssGirth(g) + ' mm' : '[__]', `${g.length || '[__]'} m x ${g.qty || 1}`, tx(g.outlets || '-'), tx(g.material || '[__]')]) })); }
+  if (DRW && pkg === 'flashings' && typeof ssGutSkPdf === 'function') ssGutSkPdf(doc, s, head, W, H, M, tx);
+  if (DRW && typeof ssPlanPage === 'function') ssPlanPage(doc, s, C, head, T, W, H, M, tx);
   // one page per cross-section: drawing + slope table
-  ssSecs(s).forEach(key => { const rs = C.slopes.filter(r => (r.sl.sec || 'A').trim() === key && r.L); if (!rs.length) return; doc.addPage(); const yy = head(true); const iw = W - 2 * M, ih = iw * 640 / 1400 * 0.82, iw2 = ih * 1400 / 640;
+  if (DRW) ssSecs(s).forEach(key => { const rs = C.slopes.filter(r => (r.sl.sec || 'A').trim() === key && r.L); if (!rs.length) return; doc.addPage(); const yy = head(true); const iw = W - 2 * M, ih = iw * 640 / 1400 * 0.82, iw2 = ih * 1400 / 640;
     doc.addImage(ssXSection(s, key, C), 'PNG', M + (iw - iw2) / 2, yy, iw2, ih);
     doc.autoTable(Object.assign({}, T, { startY: yy + ih + 3, styles: Object.assign({}, T.styles, { fontSize: 8 }), head: [['Slope', 'Pitch', 'Top gap', 'Purlin spacings, ridge down (mm)', 'Bottom end', 'Sheet run', 'Lengths (mm)', 'Roof length', 'Cols / RL']],
       body: rs.map(r => [tx(r.sl.name), `${r.sl.pitch || '[__]'}°`, `${r.sl.topExt || 0}`, r.sp.slice().reverse().join(', '), tx(`${r.sl.endType || ''} +${r.sl.overhang || 0}${ssCbNote(s, r.sl) ? ' (' + ssCbNote(s, r.sl) + ')' : ''}`), `${r.L}`, r.pieces.map(x => x.len).join(' + '), `${r.sl.bldLen || (ssBaysTotal(s) ? ssBaysTotal(s) + " (bays)" : "[__]")} m`, `${r.cols}${r.rlc.length ? ' / ' + r.rlc.length : ''}`]) }));
     const sk = rs.filter(r => r.sl.sketch && r.sl.sketch.strokes.length); if (sk.length && doc.lastAutoTable.finalY < H - 70) { const w2 = 90; sk.slice(0, 2).forEach((r, i) => { doc.addImage(flPNG(r.sl.sketch, 900, 450), 'PNG', M + i * (w2 + 6), doc.lastAutoTable.finalY + 4, w2, w2 / 2); }); } });
-  if (typeof rdAddPages === 'function' && rdIncl(s)) rdAddPages(doc, s);
+  if (DRW && typeof rdAddPages === 'function' && rdIncl(s)) rdAddPages(doc, s);
   const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); if (doc.internal.pageSize.getWidth() > 300) continue; font(7.5, 'normal', LG); doc.text(`Page ${i} of ${n}`, W - M, H - 6, { align: 'right' }); doc.text('Spans, laps and fixings are guidance only - check with the manufacturer.', M, H - 6); }
   doc.setProperties({ title: tx(`Sheet schedule RFQ ${s.ref || ''}`), author: st.company || 'Absolute Roofing Solutions Ltd' });
   return { blob: doc.output('blob'), name: `${pkg ? 'RFQ-' + ({ panels: 'Panels', rooflights: 'Rooflights', flashings: 'Flashings' })[pkg] : 'Sheet-RFQ'}_${safeName(sup || 'all')}_${safeName(s.ref || s.project || 'schedule')}_${s.date || todayISO()}.pdf`, pages: n }; }
@@ -8936,8 +8941,8 @@ Object.assign(ACTIONS, {
   async rfqall() { const s = ssCur(), C = ssCalc(s); toast('Building all RFQs…', 1500); for (const k of ['panels', 'rooflights', 'flashings']) { if (k === 'rooflights' && !C.rlRows.length) continue; const o = await rfqPkg(s, k); qOut(o.blob, o.name); await new Promise(r => setTimeout(r, 400)); } } });
 function rfqCardHTML(s) { const b = `sheetSchedules#${s.id}`, C = ssCalc(s); s.rfqSup = s.rfqSup || {};
   const pick = (k, lab) => `<div class="f"><label>${lab}</label><input list="rfqs_${k}" data-b="${b}.rfqSup.${k}" value="${esc(s.rfqSup[k] || '')}" placeholder="${esc(rfqSup(s, k) || 'Supplier name')}"><datalist id="rfqs_${k}">${RFQ_SUP[k].map(x => `<option value="${esc(x)}">`).join('')}</datalist></div>`;
-  return `<div class="card" id="rfqpk"><h2>RFQs by package</h2><p class="hint">Separate ARS RFQs so different companies can quote. Each has the project details, only its items, and the drawings.</p><div class="row">${pick('panels', 'Panels supplier')}${pick('rooflights', 'Rooflights supplier')}${pick('flashings', 'Flashings & ancillaries supplier')}</div>
-    <div class="btns"><button class="btn primary" data-act="rfqpkg" data-pkg="panels">${I.pdf} Panels RFQ</button>${C.rlRows.length ? `<button class="btn primary" data-act="rfqpkg" data-pkg="rooflights">${I.pdf} Rooflights RFQ</button>` : ''}<button class="btn primary" data-act="rfqpkg" data-pkg="flashings">${I.pdf} Flashings &amp; ancillaries RFQ</button><button class="btn" data-act="rfqall">Export all RFQs</button></div>
+  return `<div class="card" id="rfqpk"><h2>RFQs by package</h2><p class="hint">Separate ARS RFQs so different companies can quote. Each has the project details and only its items; tick Include drawings to add the roof plan, sections, bays plan and gutter sketches.</p><div class="row">${pick('panels', 'Panels supplier')}${pick('rooflights', 'Rooflights supplier')}${pick('flashings', 'Flashings & ancillaries supplier')}</div>
+    ${typeof rfqDrwHTML === 'function' ? rfqDrwHTML() : ''}<div class="btns"><button class="btn primary" data-act="rfqpkg" data-pkg="panels">${I.pdf} Panels RFQ</button>${C.rlRows.length ? `<button class="btn primary" data-act="rfqpkg" data-pkg="rooflights">${I.pdf} Rooflights RFQ</button>` : ''}<button class="btn primary" data-act="rfqpkg" data-pkg="flashings">${I.pdf} Flashings &amp; ancillaries RFQ</button><button class="btn" data-act="rfqall">Export all RFQs</button></div>
     <details style="margin-top:8px"><summary class="small">Supplier order forms (secondary)</summary><div class="btns"><button class="btn sm" data-act="ssxlsx">Kingspan order form (.xlsx)</button><button class="btn sm" data-act="sstata">Tata Trisomet order form (PDF)</button></div></details></div>`; }
 { const _v5 = viewSheetSchedule; viewSheetSchedule = function (h, s, job) { let html = _v5(h, s, job);
   html = html.replace('<button class="btn" data-act="ssxlsx">Kingspan order form (.xlsx)</button>', '').replace('<button class="btn" data-act="sstata">Tata Trisomet order form (PDF)</button>', '');
@@ -10618,6 +10623,45 @@ function bsLibMerge(srv) { if (!Array.isArray(srv) || !srv.length) return; if (!
 const bsLibStamp = i => { const t = (S.settings.tbtLib || [])[+i]; if (t) t.upd = Date.now(); };
 document.addEventListener('change', e => { const d = e.target.dataset || {}; if (d.bsl) bsLibStamp(d.bsl.split('.')[0]); else if (d.bslpdf !== undefined) bsLibStamp(d.bslpdf); }, true);
 { const _ad = ACTIONS['bs-ladd']; ACTIONS['bs-ladd'] = function (...a) { const r = _ad.apply(this, a); const L = S.settings.tbtLib || []; if (L.length) L[L.length - 1].upd = Date.now(); return r; }; }
+
+/* ---------- v1.10.18: gutter & valley sketch pads (sheet schedule -> Gutters & valleys) ----------
+   g.sketches = [{ id, caption, data, ink, grid, w, h }] on each gutter entry; saved with the schedule (job-synced via walkBlobs, or standalone on this device).
+   Uses the measurement sketch pad (padHTML / initPad): pen, line, arrow, dimension, text, eraser, colours, undo, clear, grid; finger, stylus or mouse. */
+function gskBase(s) { const c = ssCtx(); return `${c.base}/${s.id}`; }
+function gskList(g) { return (g.sketches || []).filter(k => k && k.data); }
+function ssGutSketchHTML(s, g, b) { const L = g.sketches || [], base = gskBase(s);
+  return `<div class="gsk"><div class="gsk-h">Sketches <span class="hint">(optional - gutter profile or layout)</span></div>${L.length ? `<div class="gsk-g">${L.map(k => `<a class="gsk-t" href="${base}/gsk/${g.id}/${k.id}">${k.data ? `<img src="${k.data}" alt="">` : '<div class="gsk-e">Empty</div>'}<span>${esc(k.caption || 'Sketch')}</span></a>`).join('')}</div>` : ''}
+    <button type="button" class="btn" data-act="gsknew" data-g="${g.id}">${I.pen} ${L.length ? 'Add another sketch' : 'Add sketch'}</button></div>`; }
+function gskFind(s, gid, kid) { const g = (s && s.gutters || []).find(x => x.id === gid); const k = g && (g.sketches || []).find(x => x.id === kid); return { g, k }; }
+function viewGutSketch(h, s, g, k) { const f = mk(h), b = `sheetSchedules#${s.id}.gutters#${g.id}.sketches#${k.id}`;
+  return `<div class="card"><p class="hint" style="margin:0 0 6px">${esc(g.name || g.type || 'Gutter')}${g.legs ? ' · legs ' + esc(g.legs) + ' mm' : ''}</p>${f.text('Caption (optional)', b + '.caption', { ph: 'e.g. Valley gutter profile at outlet 2' })}${padHTML({ photo: false, col: '#0f172a', tool: 'pen', grid: k.grid !== false, w: 1200, h: 900 })}</div>
+  <div class="btns"><a class="btn primary" href="${gskBase(s)}">Done</a><button type="button" class="btn" data-act="skclear">Clear</button><button type="button" class="btn danger" data-act="gskdel" data-g="${g.id}" data-id="${k.id}">${I.trash} Delete</button></div>`; }
+function gskInit(s, k) { const c = ssCtx(); return initPad(c.job || { _save: c.save }, k, { photo: false, col: '#0f172a', tool: 'pen', grid: k.grid !== false }); }
+{ const _ve = viewExtra; viewExtra = function (job, r) { if (r[2] === 'sheets' && r[4] === 'gsk') { const s = (job.sheetSchedules || []).find(x => x.id === r[3]); const { g, k } = gskFind(s, r[5], r[6]); if (!k) return { redirect: s ? `#/job/${job.id}/sheets/${s.id}` : `#/job/${job.id}/sheets` };
+    return { body: viewGutSketch(job, s, g, k), title: 'Gutter sketch', tab: isWorks(job) ? 'details' : 'roofs', back: `#/job/${job.id}/sheets/${s.id}`, after: () => gskInit(s, k) }; } return _ve(job, r); }; }
+{ const _vs = viewSheetStandalone; viewSheetStandalone = function (r) { if (r[2] !== 'gsk' || !SSA.loaded) return _vs(r); S.ctx = { obj: SSA.holder, save: ssaSave }; const s = SSA.holder.sheetSchedules.find(x => x.id === r[1]); const { g, k } = gskFind(s, r[3], r[4]);
+    if (!k) { go(s ? `#/sheets/${s.id}` : '#/sheets'); return null; } setTimeout(() => gskInit(s, k), 0); return { head: header({ title: 'Gutter sketch', sub: s.project || 'Standalone', back: `#/sheets/${s.id}` }), body: viewGutSketch(SSA.holder, s, g, k) }; }; }
+Object.assign(ACTIONS, {
+  gsknew(a) { const c = ssCtx(), s = ssCur(), g = (s.gutters || []).find(x => x.id === a.dataset.g); if (!g) return; const k = { id: uid(), caption: '', data: '', grid: true }; (g.sketches = g.sketches || []).push(k); c.save(); go(`${gskBase(s)}/gsk/${g.id}/${k.id}`); },
+  async gskdel(a) { const c = ssCtx(), s = ssCur(), g = (s.gutters || []).find(x => x.id === a.dataset.g); if (!g) return; const k = (g.sketches || []).find(x => x.id === a.dataset.id); if (k && k.data && !await confirmBox('Delete sketch?', `"${k.caption || 'Sketch'}" will be removed from this gutter.`, 'Delete')) return;
+    g.sketches = (g.sketches || []).filter(x => x.id !== a.dataset.id); c.save(); go(gskBase(s)); },
+});
+/* RFQ (flashings & ancillaries package): one or more pages of gutter sketches, 3 per row */
+function ssGutSkPdf(doc, s, head, W, H, M, tx) { const L = (s.gutters || []).flatMap(g => gskList(g).filter(k => !String(k.data).startsWith('sb:')).map(k => ({ g, k }))); if (!L.length) return 0;
+  const cols = 3, gap = 6, cw = (W - 2 * M - gap * (cols - 1)) / cols, ih = cw * 0.75; let y = 0;
+  const top = () => { doc.addPage(); y = head(true); doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(74, 79, 85); doc.text('Gutter & valley sketches', M, y + 2); y += 7; };
+  top(); for (let i = 0; i < L.length; i += cols) { if (y + ih + 12 > H - 8) top(); L.slice(i, i + cols).forEach(({ g, k }, j) => { const x = M + j * (cw + gap); doc.setDrawColor(150, 150, 150); doc.setLineWidth(0.25); doc.rect(x, y, cw, ih);
+      try { doc.addImage(k.data, /^data:image\/png/.test(k.data) ? 'PNG' : 'JPEG', x + 0.3, y + 0.3, cw - 0.6, ih - 0.6, 'gsk-' + k.id, 'FAST'); } catch (e) { }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.4); doc.setTextColor(25, 25, 25); const cap = doc.splitTextToSize(tx(`${g.name || g.type || 'Gutter'}${k.caption ? ' - ' + k.caption : ''}`), cw)[0]; doc.text(cap, x, y + ih + 4); if (g.legs) { doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8); doc.text(doc.splitTextToSize(tx(`Girth legs ${g.legs} mm${ssGirth(g) ? ' = ' + ssGirth(g) + ' mm girth' : ''}`), cw)[0], x, y + ih + 8); } });
+    y += ih + 13; } return L.length; }
+{ const st = document.createElement('style'); st.textContent = '.gsk{margin-top:6px}.gsk-h{font-weight:600;font-size:14px;margin-bottom:6px}.gsk-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:8px}.gsk-t{display:flex;flex-direction:column;gap:3px;text-decoration:none;color:inherit;font-size:12px}.gsk-t img,.gsk-e{width:100%;aspect-ratio:4/3;object-fit:contain;border:1px solid #cbd5e1;border-radius:8px;background:#fff}.gsk-e{display:flex;align-items:center;justify-content:center;color:#94a3b8}'; document.head.appendChild(st); }
+/* v1.10.18: "Include drawings" on RFQ exports - per device, default OFF (materials list only). Applies to buildSheetRFQ (GA01/GA02 roof drawings, cross-section / slope-table pages, bays plan, gutter sketches) and buildFlashRFQ (drawing page per flashing, site sketch). */
+const RFQ_DRW_KEY = 'ars.rfqDrawings';
+function rfqDrw() { try { return localStorage.getItem(RFQ_DRW_KEY) === '1'; } catch (e) { return false; } }
+function rfqDrwSet(v) { try { localStorage.setItem(RFQ_DRW_KEY, v ? '1' : '0'); } catch (e) { } }
+function rfqDrwHTML(what) { return `<label class="rfq-drw"><input type="checkbox" data-rfqdrw ${rfqDrw() ? 'checked' : ''}><span><b>Include drawings</b><br><span class="hint">${esc(what || 'Roof plan GA01, sections GA02+, slope / section pages, bays plan, gutter sketches')}. Unticked = materials list only. Remembered on this device.</span></span></label>`; }
+document.addEventListener('change', e => { const el = e.target; if (!el || !el.matches || !el.matches('input[data-rfqdrw]')) return; rfqDrwSet(el.checked); $$('input[data-rfqdrw]').forEach(x => { x.checked = el.checked; }); toast(el.checked ? 'RFQs will include the drawings' : 'RFQs: materials list only (no drawings)'); });
+{ const st = document.createElement('style'); st.textContent = '.rfq-drw{display:flex;gap:10px;align-items:flex-start;margin:10px 0 6px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;cursor:pointer}.rfq-drw input{width:22px;height:22px;flex:none;margin:1px 0 0}.rfq-drw>span{flex:1;min-width:0}.rfq-drw .hint{margin:2px 0 0;font-size:13px}'; document.head.appendChild(st); }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
