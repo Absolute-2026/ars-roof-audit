@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.15">
+<meta name="app-version" content="1.10.16">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.15';
+const APP_VERSION = '1.10.16';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -8924,7 +8924,7 @@ const mrItemTxt = i => `${i.type && i.type !== 'Materials' ? '[' + i.type + '] '
 function mrMergeStatus(m) { const cur = S.settings.mrStatus = S.settings.mrStatus || {}; Object.entries(m || {}).forEach(([k, v]) => { if (v && (!cur[k] || (v.at || 0) > (cur[k].at || 0))) cur[k] = v; }); }
 { const _ap = applyDailySettings; applyDailySettings = function (d) { if (d && d.matreq) mrMergeStatus(d.matreq); if (d && Array.isArray(d.mrPlant) && d.mrPlant.length) S.settings.mrPlant = d.mrPlant; if (d && Array.isArray(d.matLib) && d.matLib.length && isOp()) S.settings.matLib = d.matLib; return _ap(d); };
 }
-const mrDailyValue = () => Object.assign(dailySettingsValue(), { matreq: S.settings.mrStatus || {}, mrPlant: S.settings.mrPlant || null, matLib: S.settings.matLib || null });
+const mrDailyValue = () => Object.assign(dailySettingsValue(), { matreq: S.settings.mrStatus || {}, mrPlant: S.settings.mrPlant || null, matLib: S.settings.matLib || null, aiNote: S.settings.aiNote !== false }); // v1.10.16 aiNote
 async function mrPushDaily() { const rows = await sbFetch('/rest/v1/app_settings?select=key,value&key=eq.daily') || []; if (rows[0] && rows[0].value && rows[0].value.matreq) mrMergeStatus(rows[0].value.matreq);
   await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'daily', value: mrDailyValue() }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); }
 // managers' normal settings push writes the 'daily' value without the request statuses - write it again with them merged in
@@ -10482,6 +10482,91 @@ async function fbkFlush() { if (fbkBusy || !online() || !(typeof signedIn === 'f
   try { for (const it of q) { try { await fnCall('feedback', it); localStorage.setItem(FBK_Q, JSON.stringify(fbkQ().filter(x => x.id !== it.id))); toast('Feedback sent ✓'); } catch (e) { if (e.status && e.status < 500) localStorage.setItem(FBK_Q, JSON.stringify(fbkQ().filter(x => x.id !== it.id))); else break; } } } finally { fbkBusy = false; } }
 addEventListener('online', () => setTimeout(fbkFlush, 1500)); setTimeout(fbkFlush, 6000); setInterval(fbkFlush, 120000);
 Object.assign(ACTIONS, { fbk() { fbkOpen(); } });
+
+/* ===== v1.10.16 (BETA): make the AI "Other" toolbox talk easy to find + show which version you are on
+   - "✨ Write a talk from an issue" button on the RAMS & Toolbox talks screen (picks the job, opens the issue sheet straight on "Other")
+     and at the top of every toolbox-talk issue sheet (project route, quick Issue talk, library) - the Other option used to be only the
+     last entry of the native Talk picker, easy to miss on iPhone. The option itself is renamed "✨ Other - describe the issue (AI writes the talk)".
+   - Managers and admins (the toolbox-talk function now accepts both).
+   - Version in the Account & sync sheet; when a new version has been installed in the background, a bar offers "Reload". ===== */
+(() => { const st = document.createElement('style'); st.textContent = `.bs-ai{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:2px solid #7c3aed;background:#f5f3ff;color:#4c1d95;border-radius:14px;padding:12px 14px;font-weight:750;font-size:16px;margin:0 0 12px;min-height:56px}
+.bs-ai[hidden],.bs-disc[hidden],label.ckl[hidden]{display:none!important}
+.bs-ai .s{display:block;font-weight:500;font-size:13px;color:#5b21b6;margin-top:2px}.bs-ai .i{font-size:22px;line-height:1}
+.upd-bar{position:fixed;left:10px;right:10px;bottom:calc(var(--safe-b,0px) + 74px);z-index:60;background:#14213d;color:#fff;border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 20px rgba(0,0,0,.25);font-size:14px}
+.upd-bar b{flex:1}.upd-bar button{border:0;border-radius:10px;padding:10px 14px;font-weight:800;background:#f18902;color:#14213d}`; document.head.appendChild(st); })();
+const BS_AI_BTN = (id, sub) => `<button type="button" class="bs-ai" ${id}><span class="i">✨</span><span>Write a talk from an issue<span class="s">${sub}</span></span></button>`;
+const bsCanAI = () => !!(Cloud.profile && ['manager', 'admin'].includes(Cloud.profile.role));
+/* RAMS & Toolbox talks screen */
+{ const _v = viewBriefingsMgr; viewBriefingsMgr = function (...a) { const v = _v.apply(this, a); const add = h => !bsCanAI() || h.includes('data-act="bs-ai"') ? h : h.replace('<div class="filters">', BS_AI_BTN('data-act="bs-ai"', 'Describe it (or speak it) - AI writes an in-depth toolbox talk for the job, you check it and issue it') + '<div class="filters">');
+  if (typeof v === 'string') return add(v); if (v && typeof v.body === 'string') v.body = add(v.body); return v; }; }
+/* issue sheet: button at the top + clearer option text */
+{ const _f = bsIssueForm; bsIssueForm = function (k, pid, it, ...r) { let h = _f(k, pid, it, ...r); if (k !== 'tbt' || it || !h.includes(`value="${BS_OTHER}"`)) return h;
+  h = h.replace(/<option value="__other">[^<]*<\/option>/, '<option value="__other">✨ Other - describe the issue (AI writes the talk)</option>');
+  const i = h.indexOf('<select id="bs-talk">'), j = h.lastIndexOf('<label', i);
+  return bsCanAI() && j >= 0 ? h.slice(0, j) + BS_AI_BTN('id="bs-ai-top"', 'Instead of a library talk: describe the issue, AI writes it') + '<p class="hint" style="margin:-4px 0 8px">Or pick a talk from the library:</p>' + h.slice(j) : h; }; }
+function bsGoOther() { const s = $('#bs-talk'); if (!s) return; s.value = BS_OTHER; s.dispatchEvent(new Event('change', { bubbles: true })); const t = $('#bs-ai-top'); if (t) t.hidden = true;
+  setTimeout(() => { const p = $('#bs-oth'); if (p) p.scrollIntoView({ block: 'start', behavior: 'smooth' }); const d = $('#bs-oth-d'); if (d) d.focus(); }, 80); }
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#bs-ai-top')) { e.preventDefault(); bsGoOther(); } });
+document.addEventListener('change', e => { if (e.target.id === 'bs-talk') { const t = $('#bs-ai-top'); if (t) t.hidden = e.target.value === BS_OTHER; } });
+Object.assign(ACTIONS, { async 'bs-ai'() { const pid = await bsPickJob('Write a talk from an issue'); if (!pid) return; bsIssue('tbt', pid); for (let n = 0; n < 40 && !$('#bs-talk'); n++) await new Promise(r => setTimeout(r, 50)); bsGoOther(); } });
+/* version in the Account & sync sheet */
+{ const _m = modal; modal = function (html, onMount) { if (typeof html === 'string' && html.startsWith('<h3>Account & sync</h3>') && !html.includes('id="acc-ver"')) html = html.replace('</p>', `</p><p class="small" id="acc-ver" style="margin:-4px 0 8px">App version: <b>v${APP_VERSION}${BUILD.beta ? ' BETA' : ''}</b></p>`); return _m(html, onMount); }; }
+/* new version installed in the background -> offer a reload */
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  let hadCtl = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!hadCtl) { hadCtl = true; return; } if (document.querySelector('.upd-bar')) return;
+    const d = document.createElement('div'); d.className = 'upd-bar'; d.innerHTML = '<b>A new version of the app is ready.</b><button type="button">Reload</button>'; d.querySelector('button').onclick = () => location.reload(); document.body.appendChild(d); });
+  const chk = () => navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {});
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') chk(); }); setTimeout(chk, 4000);
+}
+/* ---- v1.10.16: AI check note setting (company-wide, shared in app_settings 'daily'.aiNote; default ON) ---- */
+const bsAINote = () => S.settings.aiNote !== false;
+{ const _a = applyDailySettings; applyDailySettings = function (d) { if (d && typeof d.aiNote === 'boolean') S.settings.aiNote = d.aiNote; return _a(d); }; }
+const bsAINoteApply = root => { const on = bsAINote(); (root || document).querySelectorAll('.bs-disc').forEach(e => { e.hidden = !on; }); const ok = (root || document).querySelector('#bs-oth-ok'); if (ok) { ok.closest('label').hidden = !on; if (!on) ok.checked = true; } };
+// generate flow: hide note + tick when OFF (after Generate the tick is reset, so re-apply)
+new MutationObserver(() => { if (!bsAINote() && document.querySelector('.bs-disc:not([hidden]), #bs-oth-ok:not(:checked)')) bsAINoteApply(); }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+document.addEventListener('click', e => { if (!bsAINote() && e.target.closest && e.target.closest('#bs-ok')) { const ok = $('#bs-oth-ok'); if (ok) ok.checked = true; } }, true);
+/* ---- library: "✨ Generate full talk with AI" (new talk from an issue, or expand an existing short talk in place) ---- */
+async function bsLibAI(i) { const L = bsLibW(), cur = i != null ? L[i] : null;
+  const pre = cur ? [cur.title && cur.title !== 'New toolbox talk' ? cur.title : '', ...(cur.points || []).filter(p => !/^##\s/.test(p))].filter(Boolean).join('. ') : '';
+  const note = bsAINote();
+  const r = await modal(`<h3>✨ Generate full talk with AI</h3><p class="hint">${cur ? 'Expands this talk into a full toolbox talk (why it matters, hazards, controls, legal references, do\'s, don\'ts, discussion questions, sign-off declaration). It replaces this talk\'s title and points after you save.' : 'Describe the issue - AI writes a full toolbox talk for the library.'}</p>
+    <label class="f"><span class="lbl">Describe the issue</span><textarea id="la-d" rows="5" autocapitalize="sentences" spellcheck="true">${esc(pre)}</textarea></label>
+    <button type="button" class="btn block" id="la-gen">Generate talk</button><p class="hint" id="la-st" style="margin:6px 0 0"></p>
+    <div id="la-out" hidden>${note ? '<div class="bs-disc"><b>Check before you save.</b> This talk was written by AI from your description. It must be checked - and corrected where needed - by a competent person before it is issued.</div>' : ''}
+      <label class="f"><span class="lbl">Talk title</span><input id="la-t"></label><label class="f"><span class="lbl">Talk - edit freely (lines starting ## are section headings)</span><textarea id="la-b" rows="16"></textarea></label>
+      ${note ? '<label class="ckl"><input type="checkbox" id="la-ok"> I have checked this talk (or had it checked by a competent person)</label>' : ''}</div>
+    <button class="btn primary" data-act="noop" id="la-save">Save to library</button><button class="btn" data-r="cancel">Cancel</button>`, (bg, close) => {
+    const gen = bg.querySelector('#la-gen'), st = bg.querySelector('#la-st'); let issue = '';
+    gen.onclick = async () => { const d = bg.querySelector('#la-d').value.trim(); if (d.length < 10) return toast('Describe the issue in a sentence or two first'); if (!navigator.onLine) return toast('You need a signal to generate a talk');
+      gen.disabled = true; gen.textContent = 'Writing the talk…'; st.textContent = 'This usually takes 20-40 seconds.';
+      try { const res = await sbFetch('/functions/v1/toolbox-talk', { method: 'POST', body: { issue: d, site: '', job: '' } }); const t = res && res.talk; if (!t || !Array.isArray(t.sections) || !t.sections.length) throw new Error('No talk came back - try again');
+        issue = d; bg.querySelector('#la-t').value = t.title || ''; bg.querySelector('#la-b').value = bsGenLines(t).join('\n'); bg.querySelector('#la-out').hidden = false; gen.textContent = 'Generate again'; st.textContent = 'Review and edit, then save.';
+      } catch (e) { const m = String(e && e.message || e); gen.textContent = 'Generate talk'; st.textContent = ''; toast(/not_configured/.test(m) ? 'Talk writing is not set up on the server yet' : 'Could not generate: ' + m, 4000); } finally { gen.disabled = false; } };
+    bg.querySelector('#la-save').onclick = e => { e.preventDefault(); e.stopPropagation(); if (bg.querySelector('#la-out').hidden) return toast('Generate the talk first');
+      const title = bg.querySelector('#la-t').value.trim(), points = bsParseLines(bg.querySelector('#la-b').value); if (!title || !points.some(p => !/^##\s/.test(p))) return toast('The talk needs a title and some content');
+      const ok = bg.querySelector('#la-ok'); if (ok && !ok.checked) return toast('Tick to confirm the talk has been checked', 3500);
+      close({ title, points, ai: { by: myName(), at: Date.now(), issue: issue.slice(0, 3000), checked: !!ok } }); }; });
+  if (!r || typeof r !== 'object') return; const L2 = bsLibW(); const idx = cur ? L2.findIndex(x => x.id === cur.id) : -1;
+  r.upd = Date.now(); if (idx >= 0) Object.assign(L2[idx], r); else L2.push(Object.assign({ id: 'tbt-ai-' + uid(), pdf: '', pdfName: '' }, r)); bsLibSave(); rerender(true); toast('Saved to the talk library'); }
+Object.assign(ACTIONS, { noop() { }, 'bs-libai'(a) { bsLibAI(a.dataset.i != null && a.dataset.i !== '' ? +a.dataset.i : null); },
+  'bs-ainote'(a) { S.settings.aiNote = !!a.checked; saveSettings(); bsShare(); toast(a.checked ? 'AI check note ON' : 'AI check note OFF'); } });
+{ const _l = bsLibHTML; bsLibHTML = function () { let h = _l(); if (!bsCanAI()) return h;
+  h = h.replace('<div class="card" id="bslib">', '<div class="card" id="bslib">' + BS_AI_BTN('data-act="bs-libai"', 'Describe the issue - AI writes a full talk (why it matters, hazards, controls, legal refs, do\'s & don\'ts, questions, declaration)')
+    + `<label class="ckl" style="margin:0 0 10px"><input type="checkbox" data-act="bs-ainote" id="bs-ainote" ${bsAINote() ? 'checked' : ''}> Show AI check note on generated talks <span class="hint">(the "check before you issue" note and the "I have checked this talk" tick)</span></label>`);
+  return h.replace(/<button class="btn danger sm" data-act="bs-ldel" data-i="(\d+)">/g, (m, i) => `<button class="btn sm" data-act="bs-libai" data-i="${i}">✨ Generate full talk with AI</button>` + m); }; }
+/* ---- v1.10.16: talk library merges by talk (per-talk 'upd' stamp) instead of one device's copy overwriting everyone's ----
+   - server talk newer (or this device never saw it) -> taken; talk deleted here (seen before, now gone) -> stays deleted; new local talks kept. */
+function bsLibMerge(srv) { if (!Array.isArray(srv) || !srv.length) return; if (!Array.isArray(S.settings.tbtLib) || !S.settings.tbtLib.length) { S.settings.tbtLib = clone(srv); S.settings.tbtKnown = srv.map(t => t.id); return; }
+  const known = new Set(S.settings.tbtKnown || []), loc = S.settings.tbtLib, sIds = new Set(srv.map(t => t.id)), out = [];
+  loc.forEach(t => { if (!sIds.has(t.id) && known.has(t.id)) return; const s = srv.find(x => x.id === t.id); out.push(s && (s.upd || 0) > (t.upd || 0) ? clone(s) : t); });
+  srv.forEach(s => { if (!out.some(t => t.id === s.id) && !loc.some(t => t.id === s.id) && !known.has(s.id)) out.push(clone(s)); });
+  S.settings.tbtLib = out; S.settings.tbtKnown = out.map(t => t.id); }
+{ const _a = applyDailySettings; applyDailySettings = function (d) { if (d && Array.isArray(d.tbtLib) && !isOp() && Array.isArray(S.settings.tbtLib) && S.settings.tbtLib.length) bsLibMerge(d.tbtLib); return _a(d); }; }
+{ const _p = mrPushDaily; mrPushDaily = async function (...a) { try { const rows = await sbFetch('/rest/v1/app_settings?select=key,value&key=eq.daily') || []; const v0 = (rows[0] && rows[0].value) || {}; if (Array.isArray(v0.tbtLib) && Array.isArray(S.settings.tbtLib)) bsLibMerge(v0.tbtLib); } catch (e) { if (e && e.offline) throw e; } return _p.apply(this, a); }; }
+const bsLibStamp = i => { const t = (S.settings.tbtLib || [])[+i]; if (t) t.upd = Date.now(); };
+document.addEventListener('change', e => { const d = e.target.dataset || {}; if (d.bsl) bsLibStamp(d.bsl.split('.')[0]); else if (d.bslpdf !== undefined) bsLibStamp(d.bslpdf); }, true);
+{ const _ad = ACTIONS['bs-ladd']; ACTIONS['bs-ladd'] = function (...a) { const r = _ad.apply(this, a); const L = S.settings.tbtLib || []; if (L.length) L[L.length - 1].upd = Date.now(); return r; }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
