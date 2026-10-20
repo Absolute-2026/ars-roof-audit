@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.13">
+<meta name="app-version" content="1.10.14">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.13';
+const APP_VERSION = '1.10.14';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -10413,6 +10413,71 @@ document.addEventListener('click', e => { const ok = e.target.closest && e.targe
     dcPdfKit = function (...a) { const k = dk(...a), kv0 = k.kv.bind(k); k.kv = function (rows) { if (first) { first = false; const i = rows.findIndex(r => /^Job \/ site$/.test(r[0])); const add = [['Site address', s.address], ['Client', s.client], ['Contracts manager', s.cm], ['Works', s.works], ['Roof', s.roof]];
         rows = i < 0 ? rows.concat(add) : rows.slice(0, i + 1).concat(add, rows.slice(i + 1)); } return kv0(rows); }; return k; };
     try { return _reg(it); } finally { dcPdfKit = dk; } }; }
+
+/* ===== v1.10.14 (BETA): "Send feedback" for every signed-in user (managers, surveyors, admins, operatives)
+   - Speech-bubble button in the header (next to the cloud) + "Send feedback" in the Account & sync sheet.
+   - Sheet: type (Bug / Change / New idea - tap to pick), description (dictation tip), optional photos / screenshots (up to 4, compressed).
+   - Sent to the 'feedback' Edge Function with name / role / email (server side from the profile), app version, screen / section, device and
+     project (if the screen is inside one). The function saves it to public.feedback first, then emails it (Microsoft Graph) - nothing is lost if
+     the email fails. Offline / network error: kept on this phone (localStorage 'ars.fbq') and sent automatically when back online. ===== */
+(() => { const st = document.createElement('style'); st.textContent = `.fbk-btn{min-width:40px;height:var(--tap);border:0;background:transparent;color:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;padding:0 6px;flex:none}
+.fbk-btn:active{background:rgba(255,255,255,.15)}.fbk-kinds{display:flex;gap:8px;margin:4px 0 12px}.fbk-kinds button{flex:1;min-height:52px;border:2px solid #cbd5e1;background:#fff;border-radius:12px;font-weight:750;font-size:15px;color:var(--navy);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 4px}
+.fbk-kinds button .e{font-size:20px;line-height:1}.fbk-kinds button.on{border-color:var(--orange,#f18902);background:#fff4e5;box-shadow:0 0 0 2px var(--orange,#f18902) inset}
+.fbk-ph{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}.fbk-ph .t{position:relative}.fbk-ph img{width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid #cbd5e1}
+.fbk-ph .x{position:absolute;top:-8px;right:-8px;width:26px;height:26px;border-radius:50%;border:0;background:#0f172a;color:#fff;font-weight:800;line-height:26px;padding:0}
+.fbk-ctx{font-size:12.5px;color:#64748b;background:#f1f5f9;border-radius:10px;padding:8px 10px;margin:8px 0 4px;line-height:1.45}`; document.head.appendChild(st); })();
+const FBK_IC = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg>';
+const FBK_KINDS = [['bug', 'Bug', '🐞'], ['change', 'Change', '✏️'], ['idea', 'New idea', '💡']];
+const FBK_Q = 'ars.fbq';
+const fbkUuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }));
+/* header button (signed-in only; sits left of the cloud) */
+{ const _h = header; header = function (o) { const h = _h(o); return typeof signedIn === 'function' && signedIn() ? h.replace('<button id="sync"', `<button class="fbk-btn" data-act="fbk" aria-label="Send feedback" title="Send feedback">${FBK_IC}</button><button id="sync"`) : h; }; }
+/* "Send feedback" in the Account & sync sheet */
+{ const _m = modal; modal = function (html, onMount) { if (typeof html === 'string' && html.startsWith('<h3>Account & sync</h3>')) html = html.replace('<button class="btn" data-r="out">', `<button class="btn" data-act="fbk">${FBK_IC} Send feedback</button><button class="btn" data-r="out">`); return _m(html, onMount); }; }
+/* what the user was looking at */
+function fbkContext() { const hd = document.querySelector('header.hdr'), t = hd && hd.querySelector('.ttl h1'), s = hd && hd.querySelector('.ttl .sub');
+  const r = route(), screen = [t && t.textContent.trim(), s && s.textContent.trim()].filter(Boolean).join(' · ') + ` (#/${r.join('/')})`;
+  let project = ''; for (const seg of r) { const j = typeof getJob === 'function' ? getJob(seg) : null; if (j) { project = [j.ref, j.client && j.client.name, j.site && (j.site.name || j.site.address)].filter(Boolean).join(' · '); break; }
+    const p = [...(Ops.jobs || []), ...(Ops.jobsTbl || [])].find(x => x && x.id === seg); if (p) { project = [p.ref, p.site_name].filter(Boolean).join(' · '); break; } }
+  if (!project && (Ops.jobs || []).length === 1 && isOp()) { const p = Ops.jobs[0]; project = [p.ref, p.site_name].filter(Boolean).join(' · ') + ' (only assigned job)'; }
+  const n = navigator, sa = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || n.standalone;
+  const device = `${n.userAgent} · screen ${screen && window.screen ? window.screen.width + '×' + window.screen.height : ''} @${window.devicePixelRatio || 1}x · viewport ${innerWidth}×${innerHeight}${sa ? ' · Home Screen app' : ' · browser'}${n.onLine === false ? ' · offline' : ''}`;
+  return { screen, project, device }; }
+function fbkWho() { const p = Cloud.profile || {}; const t = typeof titleOf === 'function' && typeof roleLabel === 'function' ? roleLabel(titleOf(p)) : ''; return { name: p.full_name || p.email || '', role: roleName(p.role), title: t, contact: isOp() ? (typeof prettyPhone === 'function' ? prettyPhone(p.phone) : p.phone || '') : p.email || '' }; }
+/* the sheet */
+async function fbkOpen() { $$('.modal-bg').forEach(x => x.remove()); const ctx = fbkContext(), who = fbkWho(); let kind = '', photos = [];
+  const html = `<h3>Send feedback</h3><p class="small" style="margin-top:-4px">Found a problem or want something changed? Tell us - it goes straight to the team building the app.</p>
+    <span class="lbl">What is it?</span><div class="fbk-kinds">${FBK_KINDS.map(([k, l, e]) => `<button type="button" data-k="${k}"><span class="e">${e}</span>${l}</button>`).join('')}</div>
+    <label class="f"><span class="lbl">Describe it</span><textarea id="fbk-d" rows="5" maxlength="5000" placeholder="What happened, or what would you like changed? Which screen / button?"></textarea></label>
+    <p class="small" style="margin:-2px 0 8px">Tip: tap the 🎤 microphone on your phone's keyboard to speak instead of typing.</p>
+    <span class="lbl">Photo or screenshot (optional)</span><div class="fbk-ph" id="fbk-ph"></div>
+    <label class="btn" style="display:inline-flex">${I.camera} Add photo / screenshot<input type="file" accept="image/*" multiple id="fbk-f" hidden></label>
+    <div class="fbk-ctx">Sent with: <b>${esc(who.name)}</b> (${esc(who.title || who.role)}${who.contact ? ', ' + esc(who.contact) : ''}) · v${esc(APP_VERSION)}${BUILD.beta ? ' BETA' : ''}<br>Screen: ${esc(ctx.screen)}${ctx.project ? '<br>Project: ' + esc(ctx.project) : ''}<br>Device info</div>
+    <button class="btn primary" id="fbk-ok" type="button">Send feedback</button><button class="btn" data-r="">Cancel</button>`;
+  await modal(html, (bg, close) => {
+    const drawPh = () => { $('#fbk-ph', bg).innerHTML = photos.map((p, i) => `<span class="t"><img src="${p.data}" alt=""><button type="button" class="x" data-i="${i}" aria-label="Remove">×</button></span>`).join(''); };
+    bg.querySelectorAll('.fbk-kinds button').forEach(b => b.addEventListener('click', () => { kind = b.dataset.k; bg.querySelectorAll('.fbk-kinds button').forEach(x => x.classList.toggle('on', x === b)); }));
+    $('#fbk-ph', bg).addEventListener('click', e => { const x = e.target.closest('.x'); if (x) { photos.splice(+x.dataset.i, 1); drawPh(); } });
+    $('#fbk-f', bg).addEventListener('change', async e => { const fs = [...e.target.files].slice(0, 4 - photos.length); for (const f of fs) { try { const p = await compressImage(f, 1600, 0.75); p.name = (f.name || 'photo.jpg').replace(/\.[^.]+$/, '') + '.jpg'; photos.push(p); } catch (er) { toast(er.message); } } if ([...e.target.files].length > fs.length) toast('Up to 4 photos'); e.target.value = ''; drawPh(); });
+    $('#fbk-ok', bg).addEventListener('click', async () => { const d = $('#fbk-d', bg).value.trim();
+      if (!kind) return toast('Tap Bug, Change or New idea'); if (!d) { $('#fbk-d', bg).focus(); return toast('Describe it first'); }
+      const btn = $('#fbk-ok', bg); btn.disabled = true; btn.textContent = 'Sending…';
+      const item = { id: fbkUuid(), kind, description: d, title: who.title, appVersion: APP_VERSION + (BUILD.beta ? ' BETA' : ''), screen: ctx.screen, project: ctx.project, device: ctx.device,
+        attachments: photos.map((p, i) => ({ name: `${i + 1}-${safeName(p.name.replace(/\.jpg$/, '')) || 'photo'}.jpg`, type: 'image/jpeg', b64: p.data.split(',')[1] })) };
+      const r = await fbkSend(item); close('sent'); fbkDone(r); });
+  }); }
+async function fbkSend(item) { try { if (!online()) throw Object.assign(new Error('offline'), { offline: true }); const r = await fnCall('feedback', item); return { ok: true, emailed: !!(r && r.emailed) }; }
+  catch (e) { if (e.offline || !online() || !e.status || e.status >= 500) { fbkQueue(item); return { ok: false, queued: true }; } return { ok: false, error: e.message || String(e) }; } }
+function fbkDone(r) { if (r.ok) modal(`<h3>Thanks, sent ✓</h3><p>Your feedback has reached the team. Thank you for helping improve the app.</p><button class="btn primary" data-r="">OK</button>`);
+  else if (r.queued) modal(`<h3>Thanks - saved ✓</h3><p>No connection right now, so it's saved on this phone and will send automatically when you're back online.</p><button class="btn primary" data-r="">OK</button>`);
+  else modal(`<h3>Couldn't send</h3><p>${esc(r.error || 'Please try again.')}</p><button class="btn primary" data-r="">OK</button>`); }
+const fbkQ = () => { try { return JSON.parse(localStorage.getItem(FBK_Q) || '[]'); } catch { return []; } };
+function fbkQueue(item) { const q = fbkQ().filter(x => x.id !== item.id); q.push(item); try { localStorage.setItem(FBK_Q, JSON.stringify(q.slice(-10))); } catch { /* storage full: drop photos and keep the text */ item.attachments = []; try { localStorage.setItem(FBK_Q, JSON.stringify(q.slice(-10).map(x => x.id === item.id ? item : x))); } catch { } } }
+let fbkBusy = false;
+async function fbkFlush() { if (fbkBusy || !online() || !(typeof signedIn === 'function' && signedIn())) return; const q = fbkQ(); if (!q.length) return; fbkBusy = true;
+  try { for (const it of q) { try { await fnCall('feedback', it); localStorage.setItem(FBK_Q, JSON.stringify(fbkQ().filter(x => x.id !== it.id))); toast('Feedback sent ✓'); } catch (e) { if (e.status && e.status < 500) localStorage.setItem(FBK_Q, JSON.stringify(fbkQ().filter(x => x.id !== it.id))); else break; } } } finally { fbkBusy = false; } }
+addEventListener('online', () => setTimeout(fbkFlush, 1500)); setTimeout(fbkFlush, 6000); setInterval(fbkFlush, 120000);
+Object.assign(ACTIONS, { fbk() { fbkOpen(); } });
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
