@@ -10494,7 +10494,7 @@ Object.assign(ACTIONS, { fbk() { fbkOpen(); } });
 .bs-ai .s{display:block;font-weight:500;font-size:13px;color:#5b21b6;margin-top:2px}.bs-ai .i{font-size:22px;line-height:1}
 .upd-bar{position:fixed;left:10px;right:10px;bottom:calc(var(--safe-b,0px) + 74px);z-index:60;background:#14213d;color:#fff;border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 20px rgba(0,0,0,.25);font-size:14px}
 .upd-bar b{flex:1}.upd-bar button{border:0;border-radius:10px;padding:10px 14px;font-weight:800;background:#f18902;color:#14213d}`; document.head.appendChild(st); })();
-const BS_AI_BTN = (id, sub) => `<button type="button" class="bs-ai" ${id}><span class="i">✨</span><span>Write a talk from an issue<span class="s">${sub}</span></span></button>`;
+const BS_AI_BTN = (id, sub, t = 'Write a talk from an issue') => `<button type="button" class="bs-ai" ${id}><span class="i">✨</span><span>${t}<span class="s">${sub}</span></span></button>`;
 const bsCanAI = () => !!(Cloud.profile && ['manager', 'admin'].includes(Cloud.profile.role));
 /* RAMS & Toolbox talks screen */
 { const _v = viewBriefingsMgr; viewBriefingsMgr = function (...a) { const v = _v.apply(this, a); const add = h => !bsCanAI() || h.includes('data-act="bs-ai"') ? h : h.replace('<div class="filters">', BS_AI_BTN('data-act="bs-ai"', 'Describe it (or speak it) - AI writes an in-depth toolbox talk for the job, you check it and issue it') + '<div class="filters">');
@@ -10552,8 +10552,8 @@ async function bsLibAI(i) { const L = bsLibW(), cur = i != null ? L[i] : null;
 Object.assign(ACTIONS, { noop() { }, 'bs-libai'(a) { bsLibAI(a.dataset.i != null && a.dataset.i !== '' ? +a.dataset.i : null); },
   'bs-ainote'(a) { S.settings.aiNote = !!a.checked; saveSettings(); bsShare(); toast(a.checked ? 'AI check note ON' : 'AI check note OFF'); } });
 { const _l = bsLibHTML; bsLibHTML = function () { let h = _l(); if (!bsCanAI()) return h;
-  h = h.replace('<div class="card" id="bslib">', '<div class="card" id="bslib">' + BS_AI_BTN('data-act="bs-libai"', 'Describe the issue - AI writes a full talk (why it matters, hazards, controls, legal refs, do\'s & don\'ts, questions, declaration)')
-    + `<label class="ckl" style="margin:0 0 10px"><input type="checkbox" data-act="bs-ainote" id="bs-ainote" ${bsAINote() ? 'checked' : ''}> Show AI check note on generated talks <span class="hint">(the "check before you issue" note and the "I have checked this talk" tick)</span></label>`);
+  h = h.replace('<div class="card" id="bslib">', '<div class="card" id="bslib">' + BS_AI_BTN('data-act="bs-libai"', 'Describe the issue - AI writes a full talk (why it matters, hazards, controls, legal refs, do\'s & don\'ts, questions, declaration) and saves it to the library', 'Generate a full talk with AI')
+    + `<label class="ckl" style="margin:0 0 10px"><input type="checkbox" data-act="bs-ainote" id="bs-ainote" ${bsAINote() ? 'checked' : ''}> Show AI check note on generated talks</label><p class="hint" style="margin:-6px 0 10px 30px">The "check before you issue" note and the "I have checked this talk" tick. Untick to leave them out.</p>`);
   return h.replace(/<button class="btn danger sm" data-act="bs-ldel" data-i="(\d+)">/g, (m, i) => `<button class="btn sm" data-act="bs-libai" data-i="${i}">✨ Generate full talk with AI</button>` + m); }; }
 /* ---- v1.10.16: talk library merges by talk (per-talk 'upd' stamp) instead of one device's copy overwriting everyone's ----
    - server talk newer (or this device never saw it) -> taken; talk deleted here (seen before, now gone) -> stays deleted; new local talks kept. */
