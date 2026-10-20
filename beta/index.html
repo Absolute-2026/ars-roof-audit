@@ -10415,7 +10415,7 @@ document.addEventListener('click', e => { const ok = e.target.closest && e.targe
     try { return _reg(it); } finally { dcPdfKit = dk; } }; }
 
 /* ===== v1.10.14 (BETA): "Send feedback" for every signed-in user (managers, surveyors, admins, operatives)
-   - Speech-bubble button in the header (next to the cloud) + "Send feedback" in the Account & sync sheet.
+   - Speech-bubble button in every header incl. the home screens (left of the cloud sync button) + "Send feedback" in the Account & sync sheet.
    - Sheet: type (Bug / Change / New idea - tap to pick), description (dictation tip), optional photos / screenshots (up to 4, compressed).
    - Sent to the 'feedback' Edge Function with name / role / email (server side from the profile), app version, screen / section, device and
      project (if the screen is inside one). The function saves it to public.feedback first, then emails it (Microsoft Graph) - nothing is lost if
@@ -10431,7 +10431,7 @@ const FBK_KINDS = [['bug', 'Bug', '🐞'], ['change', 'Change', '✏️'], ['ide
 const FBK_Q = 'ars.fbq';
 const fbkUuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }));
 /* header button (signed-in only; sits left of the cloud) */
-{ const _h = header; header = function (o) { const h = _h(o); return typeof signedIn === 'function' && signedIn() ? h.replace('<button id="sync"', `<button class="fbk-btn" data-act="fbk" aria-label="Send feedback" title="Send feedback">${FBK_IC}</button><button id="sync"`) : h; }; }
+{ const _sb = syncBadge; syncBadge = function () { const h = _sb(); return h ? `<button class="fbk-btn" data-act="fbk" aria-label="Send feedback" title="Send feedback">${FBK_IC}</button>` + h : h; }; }
 /* "Send feedback" in the Account & sync sheet */
 { const _m = modal; modal = function (html, onMount) { if (typeof html === 'string' && html.startsWith('<h3>Account & sync</h3>')) html = html.replace('<button class="btn" data-r="out">', `<button class="btn" data-act="fbk">${FBK_IC} Send feedback</button><button class="btn" data-r="out">`); return _m(html, onMount); }; }
 /* what the user was looking at */
