@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.10.18">
+<meta name="app-version" content="1.10.19">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -873,7 +873,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.10.18';
+const APP_VERSION = '1.10.19';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -8011,7 +8011,7 @@ const SS_RL = [['Filon', 'Filon factory-assembled insulated rooflight (to match 
 const SS_SKINS = ['Single skin', 'Double skin', 'Triple skin'], SS_FRAG = ['Class A (non-fragile)', 'Class B (non-fragile)', 'Class C (fragile)', 'Unknown'];
 const SS_PURLINS = ['Zed (cold-rolled)', 'Cee section (cold-rolled)', 'Sigma (cold-rolled)', 'Ultrazed / other cold-rolled', 'Angle (steel)', 'Hot-rolled steel (I / channel)', 'Timber'];
 // conservative default max purlin centres (mm) - CHECK WITH MANUFACTURER (load tables depend on snow / wind, span type and gauge)
-const SS_SPAN = { composite: { '40': 1800, '60': 2000, '80': 2200, '100': 2400, '115': 2500, '120': 2500, '150': 2700 }, single: { '0.5': 1500, '0.7': 1800, '0.9': 2000 }, rooflight: 1500 };
+const SS_SPAN = { composite: { '40': 1800, '60': 2000, '80': 2200, '100': 2400, '115': 2500, '120': 2500, '150': 2700 }, single: { '0.5': 1500, '0.7': 1800, '0.9': 2000 }, rooflight: 1800 };
 const ssProd = s => SS_PRODUCTS.find(p => p.name === s.product) || null;
 const ssRl = s => SS_RL.find(p => p.name === s.rlProduct) || null;
 function ssDefSpan(s) { const p = ssProd(s); if (!p) return ''; const t = parseFloat(s.thick) || 0; const T = SS_SPAN[p.kind]; const ks = Object.keys(T).map(Number).sort((a, b) => a - b); let v = T[ks[0]]; ks.forEach(k => { if (t >= k) v = T[k]; }); return String(v); }
@@ -8052,7 +8052,7 @@ function ssSlope(s, sl) { ssMig(s); const p = ssProd(s), sp = ssSp(sl), ov = ssO
   pieces.forEach(x => { x.len = Math.round(x.to - x.from); }); if (L > maxL && pieces.length > 1 && !man.length) warn.push(`Sheet run ${(L / 1000).toFixed(2)} m exceeds ${(maxL / 1000).toFixed(1)} m (transport / manufacturer max) - split into ${pieces.length} lengths with ${lap} mm end laps over purlins`);
   const cover = +s.cover || (p ? p.cover : 1000), bl = (typeof ssSlLen === 'function' ? ssSlLen(s, sl) / 1000 : (String(sl.bldLen || '').trim() ? ssBL(sl.bldLen) : (typeof ssBaysTotal === 'function' ? ssBaysTotal(s) : 0))) * 1000, cols = bl ? Math.ceil(bl / cover) : 0, rlc = /^\s*bays?\s*$/i.test(sl.rlCols || '') && typeof ssBayCols === 'function' ? (typeof ssSlBayCols === 'function' ? ssSlBayCols(s, sl, cols, cover) : ssBayCols(s, cols, cover)) : ssCols(sl.rlCols, cols);
   const span = +s.maxSpan || +ssDefSpan(s) || 0, worst = sp.length ? Math.max(...sp) : 0; if (span && worst > span) warn.push(`Purlin spacing ${worst} mm exceeds ${span} mm max for this panel - check with manufacturer`);
-  if (rlc.length && worst > SS_SPAN.rooflight && !/factory/i.test(s.rlProduct || '')) warn.push(`Rooflight span ${worst} mm > ${SS_SPAN.rooflight} mm typical GRP max - check with rooflight manufacturer`);
+  { const rs = ssRlSpan(s); if (rlc.length && rs && worst > rs && !/factory/i.test(s.rlProduct || '')) warn.push(`${worst} mm purlin span is over the ${rs} mm rooflight limit set in Bays & rooflights - check the manufacturer's load tables`); }
   let band = null; const BL = ssBands(sl, pos.length); if (rlc.length && BL.length) { const segs = ssBandSegs(sl, pos, lap, L, BL);
     segs.forEach(x => { if (x.len > maxL) warn.push(`${x.kind === 'rl' ? 'Rooflight' : 'Sheet ' + x.kind + ' rooflight'} ${x.len} mm is over ${maxL} mm - ${x.kind === 'rl' ? 'use two rooflight bands sharing a purlin' : 'add a split'}`); });
     const one = k => segs.filter(x => x.kind === k); band = { segs, bands: BL, from: BL[0][0], to: BL[BL.length - 1][1], lo: one('below').reduce((t, x) => t + x.len, 0), rl: one('rl').reduce((t, x) => t + x.len, 0), hi: one('above').reduce((t, x) => t + x.len, 0) }; }
@@ -8064,6 +8064,8 @@ function ssSlope(s, sl) { ssMig(s); const p = ssProd(s), sp = ssSp(sl), ov = ssO
     const cs = Math.cos((+sl.pitch || 0) * Math.PI / 180), rs = band ? band.segs.filter(x => x.kind === 'rl') : [{ from: 0, to: L }], a0 = Math.min(...rs.map(x => x.from)), a1 = Math.max(...rs.map(x => x.to));
     if (a0 * cs < E - 1 || (L - a1) * cs < E - 1) warn.push(`Rooflight within ${E} mm of the ${a0 * cs < E - 1 ? (ssGutEnd(sl) || /eaves/i.test(sl.endType || '') ? 'eaves' : 'bottom edge') : 'ridge / top edge'} along the slope (${Math.round(a0 * cs)} mm / ${Math.round((L - a1) * cs)} mm in plan) - ${band ? 'move the rooflight band in' : 'set a rooflight band (from / to purlin) clear of the edges'}`); }
   return { band, sp, pos, L, pieces, cover, cols, rlc, sheetsCols: cols - rlc.length, span, worst, warn, purlins: pos.length, endLaps: pieces.length - 1, cut: cutW, bl }; }
+// v1.10.19: rooflight max purlin span - per schedule (Bays & rooflights card), blank = SS_SPAN.rooflight (1800); 0 turns the check off
+const ssRlSpan = s => { const v = String((s && s.rlSpan) ?? '').trim(); return v !== '' ? Math.max(0, +v || 0) : SS_SPAN.rooflight; };
 const ssRlEdge = s => { const v = String((s && s.rlEdge) ?? '').trim(); return v !== '' ? Math.max(0, +v || 0) : 2000; };
 // column c (1-based, from the slope start at building position off) is fully inside the allowed zone: >= E from both building ends, measured on the real building length
 function ssRlColOK(c, cover, off, bl, Bt, E) { const a = off + (c - 1) * cover, z = off + Math.min(c * cover, bl); return a >= E - 0.5 && z <= Bt - E + 0.5 && c * cover <= bl + 0.5; }
@@ -8539,7 +8541,7 @@ function ssBayCols(s, cols, cover) { const C = ssBayCounts(s), out = new Set(), 
 function ssBaysCard(s) { const f = mk(ssCtx().h), b = `sheetSchedules#${s.id}`, B = ssBayList(s), C = ssBayCounts(s);
   return `<div class="card" id="ss-bays"><h2>Bays &amp; rooflights</h2><div class="row">${f.text('Bays (m) - each size, or n@x, mixed', b + '.bays', { ph: 'e.g. 6@7.25  or  7.2, 4@7.5, 6.1' })}</div>
     <p class="hint" id="ss-bsum">${B.length ? `${B.length} bays = <b>${ssBaysTotal(s)} m</b> roof length (used by any slope without its own length)` : 'Enter the bays to set the roof length.'}</p>
-    <div class="row">${f.text('Rooflights: min. distance from building edges (mm)', b + '.rlEdge', { type: 'number', ph: '2000' })}</div>
+    <div class="row">${f.text('Rooflights: min. distance from building edges (mm)', b + '.rlEdge', { type: 'number', ph: '2000' })}${f.text('Rooflights: max purlin span (mm)', b + '.rlSpan', { type: 'number', ph: String(SS_SPAN.rooflight), hint: 'Blank = ' + SS_SPAN.rooflight + '. Warns (does not block) when a slope with rooflights has a wider purlin span - check the manufacturer\'s load tables.' })}</div>
     ${f.seg('Rooflights per bay', b + '.rlBayMode', [['same', 'Same for all'], ['per', 'Per bay']])}
     ${s.rlBayMode === 'per' ? f.text('Rooflights in each bay (in order)', b + '.rlPerList', { ph: 'e.g. 2, 2, 0, 2, 2, 2' }) : `<div class="row">${f.text('Rooflights per bay', b + '.rlPer', { type: 'number', ph: 'e.g. 2' })}${f.text('Which bays', b + '.rlBaysWhich', { ph: 'blank = all, or 1, 3, 5 / every 2' })}</div>`}
     <p class="hint" id="ss-bsum2">${C.some(x => x) ? `Rooflights per slope: ${C.reduce((a, b) => a + b, 0)} (bays ${C.map((x, i) => x ? `${i + 1}:${x}` : '').filter(Boolean).join(', ')})` : ''}</p>
