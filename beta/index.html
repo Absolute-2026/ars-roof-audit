@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.1">
+<meta name="app-version" content="1.11.2">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -453,6 +453,11 @@ body.fl-lock{overflow:hidden;position:fixed;width:100%}
 .sd-it{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;margin-bottom:5px;font-size:15px}.sd-it:hover{background:#fff7ed}
 .sd-p{font-size:12px;font-weight:700;border-radius:6px;padding:1px 6px;background:#e2e8f0;flex:none}.sd-p.P1{background:#fee2e2;color:#991b1b}.sd-p.P2{background:#ffedd5;color:#9a3412}
 .sd-btn{margin:0 0 8px}
+/* v1.11.2 folders per person */
+.fold{border:1px solid #e2e8f0;border-radius:10px;background:#fff;margin:0 0 8px;overflow:hidden}.fold-h{display:flex;align-items:center;gap:8px;width:100%;min-height:52px;padding:8px 12px;border:0;background:#f8fafc;font:inherit;font-weight:700;color:#0f2542;text-align:left;cursor:pointer}
+.fold-h .tag{font-weight:600}.fold-t{flex:1;min-width:0;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25}.fold-h .tag{flex:none;white-space:nowrap}.fold-ic{flex:none;display:inline-flex;width:20px;justify-content:center}.fold-ic svg{width:20px;height:20px}
+.fold-n{flex:none;min-width:28px;padding:1px 8px;border-radius:999px;background:#0f2542;color:#fff;font-size:13px;text-align:center}.fold-ch{flex:none;transition:transform .15s;color:#64748b}.fold.open>.fold-h .fold-ch{transform:rotate(90deg)}.fold.open>.fold-h{border-bottom:1px solid #e2e8f0}
+.fold-b{padding:8px}.fold-b>.job:last-child{margin-bottom:0}.fold-lbl{display:flex;align-items:center;gap:8px;font-weight:700;color:#475569;font-size:13px;text-transform:uppercase;letter-spacing:.03em;margin:0 2px 8px}.fold-lbl .small{text-transform:none;font-weight:400;letter-spacing:0}.fold-lbl .fold-n{font-size:12px}
 
 </style>
 </head>
@@ -873,7 +878,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.1';
+const APP_VERSION = '1.11.2';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -10878,6 +10883,59 @@ Object.assign(ACTIONS, {
   if (!r || r === 'ok') return; const t = recNew('omtpl', null, { name: r, base: (omTpl(it.tplId) || { data: {} }).data.base || '', text: clone(it.text || {}), haz: (d.haz || []).slice(), types: (it.types || []).slice(), sup: (it.sup || []).slice(), lib: (it.lib || []).slice(), auto: clone(d.auto || {}), from: d.jobRef || d.site }); recPut(t); toast('Template saved'); }; }
 /* files list: show every item's template */
 { const _a = admOmHTML; admOmHTML = function () { let h = _a(); omPacks().forEach(p => { if (omMulti(p.data)) h = h.replace(`<div class="t2">${esc(p.data.tplName || '')} · `, `<div class="t2">${esc(omItems(p.data).map(it => it.name).join(' + '))} · `); }); return h; }; }
+
+/* ===== v1.11.2 (BETA): folders per person on the lists that build up for managers (Matt 20 Oct 2026: "audits other users do in their own folder ... same for the operatives").
+   - Home, All audits: my audits stay at the top; every other surveyor's audits sit in a folder (name + count), closed until tapped. Search opens folders with matches.
+   - Job > Daily checks: Weekly sheets - this week's card stays as it is, earlier weeks go in one folder per operative; Day by day - one folder per operative.
+   - Team / Admin: the operative accounts list folds away when long; deactivated accounts in their own closed folder.
+   - Admin > Expenses (approved / paid / rejected / all): one folder per operative ("To approve" stays a flat list).
+   Folder open/closed state is kept per device (localStorage 'ars.folders'); nothing is synced and no shared settings are written. Operative screens are unchanged. */
+const FOLD_LS = 'ars.folders';
+let foldSt = (() => { try { return JSON.parse(localStorage.getItem(FOLD_LS) || '{}') || {}; } catch (e) { return {}; } })();
+const foldIsOpen = (k, def) => Object.prototype.hasOwnProperty.call(foldSt, k) ? !!foldSt[k] : !!def;
+function foldSet(k, open) { foldSt[k] = !!open; try { localStorage.setItem(FOLD_LS, JSON.stringify(foldSt)); } catch (e) { } }
+function foldHTML(key, title, n, inner, o = {}) { const open = o.force != null ? o.force : foldIsOpen(key, o.def);
+  return `<div class="fold${open ? ' open' : ''}${o.cls ? ' ' + o.cls : ''}" data-fold="${esc(key)}"><button type="button" class="fold-h" data-act="fold-tg" data-k="${esc(key)}" aria-expanded="${open}"><span class="fold-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span class="fold-t">${esc(title)}</span>${o.tags || ''}<span class="fold-n">${n}</span><span class="fold-ch" aria-hidden="true">▸</span></button><div class="fold-b"${open ? '' : ' hidden'}>${inner}</div></div>`; }
+ACTIONS['fold-tg'] = a => { const w = a.closest('.fold'); if (!w) return; const open = !w.classList.contains('open'); w.classList.toggle('open', open); const b = w.querySelector(':scope > .fold-b'); if (b) b.hidden = !open; a.setAttribute('aria-expanded', String(open)); foldSet(a.dataset.k, open); };
+const foldFrag = html => { const t = document.createElement('template'); t.innerHTML = html; return t.content; };
+const foldOut = frag => { const d = document.createElement('div'); d.appendChild(frag); return d.innerHTML; };
+const foldNm = s => String(s || '').toLowerCase();
+/* ---------- 1. Home: All audits ---------- */
+{ const _vl = viewList; viewList = function () { const v = _vl(); if (!signedIn() || !isMgr() || Cloud.scope === 'mine' || Cloud.owner) return v;
+  const F = foldFrag(v.body), list = F.querySelector('#joblist'); if (!list) return v; const cards = [...list.querySelectorAll(':scope > .job')]; if (!cards.length) return v;
+  const jobOf = c => { const b = c.querySelector('[data-act="jobmenu"]'); return b ? S.jobs.find(j => j.id === b.dataset.id) : null; };
+  const mine = [], G = new Map(); cards.forEach(c => { const j = jobOf(c); if (!j || j.localOnly || !j.owner || j.owner === me()) { mine.push(c); return; } if (!G.has(j.owner)) G.set(j.owner, { name: personName(j.owner) || j.surveyor || 'Other user', cards: [] }); G.get(j.owner).cards.push(c); });
+  if (!G.size) return v; const q = (S.q || '').trim(); const html = c => c.outerHTML;
+  const groups = [...G.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name));
+  list.innerHTML = (mine.length ? `<div class="fold-mine"><div class="fold-lbl">My audits <span class="fold-n">${mine.length}</span></div>${mine.map(html).join('')}</div>` : '')
+    + `<div class="fold-lbl" style="margin-top:${mine.length ? 14 : 0}px">Other users <span class="small">${groups.length} ${groups.length === 1 ? 'person' : 'people'} · tap a name to open</span></div>`
+    + groups.map(([id, g]) => foldHTML('jobs:' + id, g.name, g.cards.length, g.cards.map(html).join(''), { force: q ? true : null, tags: g.cards.some(c => c.classList.contains('Draft')) ? `<span class="tag">${g.cards.filter(c => c.classList.contains('Draft')).length} draft</span>` : '' })).join('');
+  v.body = foldOut(F); return v; }; }
+/* ---------- 2. Job > Daily checks (weekly sheets + day by day) ---------- */
+{ const _v = viewDailyList; viewDailyList = function (job) { const h = _v(job), f = dcFilters(), pid = job.projectId; if (f.op || !signedIn()) return h;
+  const F = foldFrag(h), raw = Ops.dc[pid] || [];
+  if (f.view === 'weekly') { const ws = wkStartOf(todayISO()); const byId = new Map(raw.map(r => [r.id, r])); const old = [], cardsOld = [];
+    F.querySelectorAll('.card').forEach(c => { const h2 = c.querySelector(':scope > h2'); if (!h2 || !/^Week commencing/.test(h2.textContent)) return; const its = [...c.querySelectorAll('a.wkitem')]; const r0 = its.map(a => byId.get((a.getAttribute('href') || '').replace('#/weekly/', ''))).find(Boolean);
+      if (!r0 || r0.check_date >= ws) return; cardsOld.push(c); its.forEach(a => { const r = byId.get((a.getAttribute('href') || '').replace('#/weekly/', '')); if (r) old.push({ a, r }); }); });
+    if (!old.length) return h; const G = new Map(); old.forEach(({ a, r }) => { const t = a.querySelector('.t1'); if (t) t.textContent = `w/c ${fmtDate(r.check_date)}`; if (!G.has(r.owner)) G.set(r.owner, { name: r.owner_name || personName(r.owner) || 'Unknown', L: [] }); G.get(r.owner).L.push({ a, r }); });
+    const box = document.createElement('div'); box.className = 'card'; box.id = 'dc-folders'; box.innerHTML = `<h2>Earlier weeks <span class="small" style="margin-left:auto">${old.length} sheet${old.length === 1 ? '' : 's'}</span></h2><p class="hint" style="margin:-4px 0 8px">One folder per operative - tap a name to open.</p>` + [...G.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, g]) => { const n = g.L.reduce((s, x) => s + (x.r.issues || 0), 0); return foldHTML('dcw:' + id, g.name, g.L.length, g.L.sort((x, y) => y.r.check_date.localeCompare(x.r.check_date)).map(x => x.a.outerHTML).join(''), { tags: n ? `<span class="tag red">${n} issue${n > 1 ? 's' : ''}</span>` : '' }); }).join('');
+    cardsOld[0].before(box); cardsOld.forEach(c => c.remove()); return foldOut(F); }
+  const rows = dcExpandRows(raw, f), byId = new Map(rows.map(r => [r.id, r])); const its = [...F.querySelectorAll('a.item[href^="#/daily/"], a.item[href^="#/weekly/"]')].filter(a => !a.classList.contains('wkitem'));
+  const key = a => { const hr = a.getAttribute('href') || ''; let m = hr.match(/^#\/weekly\/([^/]+)\/(\d{4}-\d\d-\d\d)$/); if (m) return m[1] + '~' + m[2]; m = hr.match(/^#\/daily\/(.+)$/); return m ? decodeURIComponent(m[1]) : ''; };
+  const L = its.map(a => ({ a, r: byId.get(key(a)) })).filter(x => x.r); if (L.length < 2 || L.length !== its.length) return h; const host = its[0].parentNode; if (!its.every(a => a.parentNode === host)) return h;
+  const G = new Map(); L.forEach(x => { if (!G.has(x.r.owner)) G.set(x.r.owner, { name: x.r.owner_name || personName(x.r.owner) || 'Unknown', L: [] }); G.get(x.r.owner).L.push(x); });
+  const wrap = document.createElement('div'); wrap.id = 'dc-folders'; wrap.innerHTML = [...G.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, g]) => { const n = g.L.reduce((s, x) => s + (x.r.issues || 0), 0); return foldHTML('dcd:' + id, g.name, g.L.length, g.L.map(x => x.a.outerHTML).join(''), { tags: n ? `<span class="tag red">${n} issue${n > 1 ? 's' : ''}</span>` : '' }); }).join('');
+  its[0].before(wrap); its.forEach(a => a.remove()); return foldOut(F); }; }
+/* ---------- 3. Team / Admin: operative accounts ---------- */
+{ const _o = opsTeamCard; opsTeamCard = function () { const h = _o(), F = foldFrag(h), card = F.querySelector('#opscard'); if (!card) return h; const its = [...card.querySelectorAll(':scope > .item')]; if (its.length < 2) return h;
+  const off = its.filter(x => /Deactivated/.test(x.querySelector('.meta') ? x.querySelector('.meta').textContent : '')), on = its.filter(x => !off.includes(x));
+  const box = document.createElement('div'); box.innerHTML = (on.length ? foldHTML('ops:active', 'Operative accounts', on.length, on.map(x => x.outerHTML).join(''), { def: on.length <= 6 }) : '') + (off.length ? foldHTML('ops:off', 'Deactivated', off.length, off.map(x => x.outerHTML).join(''), { def: false }) : '');
+  its[0].before(...box.childNodes); its.forEach(x => x.remove()); return foldOut(F); }; }
+/* ---------- 4. Admin > Expenses: per operative (not on "To approve") ---------- */
+{ const _e = admExpHTML; admExpHTML = function () { const h = _e(), Fl = S.adm; if (Fl.est === 'submitted' || Fl.eop) return h; const F = foldFrag(h), card = F.querySelector('#adm-exp'); if (!card) return h; const its = [...card.querySelectorAll(':scope > .item')]; if (its.length < 2) return h;
+  const R = new Map(admExpRows().map(e => [e.id, e])); const G = new Map(); for (const it of its) { const id = (it.querySelector('[data-act="adm-rc"]') || {}).dataset; const e = id && R.get(id.id); if (!e) return h; const k = e.subject || e.data.name || '?'; if (!G.has(k)) G.set(k, { name: e.data.name || admPerson(e.subject).full_name || 'Unknown', L: [], t: 0 }); const g = G.get(k); g.L.push(it); g.t += +e.data.amount || 0; }
+  const box = document.createElement('div'); box.innerHTML = [...G.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([k, g]) => foldHTML('exp:' + k, g.name, g.L.length, g.L.map(x => x.outerHTML).join(''), { tags: `<span class="tag">${fmtGBP(g.t)}</span>` })).join('');
+  its[0].before(...box.childNodes); its.forEach(x => x.remove()); return foldOut(F); }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
