@@ -1,15 +1,19 @@
 /* ARS Site Audit service worker - offline cache */
-const CACHE = 'ars-site-audit-v1.8.5';
-const PREFIX = 'ars-site-audit-v';
+// v1.11.0: the live (root) app has its own cache family 'ars-site-audit-root-v...' so the archived v1.8.5 copy (its own
+// service worker deletes every other 'ars-site-audit-v...' cache) can never remove the live cache. Old 'ars-site-audit-v...'
+// caches (live <= v1.8.5) are still removed here; the beta's 'ars-site-audit-beta-v...' caches are never touched.
+const CACHE = 'ars-site-audit-root-v1.11.0';
+const PREFIX = 'ars-site-audit-root-v', LEGACY = 'ars-site-audit-v';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/icon.svg', './pdf-lib.min.js', './quote-assets.js', './pdfjs.min.js', './pdfjs.worker.min.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 // only remove this app's own old caches (beta and live share the origin)
 // go-live (1.8.3): pages still running the old device-only v1.2.x app are reloaded once onto the new version
-self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => { const old = ks.filter(k => k.startsWith(PREFIX) && k !== CACHE); const legacy = old.some(k => /^ars-site-audit-v1\.[0-2]\./.test(k));
+self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => { const old = ks.filter(k => (k.startsWith(PREFIX) || k.startsWith(LEGACY)) && k !== CACHE); const legacy = old.some(k => /^ars-site-audit-v1\.[0-2]\./.test(k));
   return Promise.all(old.map(k => caches.delete(k))).then(() => self.clients.claim()).then(() => legacy ? self.clients.matchAll({ type: 'window' }).then(cs => Promise.all(cs.filter(c => !new URL(c.url).pathname.includes('/beta/')).map(c => c.navigate(c.url).catch(() => null)))) : null); })); });
 self.addEventListener('fetch', e => {
   const req = e.request; const url = new URL(req.url); if (req.method !== 'GET' || url.origin !== location.origin) return;
-  if (url.pathname.startsWith(new URL('./beta/', self.registration.scope).pathname)) return;   // leave the beta app alone
+  const sub = url.pathname.slice(new URL(self.registration.scope).pathname.length);
+  if (/^(beta|v\d[\w.-]*)(\/|$)/.test(sub)) return;   // leave the beta app and archived versions (e.g. /v1.8.5/) alone
   // stale-while-revalidate: serve from cache instantly (works offline), refresh cache in background
   e.respondWith(caches.open(CACHE).then(async c => {
     const key = req.mode === 'navigate' ? './index.html' : req;
