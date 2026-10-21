@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.3">
+<meta name="app-version" content="1.11.4">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -878,7 +878,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.3';
+const APP_VERSION = '1.11.4';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -9585,7 +9585,7 @@ async function licEdit(pid) { const l = licOf(pid), d = l ? l.data : {}, adm = i
 const EXP_TYPES = ['Fuel', 'Parking', 'Tolls / congestion', 'Materials', 'Tools / equipment', 'Subsistence', 'Accommodation', 'Train / public transport', 'Other'];
 const EXP_ST = { submitted: ['Submitted', 'amber'], approved: ['Approved', 'green'], paid: ['Paid', 'green'], rejected: ['Rejected', 'red'] };
 const expOf = pid => recAll('expense', e => e.subject === pid).sort((a, b) => (b.data.date || '').localeCompare(a.data.date || ''));
-const expJobs = () => isAdm() ? bsActiveJobs().map(j => ({ id: j.id, ref: j.ref, site: j.site_name })) : (Ops.jobs || []).map(j => ({ id: j.id, ref: j.ref, site: j.site_name }));
+let expJobs = () => isAdm() ? bsActiveJobs().map(j => ({ id: j.id, ref: j.ref, site: j.site_name })) : (Ops.jobs || []).map(j => ({ id: j.id, ref: j.ref, site: j.site_name }));
 async function expEdit(pid, e) { const d = e ? clone(e.data) : { date: todayISO(), type: 'Fuel', amount: '', jobId: (expJobs()[0] || {}).id || '', note: '' }; let rc = e && e._files && e._files.receipt || '';
   const ro = e && e.status && e.status !== 'submitted' && !isAdm();
   const r = await modal(`<h3>${e ? 'Expense' : 'New expense'}</h3>${e && e.status ? `<p><span class="tag ${EXP_ST[e.status][1]}">${EXP_ST[e.status][0]}</span>${e.data.reason ? ' ' + esc(e.data.reason) : ''}</p>` : ''}
@@ -10943,6 +10943,137 @@ const foldNm = s => String(s || '').toLowerCase();
   const R = new Map(admExpRows().map(e => [e.id, e])); const G = new Map(); for (const it of its) { const id = (it.querySelector('[data-act="adm-rc"]') || {}).dataset; const e = id && R.get(id.id); if (!e) return h; const k = e.subject || e.data.name || '?'; if (!G.has(k)) G.set(k, { name: e.data.name || admPerson(e.subject).full_name || 'Unknown', L: [], t: 0 }); const g = G.get(k); g.L.push(it); g.t += +e.data.amount || 0; }
   const box = document.createElement('div'); box.innerHTML = [...G.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([k, g]) => foldHTML('exp:' + k, g.name, g.L.length, g.L.map(x => x.outerHTML).join(''), { tags: `<span class="tag">${fmtGBP(g.t)}</span>` })).join('');
   its[0].before(...box.childNodes); its.forEach(x => x.remove()); return foldOut(F); }; }
+
+/* ===== v1.11.4 (BETA): type a new project on every project picker (Matt 21 Oct 2026: "in the drop downs for project names it doesnt always allow
+   you to enter a project only ones that are stored can we have an option on all of these to input our project").
+   - Every staff project picker (audit > Edit project > Link, RAMS & toolbox talks job picker + issue sheet Project, O&M / H&S new file, expenses,
+     Team > Assign jobs, Admin > person > Foreman jobs) becomes a search box: type to filter the stored projects, or tap '+ Add new project "…"'.
+   - A typed project is saved to the shared project list (public.jobs, same row shape as "Save project" on an audit) so it is there next time.
+     Duplicate check first (case / spacing / punctuation ignored, against the ref, the site name and "ref site"): an existing match is picked instead.
+   - Works offline: the new project is added on this device at once and uploaded on the next sync (queue 'proj.queue' in the local DB). Only a new row
+     is inserted (POST, id from the phone, duplicates ignored on retry); nothing else on the server is changed by the queue.
+   - Operatives: unchanged - they still only see the jobs they are assigned to (they cannot create projects). On their expense form the only addition
+     is "Other job - type the name", kept as text on that expense (no project is created). */
+const PJ_Q = 'proj.queue';
+let pjQueue = [];
+(async () => { try { pjQueue = (await DB.getKV(PJ_Q)) || []; pjMergeLocal(); } catch (e) { } })();
+const pjNorm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const pjTidy = t => String(t || '').replace(/\s+/g, ' ').replace(/^[\s·]+|[\s·]+$/g, '').trim();
+const pjLabel = j => [j.ref, j.site_name].filter(Boolean).join(' · ') || 'Project';
+const pjCanCreate = () => signedIn() && !!Cloud.profile && isStaffRole(Cloud.profile.role) && Cloud.profile.active !== false;
+function pjFind(name) { const n = pjNorm(name); if (!n) return null;
+  return (Ops.jobsTbl || []).find(j => [j.ref, j.site_name, `${j.ref || ''} ${j.site_name || ''}`].some(x => pjNorm(x) === n)) || null; }
+function pjMergeLocal() { if (!Ops.jobsTbl) Ops.jobsTbl = []; for (const q of pjQueue) { const i = Ops.jobsTbl.findIndex(j => j.id === q.id); if (i < 0) Ops.jobsTbl.push(q); else if (Ops.jobsTbl[i] !== q) Ops.jobsTbl[i] = Object.assign(Ops.jobsTbl[i], q); } }
+async function pjSaveQ() { await DB.setKV(PJ_Q, pjQueue.map(q => Object.assign({}, q))); try { await DB.setKV('cloud.jobsTbl', Ops.jobsTbl); } catch (e) { } }
+// create (or find) a project from a typed name; returns the project row
+async function pjCreate(name, extra = {}) {
+  name = String(name || '').replace(/\s+/g, ' ').trim(); if (!name) return null;
+  const hit = pjFind(name); if (hit) { toast(`"${pjLabel(hit)}" is already in the list - picked that one${hit.active === false ? ' (closed project)' : ''}`, 3500); return hit; }
+  const row = Object.assign({ id: uid(), ref: '', site_name: name, site_address: '', postcode: '', client_name: '', show_client: false, active: true, contracts_manager: null, operatives: [], audit_ids: [] }, extra, { _q: 1, _at: Date.now() });
+  pjQueue.push(row); pjMergeLocal(); await pjSaveQ();
+  toast(online() ? `New project "${name}" added` : `New project "${name}" added - it uploads when you have signal`, 3000);
+  pjFlush(); return row;
+}
+async function pjTouch(row) { if (row && row._q) { await pjSaveQ(); pjFlush(); } }
+let pjBusy = false;
+async function pjFlush() {
+  if (pjBusy || !pjQueue.length || !pjCanCreate() || !online()) return; pjBusy = true;
+  try { for (const q of [...pjQueue]) {
+      const body = {}; ['id', 'ref', 'site_name', 'site_address', 'postcode', 'client_name', 'show_client', 'active', 'contracts_manager', 'operatives', 'audit_ids'].forEach(k => body[k] = q[k]);
+      try { await sbFetch('/rest/v1/jobs?on_conflict=id', { method: 'POST', body, headers: { Prefer: 'return=minimal,resolution=ignore-duplicates' } }); }
+      catch (e) { if (e.offline || e.status === 401) break; console.warn('project upload', e); q._err = e.message || String(e); continue; }
+      pjQueue = pjQueue.filter(x => x !== q); delete q._q; delete q._at; delete q._err; }
+    await pjSaveQ();
+  } finally { pjBusy = false; }
+}
+{ const _l = loadJobsTbl; loadJobsTbl = async function () { const r = await _l.apply(this, arguments); pjMergeLocal(); return r; }; }
+{ const _s = syncNow; syncNow = async function () { await pjFlush().catch(() => { }); return _s.apply(this, arguments); }; }
+window.addEventListener('online', () => pjFlush());
+
+/* ---------- the search box ("combo") laid over an existing <select> ---------- */
+// mode: 'project' = staff may add a new project; 'text' = free text kept on the record only; 'none' = search only
+const PJ_SEL = { 'pj-link': 'project', 'bsq-job': 'project', 'bs-pj': 'project', 'omn-j': 'project', 'ex-job': 'auto' };
+(() => { const st = document.createElement('style'); st.textContent = `.pjc{position:relative;margin:2px 0 4px}.pjc-in{width:100%;font-size:17px;padding:12px 40px 12px 12px;border:1.5px solid #cbd5e1;border-radius:10px;background:#fff;color:var(--navy)}
+.pjc-in:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(240,133,30,.18)}.pjc-x{position:absolute;right:6px;top:6px;width:34px;height:34px;border:0;background:none;font-size:20px;color:#64748b}
+.pjc-list{margin-top:4px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;max-height:240px;overflow:auto;-webkit-overflow-scrolling:touch}.pjc-list[hidden]{display:none}
+.pjc-o{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #eef2f7;background:none;padding:12px;font-size:16px;color:var(--navy);min-height:44px}.pjc-o:last-child{border-bottom:0}
+.pjc-o.on{background:#fff4e8;font-weight:700}.pjc-o.new{color:#b45309;font-weight:800;background:#fffbeb}.pjc-o .s{display:block;font-size:12.5px;color:#64748b;font-weight:400}.pjc-none{padding:12px;color:#64748b;font-size:14px}
+.pjc-sel{display:none!important}.pjc-add{display:flex;gap:8px;margin:10px 0 4px}.pjc-add input{flex:1;font-size:16px;padding:10px;border:1.5px solid #cbd5e1;border-radius:10px}.pjc-add .btn{flex:0 0 auto;min-height:44px}`; document.head.appendChild(st); })();
+function pjMode(sel) { const m = PJ_SEL[sel.id]; if (m !== 'auto') return pjCanCreate() ? m : 'none'; return pjCanCreate() ? 'project' : 'text'; }
+function pjEnhance(sel) {
+  if (!sel || sel.dataset.pjc) return; sel.dataset.pjc = '1'; const mode = pjMode(sel);
+  const box = document.createElement('div'); box.className = 'pjc';
+  box.innerHTML = `<input type="text" class="pjc-in" autocomplete="off" autocapitalize="words" enterkeyhint="done" placeholder="${mode === 'none' ? 'Search projects' : 'Search, or type a new project name'}" aria-label="Project"><button type="button" class="pjc-x" aria-label="Show list">▾</button><div class="pjc-list" role="listbox" hidden></div>`;
+  sel.classList.add('pjc-sel'); sel.parentNode.insertBefore(box, sel);
+  const inp = box.querySelector('.pjc-in'), list = box.querySelector('.pjc-list');
+  const curLabel = () => { const o = sel.options[sel.selectedIndex]; return o && o.value ? pjTidy(o.textContent) : ''; };
+  const showSel = () => { inp.value = curLabel(); inp.placeholder = sel.value || !sel.options.length ? (mode === 'none' ? 'Search projects' : 'Search, or type a new project name') : ((sel.options[sel.selectedIndex] || {}).textContent || '').trim() || 'Search'; };
+  const pick = v => { if (sel.value !== v) { sel.value = v; sel.dispatchEvent(new Event('change', { bubbles: true })); } showSel(); list.hidden = true; inp.blur(); };
+  const draw = () => { const q = pjNorm(inp.value === curLabel() ? '' : inp.value); const opts = [...sel.options];
+    const hits = opts.filter(o => !q || pjNorm(o.textContent).includes(q) || !o.value && !q);
+    const exact = q && opts.some(o => o.value && pjNorm(o.textContent.replace('·', ' ')) === q) || (q && mode === 'project' && pjFind(inp.value));
+    let h = hits.map(o => `<button type="button" class="pjc-o${o.value === sel.value ? ' on' : ''}" data-v="${esc(o.value)}">${esc(pjTidy(o.textContent))}</button>`).join('');
+    if (q && !exact && mode === 'project') h = `<button type="button" class="pjc-o new" data-new="1">+ Add new project "${esc(inp.value.trim())}"<span class="s">Saved to the project list for everyone${online() ? '' : ' - uploads when you have signal'}</span></button>` + h;
+    if (q && !exact && mode === 'text') h = `<button type="button" class="pjc-o new" data-txt="1">+ Other job: "${esc(inp.value.trim())}"<span class="s">Kept on this expense only</span></button>` + h;
+    list.innerHTML = h || `<div class="pjc-none">${mode === 'none' ? 'No match' : 'Type the project name'}</div>`; list.hidden = false; };
+  inp.addEventListener('focus', () => { if (inp.value === curLabel()) inp.select && setTimeout(() => inp.select(), 0); draw(); });
+  inp.addEventListener('input', draw);
+  inp.addEventListener('keydown', e => { if (e.key !== 'Enter') return; e.preventDefault(); const b = list.querySelector('.pjc-o'); if (b) b.click(); });
+  box.querySelector('.pjc-x').addEventListener('click', () => { if (list.hidden) { inp.value = ''; draw(); inp.focus(); } else { list.hidden = true; showSel(); } });
+  list.addEventListener('mousedown', e => e.preventDefault());
+  list.addEventListener('click', async e => { const b = e.target.closest('.pjc-o'); if (!b) return; e.preventDefault(); e.stopPropagation();
+    if (b.dataset.new) { const row = await pjCreate(inp.value); if (!row) return; if (![...sel.options].some(o => o.value === row.id)) sel.add(new Option(pjLabel(row), row.id), sel.options[0] && !sel.options[0].value ? 1 : 0); return pick(row.id); }
+    if (b.dataset.txt) { const t = inp.value.replace(/\s+/g, ' ').trim(), v = 'txt:' + t; if (![...sel.options].some(o => o.value === v)) sel.add(new Option(t, v)); return pick(v); }
+    pick(b.dataset.v); });
+  inp.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== inp && !list.contains(document.activeElement)) { list.hidden = true; showSel(); } }, 150));
+  showSel();
+}
+new MutationObserver(() => { for (const id of Object.keys(PJ_SEL)) { const s = document.getElementById(id); if (s && !s.dataset.pjc) pjEnhance(s); } pjAddRows(); }).observe(document.documentElement, { childList: true, subtree: true });
+
+/* ---------- pickers that need to accept a brand-new project ---------- */
+// RAMS & toolbox talks: always ask (so a new project can be typed), even with 0 or 1 stored jobs
+bsPickJob = async function (title) { const jobs = bsActiveJobs(); if (!pjCanCreate()) { if (!jobs.length) { toast('No jobs yet'); return null; } if (jobs.length === 1) return jobs[0].id; }
+  const r = await modal(`<h3>${esc(title)}</h3><label class="f"><span class="lbl">Job</span><select id="bsq-job">${jobs.length ? '' : '<option value="">Type the project name</option>'}${jobs.map(j => `<option value="${esc(j.id)}" ${S.bsF.job === j.id ? 'selected' : ''}>${esc(j.ref || '')} ${esc(j.site_name || '')}</option>`).join('')}</select></label><button class="btn primary" id="bsq-ok">Next</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#bsq-ok').addEventListener('click', () => { const v = bg.querySelector('#bsq-job').value; if (!v) return toast('Pick a project or type a new one'); close({ id: v }); }));
+  return r && r.id ? r.id : null; };
+// audit > Edit project > Link: show the picker on every new project page; a new (queued) project is linked on the phone and uploads with the queue
+{ const _vp = viewProject; viewProject = function (job) { let h = _vp(job); if (job.projectId || /id="pj-link"/.test(h) || !pjCanCreate()) return h;
+    return `<div class="card"><h2>Link to an existing project</h2><p class="hint" style="margin-bottom:8px">Search the project list, or type a new project name. Or fill in the new project below.</p><div class="f"><select id="pj-link"><option value="">— Choose a project —</option></select></div><button class="btn block" data-act="pj-link">Link this audit</button></div>` + h; }; }
+{ const _a = ACTIONS['pj-link']; ACTIONS['pj-link'] = async function (a, job) { const id = ($('#pj-link') || {}).value; const p = (Ops.jobsTbl || []).find(r => r.id === id);
+    if (!p || !p._q) return _a.apply(this, arguments);
+    job.projectId = id; markDirty(job); p.audit_ids = [...new Set([...(p.audit_ids || []), job.id])]; await pjTouch(p); toast('Linked to ' + pjLabel(p)); go(`#/job/${job.id}/details`); }; }
+{ const _a = ACTIONS['pj-save']; ACTIONS['pj-save'] = async function (a, job) { const p = projOf(job); if (!p || !p._q) return _a.apply(this, arguments);
+    const val = id => ($('#' + id) || {}).value || '';
+    Object.assign(p, { ref: val('pj-ref').trim() || p.ref, site_name: val('pj-site').trim() || p.site_name, site_address: val('pj-addr').trim(), postcode: val('pj-pc').trim(), client_name: val('pj-client').trim(), show_client: $('#pj-showclient').checked, active: $('#pj-active').checked, contracts_manager: val('pj-cm') || null, operatives: $$('.pj-op').filter(x => x.checked).map(x => x.value), audit_ids: [...new Set([...(p.audit_ids || []), job.id])] });
+    await pjTouch(p); toast(p._q && !online() ? 'Project saved - uploads when you have signal' : 'Project saved'); go(`#/job/${job.id}/details`); }; }
+// expenses: staff see every active project (+ add new); operatives keep their assigned jobs (+ "Other job" as text on the expense)
+expJobs = () => (pjCanCreate() ? bsActiveJobs() : (Ops.jobs || [])).map(j => ({ id: j.id, ref: j.ref, site: j.site_name })).concat((window.__pjTxt || []).map(t => ({ id: 'txt:' + t, ref: t, site: '' })));
+document.addEventListener('change', e => { if (e.target.id === 'ex-job' && /^txt:/.test(e.target.value)) { const t = e.target.value.slice(4); window.__pjTxt = [...new Set([...(window.__pjTxt || []), t])]; } }, true);
+{ const _p = recPut; recPut = function (x) { if (x && x.kind === 'expense' && x.data && /^txt:/.test(x.data.jobId || '')) { x.data.jobRef = x.data.jobId.slice(4); x.data.jobId = ''; } return _p.apply(this, arguments); }; }
+// Team > Assign jobs and Admin > person > Foreman jobs: "+ New project" row under the tick list
+let pjAssignFor = null, pjAssignOk = false, pjAssignNew = [], pjAssignSnap = new Map();
+const pjSnap = r => { if (!pjAssignSnap.has(r)) pjAssignSnap.set(r, [...(r.operatives || [])]); if (!pjAssignNew.includes(r)) pjAssignNew.push(r); };
+{ const _o = opAssign; opAssign = async function (id) { pjAssignFor = id; pjAssignOk = false; pjAssignNew = []; pjAssignSnap = new Map(); try { return await _o.apply(this, arguments); } finally {
+      if (!pjAssignOk) for (const r of pjAssignNew) { r.operatives = pjAssignSnap.has(r) ? pjAssignSnap.get(r) : (r.operatives || []).filter(x => x !== id); await pjTouch(r); }
+      else if (pjAssignNew.length) render(true);
+      pjAssignFor = null; pjAssignNew = []; pjAssignSnap = new Map(); } }; }
+function pjAddRows() {
+  if (!pjCanCreate()) return;
+  const ok = document.getElementById('asok'); if (ok && !ok.dataset.pjc && pjAssignFor) { ok.dataset.pjc = '1'; ok.addEventListener('click', () => { pjAssignOk = true; }, true); ok.insertAdjacentHTML('beforebegin', `<div class="pjc-add"><input type="text" id="pjc-as" placeholder="+ New project name" autocapitalize="words" enterkeyhint="done"><button type="button" class="btn" id="pjc-as-add">Add</button></div>`);
+    const add = async () => { const t = document.getElementById('pjc-as'); const row = await pjCreate(t.value); if (!row) return toast('Type the project name'); t.value = '';
+      if (!row._q && ![...document.querySelectorAll('.as-j')].some(c => c.value === row.id)) return toast('That project is closed - reopen it from its audit (Edit project) first', 4000);
+      if (row._q) pjSnap(row);
+      let cb = [...document.querySelectorAll('.as-j')].find(c => c.value === row.id);
+      if (!cb) { ok.previousElementSibling.insertAdjacentHTML('beforebegin', `<label class="ckl"><input type="checkbox" class="as-j pjc-asn" value="${esc(row.id)}" checked> ${esc(pjLabel(row))} <span class="small">new</span></label>`); cb = [...document.querySelectorAll('.as-j')].find(c => c.value === row.id); }
+      cb.checked = true; if (row._q) { row.operatives = [...new Set([...(row.operatives || []), pjAssignFor])]; await pjTouch(row); } };
+    document.getElementById('pjc-as-add').addEventListener('click', add); document.getElementById('pjc-as').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } }); }
+  // ticking / unticking a new (queued) project in the assign list updates its operatives straight away
+  const fm = document.getElementById('fm-card'); if (fm && !fm.dataset.pjc && /data-act="fm-job"|No active jobs/.test(fm.innerHTML)) { fm.dataset.pjc = '1'; const uidP = (fm.querySelector('[data-act="fm-flag"]') || {}).dataset; if (!uidP) return;
+    const at = fm.querySelector('p.hint:last-of-type'); (at || fm.lastChild).insertAdjacentHTML('beforebegin', `<div class="pjc-add"><input type="text" id="pjc-fm" placeholder="+ New project name" autocapitalize="words" enterkeyhint="done"><button type="button" class="btn" id="pjc-fm-add">Add</button></div>`);
+    const add = async () => { const t = document.getElementById('pjc-fm'); const row = await pjCreate(t.value); if (!row) return toast('Type the project name'); const d = fmData(); if (d.jobs[row.id] !== uidP.id) ACTIONS['fm-job']({ dataset: { id: uidP.id, job: row.id } }); else rerender(true); };
+    document.getElementById('pjc-fm-add').addEventListener('click', add); document.getElementById('pjc-fm').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } }); }
+}
+document.addEventListener('change', e => { const c = e.target; if (!c.classList || !c.classList.contains('as-j') || !pjAssignFor) return; const r = pjQueue.find(q => q.id === c.value); if (!r) return; pjSnap(r);
+  r.operatives = c.checked ? [...new Set([...(r.operatives || []), pjAssignFor])] : (r.operatives || []).filter(x => x !== pjAssignFor); pjTouch(r); });
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
