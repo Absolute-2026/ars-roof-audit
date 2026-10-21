@@ -2610,7 +2610,8 @@ async function afterLogin(t) {
     S.jobs = keep; Cloud.cursor = '';
   }
   await DB.setKV('cloud.lastUser', me());
-  Cloud.cursor = (await DB.getKV('cloud.cursor.' + me())) || '';
+  // bug fix 21 Oct 2026 (same as beta v1.11.3): after another person used this phone their sign-in removed this user's copies of other people's audits: download everything again
+  Cloud.healed = null; Cloud.cursor = prev && prev !== me() ? '' : ((await DB.getKV('cloud.cursor.' + me())) || '');
   if (Cloud.profile.full_name) { S.settings.surveyor = Cloud.profile.full_name; await DB.setKV('settings', S.settings); }
   go('#/'); render();
   await offerUpload();
@@ -2802,7 +2803,10 @@ async function applyRemote(r) {
   await replaceLocal(local, r);
 }
 async function pull() {
-  let cursor = Cloud.cursor || '1970-01-01T00:00:00Z';
+  // bug fix 21 Oct 2026 (same as beta v1.11.3) one-off repair: phones where sign out / another user removed audits but kept the download cursor never got them back.
+  // Download everything once per user per phone (unchanged audits are skipped by version; nothing is written to the server).
+  const healKey = 'cloud.healed.' + me(); if (!Cloud.healed) Cloud.healed = await DB.getKV(healKey);
+  let cursor = Cloud.healed ? (Cloud.cursor || '1970-01-01T00:00:00Z') : '1970-01-01T00:00:00Z';
   // re-read a 2-minute overlap so rows committed slightly out of order are never missed (duplicates are skipped by version)
   const t0 = Date.parse(cursor); let from = isNaN(t0) ? cursor : new Date(Math.max(0, t0 - 120000)).toISOString();
   for (let guard = 0; guard < 200; guard++) {
@@ -2814,6 +2818,7 @@ async function pull() {
     from = last;
   }
   Cloud.cursor = cursor; await DB.setKV('cloud.cursor.' + me(), cursor);
+  if (!Cloud.healed) { Cloud.healed = Date.now(); await DB.setKV(healKey, Cloud.healed); }
 }
 async function pushDelete(d) {
   const r = await sbFetch(`/rest/v1/audits?id=eq.${encodeURIComponent(d.id)}&version=eq.${d.version}`, { method: 'PATCH', body: { deleted: true }, headers: { Prefer: 'return=representation' } });
@@ -2905,6 +2910,8 @@ async function signOut() {
   try { if (online()) await sbFetch('/auth/v1/logout', { method: 'POST' }); } catch (e) { }
   const keep = [];
   for (const j of S.jobs) { if (j.owner && !isPending(j) && !j.localOnly) await DB.del(j.id); else keep.push(j); }
+  // bug fix 21 Oct 2026 (same as beta v1.11.3): the synced copies are gone from this phone, so the next sign-in must download everything again (not just changes since the last sync)
+  if (me()) await DB.setKV('cloud.cursor.' + me(), ''); Cloud.cursor = ''; Cloud.healed = null;
   S.jobs = keep; Cloud.session = null; Cloud.profile = null; Cloud.profiles = []; await DB.setKV('cloud.session', null); await DB.setKV('cloud.profile', null);
   Cloud.loginMode = 'signin'; Cloud.loginMsg = 'You have signed out.'; go('#/'); render();
 }
