@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.8">
+<meta name="app-version" content="1.11.9">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -878,7 +878,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.8';
+const APP_VERSION = '1.11.9';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -9544,8 +9544,9 @@ let recOnFlush = null;
 async function recUpload(owner, kind, id, k, dataUrlOrBlob) { const blob = typeof dataUrlOrBlob === 'string' ? dataURLtoBlob(dataUrlOrBlob) : dataUrlOrBlob; const ext = /zip/.test(blob.type) ? 'zip' : /pdf/.test(blob.type) ? 'pdf' : /png/.test(blob.type) ? 'png' : 'jpg';
   const path = `${owner}/${kind}/${id}-${safeName(k)}-${Date.now().toString(36)}.${ext}`; await sbFetch(`/storage/v1/object/${REC_BUCKET}/${encPath(path)}`, { method: 'POST', body: blob, headers: { 'Content-Type': blob.type || 'application/octet-stream', 'x-upsert': 'true' } }); return path; }
 async function recPush(r) { for (const [k, v] of Object.entries(r._files || {})) { r.data[k] = await recUpload(r.owner || me(), r.kind, r.id, k, v); delete r._files[k]; recSaveLocal(); }
-  const row = { id: r.id, kind: r.kind, subject: r.subject || null, owner: r.owner || me(), status: r.status || null, data: r.data, deleted: !!r.deleted };
-  await sbFetch('/rest/v1/records?on_conflict=id', { method: 'POST', body: [row], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); delete r._q; delete r._err; }
+  const ver = r.updated_at, row = { id: r.id, kind: r.kind, subject: r.subject || null, owner: r.owner || me(), status: r.status || null, data: JSON.parse(JSON.stringify(r.data)), deleted: !!r.deleted };
+  await sbFetch('/rest/v1/records?on_conflict=id', { method: 'POST', body: [row], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } });
+  if (r.updated_at === ver) { delete r._q; delete r._err; } else Rec.again = true; }   // v1.11.9: changed while uploading -> keep it queued and push again
 // images / files: local data URL first, else authenticated download (cached as object URL; KV cache for offline)
 const recSrc = (r, k) => (r._files && r._files[k]) || '';
 const recImgTag = (r, k, st = '') => { const d = recSrc(r, k), p = (r.data || {})[k]; return d ? `<img src="${d}" alt="" style="${st}">` : p ? `<img data-rp="${esc(p)}" alt="" style="background:#f1f5f9;${st}">` : ''; };
@@ -11558,6 +11559,443 @@ async function vnStart(btn) {
 document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.vn-btn'); if (!b) return; e.preventDefault(); e.stopPropagation(); if (b.classList.contains('on')) return vnStop(); vnStop(true); vnStart(b); }, true);
 window.addEventListener('hashchange', () => vnStop(true));
 VN.st = vnDetect(); { const go_ = () => { vnDecorate(); new MutationObserver(vnDecorate).observe(document.body, { childList: true, subtree: true }); }; if (document.body) go_(); else document.addEventListener('DOMContentLoaded', go_); }
+
+/* ===== v1.11.9 (BETA): new-starter induction.
+   - Every role (incl. PIN operatives) with an induction record sees an "Induction" task on home until it is complete.
+   - Videos + captions + the full policies PDF live in the PRIVATE storage bucket 'induction' (signed URLs, ~2 h).
+   - General record = records row kind 'induction', id 'ind-<person>' (offline queue like other records).
+   - Medical self-cert + OH questionnaire = special category data: sent ONLY through rpc submit_induction_health into
+     table induction_health (admin role only). Never stored in the record, never emailed, never in the record PDF.
+   - Contacts / placeholders: app_settings 'induction_contacts' (Settings > Induction contacts), blank = "To be confirmed". */
+const IND_CH = [{"id": "01", "t": "Welcome and your responsibilities", "v": "ARS-Induction-SHORT-01-your-responsibilities.mp4", "c": "ARS-Induction-SHORT-01-your-responsibilities.vtt", "d": 100.33, "q": [{"q": "Which tasks should you carry out?", "o": ["Any task you're asked to do", "Only tasks you're trained, competent and authorised for", "Whatever gets the job finished fastest"], "a": 1, "s": "Staff Responsibility Statement"}, {"q": "Conditions on the roof become unsafe. What should you do?", "o": ["Carry on carefully", "Stop work immediately", "Finish the job, then report it"], "a": 1, "s": "Work at Height & Roofing Specific Responsibilities"}]}, {"id": "02", "t": "Health & Safety Policy", "v": "ARS-Induction-SHORT-02-health-safety.mp4", "c": "ARS-Induction-SHORT-02-health-safety.vtt", "d": 68.58, "q": [{"q": "What happens if a safe system of work can't be followed?", "o": ["Carry on, but take extra care", "Work stops until suitable controls are in place", "The quickest person finishes the job"], "a": 1, "s": "Health & Safety Policy Statement"}]}, {"id": "03", "t": "Personal Protective Equipment (PPE)", "v": "ARS-Induction-SHORT-03-ppe.mp4", "c": "ARS-Induction-SHORT-03-ppe.vtt", "d": 65.08, "q": [{"q": "Who must wear high-visibility clothing?", "o": ["Only supervisors", "Everyone working on behalf of the company", "Only on busy sites"], "a": 1, "s": "PPE Issue Form: mandated clothing"}]}, {"id": "04", "t": "Stop Work Policy", "v": "ARS-Induction-SHORT-04-stop-work.mp4", "c": "ARS-Induction-SHORT-04-stop-work.vtt", "d": 92.97, "q": [{"q": "You believe a task will put you or others in danger. What is the first step?", "o": ["Finish the task, then tell someone", "Stop work and report it immediately to the person in charge on site", "Wait for the next toolbox talk"], "a": 1, "s": "Stop Work Policy: work process"}, {"q": "Will you be disciplined for refusing to work on health and safety grounds?", "o": ["Yes, always", "No, you will not be disciplined or disadvantaged", "Only if it delays the job"], "a": 1, "s": "Stop Work Policy Statement"}]}, {"id": "05", "t": "Drug & Alcohol Policy", "v": "ARS-Induction-SHORT-05-drug-alcohol.mp4", "c": "ARS-Induction-SHORT-05-drug-alcohol.vtt", "d": 87.02, "q": [{"q": "You're taking medication that might affect your work. Who do you tell?", "o": ["Nobody, it's private", "Your line manager", "A workmate"], "a": 1, "s": "Drug & Alcohol Policy Statement"}]}, {"id": "06", "t": "Mental Health & Well-being", "v": "ARS-Induction-SHORT-06-mental-health.mp4", "c": "ARS-Induction-SHORT-06-mental-health.vtt", "d": 48.51, "q": [{"q": "According to the policy, mental health is…", "o": ["Less important than physical health", "Just as important as physical health", "Not the company's concern"], "a": 1, "s": "Mental Health & Well-being Policy Statement"}]}, {"id": "07", "t": "Company policies: working fairly", "v": "ARS-Induction-SHORT-07-working-fairly.mp4", "c": "ARS-Induction-SHORT-07-working-fairly.vtt", "d": 87.04, "q": [{"q": "Who do you report bribery red flags to?", "o": ["The client", "The Managing Director", "Nobody"], "a": 1, "s": "Anti-Bribery Policy Statement"}]}, {"id": "08", "t": "Company policies: money and data", "v": "ARS-Induction-SHORT-08-money-and-data.mp4", "c": "ARS-Induction-SHORT-08-money-and-data.vtt", "d": 93.94, "q": [{"q": "How do you ask to see the personal data held about you?", "o": ["Ask a workmate", "In writing to your line manager", "You can't"], "a": 1, "s": "Data Protection Policy: subject access requests"}, {"q": "Who do you report a suspicion of money laundering to?", "o": ["The customer", "The Money Laundering Reporting Officer (MLRO)", "Your bank"], "a": 1, "s": "Anti-Money Laundering Policy: responsibilities"}]}];
+const IND_BUCKET = 'induction', IND_POLICIES = 'policies/ARS-Induction-Pack.pdf', IND_PACK = 'pack/ARS-New-Starter-Induction.pdf';
+const IND = { urls: {}, contacts: null, cT: 0, hd: null, fT: 0, saveT: 0, sending: false };
+const indId = pid => 'ind-' + pid;
+const indRec = (pid = me()) => { const r = Rec.items[indId(pid)]; return r && !r.deleted ? r : null; };
+const indD = r => { const d = r.data || (r.data = {}); d.ch = d.ch || {}; d.forms = d.forms || {}; return d; };
+const indUK = t => { if (!t) return ''; const x = new Date(t); return isNaN(x) ? '' : x.toLocaleString('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '') + ' (UK time)'; };
+const indNow = () => new Date().toISOString();
+const tbcH = v => (v != null && String(v).trim()) ? esc(v) : '<span class="ind-tbc">To be confirmed</span>';
+const tbcT = v => (v != null && String(v).trim()) ? String(v) : 'To be confirmed';
+
+/* ---------- contacts / placeholders (Settings > Induction contacts) ---------- */
+const IND_CF = [
+  ['packVersion', 'Induction pack version', 'Pack'], ['packDate', 'Induction pack date', 'Pack'],
+  ['siteRole', 'Who to stop work and tell on site (besides the site supervisor), e.g. "contracts manager"', 'Stop Work'], ['stopName', 'Stop Work contact (name / role)', 'Stop Work'], ['stopPhone', 'Stop Work contact phone number', 'Stop Work'], ['stopHours', 'Office hours', 'Stop Work'], ['stopOOH', 'Out of hours number', 'Stop Work'],
+  ['daRef', 'Drug & alcohol testing procedure (document reference)', 'Drug & alcohol'], ['daPct', 'Random testing (e.g. "at least 10%")', 'Drug & alcohol'],
+  ['mlroName', 'Money Laundering Reporting Officer (name, job title)', 'Money laundering'], ['mlroPhone', 'MLRO phone', 'Money laundering'], ['mlroEmail', 'MLRO email', 'Money laundering'], ['mlroDeputy', 'MLRO deputy (name / role)', 'Money laundering'],
+  ['taxDirector', 'Tax evasion compliance monitor (Director\'s name, job title)', 'Tax evasion'],
+  ['slaveryContact', 'Modern slavery: who to tell (name / role, phone or email)', 'Modern slavery'],
+  ['dpLead', 'Data protection lead (name / role)', 'Data protection'], ['dpContact', 'Data protection lead email / phone', 'Data protection'],
+  ['retainYears', 'Personnel records kept for (years)', 'Data protection'], ['retainHealthYears', 'Health records kept for (years)', 'Data protection']];
+async function indContacts(force) {
+  if (!IND.contacts) IND.contacts = (await DB.getKV('ind.contacts')) || {};
+  if (signedIn() && online() && (force || Date.now() - IND.cT > 120000)) { IND.cT = Date.now();
+    try { const r = await sbFetch('/rest/v1/app_settings?select=value&key=eq.induction_contacts'); const v = (r && r[0] && r[0].value) || {}; IND.contacts = v; await DB.setKV('ind.contacts', v); } catch (e) { } }
+  return IND.contacts;
+}
+const indC = () => IND.contacts || {};
+function indContactsHTML() { const c = indC();
+  return `<div class="card ind-contacts"><h2>Who to contact</h2>
+    <div class="ind-kv"><b>Stop Work</b><div>Stop, make the area safe and tell the site supervisor or ${tbcH(c.siteRole)}. Then contact ${tbcH(c.stopName)} on ${tbcH(c.stopPhone)} (office hours ${tbcH(c.stopHours)}; out of hours ${tbcH(c.stopOOH)}).</div></div>
+    <div class="ind-kv"><b>Drug &amp; alcohol testing</b><div>Procedure: ${tbcH(c.daRef)}. Random testing: ${tbcH(c.daPct)}.</div></div>
+    <div class="ind-kv"><b>Money laundering (MLRO)</b><div>${tbcH(c.mlroName)}, ${tbcH(c.mlroPhone)}, ${tbcH(c.mlroEmail)}. Deputy: ${tbcH(c.mlroDeputy)}.</div></div>
+    <div class="ind-kv"><b>Tax evasion</b><div>Compliance monitor: ${tbcH(c.taxDirector)}.</div></div>
+    <div class="ind-kv"><b>Modern slavery</b><div>Tell ${tbcH(c.slaveryContact)}.</div></div>
+    <div class="ind-kv"><b>Data protection</b><div>Lead: ${tbcH(c.dpLead)}, ${tbcH(c.dpContact)}. Personnel records kept ${tbcH(c.retainYears)} years; health records ${tbcH(c.retainHealthYears)} years.</div></div>
+    <p class="hint" style="margin:6px 0 0">Induction pack version ${tbcH(c.packVersion)}, dated ${tbcH(c.packDate)}.</p></div>`; }
+function indSettingsHTML() { const c = indC(); let g0 = '';
+  return `<div class="card"><h2>Induction contacts</h2><p class="hint">These fill the gaps in the induction pack (shown to new starters in the app). Anything left blank shows as <span class="ind-tbc">To be confirmed</span>.</p>
+    ${IND_CF.map(([k, l, g]) => { const h = g !== g0 ? `<h3 class="ind-g">${esc(g)}</h3>` : ''; g0 = g; return h + `<div class="f"><label for="indc-${k}">${esc(l)}</label><input id="indc-${k}" data-indc="${k}" value="${esc(c[k] || '')}" autocomplete="off"></div>`; }).join('')}
+    <button class="btn primary block" data-act="indc-save">Save</button></div>`; }
+
+/* ---------- steps ---------- */
+const IND_STEPS = [{ id: 'intro', t: 'Welcome', g: 'Start', done: d => !!d.startedAt }]
+  .concat(...IND_CH.map((c, i) => [{ id: 'v' + c.id, t: c.t, g: `Chapter ${i + 1} of ${IND_CH.length}`, ch: c, kind: 'video', done: d => !!(d.ch[c.id] && d.ch[c.id].watchedAt) },
+    { id: 'q' + c.id, t: `Check questions (${c.q.length})`, g: `Chapter ${i + 1} of ${IND_CH.length}`, ch: c, kind: 'quiz', done: d => !!(d.ch[c.id] && d.ch[c.id].quizAt) }]))
+  .concat([{ id: 'details', t: 'Your details and right to work', g: 'Forms', done: d => !!(d.forms.details && d.forms.details.at) },
+    { id: 'ppe', t: 'PPE issue and sizes', g: 'Forms', done: d => !!(d.forms.ppe && d.forms.ppe.at) },
+    { id: 'health', t: 'Medical self-certification and health questionnaire (confidential)', g: 'Forms', done: d => !!d.healthSubmittedAt },
+    { id: 'nok', t: 'Next of kin / emergency contact', g: 'Forms', done: d => !!(d.forms.nok && d.forms.nok.at) },
+    { id: 'wto', t: 'Working time: 48-hour week opt-out (your choice)', g: 'Forms', done: d => !!(d.forms.wto && d.forms.wto.at) },
+    { id: 'da', t: 'Drug and alcohol policy: acceptance', g: 'Forms', done: d => !!(d.forms.da && d.forms.da.at) },
+    { id: 'policies', t: 'Read the full company policies', g: 'Finish', done: d => !!d.policiesOpenedAt },
+    { id: 'declare', t: 'Final declaration and signature', g: 'Finish', done: d => !!(d.decl && d.decl.at) }]);
+const indStep = id => IND_STEPS.find(s => s.id === id);
+const indFirstOpen = r => { const d = indD(r); return IND_STEPS.find(s => !s.done(d)); };
+const indCanOpen = (r, id) => { const d = indD(r); for (const s of IND_STEPS) { if (s.id === id) return true; if (s.done(d)) continue; if (s.id === 'health' && IND.hq) continue; return false; } return false; };
+const indCount = r => { const d = indD(r); return [IND_STEPS.filter(s => s.done(d)).length, IND_STEPS.length]; };
+const indChDone = d => IND_CH.filter(c => d.ch && d.ch[c.id] && d.ch[c.id].quizAt).length;
+function indSave(r) { const d = indD(r); if (!d.startedAt) d.startedAt = indNow(); if (r.status === 'assigned' || !r.status) r.status = 'in_progress'; recPut(r); }
+function indStatus(r) { if (!r) return ['none', 'Not assigned']; if (r.status === 'complete') return ['done', 'Complete']; if (r.status === 'submitted') return ['wait', 'Waiting for sign-off'];
+  const d = indD(r); return d.startedAt ? ['prog', 'In progress'] : ['new', 'Not started']; }
+
+/* ---------- private storage: signed URLs ---------- */
+async function indSigned(paths) { const now = Date.now(), need = paths.filter(p => !(IND.urls[p] && IND.urls[p].exp > now + 300000));
+  if (need.length) { const r = await sbFetch(`/storage/v1/object/sign/${IND_BUCKET}`, { method: 'POST', body: { expiresIn: 7200, paths: need } });
+    (r || []).forEach(x => { const u = x.signedURL || x.signedUrl; if (u && !x.error) IND.urls[x.path] = { u: /^https?:/.test(u) ? u : `${SB_URL}/storage/v1${u}`, exp: now + 7000000 }; }); }
+  return paths.map(p => IND.urls[p] && IND.urls[p].u); }
+async function indVtt(path) { const k = 'ind.vtt.' + path; try { const [u] = await indSigned([path]); const t = await (await fetch(u)).text(); if (/^WEBVTT/.test(t)) { DB.setKV(k, t); return t; } } catch (e) { } return DB.getKV(k); }
+
+/* ---------- home task ---------- */
+function indLoadMine() { if (!signedIn() || !online() || Date.now() - IND.fT < 60000) return; IND.fT = Date.now();
+  const before = JSON.stringify(indRec() || null); recFetch(`kind=eq.induction&subject=eq.${me()}`).then(() => { indContacts(); if (JSON.stringify(indRec() || null) !== before && /^#?\/?$/.test(location.hash)) rerender(); }).catch(() => { }); }
+function indHomeCard() { const r = indRec(); if (!r || r.status === 'complete') return '';
+  if (r.status === 'submitted') return `<a class="card ind-home wait" href="#/induction" id="ind-home"><div style="flex:1"><h2 style="margin:0">Induction</h2><div class="t2">Submitted ${esc(indUK(indD(r).submittedAt))}. Waiting for your manager to sign.</div></div><span style="font-size:22px">›</span></a>`;
+  const [n, t] = indCount(r), d = indD(r);
+  return `<a class="card ind-home" href="#/induction" id="ind-home"><div style="flex:1"><h2 style="margin:0">Induction${d.startedAt ? '' : ' <span class="tag red">To do</span>'}</h2><div class="t2">${d.startedAt ? `${indChDone(d)} of ${IND_CH.length} videos done · ${n} of ${t} steps. Tap to carry on.` : 'Watch the short induction videos, answer a few questions and sign. About 15 minutes.'}</div><div class="ind-bar"><span style="width:${Math.round(100 * n / t)}%"></span></div></div><span style="font-size:22px">›</span></a>`; }
+{ const _vh = viewOpHome; viewOpHome = function () { const v = _vh(); if (!signedIn()) return v; indLoadMine(); const c = indHomeCard(); if (c) v.body = c + v.body; return v; }; }
+{ const _vl = viewList; viewList = function () { const v = _vl(); if (!signedIn() || isOp()) return v; indLoadMine(); let c = indHomeCard();
+  if (isAdm()) { const w = recAll('induction', r => r.status === 'submitted').length; if (w) c += `<a class="card ind-home wait" href="#/admin/ind" id="ind-mgr-home"><div style="flex:1"><h2 style="margin:0">Inductions</h2><div class="t2"><b>${w}</b> waiting for you to countersign</div></div><span style="font-size:22px">›</span></a>`; }
+  if (c) v.body = c + v.body; return v; }; }
+
+/* ---------- form definitions (wording from the induction pack appendices) ---------- */
+const IND_PPE = [['vest', 'Hi-vis vest'], ['coat', 'Hi-vis jacket / coat'], ['trousers', 'Hi-vis trousers'], ['hat', 'Hard hat c/w chin strap'], ['eye', 'Eye protection (EN166): goggles / glasses / face visor'], ['boots', 'Safety footwear (EN ISO 20345): boots / wellingtons'],
+  ['gloves', 'Gloves: general / mechanical/cut / chemical/bio / thermal / welders'], ['hearing', 'Hearing protection (BS EN 352): ear plugs / ear defenders'], ['harness', 'Harnesses & lanyards'], ['airmask', 'Air-fed masks']];
+const IND_PPE_ST = [['', 'Choose…'], ['issued', 'Issued to me today'], ['owned', 'Own - fit for purpose'], ['na', 'Not needed for my work']];
+const IND_SIZES = [['vest', 'Hi-vis vest', 'cl'], ['coat', 'Hi-vis coat', 'cl'], ['trousers', 'Hi-vis trousers', 'cl'], ['boot', 'Boot size', ['4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15']], ['width', 'Boot width fitting', ['Narrow', 'Medium', 'Wide', 'Extra Wide']], ['gloves', 'Gloves', ['Small', 'Medium', 'Large', 'XL', '2XL', '3XL']]];
+const IND_CL = ['Male S', 'Male M', 'Male L', 'Male XL', 'Male XXL', 'Male XXXL', 'Female 6', 'Female 8', 'Female 10', 'Female 12', 'Female 14', 'Female 16', 'Female 18', 'Female 20', 'Female 22'];
+const IND_MED = [['loc', 'Sudden loss of consciousness'], ['aware', 'Impairment of awareness or concentration'], ['incap', 'Sudden incapacity'], ['visual', 'Temporary visual impairment'], ['balance', 'Impairment of balance or co-ordination'], ['mobility', 'Significant limitation of mobility']];
+const IND_MED2 = [['glasses', 'Do you wear glasses?'], ['lenses', 'Do you wear contact lenses?'], ['spare', 'If you do wear contact lenses, do you agree to carry a spare pair of glasses when working on behalf of the company?', 1]];
+const IND_ILL = ['Stomach/bowels', 'Bladder', 'Kidney', 'Hernia', 'Heart', 'Blood pressure', 'Blood disorder', 'Jaundice', 'Rheumatism/arthritis', 'Tendons/ligaments/joints', 'Back/neck', 'Ears', 'Eyes', 'Nose or throat', 'Lungs', 'Sinusitis', 'Tuberculosis', 'Fainting/dizzy spells', 'Headaches/migraines', 'Mental illness', 'Claustrophobia', 'Vertigo', 'Anxiety/stress', 'Nervous disorder', 'Skin disease', 'Allergies', 'Drug dependency', 'Alcohol dependency'];
+const IND_EXP = ['Vibration', 'Dust', 'Noise', 'Manual handling', 'Cancer-causing agents', 'Radiation', 'Hazardous chemicals', 'Skin irritants', 'Lead', 'Asbestos', 'Mineral oil', 'Tar'];
+const IND_SUF = ['Aches?', 'Pains?', 'Tingling?', 'Numbness/loss of feeling?', 'Skin allergies, eczema, or dermatitis?', 'Other allergies of which we should be aware?', 'Any blood borne disease, e.g. hepatitis, HIV?', 'Any phobias i.e. heights, water, insects, reptiles (please list below, if yes)'];
+const IND_ARE = ['Suffering any health problems?', 'A smoker?', 'Asthmatic?', 'Epileptic?', 'Diabetic?', 'Colour blind?', 'Dyslexic?'];
+const IND_DA = ['I have been made aware of the company’s Drug and Alcohol Policy', 'I understand that I may be subject to testing as outlined above', 'I agree to comply with the requirements of the policy', 'I understand that refusal to submit to testing or failure of a test may result in disciplinary action, including removal from site'];
+const IND_NOTICE = 'The Company will securely store information relating to its employees, both in hard copy and electronically, in accordance with GDPR. The Company may share your information with enforcement agencies, regulators or other bodies where the law requires us to, or where it is necessary to protect someone’s vital interests. You do not need to give consent for this. We will not share your information for any other purpose without a lawful reason.';
+const IND_DECL = 'I have watched the induction, and I have been given access to and agree to follow the full company policies.';
+const IND_WTO_A = 'I agree to opt out of the 48-hour average weekly working time limit in regulation 4(1) of the Working Time Regulations 1998. I understand I can cancel this agreement at any time by giving seven (7) days’ written notice.';
+const IND_WTO_B = 'I do not wish to opt out. The 48-hour average weekly limit will apply to me.';
+const IND_IDS = ['UK or Irish passport', 'Other passport', 'Biometric residence permit / eVisa (share code)', 'Birth certificate + National Insurance evidence', 'Other'];
+const hk = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+const ynRow = (key, label, v, na) => `<div class="ind-yn${v ? '' : ' unans'}" data-yn="${key}"><span>${esc(label)}</span><span class="ind-ynb">${[['y', 'Yes'], ['n', 'No']].concat(na ? [['na', 'N/A']] : []).map(([x, l]) => `<label class="${v === x ? 'on' : ''}"><input type="radio" name="yn-${key}" value="${x}" ${v === x ? 'checked' : ''}>${l}</label>`).join('')}</span></div>`;
+document.addEventListener('change', e => { const i = e.target; if (i.type === 'radio' && /^yn-/.test(i.name)) { const row = i.closest('.ind-yn'); row.classList.remove('unans'); row.querySelectorAll('label').forEach(l => l.classList.toggle('on', l.contains(i))); indHealthKeep(); }
+  if (i.closest && i.closest('#ind-health') && i.type !== 'radio') indHealthKeep(); });
+
+/* ---------- the new starter's pages ---------- */
+function indOverviewHTML(r) { const d = indD(r), nx = indFirstOpen(r), [n, t] = indCount(r); let g0 = '';
+  if (r.status === 'submitted' || r.status === 'complete') return `<div class="card"><h2>${r.status === 'complete' ? 'Induction complete' : 'Induction submitted'}</h2><div class="lg-msg ok" style="margin:0 0 10px">${r.status === 'complete' ? `Countersigned by ${esc((d.inductor || {}).name || 'your manager')} ${esc(indUK((d.inductor || {}).at))}.` : `You signed ${esc(indUK(d.submittedAt))}. Waiting for your manager to sign.`}</div><p class="hint">Your health forms were sent confidentially ${esc(indUK(d.healthSubmittedAt))}. Only people with the Admin role can see them.</p><button class="btn block" data-act="ind-policies">Open the full company policies (PDF)</button><button class="btn block" data-act="ind-policies" data-f="pack">Open the New Starter Induction pack (PDF)</button></div>` + indContactsHTML();
+  return `<div class="card"><h2>Your induction</h2><p class="hint">${n} of ${t} steps done. Your progress is saved on this phone and carries on where you left off, even without signal (the videos need signal).</p><div class="ind-bar big"><span style="width:${Math.round(100 * n / t)}%"></span></div>
+    ${nx ? `<button class="btn primary block" data-act="ind-go" data-step="${nx.id}" style="margin-top:12px">${d.startedAt ? 'Carry on' : 'Start'}: ${esc(nx.g === 'Forms' || nx.g === 'Finish' || nx.g === 'Start' ? nx.t : nx.g + ' - ' + (nx.kind === 'quiz' ? 'questions' : nx.t))}</button>` : ''}</div>
+    <div class="card ind-steps">${IND_STEPS.map(s => { const done = s.done(d), open = indCanOpen(r, s.id), pend = s.id === 'health' && !done && IND.hq; const h = s.g !== g0 ? `<h3 class="ind-g">${esc(s.g)}</h3>` : ''; g0 = s.g;
+      return h + `<button class="ind-st ${done ? 'done' : open ? 'open' : 'lock'}" data-act="ind-go" data-step="${s.id}" ${open ? '' : 'disabled'}><span class="ind-ic">${done ? '✓' : pend ? '⏳' : open ? '›' : '🔒'}</span><span>${esc(s.kind === 'video' ? 'Watch: ' + s.t : s.t)}${pend ? ' <em>(waiting for signal to send)</em>' : ''}</span></button>`; }).join('')}</div>`; }
+
+function indStepHTML(r, id) { const d = indD(r), s = indStep(id); if (!s) return indOverviewHTML(r);
+  const nav = `<p class="hint ind-crumb">${esc(s.g)}</p>`;
+  if (id === 'intro') return `<div class="card">${nav}<h2>Welcome to Absolute Roofing Solutions</h2><p>This is your safety induction. It takes about 15 minutes:</p><ol class="ind-ol"><li>Watch ${IND_CH.length} short videos (captions are on). You can't skip ahead in a video until you've watched it.</li><li>Answer 1 or 2 questions after each video.</li><li>Fill in your forms: details, PPE, health (confidential), next of kin, working time, drug &amp; alcohol.</li><li>Open the full company policies and sign the declaration on your phone.</li></ol><p class="hint">Your manager then countersigns. Use headphones or turn the sound up; captions are on as well.</p><button class="btn primary block" data-act="ind-start">Start the induction</button></div>` + indContactsHTML();
+  if (s.kind === 'video') { const c = s.ch, st = d.ch[c.id] || {}, pct = st.watchedAt ? 100 : Math.min(99, Math.round(100 * (st.maxT || 0) / (st.dur || c.d)));
+    return `<div class="card">${nav}<h2>${esc(c.t)}</h2><div class="ind-vwrap"><video id="ind-vid" data-ch="${c.id}" playsinline controls preload="metadata" controlslist="nodownload noplaybackrate" disablepictureinpicture disableremoteplayback oncontextmenu="return false"></video><div class="ind-vmsg" id="ind-vmsg" hidden></div></div>
+      <div class="ind-prog"><div class="ind-bar"><span id="ind-pbar" style="width:${pct}%"></span></div><span id="ind-pct">${st.watchedAt ? 'Watched' : pct + '%'}</span></div>
+      <p class="hint" id="ind-vhint">${st.watchedAt ? 'Watched ' + esc(indUK(st.watchedAt)) + '. You can watch it again or go on.' : `Captions are on. Watch to the end to unlock the questions (about ${Math.round(c.d / 60) || 1} min). Your place is saved if you stop.`}</p>
+      <button class="btn primary block" id="ind-vnext" data-act="ind-go" data-step="q${c.id}" ${st.watchedAt ? '' : 'disabled'}>Next: check questions</button></div>`; }
+  if (s.kind === 'quiz') { const c = s.ch, st = d.ch[c.id] || {}, ans = st.quizAt ? (st.answers || []) : [];
+    return `<div class="card" id="ind-quiz" data-ch="${c.id}">${nav}<h2>Check questions: ${esc(c.t)}</h2>${st.quizAt ? `<div class="lg-msg ok" style="margin:0 0 10px">Passed ${esc(indUK(st.quizAt))}.</div>` : '<p class="hint">Pick one answer for each question. If one is wrong you can try again.</p>'}
+      ${c.q.map((q, i) => `<fieldset class="ind-q" data-i="${i}"><legend>${i + 1}. ${esc(q.q)}</legend>${q.o.map((o, j) => `<label class="ind-opt"><input type="radio" name="iq-${i}" value="${j}" ${st.quizAt && ans[i] === j ? 'checked' : ''} ${st.quizAt ? 'disabled' : ''}><span>${esc(o)}</span></label>`).join('')}<div class="ind-qmsg" hidden></div></fieldset>`).join('')}
+      ${st.quizAt ? `<button class="btn primary block" data-act="ind-next" data-step="${id}">Next</button>` : `<button class="btn primary block" data-act="ind-quiz">Check my answers</button>`}<button class="btn block" data-act="ind-go" data-step="v${c.id}">Watch the video again</button></div>`; }
+  const ro = r.status === 'submitted' || r.status === 'complete', dis = ro ? 'disabled' : '';
+  const f = (k, l, v, x = '') => `<div class="f"><label for="if-${k}">${l}</label><input id="if-${k}" data-if="${k}" value="${esc(v || '')}" ${x} ${dis}></div>`;
+  const save = (lbl = 'Save and continue') => ro ? '' : `<button class="btn primary block" data-act="ind-form" data-step="${id}">${lbl}</button>`;
+  if (id === 'details') { const x = d.forms.details || {}, p = Cloud.profile || {}, em = p.email && !/\.invalid$/.test(p.email) ? p.email : '';
+    return `<div class="card" id="ind-form">${nav}<h2>Your details</h2>${f('name', 'Full name', x.name || p.full_name, 'autocomplete="name"')}${f('dob', 'Date of birth', x.dob, 'type="date"')}${f('ni', 'National Insurance number', x.ni, 'autocapitalize="characters" placeholder="e.g. QQ 12 34 56 C"')}
+      <div class="f"><label for="if-address">Home address</label><textarea id="if-address" data-if="address" rows="3" ${dis}>${esc(x.address || '')}</textarea></div>${f('email', 'Email address', x.email || em, 'type="email" autocomplete="email"')}${f('phone', 'Mobile number', x.phone || p.phone, 'type="tel" autocomplete="tel"')}
+      <h3 class="ind-g">Right to work in the UK</h3><p class="hint">Your inductor checks this. If you're not a British or Irish citizen, get a share code at gov.uk/prove-right-to-work and enter it here.</p>
+      <div class="f"><label for="if-idType">Type of ID you will show</label><select id="if-idType" data-if="idType" ${dis}><option value="">Choose…</option>${IND_IDS.map(o => `<option ${x.idType === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>${f('shareCode', 'Right to work share code (if you have one)', x.shareCode, 'autocapitalize="characters" placeholder="e.g. W12 345 678"')}
+      <h3 class="ind-g">Your information</h3><p class="small">${esc(IND_NOTICE)}</p><label class="ind-chk"><input type="checkbox" data-if="notice" ${x.notice ? 'checked' : ''} ${dis}><span>I have read this notice</span></label>${save()}</div>`; }
+  if (id === 'ppe') { const x = d.forms.ppe || { items: {}, sizes: {} };
+    return `<div class="card" id="ind-form">${nav}<h2>PPE issue and sizes</h2><p class="hint">Declare the PPE the company has issued to you, and anything you need. PPE issued must comply with the Personal Protective Equipment at Work Regulations 1992. Hi-vis clothing is mandated for all persons working on behalf of the company.</p>
+      ${IND_PPE.map(([k, l]) => `<div class="f"><label for="ip-${k}">${esc(l)}</label><select id="ip-${k}" data-ppe="${k}" ${dis}>${IND_PPE_ST.map(([v, t]) => `<option value="${v}" ${(x.items || {})[k] === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`).join('')}
+      <div class="f"><label for="if-other">Other PPE issued / anything else you need</label><textarea id="if-other" data-if="other" rows="2" ${dis}>${esc(x.other || '')}</textarea></div>
+      <h3 class="ind-g">Your sizes</h3><div class="ind-grid">${IND_SIZES.map(([k, l, o]) => `<div class="f"><label for="is-${k}">${esc(l)}</label><select id="is-${k}" data-size="${k}" ${dis}><option value="">Choose…</option>${(o === 'cl' ? IND_CL : o).map(v => `<option ${(x.sizes || {})[k] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>`).join('')}</div>
+      <label class="ind-chk"><input type="checkbox" data-if="confirm" ${x.confirm ? 'checked' : ''} ${dis}><span>The PPE marked "Issued to me today" has been given to me</span></label>${save()}</div>`; }
+  if (id === 'health') return indHealthHTML(r);
+  if (id === 'nok') { const x = d.forms.nok || {};
+    return `<div class="card" id="ind-form">${nav}<h2>Next of kin / emergency contact</h2><p class="hint">Who we contact in an emergency.</p>${f('name', 'Name of next of kin or emergency contact', x.name)}${f('rel', 'Relationship with you', x.rel)}<div class="f"><label for="if-address">Address</label><textarea id="if-address" data-if="address" rows="2" ${dis}>${esc(x.address || '')}</textarea></div>${f('phone', 'Contact number', x.phone, 'type="tel"')}${f('phone2', 'Secondary contact number', x.phone2, 'type="tel"')}${f('email', 'Email', x.email, 'type="email"')}${save()}</div>`; }
+  if (id === 'wto') { const x = d.forms.wto || {};
+    return `<div class="card" id="ind-form">${nav}<h2>Working Time Regulations 1998: 48-hour week</h2><p class="small">The Working Time Regulations 1998 limit your average working week to 48 hours, normally averaged over a 17-week reference period. They also give you minimum daily and weekly rest breaks, paid annual leave and limits on night work.</p><p class="small"><b>Opting out is voluntary: you do not have to sign, and you will not be treated unfairly if you choose not to.</b> An opt-out must be in writing and signed by you individually. You can cancel it at any time by giving the Company seven (7) days’ written notice. Opting out does not affect your rest breaks or holiday entitlement. The 48 hours maximum applies to all paid employment together: tell us in writing about any other employment you have, whether or not you opt out.</p>
+      ${[['a', 'a) ' + IND_WTO_A], ['b', 'b) ' + IND_WTO_B], ['', 'I don’t want to choose now (you can tell the office later)']].map(([v, t]) => `<label class="ind-opt"><input type="radio" name="iw" value="${v}" ${(x.at && (x.choice || '') === v) ? 'checked' : ''} ${dis}><span>${esc(t)}</span></label>`).join('')}
+      ${x.sig ? `<p class="hint">Signed ${esc(indUK(x.at))}</p><img class="ind-sig" src="${x.sig}" alt="signature">` : ''}${ro ? '' : `<button class="btn primary block" data-act="ind-form" data-step="wto">Save and continue</button>`}<p class="hint">If you choose (a) or (b) you sign on the next screen.</p></div>`; }
+  if (id === 'da') { const x = d.forms.da || {};
+    return `<div class="card" id="ind-form">${nav}<h2>Drug &amp; alcohol policy: employee acceptance</h2><p class="small">Absolute Roofing Solutions Ltd operates a strict Drug and Alcohol Policy. All personnel may be subject to drug and alcohol screening: pre-employment (relevant safety-critical or high-risk roles), post-incident / post-accident, for-cause (reasonable suspicion), and random testing on a proportionate and risk-based basis (${tbcH(indC().daPct)}). All testing follows company procedures (${tbcH(indC().daRef)}) and the law.</p>
+      ${IND_DA.map((t, i) => `<label class="ind-chk"><input type="checkbox" data-da="${i}" ${x.at ? 'checked' : ''} ${dis}><span>${esc(t)}</span></label>`).join('')}
+      ${x.sig ? `<p class="hint">Signed ${esc(indUK(x.at))}</p><img class="ind-sig" src="${x.sig}" alt="signature">` : ''}${save('Sign and continue')}</div>`; }
+  if (id === 'policies') return `<div class="card">${nav}<h2>The full company policies</h2><p>The videos covered the main points. The full company policies are the reference: open them and keep them handy. The New Starter Induction pack has the same forms you have just filled in. You can open it again from your induction page at any time.</p>
+      <button class="btn primary block" data-act="ind-policies" id="ind-pol">Open the full policies (PDF)</button><button class="btn block" data-act="ind-policies" data-f="pack" id="ind-pack">Open the New Starter Induction pack (PDF)</button>${d.policiesOpenedAt ? `<p class="hint">Opened ${esc(indUK(d.policiesOpenedAt))}.</p><button class="btn block" data-act="ind-next" data-step="policies">Next: final declaration</button>` : ''}</div>` + indContactsHTML();
+  if (id === 'declare') { const miss = IND_STEPS.filter(x => x.id !== 'declare' && !x.done(d));
+    return `<div class="card">${nav}<h2>Final declaration</h2><p class="ind-decl">“${esc(IND_DECL)}”</p>${miss.length ? `<div class="lg-msg">Still to do: ${miss.map(x => esc(x.kind === 'quiz' ? x.g + ' questions' : x.t)).join('; ')}.${miss.some(x => x.id === 'health') && IND.hq ? ' Your health forms will send when you have signal.' : ''}</div>` : ''}
+      ${d.decl && d.decl.at ? `<p class="hint">Signed ${esc(indUK(d.decl.at))}</p><img class="ind-sig" src="${d.decl.sig}" alt="signature">` : `<div class="f"><label for="if-dname">Your name (print)</label><input id="if-dname" value="${esc((d.forms.details || {}).name || myName())}"></div><button class="btn primary block" data-act="ind-declare" ${miss.length ? 'disabled' : ''}>Sign and submit</button>`}</div>`; }
+  return indOverviewHTML(r); }
+
+function indHealthHTML(r) { const d = indD(r), h = IND.hd || {}, m = h.medical || {}, o = h.oh || {};
+  if (d.healthSubmittedAt) return `<div class="card"><p class="hint ind-crumb">Forms</p><h2>Health forms sent</h2><div class="lg-msg ok" style="margin:0 0 10px">Sent confidentially ${esc(indUK(d.healthSubmittedAt))}.</div><p class="hint">For your privacy the answers are not kept on this phone and you can't view them here. Only people with the Admin role can see them. If your health changes, tell the office.</p><button class="btn primary block" data-act="ind-next" data-step="health">Next</button></div>`;
+  if (IND.hq) return `<div class="card"><p class="hint ind-crumb">Forms</p><h2>Health forms ready to send</h2><div class="lg-msg">No signal: they will be sent confidentially as soon as you have signal. You can carry on with the other forms.</div><button class="btn block" data-act="ind-hsend">Try sending now</button><button class="btn primary block" data-act="ind-next" data-step="health">Next</button></div>`;
+  const sec = (title, list, obj, pfx, sid = pfx) => `<div class="ind-hsec" data-sec="${sid}"><h3 class="ind-g">${esc(title)}</h3>${list.map(([k, l, na]) => ynRow(pfx + '.' + k, l, obj[k], na)).join('')}<button type="button" class="btn sm" data-act="ind-hno" data-sec="${sid}">Answer “No” to the rest of this section</button></div>`;
+  const L = a => a.map(x => [hk(x), x]);
+  return `<div class="card" id="ind-health"><p class="hint ind-crumb">Forms</p><h2>Medical self-certification and health questionnaire</h2>
+    <div class="ind-conf">🔒 <b>Confidential.</b> Special category (health) data. Only people with the Admin role can see your answers. They are not shown to your manager, not included in your induction record and not emailed. You won't be able to view them again after sending.</div>
+    <p class="small">Alertness and reasonable physical fitness are essential for duties that may involve working at height. Answer accurately; trivial matters should be ignored (e.g. transient dizziness while gardening two years ago). When you declare NO, you are accepting a degree of responsibility for your safety.</p>
+    ${sec('Medical self-certification. Do you suffer from any health condition(s), or are taking any medical treatment, likely to cause:', IND_MED, m, 'med')}${sec('Glasses and contact lenses', IND_MED2, m, 'med', 'med2')}
+    <p class="small">I will inform the company of any change to my health that may affect my ability to perform my duties.</p>
+    <h3 class="ind-g" style="margin-top:16px">Occupational health questionnaire</h3><p class="small">This helps the Company meet its legal health and safety duties, assess whether any existing health issues are likely to affect your employment, find out whether changes are needed under the Equality Act 2010, and whether you need vaccinations or health checks.</p>
+    ${sec('Have you suffered from any health problems that have caused you to take time off work?', L(IND_ILL), o.ill || {}, 'ill')}${sec('In previous jobs, have you had any significant exposure to:', L(IND_EXP), o.exp || {}, 'exp')}
+    <div class="f"><label for="ih-expd">If yes to any of the above, please provide further details</label><textarea id="ih-expd" data-ih="expDetails" rows="2">${esc(o.expDetails || '')}</textarea></div>
+    ${sec('Do you suffer from:', L(IND_SUF), o.suf || {}, 'suf')}${sec('Are you:', L(IND_ARE), o.are || {}, 'are')}
+    <div class="f"><label for="ih-phob">Phobias / details</label><textarea id="ih-phob" data-ih="phobias" rows="2">${esc(o.phobias || '')}</textarea></div>
+    <h3 class="ind-g">Declaration</h3><label class="ind-chk"><input type="checkbox" id="ih-decl" ${h.decl ? 'checked' : ''}><span>I confirm that the information I have given is true and complete to the best of my knowledge. I will tell the Company if my health changes in a way that may affect my work.</span></label>
+    <div class="f"><label for="ih-name">Name (print)</label><input id="ih-name" value="${esc(h.name || (d.forms.details || {}).name || myName())}"></div>
+    <button class="btn primary block" data-act="ind-hsubmit">Sign and send confidentially</button></div>`; }
+
+/* ---------- health: draft on the phone until sent, then deleted ---------- */
+const indHKey = k => `ind.${k}.${me()}`;
+function indHealthRead() { const root = $('#ind-health'); if (!root) return IND.hd; const h = { medical: {}, oh: { ill: {}, exp: {}, suf: {}, are: {} } };
+  root.querySelectorAll('.ind-yn').forEach(row => { const [sec, k] = row.dataset.yn.split('.'), c = row.querySelector('input:checked'); if (!c) return; if (sec === 'med') h.medical[k] = c.value; else h.oh[sec][k] = c.value; });
+  root.querySelectorAll('[data-ih]').forEach(t => { h.oh[t.dataset.ih] = t.value.trim(); });
+  h.decl = !!($('#ih-decl') || {}).checked; h.name = (($('#ih-name') || {}).value || '').trim(); return h; }
+let indHT = 0; function indHealthKeep() { if (!$('#ind-health')) return; IND.hd = indHealthRead(); clearTimeout(indHT); indHT = setTimeout(() => DB.setKV(indHKey('hd'), IND.hd), 200); }
+async function indHealthLoad() { if (IND.hdU === me()) return; IND.hdU = me(); IND.hd = (await DB.getKV(indHKey('hd'))) || null; IND.hq = (await DB.getKV(indHKey('hq'))) || null; }
+async function indHealthSend() { if (!IND.hq || IND.sending || !signedIn() || !online()) return false; const r = indRec(); if (!r) return false; IND.sending = true;
+  try { if (r._q) await recFlush();   // the induction record must exist on the server first
+    const res = await sbFetch('/rest/v1/rpc/submit_induction_health', { method: 'POST', body: { p: IND.hq } });
+    if (!res || !res.ok) throw new Error('Not sent');
+    indD(r).healthSubmittedAt = res.submitted_at; IND.hq = null; IND.hd = null; await DB.setKV(indHKey('hq'), null); await DB.setKV(indHKey('hd'), null); recPut(r); toast('Health forms sent confidentially'); return true;
+  } catch (e) { if (!e.offline) toast('Health forms not sent yet: ' + (e.message || e), 4000); return false; } finally { IND.sending = false; } }
+window.addEventListener('online', () => { if (IND.hq) indHealthSend().then(ok => ok && /^#\/induction/.test(location.hash) && rerender()); });
+
+/* ---------- video: signed URL, captions on, no skipping ahead ---------- */
+async function indMountVideo() { const v = $('#ind-vid'); if (!v || v._ind) return; v._ind = 1; if (!indRec()) return; const c = IND_CH.find(x => x.id === v.dataset.ch);
+  // always work on the current copy of the record (a background sync can replace the object)
+  const cur = () => { const r = indRec(); if (!r) return [null, { maxT: 0 }]; const d = indD(r); return [r, d.ch[c.id] || (d.ch[c.id] = { maxT: 0 })]; };
+  const msg = (t) => { const m = $('#ind-vmsg'); if (m) { m.textContent = t || ''; m.hidden = !t; } };
+  const dur = () => v.duration && isFinite(v.duration) ? v.duration : (cur()[1].dur || c.d);
+  const upd = () => { const st = cur()[1], D = dur(); const pct = st.watchedAt ? 100 : Math.min(99, Math.round(100 * (st.maxT || 0) / D)); const b = $('#ind-pbar'), t = $('#ind-pct'); if (b) b.style.width = pct + '%'; if (t) t.textContent = st.watchedAt ? 'Watched' : pct + '%';
+    if (!st.watchedAt && (st.maxT || 0) >= D - 3) done(); };
+  let saveT = 0; const saveSoon = () => { const [r] = cur(); if (!r) return; if (Date.now() - saveT > 15000) { saveT = Date.now(); indSave(r); } else { r._q = true; r.updated_at = new Date().toISOString(); recSaveLocal(); } };   // kept queued so a background fetch can't roll it back
+  const done = () => { const [r, st] = cur(); if (!r || st.watchedAt) return; st.watchedAt = indNow(); st.dur = Math.round(dur() * 10) / 10; indSave(r); const b = $('#ind-vnext'); if (b) b.disabled = false; const h = $('#ind-vhint'); if (h) h.textContent = 'Watched. Now answer the check questions.'; toast('Chapter watched'); upd(); };
+  v.addEventListener('loadedmetadata', () => { const st = cur()[1]; if (isFinite(v.duration)) st.dur = v.duration; if (!st.watchedAt && st.maxT > 2 && st.maxT < v.duration - 3) try { v.currentTime = st.maxT; } catch (e) { } [...v.textTracks].forEach(t => { t.mode = 'showing'; }); upd(); });
+  v.addEventListener('timeupdate', () => { const st = cur()[1], t = v.currentTime; st.maxT = st.maxT || 0; if (!v.seeking && t > st.maxT && t <= st.maxT + 2.5) { st.maxT = t; saveSoon(); } upd(); });
+  v.addEventListener('seeking', () => { const st = cur()[1]; if (!st.watchedAt && v.currentTime > (st.maxT || 0) + 1) { v.currentTime = st.maxT || 0; msg("You can't skip ahead until you've watched this part"); setTimeout(() => msg(''), 2500); } });
+  v.addEventListener('ended', () => { const st = cur()[1], D = dur(); if ((st.maxT || 0) >= D - 4) { st.maxT = D; done(); } });
+  v.addEventListener('pause', () => { const [r, st] = cur(); if (r && !st.watchedAt) indSave(r); });
+  v.addEventListener('error', () => { if (v.getAttribute('src')) msg(online() ? 'The video could not load. Check your signal and try again.' : 'No signal: the videos need signal. Everything you have done is saved.'); });
+  if (!signedIn() || !online()) { msg('No signal: the videos need signal. Everything you have done so far is saved on this phone.'); return; }
+  try { const [mp4] = await indSigned(['short/' + c.v]); const vtt = await indVtt('short/' + c.c); if (!document.body.contains(v)) return;
+    if (vtt) { const tr = document.createElement('track'); tr.kind = 'captions'; tr.srclang = 'en'; tr.label = 'English'; tr.default = true; tr.src = URL.createObjectURL(new Blob([vtt], { type: 'text/vtt' })); v.appendChild(tr); tr.addEventListener('load', () => { tr.track.mode = 'showing'; }); try { tr.track.mode = 'showing'; } catch (e) { } }
+    if (!mp4) throw new Error('no link'); v.src = mp4; v.dataset.ready = '1'; } catch (e) { msg(e.offline ? 'No signal: the videos need signal. Everything you have done so far is saved.' : 'The video could not load (' + (e.message || e) + '). Try again with signal.'); } }
+
+/* ---------- actions ---------- */
+Object.assign(ACTIONS, {
+  'ind-go'(a) { go('#/induction/' + a.dataset.step); },
+  'ind-start'() { const r = indRec(); if (!r) return; indSave(r); go('#/induction/' + IND_STEPS[1].id); },
+  'ind-next'(a) { const r = indRec(); if (!r) return; const i = IND_STEPS.findIndex(s => s.id === a.dataset.step), nx = IND_STEPS[i + 1]; go(nx && indCanOpen(r, nx.id) ? '#/induction/' + nx.id : '#/induction'); },
+  'ind-quiz'() { const r = indRec(), box = $('#ind-quiz'); if (!r || !box) return; const c = IND_CH.find(x => x.id === box.dataset.ch), d = indD(r), st = d.ch[c.id] || (d.ch[c.id] = {}); let bad = 0, miss = 0; const ans = [];
+    c.q.forEach((q, i) => { const fs = box.querySelector(`.ind-q[data-i="${i}"]`), sel = fs.querySelector('input:checked'), m = fs.querySelector('.ind-qmsg'); fs.classList.remove('ok', 'bad');
+      if (!sel) { miss++; m.hidden = false; m.textContent = 'Choose an answer'; return; } const v = +sel.value; ans.push(v);
+      if (v === q.a) { fs.classList.add('ok'); m.hidden = false; m.textContent = 'Correct'; } else { bad++; fs.classList.add('bad'); m.hidden = false; m.textContent = 'Not quite. Have another go (or watch the video again).'; sel.checked = false; } });
+    if (miss) return toast('Answer every question'); st.attempts = (st.attempts || 0) + 1;
+    if (bad) { indSave(r); return toast(bad === 1 ? 'One answer is wrong - try again' : bad + ' answers are wrong - try again'); }
+    st.answers = ans; st.quizAt = indNow(); indSave(r); toast('All correct'); const i = IND_STEPS.findIndex(s => s.id === 'q' + c.id); go('#/induction/' + IND_STEPS[i + 1].id); },
+  async 'ind-form'(a) { const r = indRec(); if (!r || r.status === 'submitted' || r.status === 'complete') return; const id = a.dataset.step, d = indD(r), root = $('#ind-form'); const V = {}; root.querySelectorAll('[data-if]').forEach(e => { V[e.dataset.if] = e.type === 'checkbox' ? e.checked : e.value.trim(); });
+    const need = (ks, lab) => { const m = ks.filter(k => !V[k]); if (m.length) { toast('Please fill in: ' + m.map(k => lab[k] || k).join(', '), 3500); const el = root.querySelector(`[data-if="${m[0]}"]`); if (el) el.focus(); return false; } return true; };
+    if (id === 'details') { if (!need(['name', 'dob', 'ni', 'address', 'idType'], { name: 'full name', dob: 'date of birth', ni: 'NI number', address: 'address', idType: 'type of ID' })) return; if (!V.notice) return toast('Tick to confirm you have read the notice about your information');
+      d.forms.details = Object.assign(V, { at: indNow() }); }
+    else if (id === 'ppe') { const items = {}; root.querySelectorAll('[data-ppe]').forEach(e => { items[e.dataset.ppe] = e.value; }); const sizes = {}; root.querySelectorAll('[data-size]').forEach(e => { sizes[e.dataset.size] = e.value; });
+      const un = IND_PPE.filter(([k]) => !items[k]); if (un.length) return toast('Choose an option for: ' + un.map(x => x[1].split(/[:(]/)[0].trim()).join(', '), 4000);
+      if (['vest', 'coat', 'trousers', 'boot'].some(k => !sizes[k])) return toast('Choose your hi-vis and boot sizes');
+      if (Object.values(items).includes('issued') && !V.confirm) return toast('Tick to confirm the PPE issued to you');
+      d.forms.ppe = { items, sizes, other: V.other, confirm: !!V.confirm, at: indNow() }; }
+    else if (id === 'nok') { if (!need(['name', 'rel', 'phone'], { name: 'name', rel: 'relationship', phone: 'contact number' })) return; d.forms.nok = Object.assign(V, { at: indNow() }); }
+    else if (id === 'wto') { const sel = root.querySelector('input[name=iw]:checked'); if (!sel) return toast('Choose (a), (b) or "don’t want to choose now"'); const choice = sel.value; let sig = null;
+      if (choice) { sig = await signaturePad({ name: (d.forms.details || {}).name || myName() }); if (!sig) return; }
+      d.forms.wto = { choice, text: choice === 'a' ? IND_WTO_A : choice === 'b' ? IND_WTO_B : 'No choice made', name: (d.forms.details || {}).name || myName(), sig, at: indNow() }; }
+    else if (id === 'da') { const t = [...root.querySelectorAll('[data-da]')].map(e => e.checked); if (t.some(x => !x)) return toast('Tick all four statements to accept the policy');
+      const sig = await signaturePad({ name: (d.forms.details || {}).name || myName() }); if (!sig) return; d.forms.da = { ticks: IND_DA, name: (d.forms.details || {}).name || myName(), sig, at: indNow() }; }
+    indSave(r); toast('Saved'); ACTIONS['ind-next']({ dataset: { step: id } }); },
+  'ind-hno'(a) { const sec = $(`.ind-hsec[data-sec="${a.dataset.sec}"]`); if (!sec) return; sec.querySelectorAll('.ind-yn').forEach(row => { if (!row.querySelector('input:checked')) { const n = row.querySelector('input[value=n]'); n.checked = true; n.dispatchEvent(new Event('change', { bubbles: true })); } }); },
+  async 'ind-hsubmit'() { const r = indRec(); if (!r) return; const h = indHealthRead(); const un = $$('#ind-health .ind-yn.unans');
+    if (un.length) { un[0].scrollIntoView({ block: 'center' }); return toast(`${un.length} question${un.length > 1 ? 's' : ''} still to answer (Yes or No)`); }
+    if (!h.decl) return toast('Tick the declaration'); if (!h.name) return toast('Print your name');
+    const sig = await signaturePad({ name: h.name }); if (!sig) return;
+    IND.hq = { medical: h.medical, oh: h.oh, name: h.name, sig, signedAt: indNow() }; await DB.setKV(indHKey('hq'), IND.hq); await DB.setKV(indHKey('hd'), null); IND.hd = null;
+    indSave(r); const ok = await indHealthSend(); if (!ok && IND.hq) toast('Saved on this phone - it will send confidentially when you have signal', 4000); rerender(); },
+  async 'ind-hsend'() { await indHealthSend(); rerender(); },
+  async 'ind-policies'(a) { const r = indRec(), pack = a && a.dataset && a.dataset.f === 'pack'; const w = window.open('', '_blank');
+    try { const [u] = await indSigned([pack ? IND_PACK : IND_POLICIES]); if (!u) throw new Error('no link'); if (w) w.location.href = u; else location.href = u;
+      if (!pack && r && !indD(r).policiesOpenedAt && r.status !== 'submitted' && r.status !== 'complete') { indD(r).policiesOpenedAt = indNow(); indSave(r); rerender(); } }
+    catch (e) { if (w) w.close(); toast(e.offline || !online() ? 'You need signal to open the policies' : 'Could not open the policies: ' + (e.message || e), 4000); } },
+  async 'ind-declare'() { const r = indRec(); if (!r) return; const d = indD(r); const miss = IND_STEPS.filter(x => x.id !== 'declare' && !x.done(d)); if (miss.length) return toast('Finish the other steps first');
+    const name = ($('#if-dname').value || '').trim(); if (!name) return toast('Print your name'); const sig = await signaturePad({ name }); if (!sig) return;
+    d.decl = { text: IND_DECL, name, sig, at: indNow() }; d.submittedAt = d.decl.at; r.status = 'submitted'; recPut(r); toast('Induction submitted - your manager will countersign'); go('#/induction'); },
+});
+
+/* ---------- the signed induction record PDF (NO health answers) ---------- */
+function indPDF(r, person, o = {}) { const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: !o.plain }); const d = indD(r), M = 14, W = 182; let y = 16;
+  const NAVY = [15, 37, 66], c = indC(), det = d.forms.details || {};
+  const page = () => { doc.addPage(); y = 16; }; const need = h => { if (y + h > 282) page(); };
+  const H = t => { need(12); y += 3; doc.setFillColor(...NAVY); doc.rect(M, y - 4.5, W, 7, 'F'); doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.text(t, M + 2, y); doc.setTextColor(0); y += 6; };
+  const P = (t, o = {}) => { doc.setFont('helvetica', o.b ? 'bold' : 'normal'); doc.setFontSize(o.s || 9.5); const L = doc.splitTextToSize(String(t), W - (o.ind || 0)); L.forEach(l => { need(5); doc.text(l, M + (o.ind || 0), y); y += (o.s || 9.5) * 0.45; }); y += 1; };
+  const KV = (k, v) => { doc.setFontSize(9.5); const L = doc.splitTextToSize(String(v == null || v === '' ? '-' : v), W - 58); need(L.length * 4.4 + 1); doc.setFont('helvetica', 'bold'); doc.text(k, M, y); doc.setFont('helvetica', 'normal'); L.forEach((l, i) => doc.text(l, M + 58, y + i * 4.4)); y += L.length * 4.4 + 1; };
+  const SIG = (lbl, s) => { if (!s || !s.sig) return KV(lbl, 'Not signed'); need(30); KV(lbl, `${s.name || ''}  ·  ${indUK(s.at)}`); try { doc.addImage(s.sig, 'PNG', M + 58, y - 1, 60, 21); } catch (e) { } y += 22; };
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...NAVY); doc.text('Absolute Roofing Solutions Ltd', M, y); y += 7; doc.setFontSize(12); doc.text('New starter induction record', M, y); doc.setTextColor(0); y += 6;
+  P(`Status: ${indStatus(r)[1]}${r.status === 'complete' ? '' : ' - NOT YET COUNTERSIGNED'}. Induction pack version ${tbcT(c.packVersion)}, dated ${tbcT(c.packDate)}.`, { s: 9 });
+  H('1. Inductee (Appendix A)'); KV('Name', det.name || (person && person.full_name)); KV('Role', person && person.role); KV('Date of birth', det.dob ? det.dob.split('-').reverse().join('/') : ''); KV('National Insurance number', det.ni); KV('Address', det.address); KV('Email', det.email); KV('Mobile', det.phone);
+  KV('Assigned', `${indUK(d.assignedAt)} by ${d.assignedBy || '-'}`); KV('Started', indUK(d.startedAt)); KV('Submitted', indUK(d.submittedAt)); KV('Countersigned', indUK((d.inductor || {}).at));
+  H('2. Right to work and ID'); KV('Type of ID provided', det.idType); KV('Share code', det.shareCode); const ir = d.inductor || {};
+  KV('Right to work checked by inductor', ir.at ? (ir.rtwChecked ? `Yes - ${ir.rtwMethod || ''}` : 'No') : 'Not yet'); KV('ID seen by inductor', ir.idSeen); KV('Next of kin provided', d.forms.nok && d.forms.nok.at ? 'Yes' : 'No'); KV('Line manager', ir.lineManager);
+  KV('Your information (GDPR notice)', det.notice ? `Read and confirmed ${indUK(det.at)}` : 'Not confirmed');
+  H('3. Induction videos and check questions');
+  IND_CH.forEach((ch, i) => { const s = d.ch[ch.id] || {}; P(`${i + 1}. ${ch.t}`, { b: 1 }); KV('Watched', s.watchedAt ? `${indUK(s.watchedAt)} (to the end)` : 'Not watched'); KV('Questions passed', s.quizAt ? `${indUK(s.quizAt)} (attempts: ${s.attempts || 1})` : 'Not passed');
+    ch.q.forEach((q, j) => { const a = (s.answers || [])[j]; P(`Q: ${q.q}  -  A: ${a != null ? q.o[a] : '-'}`, { s: 8.5, ind: 4 }); }); });
+  H('4. PPE issue and sizes (Appendix B)'); const pp = d.forms.ppe || {}; const lab = Object.fromEntries(IND_PPE_ST);
+  IND_PPE.forEach(([k, l]) => KV(l.split(/[:(]/)[0].trim(), lab[(pp.items || {})[k]] || '-')); KV('Other / requirements', pp.other); IND_SIZES.forEach(([k, l]) => KV(l, (pp.sizes || {})[k])); KV('Confirmed', pp.at ? `${pp.confirm ? 'PPE issued received' : 'No PPE issued'} ${indUK(pp.at)}` : '-');
+  H('5. Medical self-certification and occupational health (Appendices C and D)');
+  P(d.healthSubmittedAt ? `Submitted confidentially ${indUK(d.healthSubmittedAt)}. The answers are special category (health) data, held separately with access limited to the Admin role, and are not included in this record.` : 'Not submitted.');
+  H('6. Next of kin / emergency contact (Appendix E)'); const nk = d.forms.nok || {}; KV('Name', nk.name); KV('Relationship', nk.rel); KV('Address', nk.address); KV('Contact number', nk.phone); KV('Secondary number', nk.phone2); KV('Email', nk.email);
+  H('7. Working Time Regulations 48-hour opt-out (Appendix F)'); const wt = d.forms.wto || {}; KV('Choice', wt.at ? (wt.choice === 'a' ? '(a) Opted out' : wt.choice === 'b' ? '(b) Did not opt out' : 'No choice made (optional)') : '-'); if (wt.choice) { P(wt.text, { s: 8.5 }); SIG('Signed', wt); }
+  H('8. Drug and alcohol policy acceptance (Appendix G)'); const da = d.forms.da || {}; if (da.at) { IND_DA.forEach(t => P('[x] ' + t, { s: 8.5 })); SIG('Signed', da); } else KV('Accepted', 'No');
+  H('9. Full company policies'); KV('Opened', d.policiesOpenedAt ? indUK(d.policiesOpenedAt) : 'Not opened');
+  H('10. Final declaration'); P(`"${IND_DECL}"`, { b: 1 }); SIG('Inductee', d.decl); SIG('Person carrying out the induction', ir.at ? ir : null);
+  if (ir.note) KV('Inductor notes', ir.note);
+  const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setFontSize(7.5); doc.setTextColor(110); doc.text(`ARS induction record · ${det.name || (person && person.full_name) || ''} · generated ${indUK(Date.now())} · page ${i} of ${n} · contains personal data - keep secure`, M, 291); doc.setTextColor(0); }
+  return doc; }
+const indFileName = (r, p) => `ARS-Induction-${safeName(((indD(r).forms.details || {}).name) || (p && p.full_name) || 'record')}-${(indD(r).completedAt || indNow()).slice(0, 10)}.pdf`;
+
+/* ---------- managers / admins: Team > Induction ---------- */
+const isAdminRole = () => !!(Cloud.profile && Cloud.profile.role === 'admin');
+const indPeople = () => (Cloud.profiles || []).filter(p => p && p.active !== false);
+const indPerson = id => (Cloud.profiles || []).find(p => p.id === id) || (Cloud.profile && Cloud.profile.id === id ? Cloud.profile : null) || { id, full_name: '(unknown)' };
+let indAllT = 0; function indLoadAll(force) { if (!signedIn() || !online() || !isAdm() || (!force && Date.now() - indAllT < 30000)) return Promise.resolve(); indAllT = Date.now();
+  const before = JSON.stringify(recAll('induction').map(r => r.id + r.status + r.updated_at)); return recFetch('kind=eq.induction').then(() => { if (JSON.stringify(recAll('induction').map(r => r.id + r.status + r.updated_at)) !== before && /^#\/(admin\/ind|inductions|team)/.test(location.hash)) rerender(); }).catch(() => { }); }
+function indAdminHTML() { indLoadAll(); indContacts(); const ps = indPeople(); const rows = ps.map(p => ({ p, r: indRec(p.id) })); const grp = { wait: [], prog: [], new: [], done: [], none: [] }; rows.forEach(x => grp[indStatus(x.r)[0]].push(x));
+  const nm = p => p.full_name || p.email || '?'; const role = p => ({ operative: 'Operative', manager: 'Manager', admin: 'Admin', surveyor: 'Surveyor' })[p.role] || p.role || '';
+  const row = ({ p, r }) => { const [k, l] = indStatus(r), d = r ? indD(r) : {};
+    const sub = !r ? 'Not asked to do the induction' : k === 'done' ? `Countersigned by ${esc((d.inductor || {}).name || '')} ${esc(indUK((d.inductor || {}).at))}${d.emailedAt ? ' · emailed' : ''}` : k === 'wait' ? `Signed ${esc(indUK(d.submittedAt))}` : k === 'prog' ? `${indChDone(d)}/${IND_CH.length} videos · ${indCount(r)[0]}/${IND_STEPS.length} steps · started ${esc(indUK(d.startedAt))}` : `Assigned ${esc(indUK(d.assignedAt))}${d.auto ? ' (new account)' : ''}`;
+    return `<div class="item ind-row" data-pid="${esc(p.id)}"><div class="bd"><div class="t1">${esc(nm(p))}</div><div class="t2"><span class="tag ind-${k}">${esc(l)}</span> <span class="tag">${esc(role(p))}</span></div><div class="t2">${sub}</div>
+      <div class="btns" style="margin-top:6px">${!r ? `<button class="btn sm primary" data-act="ind-assign" data-pid="${esc(p.id)}">Assign induction</button>` : ''}
+      ${k === 'wait' ? `<a class="btn sm primary" href="#/inductions/${esc(p.id)}">Review &amp; countersign</a>` : r ? `<a class="btn sm" href="#/inductions/${esc(p.id)}">Open</a>` : ''}
+      ${r && k !== 'new' ? `<button class="btn sm" data-act="ind-dl" data-pid="${esc(p.id)}">Download record</button>` : ''}
+      ${r && isAdminRole() && d.healthSubmittedAt ? `<button class="btn sm" data-act="ind-health" data-pid="${esc(p.id)}">🔒 Health forms</button>` : ''}
+      ${r && k === 'new' ? `<button class="btn sm" data-act="ind-unassign" data-pid="${esc(p.id)}">Remove</button>` : ''}</div></div></div>`; };
+  const sect = (t, a) => a.length ? `<h3 class="ind-g">${t} (${a.length})</h3>` + a.map(row).join('') : '';
+  return `<div class="card"><h2>Induction</h2><p class="hint">New sign-ups and new operatives get the induction automatically. Use “Assign induction” for anyone else. ${isAdminRole() ? 'You have the Admin role, so you can open the confidential health forms.' : 'Health forms are confidential: only people with the Admin role can open them (give someone the Admin role on the Team page).'}</p>
+    ${sect('Waiting for you to countersign', grp.wait)}${sect('In progress', grp.prog)}${sect('Not started', grp.new)}${sect('Complete', grp.done)}${sect('No induction assigned', grp.none)}</div>
+    <div class="card"><a class="btn block" href="#/settings/induction">Induction contacts (pack placeholders)</a></div>`; }
+ADM_TABS.push(['ind', 'Induction']); ADM_VIEWS.ind = indAdminHTML;
+
+function indReviewHTML(pid) { const r = indRec(pid), p = indPerson(pid); if (!r) return `<div class="card"><p class="hint">No induction for this person.</p><a class="btn" href="#/admin/ind">Back</a></div>`;
+  const d = indD(r), det = d.forms.details || {}, [k, l] = indStatus(r), ir = d.inductor || {}, nk = d.forms.nok || {}, pp = d.forms.ppe || {}, wt = d.forms.wto || {}, lab = Object.fromEntries(IND_PPE_ST);
+  const kv = (a, b) => `<div class="ind-kv"><b>${esc(a)}</b><div>${b == null || b === '' ? '-' : esc(b)}</div></div>`;
+  const staff = (Cloud.profiles || []).filter(x => x.active !== false && x.role !== 'operative');
+  return `<div class="card"><h2>${esc(det.name || p.full_name || '')} <span class="tag ind-${k}">${esc(l)}</span></h2>
+    ${kv('Videos', `${indChDone(d)} of ${IND_CH.length} watched and questions passed`)}${IND_CH.map((c, i) => { const s = d.ch[c.id] || {}; return kv(`${i + 1}. ${c.t}`, s.quizAt ? `Watched ${indUK(s.watchedAt)} · passed ${indUK(s.quizAt)} (attempts ${s.attempts || 1})` : s.watchedAt ? 'Watched, questions not passed yet' : 'Not watched'); }).join('')}</div>
+    <div class="card"><h2>Details and right to work</h2>${kv('Date of birth', det.dob ? det.dob.split('-').reverse().join('/') : '')}${kv('NI number', det.ni)}${kv('Address', det.address)}${kv('Email', det.email)}${kv('Mobile', det.phone)}${kv('Type of ID', det.idType)}
+      <div class="ind-kv"><b>Share code</b><div class="ind-code">${det.shareCode ? esc(det.shareCode) : '-'}</div></div><p class="hint">Check a share code at gov.uk/view-right-to-work using the date of birth above.</p></div>
+    <div class="card"><h2>Forms</h2>${kv('PPE', IND_PPE.map(([x, t]) => `${t.split(/[:(]/)[0].trim()}: ${lab[(pp.items || {})[x]] || '-'}`).join('; '))}${kv('Sizes', IND_SIZES.map(([x, t]) => `${t} ${(pp.sizes || {})[x] || '-'}`).join('; '))}${kv('Other PPE', pp.other)}
+      ${kv('Next of kin', [nk.name, nk.rel, nk.phone, nk.phone2, nk.email, nk.address].filter(Boolean).join(', '))}${kv('Working time', wt.at ? (wt.choice === 'a' ? '(a) Opted out of the 48-hour week' : wt.choice === 'b' ? '(b) Did not opt out' : 'No choice made (optional)') : '')}
+      ${kv('Drug & alcohol', d.forms.da && d.forms.da.at ? 'Accepted and signed ' + indUK(d.forms.da.at) : '')}${kv('Health forms', d.healthSubmittedAt ? 'Submitted confidentially ' + indUK(d.healthSubmittedAt) + (isAdminRole() ? '' : ' (Admin role only)') : 'Not submitted')}
+      ${kv('Policies opened', indUK(d.policiesOpenedAt))}${kv('Inductee declaration', d.decl ? `${d.decl.name} · ${indUK(d.decl.at)}` : '')}${d.decl && d.decl.sig ? `<img class="ind-sig" src="${d.decl.sig}" alt="signature">` : ''}
+      ${isAdminRole() && d.healthSubmittedAt ? `<button class="btn block" data-act="ind-health" data-pid="${esc(pid)}">🔒 View health forms</button>` : ''}</div>
+    ${k === 'wait' ? `<div class="card" id="ind-sign"><h2>Countersign as the person carrying out the induction</h2>
+      <label class="ind-chk"><input type="checkbox" id="ir-rtw"><span>Right to work in the UK checked: original documents seen, copied and dated, or Home Office online check completed</span></label>
+      <div class="f"><label for="ir-meth">How it was checked</label><select id="ir-meth"><option>Home Office online check (share code)</option><option>Original documents seen, copied and dated</option></select></div>
+      <div class="f"><label for="ir-id">ID seen</label><select id="ir-id"><option value="">Choose…</option>${IND_IDS.map(o => `<option ${det.idType === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>
+      <div class="f"><label for="ir-lm">Line manager</label><select id="ir-lm"><option value="">Choose…</option>${staff.map(x => `<option ${x.id === me() ? 'selected' : ''}>${esc(x.full_name || x.email)}</option>`).join('')}</select></div>
+      <div class="f"><label for="ir-note">Notes (optional)</label><textarea id="ir-note" rows="2"></textarea></div><div class="f"><label for="ir-name">Your name (print)</label><input id="ir-name" value="${esc(myName())}"></div>
+      <button class="btn primary block" data-act="ind-countersign" data-pid="${esc(pid)}">Sign and complete</button><p class="hint">The signed record (without health answers) is saved and emailed to the person's manager and you.</p></div>` : ''}
+    ${k === 'done' ? `<div class="card">${kv('Countersigned', `${ir.name} · ${indUK(ir.at)}`)}${kv('Right to work', ir.rtwChecked ? 'Checked - ' + (ir.rtwMethod || '') : 'No')}${kv('Emailed', d.emailedAt ? `${indUK(d.emailedAt)} to ${(d.emailedTo || []).join(', ')}` : 'Not yet')}${ir.sig ? `<img class="ind-sig" src="${ir.sig}" alt="signature">` : ''}${d.emailedAt ? '' : `<button class="btn block" data-act="ind-email" data-pid="${esc(pid)}">Email the record now</button>`}</div>` : ''}
+    <div class="card">${k !== 'new' ? `<button class="btn block" data-act="ind-dl" data-pid="${esc(pid)}">Download record (PDF)</button>` : ''}<a class="btn block" href="#/admin/ind">Back to the list</a></div>`; }
+
+async function indEmail(r) { try { const res = await fnCall('records-notify', { id: r.id, action: 'induction' }); if (res && res.ok) { toast('Induction record emailed to ' + (res.to || []).join(', '), 4000); await recFetch(`id=eq.${r.id}`); } else toast((res && res.error) || 'Email not sent', 4000); }
+  catch (e) { toast(e.offline ? 'Saved - email it from this page when you have signal' : 'Email not sent: ' + (e.message || e), 4000); } }
+Object.assign(ACTIONS, {
+  async 'ind-assign'(a) { const pid = a.dataset.pid, p = indPerson(pid); if (!(await confirmBox(`Assign the induction to ${p.full_name || p.email}?`, 'They will see an Induction task on their home screen until it is complete.', 'Assign', false))) return;
+    const ex = Rec.items[indId(pid)]; const r = { id: indId(pid), kind: 'induction', subject: pid, owner: pid, status: 'assigned', data: { assignedAt: indNow(), assignedBy: myName(), assignedById: me() }, created_at: (ex && ex.created_at) || indNow() }; recPut(r); toast('Induction assigned'); rerender(); },
+  async 'ind-unassign'(a) { const r = indRec(a.dataset.pid); if (!r || indD(r).startedAt) return; if (!(await confirmBox('Remove this induction?', 'They have not started it yet. You can assign it again later.', 'Remove'))) return; r.deleted = true; recPut(r); rerender(); },
+  async 'ind-dl'(a) { const r = indRec(a.dataset.pid); if (!r) return; const p = indPerson(a.dataset.pid); await indContacts();
+    try { if (r.status === 'complete' && indD(r).pdf) { const b = await recBlob(indD(r).pdf); return qOut(b, indFileName(r, p)); } } catch (e) { }
+    qOut(indPDF(r, p).output('blob'), indFileName(r, p)); },
+  async 'ind-countersign'(a) { const pid = a.dataset.pid, r = indRec(pid); if (!r || r.status !== 'submitted') return; if (!$('#ir-rtw').checked) return toast('Tick to confirm the right to work check');
+    const idSeen = $('#ir-id').value, name = $('#ir-name').value.trim(); if (!idSeen) return toast('Choose the ID you saw'); if (!name) return toast('Print your name');
+    const sig = await signaturePad({ name }); if (!sig) return; const d = indD(r), at = indNow();
+    d.inductor = { id: me(), name, sig, at, rtwChecked: true, rtwMethod: $('#ir-meth').value, idSeen, lineManager: $('#ir-lm').value, note: $('#ir-note').value.trim() };
+    d.completedAt = at; r.status = 'complete'; await indContacts(); r._files = Object.assign(r._files || {}, { pdf: indPDF(r, indPerson(pid)).output('datauristring') }); recPut(r); toast('Induction complete'); rerender();
+    if (online()) { await recFlush(); if (!r._q) await indEmail(r); rerender(); } },
+  async 'ind-email'(a) { const r = indRec(a.dataset.pid); if (!r) return; if (r._q) await recFlush(); await indEmail(r); rerender(); },
+  async 'ind-health'(a) { if (!isAdminRole()) return toast('Only the Admin role can see health forms'); const pid = a.dataset.pid, p = indPerson(pid); let h;
+    try { h = ((await sbFetch(`/rest/v1/induction_health?person=eq.${encodeURIComponent(pid)}&select=*`)) || [])[0]; } catch (e) { return toast(e.offline ? 'You need signal - health forms are never stored on the phone' : (e.message || String(e))); }
+    if (!h) return toast('No health forms found (or you do not have access)');
+    const yn = v => v === 'y' ? '<b class="ind-yes">Yes</b>' : v === 'n' ? 'No' : v === 'na' ? 'N/A' : '-'; const rows = (list, obj) => list.map(([k, l]) => `<div class="ind-kv${obj[k] === 'y' ? ' yes' : ''}"><span>${esc(l)}</span><div>${yn(obj[k])}</div></div>`).join(''); const L = arr => arr.map(x => [hk(x), x]); const o = h.oh || {};
+    const yes = [...IND_MED, ...IND_MED2].filter(([k]) => (h.medical || {})[k] === 'y' && k !== 'spare' && k !== 'glasses' && k !== 'lenses').length + ['ill', 'exp', 'suf', 'are'].reduce((n, s) => n + Object.values(o[s] || {}).filter(v => v === 'y').length, 0);
+    let rn = h.review_note || '';
+    const res = await modal(`<h3>🔒 Health forms: ${esc(p.full_name || '')}</h3><p class="hint">Confidential special category data. Submitted ${esc(indUK(h.submitted_at))} by ${esc(h.signed_name || '')}. ${yes ? `<b>${yes} “Yes” answer${yes > 1 ? 's' : ''}</b> to review.` : 'No health issues declared.'}</p>
+      <div class="ind-hview"><h4>Medical self-certification</h4>${rows([...IND_MED, ...IND_MED2], h.medical || {})}<h4>Time off work for</h4>${rows(L(IND_ILL), o.ill || {})}<h4>Exposure in previous jobs</h4>${rows(L(IND_EXP), o.exp || {})}${o.expDetails ? `<p><b>Details:</b> ${esc(o.expDetails)}</p>` : ''}<h4>Do you suffer from</h4>${rows(L(IND_SUF), o.suf || {})}<h4>Are you</h4>${rows(L(IND_ARE), o.are || {})}${o.phobias ? `<p><b>Phobias / details:</b> ${esc(o.phobias)}</p>` : ''}
+      ${h.signature ? `<img class="ind-sig" src="${h.signature}" alt="signature">` : ''}<p class="hint">${h.reviewed_at ? `Reviewed by ${esc(h.reviewed_by)} ${esc(indUK(h.reviewed_at))}${h.review_note ? ': ' + esc(h.review_note) : ''}` : 'Not reviewed yet.'}</p></div>
+      <div class="f"><label for="ih-rn">Review note (optional)</label><input id="ih-rn" value="${esc(h.review_note || '')}"></div><button class="btn primary" data-r="rev">Mark reviewed by me</button><button class="btn" data-r="">Close</button>`, bg => { const i = $('#ih-rn', bg); if (i) i.addEventListener('input', () => { rn = i.value; }); });
+    if (res === 'rev') { try { await sbFetch(`/rest/v1/induction_health?person=eq.${encodeURIComponent(pid)}`, { method: 'PATCH', body: { reviewed_by: myName(), reviewed_at: indNow(), review_note: rn.trim() || null }, headers: { Prefer: 'return=minimal' } }); toast('Marked as reviewed'); } catch (e) { toast(e.message || String(e)); } } },
+  async 'indc-save'() { if (!isMgr()) return toast('Only managers can change these'); const v = {}; $$('[data-indc]').forEach(e => { const x = e.value.trim(); if (x) v[e.dataset.indc] = x; });
+    try { await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'induction_contacts', value: v }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); IND.contacts = v; await DB.setKV('ind.contacts', v); toast('Saved'); rerender(); }
+    catch (e) { toast(e.offline ? 'You need signal to save these' : (e.message || String(e)), 4000); } },
+});
+
+/* ---------- hooks: Settings, Team, routes ---------- */
+{ const _vs = viewSettings; viewSettings = function () { const h = _vs(); if (!signedIn() || !isMgr()) return h; const link = `<a class="item" href="#/settings/induction" id="ind-set-link"><div class="th" style="font-size:24px">🎓</div><div class="bd"><div class="t1">Induction contacts</div><div class="t2">Fill in the gaps in the induction pack (Stop Work contact, MLRO, data protection lead…)</div></div>${I.chev}</a>`;
+  return h.includes('<a class="item" href="#/settings/library">') ? h.replace('<a class="item" href="#/settings/library">', link + '<a class="item" href="#/settings/library">') : h + `<div class="card list">${link}</div>`; }; }
+{ const _vt = viewTeam; viewTeam = function () { const h = _vt(); if (!isAdm()) return h; indLoadAll(); const w = recAll('induction', r => r.status === 'submitted').length;
+  return `<div class="filters" id="team-tabs"><button type="button" class="on">People</button><a class="btn" href="#/admin/ind" id="team-ind-tab" style="flex:1;min-height:44px">Induction${w ? ` <span class="tag red">${w}</span>` : ''}</a></div>` + h; }; }
+{ const _r = render; render = function (keep) { const rt = route();
+  const isInd = rt[0] === 'induction', isRev = rt[0] === 'inductions', isSet = rt[0] === 'settings' && rt[1] === 'induction';
+  if (!(isInd || isRev || isSet) || !signedIn()) return _r(keep);
+  if ((isRev && !isAdm()) || (isSet && !isMgr())) { go('#/'); return; }
+  if (!Rec.ready || Rec.uid !== me() || IND.hdU !== me()) { $('#app').innerHTML = header({ title: 'Induction' }) + '<main><p class="hint">Loading…</p></main>'; Promise.all([recInit(), indHealthLoad(), indContacts()]).then(() => render(keep)); return; }
+  S.ctx = null; const y = window.scrollY; document.body.classList.remove('hasnav'); let head, body;
+  if (isSet) { head = header({ title: 'Induction contacts', back: '#/settings' }); body = indSettingsHTML(); indContacts().then(c => { if (JSON.stringify(c) !== JSON.stringify(IND._cs) && route()[1] === 'induction') { IND._cs = c; render(true); } }); IND._cs = IND._cs || indC(); }
+  else if (isRev) { indLoadAll(); head = header({ title: 'Induction', sub: (indPerson(rt[1]).full_name || ''), back: '#/admin/ind' }); body = indReviewHTML(rt[1]); }
+  else { const r = indRec(); if (!r) { indLoadMine(); head = header({ title: 'Induction', back: '#/' }); body = '<div class="card"><p class="hint">You have no induction to do.</p></div>'; }
+    else { const step = rt[1]; if (step && !indCanOpen(r, step)) { go('#/induction'); return; } if (IND.hq && online()) indHealthSend().then(ok => ok && render(true));
+      head = header({ title: 'Induction', sub: step ? (indStep(step) || {}).g || '' : '', back: step ? '#/induction' : '#/' }); body = step ? indStepHTML(r, step) : indOverviewHTML(r); } }
+  $('#app').innerHTML = head + `<main>${body}</main>`; window.scrollTo(0, keep ? y : 0); lastHash = location.hash; indMountVideo(); }; }
+
+(() => { const st = document.createElement('style'); st.textContent = `
+.ind-home{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;border-left:6px solid #0e7490}.ind-home.wait{border-left-color:#f18902}
+.ind-bar{height:8px;background:#e2e8f0;border-radius:6px;overflow:hidden;margin-top:8px;flex:1}.ind-bar.big{height:12px}.ind-bar span{display:block;height:100%;background:#0e7490;border-radius:6px;transition:width .3s}
+.ind-steps .ind-st{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #e2e8f0;padding:11px 4px;font:inherit;color:inherit;min-height:48px}
+.ind-st .ind-ic{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none;background:#e2e8f0;font-size:14px}.ind-st.done .ind-ic{background:#16a34a;color:#fff}.ind-st.open .ind-ic{background:#0e7490;color:#fff}.ind-st.lock{opacity:.55}
+.ind-g{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin:14px 0 6px}.ind-crumb{margin:0 0 2px;text-transform:uppercase;font-size:12px;letter-spacing:.04em}
+.ind-vwrap{position:relative;background:#000;border-radius:10px;overflow:hidden;margin:6px 0 8px}.ind-vwrap video{width:100%;display:block;aspect-ratio:16/9;background:#000}
+.ind-vmsg{position:absolute;left:8px;right:8px;top:8px;background:rgba(15,23,42,.88);color:#fff;padding:8px 10px;border-radius:8px;font-size:14px}
+.ind-prog{display:flex;align-items:center;gap:10px}.ind-prog .ind-bar{margin:0}#ind-pct{font-weight:600;min-width:64px;text-align:right}
+.ind-q{border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin:0 0 12px}.ind-q legend{font-weight:600;padding:0 4px}.ind-q.ok{border-color:#16a34a;background:#f0fdf4}.ind-q.bad{border-color:#dc2626;background:#fef2f2}
+.ind-opt{display:flex;gap:10px;align-items:flex-start;padding:9px 4px;min-height:44px}.ind-opt input{width:22px;height:22px;flex:none;margin-top:1px}.ind-qmsg{font-size:14px;font-weight:600;margin-top:4px}.ind-q.ok .ind-qmsg{color:#15803d}.ind-q.bad .ind-qmsg{color:#b91c1c}
+.ind-chk{display:flex;gap:10px;align-items:flex-start;padding:8px 0;min-height:44px}.ind-chk input{width:22px;height:22px;flex:none;margin-top:1px}
+.ind-yn{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9}.ind-yn>span:first-child{flex:1;font-size:15px}.ind-yn.unans>span:first-child::after{content:' *';color:#b91c1c}
+.ind-ynb{display:flex;gap:4px;flex:none}.ind-ynb label{border:1px solid #cbd5e1;border-radius:8px;min-width:52px;min-height:40px;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:14px}.ind-ynb label.on{background:#0f2542;color:#fff;border-color:#0f2542}.ind-ynb input{position:absolute;opacity:0;width:1px;height:1px}
+.ind-hsec{margin-bottom:10px}.ind-hsec .btn.sm{margin-top:6px}.ind-conf{background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:10px 12px;margin:6px 0 10px;font-size:14px}
+.ind-kv{display:flex;gap:10px;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:14px}.ind-kv>b,.ind-kv>span{flex:0 0 40%;color:#334155}.ind-kv>div{flex:1}.ind-kv.yes{background:#fef2f2}.ind-yes{color:#b91c1c}
+.ind-tbc{display:inline-block;background:#fef3c7;color:#92400e;border-radius:6px;padding:0 6px;font-weight:600;font-size:.92em}
+.ind-sig{max-width:260px;width:100%;border:1px solid #e2e8f0;border-radius:8px;background:#fff;display:block;margin:6px 0}.ind-decl{font-size:17px;font-weight:600;line-height:1.4}
+.ind-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}.ind-ol{padding-left:20px}.ind-ol li{margin:4px 0}.ind-code{font-family:monospace;font-size:18px;letter-spacing:.06em}
+.tag.ind-done{background:#dcfce7;color:#166534}.tag.ind-wait{background:#ffedd5;color:#9a3412}.tag.ind-prog{background:#e0f2fe;color:#075985}.tag.ind-new{background:#f1f5f9;color:#334155}.tag.ind-none{background:#f8fafc;color:#94a3b8}
+.ind-hview h4{margin:12px 0 4px}.ind-row .btns{display:flex;flex-wrap:wrap;gap:6px}
+`; document.head.appendChild(st); })();
+
+/* ===== v1.11.9 (BETA): dictation tip.
+   - iPhone / iPad where the Speak button is hidden (home-screen app): a small dismissible tip under note / description boxes on first focus.
+   - Once, the first time someone opens a notes box: a popup - on devices with Speak it explains Speak; elsewhere on iPhone/iPad it shows the keyboard tip.
+   Both are remembered on the device. (Skipped under test automation unless a test asks for it.) */
+const DT_TXT = 'Tip: tap the 🎤 on your keyboard to talk instead of typing. No mic key? Settings › General › Keyboard › Enable Dictation.';
+const dtIOS = () => { const ua = navigator.userAgent || ''; return /iP(hone|ad|od)/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); };
+const dtNoSpeak = () => dtIOS() && !/^(chrome|local|dl|apple)$/.test(VN.st);
+const dtGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, dtSet = k => { try { localStorage.setItem(k, '1'); } catch (e) { } };
+let dtBusy = false;
+document.addEventListener('focusin', e => { const el = e.target; if (!el || el.tagName !== 'TEXTAREA' || !el.matches(VN_SEL) || el.closest('#qp-cam') || el.id === 'pj-addr') return;
+  if (navigator.webdriver && !window.__dtTest) return;
+  if (dtNoSpeak() && !dtGet('ars-dict-tip-off') && !el.dataset.dt) { el.dataset.dt = '1'; const t = document.createElement('div'); t.className = 'dict-tip'; t.setAttribute('role', 'note');
+    t.innerHTML = `<span>${esc(DT_TXT)}</span><button type="button" class="dict-x" aria-label="Hide this tip">✕</button>`; (el.nextElementSibling && el.nextElementSibling.classList.contains('vn-btn') ? el.nextElementSibling : el).after(t); }
+  if (!dtGet('ars-speak-intro') && !dtBusy && !el.closest('.modal')) { dtBusy = true; dtSet('ars-speak-intro'); const speak = /^(chrome|local|dl|apple)$/.test(VN.st);
+    if (!speak && !dtIOS()) { dtBusy = false; return; }   // nothing useful to say on other devices
+    setTimeout(() => modal(speak ? `<h3>🎤 Talk instead of typing</h3><p>Note and description boxes have a <b>🎤 Speak</b> button underneath. Tap it, say what you see, and tap it again to stop: your words are typed into the box.</p><p class="hint">It works on this ${dtIOS() ? 'device' : 'phone'} only: ${VN.st === 'apple' ? "it uses Apple's built-in dictation (the same as the keyboard microphone)" : 'speech is turned into text on the device, no audio is sent anywhere'}. Check the text before you save.</p><button class="btn primary" data-r="ok">Got it</button>`
+      : `<h3>🎤 Talk instead of typing</h3><p>${esc(DT_TXT)}</p><p class="hint">The Speak button isn't available in the home-screen app on iPhone and iPad, so use the keyboard microphone instead. Check the text before you save.</p><button class="btn primary" data-r="ok">Got it</button>`, bg => bg.classList.add('dt-pop'))
+      .then(() => { dtBusy = false; if (document.body.contains(el)) try { el.focus(); } catch (x) { } }), 150); } });
+document.addEventListener('click', e => { const x = e.target.closest && e.target.closest('.dict-x'); if (!x) return; e.preventDefault(); dtSet('ars-dict-tip-off'); document.querySelectorAll('.dict-tip').forEach(t => t.remove()); });
+(() => { const st = document.createElement('style'); st.textContent = `.dict-tip{display:flex;gap:8px;align-items:flex-start;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:8px;padding:6px 8px;margin:4px 0 8px;font-size:13px;line-height:1.35}.dict-tip span{flex:1}.dict-x{background:none;border:0;color:#1e3a8a;font-size:16px;min-width:32px;min-height:32px;padding:0;line-height:1}`; document.head.appendChild(st); })();
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
