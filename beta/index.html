@@ -11590,8 +11590,10 @@ const IND_CF = [
   ['retainYears', 'Personnel records kept for (years)', 'Data protection'], ['retainHealthYears', 'Health records kept for (years)', 'Data protection']];
 async function indContacts(force) {
   if (!IND.contacts) IND.contacts = (await DB.getKV('ind.contacts')) || {};
+  if (IND.cP) return IND.cP;   // one fetch at a time: callers wait for the one in flight instead of getting the old copy
   if (signedIn() && online() && (force || Date.now() - IND.cT > 120000)) { IND.cT = Date.now();
-    try { const r = await sbFetch('/rest/v1/app_settings?select=value&key=eq.induction_contacts'); const v = (r && r[0] && r[0].value) || {}; IND.contacts = v; await DB.setKV('ind.contacts', v); } catch (e) { } }
+    IND.cP = (async () => { try { const r = await sbFetch('/rest/v1/app_settings?select=value&key=eq.induction_contacts'); const v = (r && r[0] && r[0].value) || {}; IND.contacts = v; await DB.setKV('ind.contacts', v); } catch (e) { } finally { IND.cP = null; } return IND.contacts; })();
+    return IND.cP; }
   return IND.contacts;
 }
 const indC = () => IND.contacts || {};
@@ -11948,7 +11950,8 @@ Object.assign(ACTIONS, {
   S.ctx = null; const y = window.scrollY; document.body.classList.remove('hasnav'); let head, body;
   if (isSet) { head = header({ title: 'Induction contacts', back: '#/settings' }); body = indSettingsHTML(); indContacts().then(c => { if (JSON.stringify(c) !== JSON.stringify(IND._cs) && route()[1] === 'induction') { IND._cs = c; render(true); } }); IND._cs = IND._cs || indC(); }
   else if (isRev) { indLoadAll(); head = header({ title: 'Induction', sub: (indPerson(rt[1]).full_name || ''), back: '#/admin/ind' }); body = indReviewHTML(rt[1]); }
-  else { const r = indRec(); if (!r) { indLoadMine(); head = header({ title: 'Induction', back: '#/' }); body = '<div class="card"><p class="hint">You have no induction to do.</p></div>'; }
+  else { const c0 = JSON.stringify(indC()); indContacts().then(c => { if (JSON.stringify(c || {}) !== c0 && /^#\/induction(\/|$)/.test(location.hash)) render(true); });   // contacts arrived after the screen was drawn
+    const r = indRec(); if (!r) { indLoadMine(); head = header({ title: 'Induction', back: '#/' }); body = '<div class="card"><p class="hint">You have no induction to do.</p></div>'; }
     else { const step = rt[1]; if (step && !indCanOpen(r, step)) { go('#/induction'); return; } if (IND.hq && online()) indHealthSend().then(ok => ok && render(true));
       head = header({ title: 'Induction', sub: step ? (indStep(step) || {}).g || '' : '', back: step ? '#/induction' : '#/' }); body = step ? indStepHTML(r, step) : indOverviewHTML(r); } }
   $('#app').innerHTML = head + `<main>${body}</main>`; window.scrollTo(0, keep ? y : 0); lastHash = location.hash; indMountVideo(); }; }
