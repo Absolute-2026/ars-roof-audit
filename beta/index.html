@@ -11582,7 +11582,7 @@ const tbcT = v => (v != null && String(v).trim()) ? String(v) : 'To be confirmed
 const IND_CF = [
   ['packVersion', 'Induction pack version', 'Pack'], ['packDate', 'Induction pack date', 'Pack'],
   ['siteRole', 'Who to stop work and tell on site (besides the site supervisor), e.g. "contracts manager"', 'Stop Work'], ['stopName', 'Stop Work contact (name / role)', 'Stop Work'], ['stopPhone', 'Stop Work contact phone number', 'Stop Work'], ['stopHours', 'Office hours', 'Stop Work'], ['stopOOH', 'Out of hours number', 'Stop Work'],
-  ['daRef', 'Drug & alcohol testing procedure (document reference)', 'Drug & alcohol'], ['daPct', 'Random testing (e.g. "at least 10%")', 'Drug & alcohol'],
+  ['daRef', 'Drug & alcohol testing procedure (document reference)', 'Drug & alcohol'], ['daPct', 'Random testing figure (optional, e.g. "at least 10%"; leave blank to show nothing)', 'Drug & alcohol'],
   ['mlroName', 'Money Laundering Reporting Officer (name, job title)', 'Money laundering'], ['mlroPhone', 'MLRO phone', 'Money laundering'], ['mlroEmail', 'MLRO email', 'Money laundering'], ['mlroDeputy', 'MLRO deputy (name / role)', 'Money laundering'],
   ['taxDirector', 'Tax evasion compliance monitor (Director\'s name, job title)', 'Tax evasion'],
   ['slaveryContact', 'Modern slavery: who to tell (name / role, phone or email)', 'Modern slavery'],
@@ -11598,7 +11598,7 @@ const indC = () => IND.contacts || {};
 function indContactsHTML() { const c = indC();
   return `<div class="card ind-contacts"><h2>Who to contact</h2>
     <div class="ind-kv"><b>Stop Work</b><div>Stop, make the area safe and tell the site supervisor or ${tbcH(c.siteRole)}. Then contact ${tbcH(c.stopName)} on ${tbcH(c.stopPhone)} (office hours ${tbcH(c.stopHours)}; out of hours ${tbcH(c.stopOOH)}).</div></div>
-    <div class="ind-kv"><b>Drug &amp; alcohol testing</b><div>Procedure: ${tbcH(c.daRef)}. Random testing: ${tbcH(c.daPct)}.</div></div>
+    <div class="ind-kv"><b>Drug &amp; alcohol testing</b><div>Procedure: ${tbcH(c.daRef)}.${c.daPct && String(c.daPct).trim() ? ` Random testing: ${esc(c.daPct)}.` : ''}</div></div>
     <div class="ind-kv"><b>Money laundering (MLRO)</b><div>${tbcH(c.mlroName)}, ${tbcH(c.mlroPhone)}, ${tbcH(c.mlroEmail)}. Deputy: ${tbcH(c.mlroDeputy)}.</div></div>
     <div class="ind-kv"><b>Tax evasion</b><div>Compliance monitor: ${tbcH(c.taxDirector)}.</div></div>
     <div class="ind-kv"><b>Modern slavery</b><div>Tell ${tbcH(c.slaveryContact)}.</div></div>
@@ -11715,7 +11715,7 @@ function indStepHTML(r, id) { const d = indD(r), s = indStep(id); if (!s) return
       ${[['a', 'a) ' + IND_WTO_A], ['b', 'b) ' + IND_WTO_B], ['', 'I don’t want to choose now (you can tell the office later)']].map(([v, t]) => `<label class="ind-opt"><input type="radio" name="iw" value="${v}" ${(x.at && (x.choice || '') === v) ? 'checked' : ''} ${dis}><span>${esc(t)}</span></label>`).join('')}
       ${x.sig ? `<p class="hint">Signed ${esc(indUK(x.at))}</p><img class="ind-sig" src="${x.sig}" alt="signature">` : ''}${ro ? '' : `<button class="btn primary block" data-act="ind-form" data-step="wto">Save and continue</button>`}<p class="hint">If you choose (a) or (b) you sign on the next screen.</p></div>`; }
   if (id === 'da') { const x = d.forms.da || {};
-    return `<div class="card" id="ind-form">${nav}<h2>Drug &amp; alcohol policy: employee acceptance</h2><p class="small">Absolute Roofing Solutions Ltd operates a strict Drug and Alcohol Policy. All personnel may be subject to drug and alcohol screening: pre-employment (relevant safety-critical or high-risk roles), post-incident / post-accident, for-cause (reasonable suspicion), and random testing on a proportionate and risk-based basis (${tbcH(indC().daPct)}). All testing follows company procedures (${tbcH(indC().daRef)}) and the law.</p>
+    return `<div class="card" id="ind-form">${nav}<h2>Drug &amp; alcohol policy: employee acceptance</h2><p class="small">Absolute Roofing Solutions Ltd operates a strict Drug and Alcohol Policy. All personnel may be subject to drug and alcohol screening: pre-employment (relevant safety-critical or high-risk roles), post-incident / post-accident, for-cause (reasonable suspicion), and random testing on a proportionate and risk-based basis${indC().daPct && String(indC().daPct).trim() ? ` (${esc(indC().daPct)})` : ''}. All testing follows company procedures (${tbcH(indC().daRef)}) and the law.</p>
       ${IND_DA.map((t, i) => `<label class="ind-chk"><input type="checkbox" data-da="${i}" ${x.at ? 'checked' : ''} ${dis}><span>${esc(t)}</span></label>`).join('')}
       ${x.sig ? `<p class="hint">Signed ${esc(indUK(x.at))}</p><img class="ind-sig" src="${x.sig}" alt="signature">` : ''}${save('Sign and continue')}</div>`; }
   if (id === 'policies') return `<div class="card">${nav}<h2>The full company policies</h2><p>The videos covered the main points. The full company policies are the reference: open them and keep them handy. The New Starter Induction pack has the same forms you have just filled in. You can open it again from your induction page at any time.</p>
