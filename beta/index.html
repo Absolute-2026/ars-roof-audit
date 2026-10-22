@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.4">
+<meta name="app-version" content="1.11.5">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -878,7 +878,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.4';
+const APP_VERSION = '1.11.5';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -11074,6 +11074,38 @@ function pjAddRows() {
 }
 document.addEventListener('change', e => { const c = e.target; if (!c.classList || !c.classList.contains('as-j') || !pjAssignFor) return; const r = pjQueue.find(q => q.id === c.value); if (!r) return; pjSnap(r);
   r.operatives = c.checked ? [...new Set([...(r.operatives || []), pjAssignFor])] : (r.operatives || []).filter(x => x !== pjAssignFor); pjTouch(r); });
+
+/* ===== v1.11.5 (BETA): Home button (Matt 22 Oct 2026: "Can we do a quick home button").
+   - Every screen except the home screen itself gets a "Home" button (house + label) in the top bar, next to Back - all roles, operatives included.
+   - Tap: the field being typed in is committed first, pending audit / settings saves are written (same autosave as Back), then the home screen opens.
+   - Screens that only save on their own Save button (Edit project, Settings > Reminders, Settings > Quotes) ask "Leave without saving?" if something
+     was changed there and not saved yet. A weekly-sheet day that is ticked but not saved stays on the phone (as with Back); a reminder toast says so. */
+(() => { const st = document.createElement('style'); st.textContent = `.hbtn{flex:0 0 auto;display:flex;align-items:center;gap:5px;height:40px;min-width:44px;padding:0 11px 0 9px;margin:0 6px 0 2px;border-radius:12px;background:rgba(255,255,255,.10);border:1.5px solid var(--orange,#f0851e);color:#fff;font-weight:750;font-size:14px;letter-spacing:.2px;text-decoration:none;-webkit-tap-highlight-color:transparent}
+.hbtn svg{width:19px;height:19px}.hbtn:active{background:rgba(240,133,30,.35)}@media (max-width:560px){.hbtn{flex-direction:column;justify-content:center;gap:1px;height:44px;min-width:50px;padding:0 6px;margin:0 4px 0 0;font-size:11px;line-height:1}.hbtn svg{width:19px;height:19px}}`; document.head.appendChild(st); })();
+const HOME_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9v11.5h13V9"/><path d="M10 20.5v-6h4v6"/></svg>';
+const HOME_SAVEBTN = '[data-act="pj-save"],[data-act="rm-save"],[data-act="qssave"]';
+let homeFormDirty = false;
+const homeIsHome = () => route().length === 0;
+function homeInject() {
+  const app = document.getElementById('app'); if (!app) return; const h = app.querySelector('header.hdr'); if (!h) return;
+  const have = h.querySelector('.hbtn'); if (homeIsHome()) { if (have) have.remove(); return; } if (have) return;
+  const a = document.createElement('a'); a.className = 'hbtn'; a.href = '#/'; a.setAttribute('aria-label', 'Home'); a.innerHTML = HOME_IC + '<span>Home</span>';
+  const back = h.querySelector(':scope > .ibtn[aria-label="Back"]'); if (back) back.after(a); else h.prepend(a);
+}
+new MutationObserver(homeInject).observe(document.documentElement, { childList: true, subtree: true });
+window.addEventListener('hashchange', () => { homeFormDirty = false; });
+['input', 'change'].forEach(ev => document.addEventListener(ev, e => { if (e.target.closest && e.target.closest('#app main') && document.querySelector('#app ' + HOME_SAVEBTN.split(',').join(',#app '))) homeFormDirty = true; }, true));
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest(HOME_SAVEBTN)) homeFormDirty = false; }, true);
+async function goHome() {
+  const ae = document.activeElement; if (ae && ae !== document.body && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) { ae.blur(); await new Promise(r => setTimeout(r, 30)); }
+  if (homeFormDirty && document.querySelector('#app ' + HOME_SAVEBTN.split(',').join(',#app '))) {
+    if (!await confirmBox('Leave without saving?', 'You have changed this page but not tapped Save. Your changes here will be lost.', 'Leave without saving')) return false; }
+  try { if (S.dirty && S.dirty.size) await flush(); } catch (e) { }
+  try { if (typeof settingsTimer !== 'undefined' && settingsTimer) { clearTimeout(settingsTimer); await DB.setKV('settings', S.settings); setSaved(true); } } catch (e) { }
+  try { const r = route(); if (r[0] === 'week' && typeof wkCtx === 'function') { const x = wkCtx(); if (x && x.obj && !x.obj.done && !x.obj.off && (x.obj.sections || []).some(s => s.status)) toast(`${wkDayName(x.date)} is not saved yet - your ticks are kept on this phone`, 3500); } } catch (e) { }
+  homeFormDirty = false; window.scrollTo(0, 0); if (location.hash === '#/' || location.hash === '') render(); else location.hash = '#/'; return true;
+}
+document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('.hbtn'); if (!a) return; e.preventDefault(); e.stopPropagation(); goHome(); }, true);
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
