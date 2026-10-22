@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.6">
+<meta name="app-version" content="1.11.7">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -878,7 +878,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.6';
+const APP_VERSION = '1.11.7';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -11163,6 +11163,137 @@ setInterval(idleCheck, 60000);
    server's "10 failed attempts per device per 15 minutes" limit also works when several phones share one internet address. */
 function deviceId() { let d = lsGet('ars-device-id'); if (!/^[A-Za-z0-9_-]{8,64}$/.test(d || '')) { const a = new Uint8Array(12); crypto.getRandomValues(a); d = 'd' + [...a].map(x => x.toString(16).padStart(2, '0')).join(''); lsSet('ars-device-id', d); } return d; }
 { const _sf = sbFetch; sbFetch = function (p, o = {}) { if (p === '/functions/v1/op-login' && o.body && typeof o.body === 'object') o = Object.assign({}, o, { body: Object.assign({}, o.body, { device: deviceId() }) }); return _sf.call(this, p, o); }; }
+
+/* ===== v1.11.7 (BETA): quick-add, recent projects, sync status light (Matt approved 22 Oct 2026).
+   1. Quick-add: the orange + button on the home screen opens a short menu of what this person can start, one tap each.
+      Managers / admins: pre-works survey, works inspection, expense, toolbox talk / RAMS, flashings RFQ, roof sheet schedule.
+      Surveyors: survey, works inspection, expense, flashings RFQ, roof sheet schedule. Operatives: today's daily check (per job) and an expense.
+   2. Recent projects: the last 4 projects this person worked on (their own audits, weekly sheets / daily checks, expenses, and projects they are
+      assigned to, created or manage), near the top of home. Built only from data already on the device, so it works offline.
+      Staff: tap -> the project's audits on this device + "New survey / works inspection / expense" for it (pre-filled with the project).
+      Operatives (only when they have 2+ projects): tap -> today's sheet for that job.
+   3. Sync light: a small dot in every top bar. Green = everything is on the server; amber + number = items waiting to upload;
+      grey = offline; red = last sync failed / signed-out session. Tap: what is waiting, last synced time, "Sync now".
+      It only READS the existing sync state (pendingCount, Cloud.state, Cloud.lastSync, the records and new-project queues); the sync itself is unchanged. */
+(() => { const st = document.createElement('style'); st.textContent = `
+.sdot{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:4px;min-width:44px;height:40px;margin:0 2px;padding:0 6px;border:0;border-radius:12px;background:rgba(255,255,255,.08);color:#fff;font-weight:800;font-size:13px}
+.sdot i{display:block;width:14px;height:14px;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.85)}.sdot.g i{background:#22c55e}.sdot.a i{background:#f59e0b}.sdot.o i{background:#9ca3af}.sdot.r i{background:#ef4444}
+.sdot.busy i{animation:sdp 1s ease-in-out infinite alternate}@keyframes sdp{from{opacity:1}to{opacity:.35}}
+body.v117 #sync{display:none!important}
+.qa-menu .btn{justify-content:flex-start;gap:12px;min-height:52px;text-align:left}.qa-menu .btn small{display:block;font-weight:500;font-size:13px;color:#64748b}
+.rp-card .item{cursor:pointer}.rp-chips{display:flex;gap:8px;overflow-x:auto;margin:0 0 12px;padding-bottom:2px}.rp-chips .btn{flex:0 0 auto;min-height:44px;white-space:nowrap}
+.fab.qa-fab{padding:0 26px 0 20px}.qa-oprow{display:flex;justify-content:flex-end;margin:0 0 10px}.qa-op{min-height:52px;min-width:120px;font-size:18px;font-weight:800;gap:8px;border-radius:26px;padding:0 22px 0 16px}
+.qa-menu .btn.primary small{color:rgba(255,255,255,.92)}`; document.head.appendChild(st); document.body && document.body.classList.add('v117'); })();
+document.addEventListener('DOMContentLoaded', () => document.body.classList.add('v117'));
+
+/* ---------- 3. sync light ---------- */
+function sdQueued() {   // read-only view of everything not yet on the server
+  let n = 0; try { n += pendingCount(); } catch (e) { }
+  let rec = 0; try { rec = Object.values(Rec.items || {}).filter(r => r && r._q).length; } catch (e) { }
+  let pj = 0; try { pj = (pjQueue || []).length; } catch (e) { }
+  return { n: n + rec + pj, audits: n, rec, pj };
+}
+function sdState() {
+  if (!signedIn()) return null; const q = sdQueued();
+  if (Cloud.authExpired) return { c: 'r', q, t: 'Signed out on the server - sign in again to upload' };
+  if (!online()) return { c: 'o', q, t: q.n ? `Offline - ${q.n} item${q.n > 1 ? 's' : ''} waiting to upload` : 'Offline - everything was uploaded before the signal went' };
+  if (Cloud.state === 'error') return { c: 'r', q, t: 'The last sync failed' + (Cloud.err ? ': ' + Cloud.err : '') };
+  if (q.n) return { c: 'a', q, t: `${q.n} item${q.n > 1 ? 's' : ''} waiting to upload`, busy: Cloud.state === 'syncing' };
+  return { c: 'g', q, t: 'Everything is uploaded', busy: Cloud.state === 'syncing' };
+}
+function sdPaint(el) { const s = sdState(); if (!s) { el.remove(); return; } el.className = `sdot ${s.c}${s.busy ? ' busy' : ''}`; const lbl = 'Sync status: ' + s.t; el.title = lbl; el.setAttribute('aria-label', lbl);
+  el.innerHTML = `<i></i>${s.c === 'a' || (s.c === 'o' && s.q.n) ? `<span>${s.q.n > 99 ? '99+' : s.q.n}</span>` : s.c === 'r' ? '<span>!</span>' : ''}`; }
+function sdInject() {
+  const h = document.querySelector('#app header.hdr'); if (!h) return; let d = h.querySelector('.sdot');
+  if (!signedIn()) { if (d) d.remove(); return; }
+  if (!d) { d = document.createElement('button'); d.type = 'button'; d.className = 'sdot'; d.dataset.act = 'sd-info'; const sync = h.querySelector('#sync'), set = h.querySelector('a.ibtn[href="#/settings"]');
+    if (sync) sync.before(d); else if (set) set.before(d); else h.appendChild(d); }
+  sdPaint(d);
+}
+const sdRefresh = () => { const d = document.querySelector('#app header.hdr .sdot'); if (d) sdPaint(d); else sdInject(); };
+new MutationObserver(() => { const h = document.querySelector('#app header.hdr'); if (h && !h.querySelector('.sdot') && signedIn()) sdInject(); }).observe(document.documentElement, { childList: true, subtree: true });
+{ const _ub = updateBadge; updateBadge = function () { _ub(); sdRefresh(); }; }
+['online', 'offline'].forEach(ev => window.addEventListener(ev, () => setTimeout(sdRefresh, 50)));
+setInterval(sdRefresh, 3000);
+function sdBody() {
+  const s = sdState() || { c: 'o', q: { n: 0 }, t: '' }; const q = s.q; const parts = [];
+  if (q.audits) parts.push(`${q.audits} audit / daily-check change${q.audits > 1 ? 's' : ''} or photo${q.audits > 1 ? 's' : ''}`); if (q.rec) parts.push(`${q.rec} record${q.rec > 1 ? 's' : ''} (expenses, certificates…)`); if (q.pj) parts.push(`${q.pj} new project${q.pj > 1 ? 's' : ''}`);
+  const col = { g: ['ok', 'Green'], a: ['warn', 'Amber'], o: ['', 'Grey'], r: ['err', 'Red'] }[s.c];
+  return `<h3>Sync status</h3><div class="lg-msg ${col[0]}" id="sd-msg" style="margin:0 0 10px"><b>${q.n ? `${q.n} item${q.n > 1 ? 's' : ''} waiting to upload` : 'Everything is uploaded'}</b>${s.c !== 'g' && s.c !== 'a' ? '<br>' + esc(s.t) : ''}</div>
+    ${parts.length ? `<p class="small">${parts.map(esc).join(' · ')}</p>` : ''}
+    <p class="small" id="sd-last">Last synced: <b>${Cloud.lastSync ? new Date(Cloud.lastSync).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : 'never'}</b>${online() ? '' : ' · you are offline - it uploads by itself when the signal is back'}</p>
+    <p class="hint" style="margin:6px 0 10px">Green: all on the server · Amber: waiting to upload · Grey: offline · Red: the last sync failed.</p>`;
+}
+ACTIONS['sd-info'] = async function () {
+  const r = await modal(`<div id="sd-body">${sdBody()}</div><button class="btn primary" id="sd-now" type="button" ${online() && !Cloud.authExpired ? '' : 'disabled'}>Sync now</button><button class="btn" data-r="acc">Account & sign out</button><button class="btn" data-r="">Close</button>`, bg => {
+    const b = bg.querySelector('#sd-now'); b.addEventListener('click', async () => { b.disabled = true; b.textContent = 'Syncing…'; try { await syncNow('manual'); } catch (e) { } const body = bg.querySelector('#sd-body'); if (body) body.innerHTML = sdBody(); b.textContent = 'Sync now'; b.disabled = !online(); sdRefresh(); }); });
+  if (r === 'acc') ACTIONS.syncinfo();
+};
+
+/* ---------- 2. recent projects ---------- */
+const rpTbl = () => (isOp() ? (Ops.jobs || []) : (Ops.jobsTbl || []));
+function rpList(max = 4) {
+  const me_ = me(); if (!me_) return []; const tbl = rpTbl(); const has = id => tbl.some(p => p.id === id); const t = new Map();
+  const bump = (id, ts) => { if (!id || !has(id)) return; ts = +ts || 0; if (!t.has(id) || t.get(id) < ts) t.set(id, ts); };
+  try { (S.jobs || []).forEach(j => { if (j.projectId && (!j.owner || j.owner === me_)) bump(j.projectId, j.updated); }); } catch (e) { }
+  try { (Ops.list || []).forEach(c => { if (c.owner === me_ && c.jobId) bump(c.jobId, c.updated || c.created || Date.parse(c.date || c.week || '') || 1); }); } catch (e) { }
+  try { recAll('expense', e => e.owner === me_ && e.data && e.data.jobId).forEach(e => bump(e.data.jobId, Date.parse(e.updated_at || '') || Date.parse(e.data.date || '') || 1)); } catch (e) { }
+  tbl.forEach(p => { if (p.active === false) return; if (isOp() || (p.operatives || []).includes(me_) || p.contracts_manager === me_ || p.created_by === me_) bump(p.id, Math.min(Date.parse(p.updated_at || p.created_at || '') || 1, 2)); });   // assignments: listed, but after real activity
+  return [...t.entries()].sort((a, b) => b[1] - a[1]).slice(0, max).map(([id, ts]) => Object.assign({ ts }, tbl.find(p => p.id === id)));
+}
+const rpAudits = pid => (S.jobs || []).filter(j => j.projectId === pid).sort((a, b) => (b.updated || 0) - (a.updated || 0));
+function rpCardStaff() {
+  const L = rpList(); if (!L.length) return '';
+  return `<div class="card rp-card"><h2>Recent projects</h2>${L.map(p => { const au = rpAudits(p.id); const sv = au.filter(j => !isWorks(j)).length, wk = au.length - sv;
+    return `<div class="item" role="button" tabindex="0" data-act="rp-open" data-id="${esc(p.id)}"><div class="th">${I.roof.replace('<svg', '<svg width="24" height="24"')}</div><div class="bd"><div class="t1">${esc(p.ref || '')}${p.site_name ? ' · ' + esc(p.site_name) : ''}</div><div class="t2">${esc([p.site_address, p.postcode].filter(Boolean).join(', ') || ' ')}</div><div class="meta">${sv ? `<span class="tag type-survey">${sv} survey${sv > 1 ? 's' : ''}</span>` : ''}${wk ? `<span class="tag type-works">${wk} works insp.</span>` : ''}${p.ts > 2 ? `<span class="tag">${fmtDate(new Date(p.ts).toISOString().slice(0, 10))}</span>` : '<span class="tag">Assigned</span>'}</div></div><span aria-hidden="true">›</span></div>`; }).join('')}</div>`;
+}
+function rpCardOp() {
+  const L = rpList(); if (L.length < 2) return '';   // one job: the home already shows it - keep it simple
+  return `<p class="small" style="margin:0 0 6px"><b>Recent jobs</b></p><div class="rp-chips">${L.map(p => `<button class="btn" data-act="wk-open" data-job="${esc(p.id)}">${esc(p.ref || '')}${p.site_name ? ' · ' + esc(p.site_name) : ''}</button>`).join('')}</div>`;
+}
+async function qaNewAudit(kind, p) {
+  const j = kind === 'works' ? initWorks(newJob()) : newJob();
+  if (p) { j.projectId = p.id; j.site.name = j.site.name || p.site_name || ''; j.site.address = j.site.address || p.site_address || ''; j.site.postcode = j.site.postcode || p.postcode || ''; if (p.client_name && !j.client.name) j.client.name = p.client_name;
+    if (online()) try { await sbFetch(`/rest/v1/jobs?id=eq.${encodeURIComponent(p.id)}`, { method: 'PATCH', body: { audit_ids: [...new Set([...(p.audit_ids || []), j.id])] }, headers: { Prefer: 'return=minimal' } }); p.audit_ids = [...new Set([...(p.audit_ids || []), j.id])]; } catch (e) { } }
+  S.jobs.push(j); await DB.put(j); go(`#/job/${j.id}/details`); return j;
+}
+let qaExJob = null;
+{ const _ej = expJobs; expJobs = function () { const L = _ej(); if (!qaExJob) return L; const i = L.findIndex(x => x.id === qaExJob.id); const it = i >= 0 ? L.splice(i, 1)[0] : { id: qaExJob.id, ref: qaExJob.ref, site: qaExJob.site_name }; return [it].concat(L); }; }
+async function qaExpense(p) { qaExJob = p || null; try { const pr = expEdit(me()); setTimeout(() => { qaExJob = null; }, 0); await pr; } finally { qaExJob = null; } }
+ACTIONS['rp-open'] = async function (a) {
+  const p = rpTbl().find(x => x.id === a.dataset.id); if (!p) return; const au = rpAudits(p.id);
+  const r = await modal(`<h3>${esc(p.ref || 'Project')}</h3><p>${esc([p.site_name, p.site_address, p.postcode].filter(Boolean).join(', '))}</p>
+    ${au.length ? `<p class="small" style="margin:6px 0"><b>On this device</b></p>${au.slice(0, 8).map(j => `<button class="btn" data-r="job:${esc(j.id)}">${isWorks(j) ? 'Works insp. ' + esc(j.works.inspNo || '') : 'Survey'} · ${esc(j.ref)} · ${fmtDate(j.date)}</button>`).join('')}` : '<p class="hint">No audits for this project on this device yet.</p>'}
+    <p class="small" style="margin:10px 0 6px"><b>Start for this project</b></p>
+    <button class="btn primary" data-r="survey">${I.plus} New pre-works survey</button><button class="btn primary" data-r="works">${I.plus} New works inspection</button><button class="btn" data-r="exp">${I.plus} New expense</button><button class="btn" data-r="">Close</button>`);
+  if (!r) return; if (r.startsWith('job:')) return go(`#/job/${r.slice(4)}/details`);
+  if (r === 'survey' || r === 'works') return qaNewAudit(r, p); if (r === 'exp') return qaExpense(p);
+};
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.rp-card .item[data-act]')) { e.preventDefault(); e.target.click(); } });
+
+/* ---------- 1. quick-add ---------- */
+function qaItems() {
+  if (isOp()) { const js = Ops.jobs || []; return js.map(j => ['wk:' + j.id, `Today's daily check${js.length > 1 ? ' · ' + (j.ref || '') : ''}`, j.site_name || 'Tick off today on your weekly sheet']).concat([['exp', 'Expense', 'Photograph a receipt and send it to the office']]); }
+  const L = [['survey', 'Pre-works survey', 'Roof condition, defects, quote'], ['works', 'Works inspection', 'Snags, progress, sign-off'], ['exp', 'Expense', 'Photograph a receipt and send it to the office']];
+  if (isAdm()) L.push(['tbt', 'Toolbox talk / RAMS', 'Issue to a project\'s operatives']);
+  L.push(['flash', 'Flashings RFQ', 'Draw flashings, send for a quote'], ['sheets', 'Roof sheet schedule', 'Sheet lengths and counts']);
+  return L;
+}
+ACTIONS['qa-open'] = async function () {
+  const L = qaItems();
+  const r = await modal(`<h3>Start something new</h3><div class="qa-menu">${L.map(([k, t, s]) => `<button class="btn ${k === 'survey' || k.startsWith('wk:') ? 'primary' : ''}" data-r="${esc(k)}">${I.plus}<span>${esc(t)}<small>${esc(s)}</small></span></button>`).join('')}</div><button class="btn" data-r="">Cancel</button>`);
+  if (!r) return;
+  if (r.startsWith('wk:')) return ACTIONS['wk-open']({ dataset: { job: r.slice(3) } });
+  if (r === 'survey' || r === 'works') return qaNewAudit(r, null);
+  if (r === 'exp') return qaExpense(null);
+  if (r === 'tbt') return go('#/briefings'); if (r === 'flash') return go('#/flash'); if (r === 'sheets') return go('#/sheets');
+};
+{ const _vl = viewList; viewList = function () { const v = _vl(); if (!signedIn()) return v;
+  v.body = v.body.replace(`<button class="fab" data-act="newjob">${I.plus} New audit</button>`, `<button class="fab qa-fab" data-act="qa-open" aria-label="Start something new">${I.plus} New</button>`);
+  const rp = rpCardStaff(); if (rp) v.body = rp + v.body;   // first thing on home
+  return v; }; }
+{ const _vh = viewOpHome; viewOpHome = function () { const v = _vh(); if (!signedIn()) return v;   // operatives: an in-page + button at the top (a floating one would cover "Tick off today")
+  v.body = `<div class="qa-oprow"><button class="btn primary qa-fab qa-op" data-act="qa-open" aria-label="New: daily check or expense">${I.plus.replace('<svg', '<svg width="26" height="26"')}<span>New</span></button></div>` + rpCardOp() + v.body; return v; }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
