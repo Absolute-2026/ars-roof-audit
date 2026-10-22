@@ -11648,7 +11648,7 @@ function indHomeCard() { const r = indRec(); if (!r || r.status === 'complete') 
   return `<a class="card ind-home" href="#/induction" id="ind-home"><div style="flex:1"><h2 style="margin:0">Induction${d.startedAt ? '' : ' <span class="tag red">To do</span>'}</h2><div class="t2">${d.startedAt ? `${indChDone(d)} of ${IND_CH.length} videos done · ${n} of ${t} steps. Tap to carry on.` : 'Watch the short induction videos, answer a few questions and sign. About 15 minutes.'}</div><div class="ind-bar"><span style="width:${Math.round(100 * n / t)}%"></span></div></div><span style="font-size:22px">›</span></a>`; }
 { const _vh = viewOpHome; viewOpHome = function () { const v = _vh(); if (!signedIn()) return v; indLoadMine(); const c = indHomeCard(); if (c) v.body = c + v.body; return v; }; }
 { const _vl = viewList; viewList = function () { const v = _vl(); if (!signedIn() || isOp()) return v; indLoadMine(); let c = indHomeCard();
-  if (isAdm()) { const w = recAll('induction', r => r.status === 'submitted').length; if (w) c += `<a class="card ind-home wait" href="#/admin/ind" id="ind-mgr-home"><div style="flex:1"><h2 style="margin:0">Inductions</h2><div class="t2"><b>${w}</b> waiting for you to countersign</div></div><span style="font-size:22px">›</span></a>`; }
+  if (isAdm()) { indLoadAll(); /* v1.11.10: load them on home too, so a fresh sign-in shows the waiting card */ const w = recAll('induction', r => r.status === 'submitted').length; if (w) c += `<a class="card ind-home wait" href="#/admin/ind" id="ind-mgr-home"><div style="flex:1"><h2 style="margin:0">Inductions</h2><div class="t2"><b>${w}</b> waiting for you to countersign</div></div><span style="font-size:22px">›</span></a>`; }
   if (c) v.body = c + v.body; return v; }; }
 
 /* ---------- form definitions (wording from the induction pack appendices) ---------- */
@@ -11877,7 +11877,7 @@ const isAdminRole = () => !!(Cloud.profile && Cloud.profile.role === 'admin');
 const indPeople = () => (Cloud.profiles || []).filter(p => p && p.active !== false);
 const indPerson = id => (Cloud.profiles || []).find(p => p.id === id) || (Cloud.profile && Cloud.profile.id === id ? Cloud.profile : null) || { id, full_name: '(unknown)' };
 let indAllT = 0; function indLoadAll(force) { if (!signedIn() || !online() || !isAdm() || (!force && Date.now() - indAllT < 30000)) return Promise.resolve(); indAllT = Date.now();
-  const before = JSON.stringify(recAll('induction').map(r => r.id + r.status + r.updated_at)); return recFetch('kind=eq.induction').then(() => { if (JSON.stringify(recAll('induction').map(r => r.id + r.status + r.updated_at)) !== before && /^#\/(admin\/ind|inductions|team)/.test(location.hash)) rerender(); }).catch(() => { }); }
+  const before = JSON.stringify(recAll('induction').map(r => r.id + r.status + r.updated_at)); return recFetch('kind=eq.induction').then(() => { if (JSON.stringify(recAll('induction').map(r => r.id + r.status + r.updated_at)) !== before && /^#\/(admin\/ind|inductions|team)|^#?\/?$/.test(location.hash)) rerender(); }).catch(() => { }); }
 function indAdminHTML() { indLoadAll(); indContacts(); const ps = indPeople(); const rows = ps.map(p => ({ p, r: indRec(p.id) })); const grp = { wait: [], prog: [], new: [], done: [], none: [] }; rows.forEach(x => grp[indStatus(x.r)[0]].push(x));
   const nm = p => p.full_name || p.email || '?'; const role = p => ({ operative: 'Operative', manager: 'Manager', admin: 'Admin', surveyor: 'Surveyor' })[p.role] || p.role || '';
   const row = ({ p, r }) => { const [k, l] = indStatus(r), d = r ? indD(r) : {};
