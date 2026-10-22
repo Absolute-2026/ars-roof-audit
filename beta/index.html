@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.5">
+<meta name="app-version" content="1.11.6">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -878,7 +878,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.5';
+const APP_VERSION = '1.11.6';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -11106,6 +11106,63 @@ async function goHome() {
   homeFormDirty = false; window.scrollTo(0, 0); if (location.hash === '#/' || location.hash === '') render(); else location.hash = '#/'; return true;
 }
 document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('.hbtn'); if (!a) return; e.preventDefault(); e.stopPropagation(); goHome(); }, true);
+
+/* ===== v1.11.6 (BETA): idle auto sign-out (security lockdown, Matt 22 Oct 2026: "sort everything you think").
+   - Managers, surveyors and admins are signed out after 8 hours without using the app; operatives after 7 days
+     (so nobody is thrown out in the middle of a job).
+   - "Without using" = no tap, click or key press in the app. Time with the app closed counts too: opening it after
+     the limit signs out first.
+   - Nothing is lost: the open form is committed and saved first, an upload is tried when online, and everything not yet
+     uploaded (audits, daily checks, weekly sheets, records, new projects) stays on this device and uploads after the next
+     sign-in. Already uploaded audits are removed from the device, exactly as with a normal sign-out. */
+const IDLE_KEY = 'ars-last-active';
+const idleLimit = () => (isOp() ? 7 * 864e5 : 8 * 36e5);
+const idleWords = () => (isOp() ? '7 days' : '8 hours');
+let idleBusy = false, idleMark = 0;
+function idleTouch() { const n = Date.now(); if (n - idleLast() < 30000 && n >= idleLast()) return; idleMark = n; lsSet(IDLE_KEY, String(n)); }
+function idleLast() { const v = +lsGet(IDLE_KEY); return isFinite(v) && v > 0 ? v : 0; }
+async function idleSaveLocal() {   // write the debounced local saves now (they are keyed by the signed-in user, so before the session goes)
+  try { clearTimeout(settingsTimer); await DB.setKV('settings', S.settings); } catch (e) { }
+  // merge with what is already stored (memory wins), so a list that was never loaded can't wipe the stored one
+  const keep = async (key, mem, byId) => { const st = (await DB.getKV(key)) || (byId ? [] : {}); if (byId) { const out = st.filter(x => !mem.some(m => m.id === x.id)).concat(mem); await DB.setKV(key, out); } else await DB.setKV(key, Object.assign({}, st, mem)); };
+  try { if (typeof dcKey === 'function' && Array.isArray(Ops.list) && Ops.list.length) { clearTimeout(dcSaveT); await keep(dcKey(), Ops.list, true); } } catch (e) { }
+  try { if (typeof recKey === 'function' && Rec.items && Object.keys(Rec.items).length) { clearTimeout(recSaveT); await keep(recKey(), Rec.items, false); } } catch (e) { }
+}
+async function idleSignOut() {
+  if (idleBusy || !signedIn()) return; idleBusy = true;
+  const wasOp = isOp(), words = idleWords();
+  try {
+    try { const a = document.activeElement; if (a && a.blur && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) a.blur(); } catch (e) { }
+    await flush(); await idleSaveLocal();
+    if (online() && pendingCount()) { try { await Promise.race([syncNow('idle'), new Promise(r => setTimeout(r, 20000))]); } catch (e) { } }
+    await idleSaveLocal(); const left = pendingCount();
+    try { if (online()) await sbFetch('/auth/v1/logout', { method: 'POST' }); } catch (e) { }
+    const keep = [];
+    for (const j of S.jobs) { if (j.owner && !isPending(j) && !j.localOnly) await DB.del(j.id); else keep.push(j); }
+    if (me()) await DB.setKV('cloud.cursor.' + me(), ''); Cloud.cursor = ''; Cloud.healed = null;
+    S.jobs = keep; Cloud.session = null; Cloud.profile = null; Cloud.profiles = []; await DB.setKV('cloud.session', null); await DB.setKV('cloud.profile', null);
+    Cloud.loginMode = wasOp ? 'op' : 'signin'; Cloud.showLogin = false; Cloud.loginErr = '';
+    Cloud.loginMsg = `You were signed out because the app was not used for ${words}. ` + (left ? `${left} item${left > 1 ? 's' : ''} not uploaded yet ${left > 1 ? 'are' : 'is'} kept safe on this device and will upload when you sign in again.` : 'Everything was saved. Sign in again to carry on.');
+    lsSet(IDLE_KEY, null); document.querySelectorAll('.modal-bg').forEach(m => m.remove());
+    go('#/'); render();
+  } finally { idleBusy = false; }
+}
+function idleCheck() {
+  if (!signedIn()) return false;
+  const last = idleLast(); if (!last) { idleMark = 0; idleTouch(); return false; }   // first run after the update: start counting now
+  if (Date.now() - last > idleLimit()) { idleSignOut(); return true; }
+  return false;
+}
+['pointerdown', 'keydown', 'touchstart', 'wheel'].forEach(ev => document.addEventListener(ev, () => { if (signedIn() && !idleBusy && !idleCheck()) idleTouch(); }, { capture: true, passive: true }));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') idleCheck(); });
+setInterval(idleCheck, 60000);
+{ const _al = afterLogin; afterLogin = async function (t) { idleMark = 0; idleTouch(); return _al(t); }; }
+{ const _cb = cloudBoot; cloudBoot = async function () { const r = await _cb.apply(this, arguments); idleCheck(); return r; }; }
+
+/* v1.11.6: operative sign-in sends a random id for this device (made once, stored on the phone, means nothing else), so the
+   server's "10 failed attempts per device per 15 minutes" limit also works when several phones share one internet address. */
+function deviceId() { let d = lsGet('ars-device-id'); if (!/^[A-Za-z0-9_-]{8,64}$/.test(d || '')) { const a = new Uint8Array(12); crypto.getRandomValues(a); d = 'd' + [...a].map(x => x.toString(16).padStart(2, '0')).join(''); lsSet('ars-device-id', d); } return d; }
+{ const _sf = sbFetch; sbFetch = function (p, o = {}) { if (p === '/functions/v1/op-login' && o.body && typeof o.body === 'object') o = Object.assign({}, o, { body: Object.assign({}, o.body, { device: deviceId() }) }); return _sf.call(this, p, o); }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
