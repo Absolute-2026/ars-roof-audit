@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.9">
+<meta name="app-version" content="1.11.10">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -878,7 +878,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.9';
+const APP_VERSION = '1.11.10';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -11652,10 +11652,16 @@ function indHomeCard() { const r = indRec(); if (!r || r.status === 'complete') 
   if (c) v.body = c + v.body; return v; }; }
 
 /* ---------- form definitions (wording from the induction pack appendices) ---------- */
-const IND_PPE = [['vest', 'Hi-vis vest'], ['coat', 'Hi-vis jacket / coat'], ['trousers', 'Hi-vis trousers'], ['hat', 'Hard hat c/w chin strap'], ['eye', 'Eye protection (EN166): goggles / glasses / face visor'], ['boots', 'Safety footwear (EN ISO 20345): boots / wellingtons'],
-  ['gloves', 'Gloves: general / mechanical/cut / chemical/bio / thermal / welders'], ['hearing', 'Hearing protection (BS EN 352): ear plugs / ear defenders'], ['harness', 'Harnesses & lanyards'], ['airmask', 'Air-fed masks']];
-const IND_PPE_ST = [['', 'Choose…'], ['issued', 'Issued to me today'], ['owned', 'Own - fit for purpose'], ['na', 'Not needed for my work']];
-const IND_SIZES = [['vest', 'Hi-vis vest', 'cl'], ['coat', 'Hi-vis coat', 'cl'], ['trousers', 'Hi-vis trousers', 'cl'], ['boot', 'Boot size', ['4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15']], ['width', 'Boot width fitting', ['Narrow', 'Medium', 'Wide', 'Extra Wide']], ['gloves', 'Gloves', ['Small', 'Medium', 'Large', 'XL', '2XL', '3XL']]];
+// v1.11.10: PPE by employment status. [key, label, sizes ('cl' = clothing sizes, list, or null), optional = only if required by the RAMS]
+const IND_GLOVES = ['Small', 'Medium', 'Large', 'XL', '2XL', '3XL'], IND_BOOTS = ['4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'];
+const IND_PPE = [['gloves', 'Gloves', IND_GLOVES], ['hat', 'Hard hat', null], ['hivis', 'Hi-viz (vest / jacket / trousers)', 'cl'], ['overalls', 'Overalls', 'cl'], ['masks', 'Masks', null], ['goggles', 'Goggles', null], ['boots', 'Safety boots', IND_BOOTS],
+  ['harness', 'Harness / lanyard', null, 1], ['ear', 'Ear defenders', null, 1]];
+const IND_PPE_ST = [['issued', 'Issued by ARS'], ['own', 'Own, checked as suitable'], ['na', 'Not required by the RAMS']];
+const IND_EMP = [['employee', 'Employee / worker on the books'], ['self', 'Self-employed contractor']];
+const IND_PPE_HELP = 'Employees and workers under our direction must be issued PPE free of charge. Genuinely self-employed contractors supply their own, but it must be checked.';
+const indPpeDef = (emp, opt) => opt ? 'na' : emp === 'self' ? 'own' : 'issued';
+const indPpeLab = Object.fromEntries(IND_PPE_ST), indOwnPpe = pp => IND_PPE.filter(([k]) => ((pp || {}).items || {})[k] === 'own').map(x => x[1]);
+const indPpeTxt = (pp, k) => { const it = IND_PPE.find(x => x[0] === k), v = ((pp || {}).items || {})[k], z = ((pp || {}).sizes || {})[k]; return v ? indPpeLab[v] + (v === 'issued' && z ? ', size ' + z : '') : '-'; };
 const IND_CL = ['Male S', 'Male M', 'Male L', 'Male XL', 'Male XXL', 'Male XXXL', 'Female 6', 'Female 8', 'Female 10', 'Female 12', 'Female 14', 'Female 16', 'Female 18', 'Female 20', 'Female 22'];
 const IND_MED = [['loc', 'Sudden loss of consciousness'], ['aware', 'Impairment of awareness or concentration'], ['incap', 'Sudden incapacity'], ['visual', 'Temporary visual impairment'], ['balance', 'Impairment of balance or co-ordination'], ['mobility', 'Significant limitation of mobility']];
 const IND_MED2 = [['glasses', 'Do you wear glasses?'], ['lenses', 'Do you wear contact lenses?'], ['spare', 'If you do wear contact lenses, do you agree to carry a spare pair of glasses when working on behalf of the company?', 1]];
@@ -11703,12 +11709,17 @@ function indStepHTML(r, id) { const d = indD(r), s = indStep(id); if (!s) return
       <h3 class="ind-g">Right to work in the UK</h3><p class="hint">Your inductor checks this. If you're not a British or Irish citizen, get a share code at gov.uk/prove-right-to-work and enter it here.</p>
       <div class="f"><label for="if-idType">Type of ID you will show</label><select id="if-idType" data-if="idType" ${dis}><option value="">Choose…</option>${IND_IDS.map(o => `<option ${x.idType === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>${f('shareCode', 'Right to work share code (if you have one)', x.shareCode, 'autocapitalize="characters" placeholder="e.g. W12 345 678"')}
       <h3 class="ind-g">Your information</h3><p class="small">${esc(IND_NOTICE)}</p><label class="ind-chk"><input type="checkbox" data-if="notice" ${x.notice ? 'checked' : ''} ${dis}><span>I have read this notice</span></label>${save()}</div>`; }
-  if (id === 'ppe') { const x = d.forms.ppe || { items: {}, sizes: {} };
-    return `<div class="card" id="ind-form">${nav}<h2>PPE issue and sizes</h2><p class="hint">Declare the PPE the company has issued to you, and anything you need. PPE issued must comply with the Personal Protective Equipment at Work Regulations 1992. Hi-vis clothing is mandated for all persons working on behalf of the company.</p>
-      ${IND_PPE.map(([k, l]) => `<div class="f"><label for="ip-${k}">${esc(l)}</label><select id="ip-${k}" data-ppe="${k}" ${dis}>${IND_PPE_ST.map(([v, t]) => `<option value="${v}" ${(x.items || {})[k] === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`).join('')}
-      <div class="f"><label for="if-other">Other PPE issued / anything else you need</label><textarea id="if-other" data-if="other" rows="2" ${dis}>${esc(x.other || '')}</textarea></div>
-      <h3 class="ind-g">Your sizes</h3><div class="ind-grid">${IND_SIZES.map(([k, l, o]) => `<div class="f"><label for="is-${k}">${esc(l)}</label><select id="is-${k}" data-size="${k}" ${dis}><option value="">Choose…</option>${(o === 'cl' ? IND_CL : o).map(v => `<option ${(x.sizes || {})[k] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>`).join('')}</div>
-      <label class="ind-chk"><input type="checkbox" data-if="confirm" ${x.confirm ? 'checked' : ''} ${dis}><span>The PPE marked "Issued to me today" has been given to me</span></label>${save()}</div>`; }
+  if (id === 'ppe') { const x = d.forms.ppe || { items: {}, sizes: {} }, emp = x.emp || '';
+    const row = ([k, l, sz, opt]) => { const v = (x.items || {})[k] || (emp ? indPpeDef(emp, opt) : ''); return `<div class="ind-ppe" data-row="${k}"><div class="ind-ppe-l">${esc(l)}${opt ? ' <span class="hint">(if required by the RAMS)</span>' : ''}</div>
+      <select id="ip-${k}" data-ppe="${k}" data-opt="${opt ? 1 : ''}" ${dis}>${emp ? '' : '<option value="">Choose…</option>'}${IND_PPE_ST.filter(([s]) => s !== 'na' || opt).map(([s, t]) => `<option value="${s}" ${v === s ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      ${sz ? `<select id="is-${k}" data-size="${k}" aria-label="${esc(l)} size" ${v === 'issued' ? '' : 'hidden'} ${dis}><option value="">Size…</option>${(sz === 'cl' ? IND_CL : sz).map(z => `<option ${(x.sizes || {})[k] === z ? 'selected' : ''}>${esc(z)}</option>`).join('')}</select>` : ''}</div>`; };
+    return `<div class="card" id="ind-form" data-form="ppe">${nav}<h2>PPE issue and sizes</h2>
+      <div class="f"><label>Employment status</label><div class="ind-emp">${IND_EMP.map(([v, t]) => `<label class="ind-chk"><input type="radio" name="ie" value="${v}" ${emp === v ? 'checked' : ''} ${dis}><span>${t}</span></label>`).join('')}</div></div>
+      <p class="hint ind-ppe-help">${IND_PPE_HELP}</p>
+      <div id="ind-ppe-items" ${emp ? '' : 'hidden'}>${IND_PPE.map(row).join('')}
+      <p class="hint">Hi-viz is mandated for all persons working on behalf of the company. Only items issued by ARS need a size. Own PPE is checked as suitable by your manager when they countersign.</p>
+      <div class="f"><label for="if-other">Other PPE / anything else you need</label><textarea id="if-other" data-if="other" rows="2" ${dis}>${esc(x.other || '')}</textarea></div>
+      <label class="ind-chk"><input type="checkbox" data-if="confirm" ${x.confirm ? 'checked' : ''} ${dis}><span>The PPE marked "Issued by ARS" has been given to me, free of charge</span></label></div>${save()}</div>`; }
   if (id === 'health') return indHealthHTML(r);
   if (id === 'nok') { const x = d.forms.nok || {};
     return `<div class="card" id="ind-form">${nav}<h2>Next of kin / emergency contact</h2><p class="hint">Who we contact in an emergency.</p>${f('name', 'Name of next of kin or emergency contact', x.name)}${f('rel', 'Relationship with you', x.rel)}<div class="f"><label for="if-address">Address</label><textarea id="if-address" data-if="address" rows="2" ${dis}>${esc(x.address || '')}</textarea></div>${f('phone', 'Contact number', x.phone, 'type="tel"')}${f('phone2', 'Secondary contact number', x.phone2, 'type="tel"')}${f('email', 'Email', x.email, 'type="email"')}${save()}</div>`; }
@@ -11792,18 +11803,19 @@ Object.assign(ACTIONS, {
     c.q.forEach((q, i) => { const fs = box.querySelector(`.ind-q[data-i="${i}"]`), sel = fs.querySelector('input:checked'), m = fs.querySelector('.ind-qmsg'); fs.classList.remove('ok', 'bad');
       if (!sel) { miss++; m.hidden = false; m.textContent = 'Choose an answer'; return; } const v = +sel.value; ans.push(v);
       if (v === q.a) { fs.classList.add('ok'); m.hidden = false; m.textContent = 'Correct'; } else { bad++; fs.classList.add('bad'); m.hidden = false; m.textContent = 'Not quite. Have another go (or watch the video again).'; sel.checked = false; } });
-    if (miss) return toast('Answer every question'); st.attempts = (st.attempts || 0) + 1;
+    if (miss) return toast('Answer every question'); st.attempts = (st.attempts || 0) + 1; (st.tries = st.tries || []).push({ at: indNow(), wrong: bad });
     if (bad) { indSave(r); return toast(bad === 1 ? 'One answer is wrong - try again' : bad + ' answers are wrong - try again'); }
     st.answers = ans; st.quizAt = indNow(); indSave(r); toast('All correct'); const i = IND_STEPS.findIndex(s => s.id === 'q' + c.id); go('#/induction/' + IND_STEPS[i + 1].id); },
   async 'ind-form'(a) { const r = indRec(); if (!r || r.status === 'submitted' || r.status === 'complete') return; const id = a.dataset.step, d = indD(r), root = $('#ind-form'); const V = {}; root.querySelectorAll('[data-if]').forEach(e => { V[e.dataset.if] = e.type === 'checkbox' ? e.checked : e.value.trim(); });
     const need = (ks, lab) => { const m = ks.filter(k => !V[k]); if (m.length) { toast('Please fill in: ' + m.map(k => lab[k] || k).join(', '), 3500); const el = root.querySelector(`[data-if="${m[0]}"]`); if (el) el.focus(); return false; } return true; };
     if (id === 'details') { if (!need(['name', 'dob', 'ni', 'address', 'idType'], { name: 'full name', dob: 'date of birth', ni: 'NI number', address: 'address', idType: 'type of ID' })) return; if (!V.notice) return toast('Tick to confirm you have read the notice about your information');
       d.forms.details = Object.assign(V, { at: indNow() }); }
-    else if (id === 'ppe') { const items = {}; root.querySelectorAll('[data-ppe]').forEach(e => { items[e.dataset.ppe] = e.value; }); const sizes = {}; root.querySelectorAll('[data-size]').forEach(e => { sizes[e.dataset.size] = e.value; });
-      const un = IND_PPE.filter(([k]) => !items[k]); if (un.length) return toast('Choose an option for: ' + un.map(x => x[1].split(/[:(]/)[0].trim()).join(', '), 4000);
-      if (['vest', 'coat', 'trousers', 'boot'].some(k => !sizes[k])) return toast('Choose your hi-vis and boot sizes');
+    else if (id === 'ppe') { const emp = (root.querySelector('input[name=ie]:checked') || {}).value; if (!emp) return toast('Choose your employment status');
+      const items = {}; root.querySelectorAll('[data-ppe]').forEach(e => { items[e.dataset.ppe] = e.value; }); const sizes = {}; root.querySelectorAll('[data-size]').forEach(e => { if (items[e.dataset.size] === 'issued' && e.value) sizes[e.dataset.size] = e.value; });
+      const un = IND_PPE.filter(([k]) => !items[k]); if (un.length) return toast('Choose an option for: ' + un.map(x => x[1]).join(', '), 4000);
+      const nz = IND_PPE.filter(([k, , sz]) => sz && items[k] === 'issued' && !sizes[k]); if (nz.length) { toast('Choose a size for: ' + nz.map(x => x[1].split(' (')[0]).join(', '), 4000); const el = root.querySelector('#is-' + nz[0][0]); if (el) el.focus(); return; }
       if (Object.values(items).includes('issued') && !V.confirm) return toast('Tick to confirm the PPE issued to you');
-      d.forms.ppe = { items, sizes, other: V.other, confirm: !!V.confirm, at: indNow() }; }
+      d.forms.ppe = { emp, items, sizes, other: V.other, confirm: Object.values(items).includes('issued') && !!V.confirm, at: indNow() }; }
     else if (id === 'nok') { if (!need(['name', 'rel', 'phone'], { name: 'name', rel: 'relationship', phone: 'contact number' })) return; d.forms.nok = Object.assign(V, { at: indNow() }); }
     else if (id === 'wto') { const sel = root.querySelector('input[name=iw]:checked'); if (!sel) return toast('Choose (a), (b) or "don’t want to choose now"'); const choice = sel.value; let sig = null;
       if (choice) { sig = await signaturePad({ name: (d.forms.details || {}).name || myName() }); if (!sig) return; }
@@ -11825,7 +11837,7 @@ Object.assign(ACTIONS, {
     catch (e) { if (w) w.close(); toast(e.offline || !online() ? 'You need signal to open the policies' : 'Could not open the policies: ' + (e.message || e), 4000); } },
   async 'ind-declare'() { const r = indRec(); if (!r) return; const d = indD(r); const miss = IND_STEPS.filter(x => x.id !== 'declare' && !x.done(d)); if (miss.length) return toast('Finish the other steps first');
     const name = ($('#if-dname').value || '').trim(); if (!name) return toast('Print your name'); const sig = await signaturePad({ name }); if (!sig) return;
-    d.decl = { text: IND_DECL, name, sig, at: indNow() }; d.submittedAt = d.decl.at; r.status = 'submitted'; recPut(r); toast('Induction submitted - your manager will countersign'); go('#/induction'); },
+    d.decl = { text: IND_DECL, name, sig, at: indNow(), device: indDevice(), app: APP_VERSION }; d.submittedAt = d.decl.at; r.status = 'submitted'; recPut(r); toast('Induction submitted - your manager will countersign'); go('#/induction'); },
 });
 
 /* ---------- the signed induction record PDF (NO health answers) ---------- */
@@ -11846,8 +11858,8 @@ function indPDF(r, person, o = {}) { const { jsPDF } = window.jspdf; const doc =
   H('3. Induction videos and check questions');
   IND_CH.forEach((ch, i) => { const s = d.ch[ch.id] || {}; P(`${i + 1}. ${ch.t}`, { b: 1 }); KV('Watched', s.watchedAt ? `${indUK(s.watchedAt)} (to the end)` : 'Not watched'); KV('Questions passed', s.quizAt ? `${indUK(s.quizAt)} (attempts: ${s.attempts || 1})` : 'Not passed');
     ch.q.forEach((q, j) => { const a = (s.answers || [])[j]; P(`Q: ${q.q}  -  A: ${a != null ? q.o[a] : '-'}`, { s: 8.5, ind: 4 }); }); });
-  H('4. PPE issue and sizes (Appendix B)'); const pp = d.forms.ppe || {}; const lab = Object.fromEntries(IND_PPE_ST);
-  IND_PPE.forEach(([k, l]) => KV(l.split(/[:(]/)[0].trim(), lab[(pp.items || {})[k]] || '-')); KV('Other / requirements', pp.other); IND_SIZES.forEach(([k, l]) => KV(l, (pp.sizes || {})[k])); KV('Confirmed', pp.at ? `${pp.confirm ? 'PPE issued received' : 'No PPE issued'} ${indUK(pp.at)}` : '-');
+  H('4. PPE issue and sizes (Appendix B)'); const pp = d.forms.ppe || {}; KV('Employment status', (IND_EMP.find(x => x[0] === pp.emp) || [])[1]);
+  IND_PPE.forEach(([k, l]) => KV(l, indPpeTxt(pp, k))); KV('Other / requirements', pp.other); KV('Confirmed', pp.at ? `${pp.confirm ? 'Issued PPE received free of charge' : 'No PPE issued'} ${indUK(pp.at)}` : '-'); KV('Own PPE checked as suitable', indOwnPpe(pp).length ? ((d.inductor || {}).ownPpeChecked ? `Yes - ${(d.inductor || {}).name} ${indUK((d.inductor || {}).at)}` : 'Not yet') : 'No own PPE');
   H('5. Medical self-certification and occupational health (Appendices C and D)');
   P(d.healthSubmittedAt ? `Submitted confidentially ${indUK(d.healthSubmittedAt)}. The answers are special category (health) data, held separately with access limited to the Admin role, and are not included in this record.` : 'Not submitted.');
   H('6. Next of kin / emergency contact (Appendix E)'); const nk = d.forms.nok || {}; KV('Name', nk.name); KV('Relationship', nk.rel); KV('Address', nk.address); KV('Contact number', nk.phone); KV('Secondary number', nk.phone2); KV('Email', nk.email);
@@ -11873,8 +11885,8 @@ function indAdminHTML() { indLoadAll(); indContacts(); const ps = indPeople(); c
     return `<div class="item ind-row" data-pid="${esc(p.id)}"><div class="bd"><div class="t1">${esc(nm(p))}</div><div class="t2"><span class="tag ind-${k}">${esc(l)}</span> <span class="tag">${esc(role(p))}</span></div><div class="t2">${sub}</div>
       <div class="btns" style="margin-top:6px">${!r ? `<button class="btn sm primary" data-act="ind-assign" data-pid="${esc(p.id)}">Assign induction</button>` : ''}
       ${k === 'wait' ? `<a class="btn sm primary" href="#/inductions/${esc(p.id)}">Review &amp; countersign</a>` : r ? `<a class="btn sm" href="#/inductions/${esc(p.id)}">Open</a>` : ''}
-      ${r && k !== 'new' ? `<button class="btn sm" data-act="ind-dl" data-pid="${esc(p.id)}">Download record</button>` : ''}
-      ${r && isAdminRole() && d.healthSubmittedAt ? `<button class="btn sm" data-act="ind-health" data-pid="${esc(p.id)}">🔒 Health forms</button>` : ''}
+      ${r && k !== 'new' ? `<button class="btn sm" data-act="ind-dl" data-pid="${esc(p.id)}">${k === 'done' ? 'Download signed pack' : 'Download record so far'}</button>` : ''}
+      ${r && isAdminRole() && d.healthSubmittedAt ? `<button class="btn sm" data-act="ind-health" data-pid="${esc(p.id)}">🔒 Health forms</button><button class="btn sm" data-act="ind-hpdf" data-pid="${esc(p.id)}">🔒 Download health forms PDF</button>` : ''}
       ${r && k === 'new' ? `<button class="btn sm" data-act="ind-unassign" data-pid="${esc(p.id)}">Remove</button>` : ''}</div></div></div>`; };
   const sect = (t, a) => a.length ? `<h3 class="ind-g">${t} (${a.length})</h3>` + a.map(row).join('') : '';
   return `<div class="card"><h2>Induction</h2><p class="hint">New sign-ups and new operatives get the induction automatically. Use “Assign induction” for anyone else. ${isAdminRole() ? 'You have the Admin role, so you can open the confidential health forms.' : 'Health forms are confidential: only people with the Admin role can open them (give someone the Admin role on the Team page).'}</p>
@@ -11890,20 +11902,20 @@ function indReviewHTML(pid) { const r = indRec(pid), p = indPerson(pid); if (!r)
     ${kv('Videos', `${indChDone(d)} of ${IND_CH.length} watched and questions passed`)}${IND_CH.map((c, i) => { const s = d.ch[c.id] || {}; return kv(`${i + 1}. ${c.t}`, s.quizAt ? `Watched ${indUK(s.watchedAt)} · passed ${indUK(s.quizAt)} (attempts ${s.attempts || 1})` : s.watchedAt ? 'Watched, questions not passed yet' : 'Not watched'); }).join('')}</div>
     <div class="card"><h2>Details and right to work</h2>${kv('Date of birth', det.dob ? det.dob.split('-').reverse().join('/') : '')}${kv('NI number', det.ni)}${kv('Address', det.address)}${kv('Email', det.email)}${kv('Mobile', det.phone)}${kv('Type of ID', det.idType)}
       <div class="ind-kv"><b>Share code</b><div class="ind-code">${det.shareCode ? esc(det.shareCode) : '-'}</div></div><p class="hint">Check a share code at gov.uk/view-right-to-work using the date of birth above.</p></div>
-    <div class="card"><h2>Forms</h2>${kv('PPE', IND_PPE.map(([x, t]) => `${t.split(/[:(]/)[0].trim()}: ${lab[(pp.items || {})[x]] || '-'}`).join('; '))}${kv('Sizes', IND_SIZES.map(([x, t]) => `${t} ${(pp.sizes || {})[x] || '-'}`).join('; '))}${kv('Other PPE', pp.other)}
+    <div class="card"><h2>Forms</h2>${kv('Employment status', (IND_EMP.find(x => x[0] === pp.emp) || [])[1] || '-')}${kv('PPE', IND_PPE.map(([x, t]) => `${t.split(' (')[0]}: ${indPpeTxt(pp, x)}`).join('; '))}${kv('Other PPE', pp.other)}
       ${kv('Next of kin', [nk.name, nk.rel, nk.phone, nk.phone2, nk.email, nk.address].filter(Boolean).join(', '))}${kv('Working time', wt.at ? (wt.choice === 'a' ? '(a) Opted out of the 48-hour week' : wt.choice === 'b' ? '(b) Did not opt out' : 'No choice made (optional)') : '')}
       ${kv('Drug & alcohol', d.forms.da && d.forms.da.at ? 'Accepted and signed ' + indUK(d.forms.da.at) : '')}${kv('Health forms', d.healthSubmittedAt ? 'Submitted confidentially ' + indUK(d.healthSubmittedAt) + (isAdminRole() ? '' : ' (Admin role only)') : 'Not submitted')}
       ${kv('Policies opened', indUK(d.policiesOpenedAt))}${kv('Inductee declaration', d.decl ? `${d.decl.name} · ${indUK(d.decl.at)}` : '')}${d.decl && d.decl.sig ? `<img class="ind-sig" src="${d.decl.sig}" alt="signature">` : ''}
-      ${isAdminRole() && d.healthSubmittedAt ? `<button class="btn block" data-act="ind-health" data-pid="${esc(pid)}">🔒 View health forms</button>` : ''}</div>
+      ${isAdminRole() && d.healthSubmittedAt ? `<button class="btn block" data-act="ind-health" data-pid="${esc(pid)}">🔒 View health forms</button><button class="btn block" data-act="ind-hpdf" data-pid="${esc(pid)}">🔒 Download health forms PDF</button>` : ''}</div>
     ${k === 'wait' ? `<div class="card" id="ind-sign"><h2>Countersign as the person carrying out the induction</h2>
-      <label class="ind-chk"><input type="checkbox" id="ir-rtw"><span>Right to work in the UK checked: original documents seen, copied and dated, or Home Office online check completed</span></label>
+      <label class="ind-chk"><input type="checkbox" id="ir-rtw"><span>Right to work in the UK checked: original documents seen, copied and dated, or Home Office online check completed</span></label>${indOwnPpe(pp).length ? `<label class="ind-chk"><input type="checkbox" id="ir-ownppe"><span>Own PPE checked as suitable: ${esc(indOwnPpe(pp).join(', '))}</span></label>` : ''}
       <div class="f"><label for="ir-meth">How it was checked</label><select id="ir-meth"><option>Home Office online check (share code)</option><option>Original documents seen, copied and dated</option></select></div>
       <div class="f"><label for="ir-id">ID seen</label><select id="ir-id"><option value="">Choose…</option>${IND_IDS.map(o => `<option ${det.idType === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>
       <div class="f"><label for="ir-lm">Line manager</label><select id="ir-lm"><option value="">Choose…</option>${staff.map(x => `<option ${x.id === me() ? 'selected' : ''}>${esc(x.full_name || x.email)}</option>`).join('')}</select></div>
       <div class="f"><label for="ir-note">Notes (optional)</label><textarea id="ir-note" rows="2"></textarea></div><div class="f"><label for="ir-name">Your name (print)</label><input id="ir-name" value="${esc(myName())}"></div>
       <button class="btn primary block" data-act="ind-countersign" data-pid="${esc(pid)}">Sign and complete</button><p class="hint">The signed record (without health answers) is saved and emailed to the person's manager and you.</p></div>` : ''}
     ${k === 'done' ? `<div class="card">${kv('Countersigned', `${ir.name} · ${indUK(ir.at)}`)}${kv('Right to work', ir.rtwChecked ? 'Checked - ' + (ir.rtwMethod || '') : 'No')}${kv('Emailed', d.emailedAt ? `${indUK(d.emailedAt)} to ${(d.emailedTo || []).join(', ')}` : 'Not yet')}${ir.sig ? `<img class="ind-sig" src="${ir.sig}" alt="signature">` : ''}${d.emailedAt ? '' : `<button class="btn block" data-act="ind-email" data-pid="${esc(pid)}">Email the record now</button>`}</div>` : ''}
-    <div class="card">${k !== 'new' ? `<button class="btn block" data-act="ind-dl" data-pid="${esc(pid)}">Download record (PDF)</button>` : ''}<a class="btn block" href="#/admin/ind">Back to the list</a></div>`; }
+    <div class="card">${k !== 'new' ? `<button class="btn block" data-act="ind-dl" data-pid="${esc(pid)}">${k === 'done' ? 'Download signed pack (PDF)' : 'Download record so far (PDF)'}</button>` : ''}<a class="btn block" href="#/admin/ind">Back to the list</a></div>`; }
 
 async function indEmail(r) { try { const res = await fnCall('records-notify', { id: r.id, action: 'induction' }); if (res && res.ok) { toast('Induction record emailed to ' + (res.to || []).join(', '), 4000); await recFetch(`id=eq.${r.id}`); } else toast((res && res.error) || 'Email not sent', 4000); }
   catch (e) { toast(e.offline ? 'Saved - email it from this page when you have signal' : 'Email not sent: ' + (e.message || e), 4000); } }
@@ -11912,13 +11924,18 @@ Object.assign(ACTIONS, {
     const ex = Rec.items[indId(pid)]; const r = { id: indId(pid), kind: 'induction', subject: pid, owner: pid, status: 'assigned', data: { assignedAt: indNow(), assignedBy: myName(), assignedById: me() }, created_at: (ex && ex.created_at) || indNow() }; recPut(r); toast('Induction assigned'); rerender(); },
   async 'ind-unassign'(a) { const r = indRec(a.dataset.pid); if (!r || indD(r).startedAt) return; if (!(await confirmBox('Remove this induction?', 'They have not started it yet. You can assign it again later.', 'Remove'))) return; r.deleted = true; recPut(r); rerender(); },
   async 'ind-dl'(a) { const r = indRec(a.dataset.pid); if (!r) return; const p = indPerson(a.dataset.pid); await indContacts();
-    try { if (r.status === 'complete' && indD(r).pdf) { const b = await recBlob(indD(r).pdf); return qOut(b, indFileName(r, p)); } } catch (e) { }
+    if (r.status === 'complete') { try { if (indD(r).pdf) { const b = await recBlob(indD(r).pdf); return qOut(b, indPackName(r, p)); } } catch (e) { }
+      if (r._files && r._files.pdf) { const u = r._files.pdf; return qOut(await (await fetch(u)).blob(), indPackName(r, p)); }
+      try { const b = await indSignedPack(r, p); if (b) return qOut(new Blob([b], { type: 'application/pdf' }), indPackName(r, p)); } catch (e) { } }
     qOut(indPDF(r, p).output('blob'), indFileName(r, p)); },
-  async 'ind-countersign'(a) { const pid = a.dataset.pid, r = indRec(pid); if (!r || r.status !== 'submitted') return; if (!$('#ir-rtw').checked) return toast('Tick to confirm the right to work check');
+  async 'ind-countersign'(a) { const pid = a.dataset.pid, r = indRec(pid); if (!r || r.status !== 'submitted') return; if (!$('#ir-rtw').checked) return toast('Tick to confirm the right to work check'); const own = indOwnPpe(indD(r).forms.ppe); if (own.length && !($('#ir-ownppe') || {}).checked) return toast('Tick to confirm their own PPE has been checked as suitable');
     const idSeen = $('#ir-id').value, name = $('#ir-name').value.trim(); if (!idSeen) return toast('Choose the ID you saw'); if (!name) return toast('Print your name');
     const sig = await signaturePad({ name }); if (!sig) return; const d = indD(r), at = indNow();
-    d.inductor = { id: me(), name, sig, at, rtwChecked: true, rtwMethod: $('#ir-meth').value, idSeen, lineManager: $('#ir-lm').value, note: $('#ir-note').value.trim() };
-    d.completedAt = at; r.status = 'complete'; await indContacts(); r._files = Object.assign(r._files || {}, { pdf: indPDF(r, indPerson(pid)).output('datauristring') }); recPut(r); toast('Induction complete'); rerender();
+    d.inductor = { id: me(), name, sig, at, rtwChecked: true, rtwMethod: $('#ir-meth').value, idSeen, lineManager: $('#ir-lm').value, note: $('#ir-note').value.trim(), ownPpe: own, ownPpeChecked: own.length ? true : null, device: indDevice(), app: APP_VERSION };
+    d.completedAt = at; r.status = 'complete'; await indContacts(); let pdf = null; toast('Making the signed pack…', 8000);
+    try { const b = await indSignedPack(r, indPerson(pid)); if (b) { pdf = 'data:application/pdf;base64,' + indB64(b); d.pdfKind = 'pack'; } } catch (e) { console.warn('signed pack', e); }
+    if (!pdf) { pdf = indPDF(r, indPerson(pid)).output('datauristring'); d.pdfKind = 'record'; }
+    r._files = Object.assign(r._files || {}, { pdf }); recPut(r); toast(d.pdfKind === 'pack' ? 'Induction complete - signed pack saved' : 'Induction complete (the pack could not be loaded offline, so a record summary was saved)', 4000); rerender();
     if (online()) { await recFlush(); if (!r._q) await indEmail(r); rerender(); } },
   async 'ind-email'(a) { const r = indRec(a.dataset.pid); if (!r) return; if (r._q) await recFlush(); await indEmail(r); rerender(); },
   async 'ind-health'(a) { if (!isAdminRole()) return toast('Only the Admin role can see health forms'); const pid = a.dataset.pid, p = indPerson(pid); let h;
@@ -11930,7 +11947,8 @@ Object.assign(ACTIONS, {
     const res = await modal(`<h3>🔒 Health forms: ${esc(p.full_name || '')}</h3><p class="hint">Confidential special category data. Submitted ${esc(indUK(h.submitted_at))} by ${esc(h.signed_name || '')}. ${yes ? `<b>${yes} “Yes” answer${yes > 1 ? 's' : ''}</b> to review.` : 'No health issues declared.'}</p>
       <div class="ind-hview"><h4>Medical self-certification</h4>${rows([...IND_MED, ...IND_MED2], h.medical || {})}<h4>Time off work for</h4>${rows(L(IND_ILL), o.ill || {})}<h4>Exposure in previous jobs</h4>${rows(L(IND_EXP), o.exp || {})}${o.expDetails ? `<p><b>Details:</b> ${esc(o.expDetails)}</p>` : ''}<h4>Do you suffer from</h4>${rows(L(IND_SUF), o.suf || {})}<h4>Are you</h4>${rows(L(IND_ARE), o.are || {})}${o.phobias ? `<p><b>Phobias / details:</b> ${esc(o.phobias)}</p>` : ''}
       ${h.signature ? `<img class="ind-sig" src="${h.signature}" alt="signature">` : ''}<p class="hint">${h.reviewed_at ? `Reviewed by ${esc(h.reviewed_by)} ${esc(indUK(h.reviewed_at))}${h.review_note ? ': ' + esc(h.review_note) : ''}` : 'Not reviewed yet.'}</p></div>
-      <div class="f"><label for="ih-rn">Review note (optional)</label><input id="ih-rn" value="${esc(h.review_note || '')}"></div><button class="btn primary" data-r="rev">Mark reviewed by me</button><button class="btn" data-r="">Close</button>`, bg => { const i = $('#ih-rn', bg); if (i) i.addEventListener('input', () => { rn = i.value; }); });
+      <div class="f"><label for="ih-rn">Review note (optional)</label><input id="ih-rn" value="${esc(h.review_note || '')}"></div><button class="btn primary" data-r="rev">Mark reviewed by me</button><button class="btn" data-r="pdf">Download health forms PDF</button><button class="btn" data-r="">Close</button>`, bg => { const i = $('#ih-rn', bg); if (i) i.addEventListener('input', () => { rn = i.value; }); });
+    if (res === 'pdf') return ACTIONS['ind-hpdf']({ dataset: { pid } });
     if (res === 'rev') { try { await sbFetch(`/rest/v1/induction_health?person=eq.${encodeURIComponent(pid)}`, { method: 'PATCH', body: { reviewed_by: myName(), reviewed_at: indNow(), review_note: rn.trim() || null }, headers: { Prefer: 'return=minimal' } }); toast('Marked as reviewed'); } catch (e) { toast(e.message || String(e)); } } },
   async 'indc-save'() { if (!isMgr()) return toast('Only managers can change these'); const v = {}; $$('[data-indc]').forEach(e => { const x = e.value.trim(); if (x) v[e.dataset.indc] = x; });
     try { await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'induction_contacts', value: v }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); IND.contacts = v; await DB.setKV('ind.contacts', v); toast('Saved'); rerender(); }
@@ -11979,6 +11997,13 @@ Object.assign(ACTIONS, {
 .ind-hview h4{margin:12px 0 4px}.ind-row .btns{display:flex;flex-wrap:wrap;gap:6px}
 `; document.head.appendChild(st); })();
 
+// v1.11.10 PPE form: employment status sets the defaults (employee = Issued, self-employed = Own); a size is only asked for issued items
+document.addEventListener('change', e => { const f = e.target.closest && e.target.closest('#ind-form[data-form="ppe"]'); if (!f) return;
+  if (e.target.name === 'ie') { const emp = e.target.value; f.querySelector('#ind-ppe-items').hidden = false;
+    f.querySelectorAll('[data-ppe]').forEach(sel => { const o = sel.querySelector('option[value=""]'); if (o) o.remove(); sel.value = indPpeDef(emp, !!sel.dataset.opt); sel.dispatchEvent(new Event('change', { bubbles: true })); }); }
+  if (e.target.dataset && e.target.dataset.ppe) { const z = f.querySelector('#is-' + e.target.dataset.ppe); if (z) z.hidden = e.target.value !== 'issued'; } });
+{ const st = document.createElement('style'); st.textContent = '.ind-ppe{display:grid;grid-template-columns:1fr auto;gap:6px 8px;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9}.ind-ppe-l{grid-column:1/-1;font-weight:600;font-size:15px}.ind-ppe select{min-height:44px;font-size:15px}.ind-ppe select[data-ppe]{width:100%}.ind-ppe select[data-size]{width:120px}.ind-emp{display:grid;gap:4px}.ind-ppe-help{background:#f8fafc;border-left:3px solid #f39200;padding:8px 10px}'; document.head.appendChild(st); }
+
 /* ===== v1.11.9 (BETA): dictation tip.
    - iPhone / iPad where the Speak button is hidden (home-screen app): a small dismissible tip under note / description boxes on first focus.
    - Once, the first time someone opens a notes box: a popup - on devices with Speak it explains Speak; elsewhere on iPhone/iPad it shows the keyboard tip.
@@ -11999,6 +12024,172 @@ document.addEventListener('focusin', e => { const el = e.target; if (!el || el.t
       .then(() => { dtBusy = false; if (document.body.contains(el)) try { el.focus(); } catch (x) { } }), 150); } });
 document.addEventListener('click', e => { const x = e.target.closest && e.target.closest('.dict-x'); if (!x) return; e.preventDefault(); dtSet('ars-dict-tip-off'); document.querySelectorAll('.dict-tip').forEach(t => t.remove()); });
 (() => { const st = document.createElement('style'); st.textContent = `.dict-tip{display:flex;gap:8px;align-items:flex-start;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:8px;padding:6px 8px;margin:4px 0 8px;font-size:13px;line-height:1.35}.dict-tip span{flex:1}.dict-x{background:none;border:0;color:#1e3a8a;font-size:16px;min-width:32px;min-height:32px;padding:0;line-height:1}`; document.head.appendChild(st); })();
+
+/* ---------- v1.11.10: the signed New Starter Induction pack (pdf-lib) ----------
+   Base = the pack PDF in the private bucket (IND_PACK). The person's answers and both drawn signatures go onto the appendix forms
+   (A, B, E, F, G) and the Final declaration; Appendices C and D (health) are blanked and marked "Confidential: held by Admin";
+   an audit trail page is added at the end. Coordinates are PDF points from the top of the page, measured from
+   ARS-New-Starter-Induction.pdf v1.0 (22 Oct 2026, 19 pages) - see build/indpackmap.md if the pack layout changes. */
+const IND_PK = { pages: 19, A: 10, B: 11, C: [12, 13, 14], E: 15, F: 16, G: 17, FD: 19,
+  aRows: { date: [98, 119], lm: [120, 141], ind: [142, 163], name: [164, 185], dob: [186, 207], ni: [208, 229], addr: [230, 251], num: [252, 273], email: [274, 295] }, aVal: 245,
+  aRtw: [324, 361], aId: [362, 376], aNok: [376, 390], aYes: 372, aIni: 458, aShare: [62, 345], aSig: [150, 500, 172, 25], aDate: [392, 500, 526],
+  bCols: { owned: [189, 260], issued: [263, 322], date: [325, 376], name: [379, 450], sig: [453, 537] },
+  bRows: { vest: [201, 221], coat: [221, 242], trousers: [242, 262], hat: [286, 306], eye: [306, 329], boots: [329, 363], gloves: [386, 431], hearing: [431, 454], harness: [454, 475], airmask: [475, 495], other: [495, 516] },
+  bMale: [['S', 161.3, 167.3], ['M', 174.8, 182.3], ['L', 189.8, 194.8], ['XL', 202.3, 213.3], ['XXL', 220.8, 237.8], ['XXXL', 245.2, 268.2]],
+  bFem: [['6', 345.6, 350.6], ['8', 358.1, 363.1], ['10', 370.6, 380.6], ['12', 388.1, 398.1], ['14', 405.5, 415.5], ['16', 423.1, 433.1], ['18', 440.6, 450.6], ['20', 458, 468.1], ['22', 475.5, 485.5]],
+  bSz: { vest: [571.8, 581.8], coat: [584.8, 594.8], trousers: [597.8, 607.8], boot: [610.8, 620.8], width: [623.8, 633.8], gloves: [636.8, 646.8] },
+  bBoot: [['4', 161.3, 166.4], ['5', 173.8, 178.8], ['6', 186.3, 191.3], ['7', 198.8, 203.8], ['8', 211.3, 216.3], ['9', 223.8, 228.8], ['10', 236.2, 246.3], ['11', 253.8, 263.8], ['12', 271.3, 281.3], ['13', 288.7, 298.8], ['14', 306.2, 316.2], ['15', 323.8, 333.8]],
+  bWidth: [['Narrow', 161.3, 190.3], ['Medium', 197.8, 229.8], ['Wide', 237.3, 257.8], ['Extra Wide', 265.3, 309.2]],
+  bGloves: [['Small', 161.3, 183.8], ['Medium', 191.3, 223.3], ['Large', 230.8, 253.8], ['XL', 261.3, 272.3], ['2XL', 279.8, 295.8], ['3XL', 303.3, 319.3]],
+  eRows: { name: [115, 139], rel: [140, 164], address: [164, 188], phone: [189, 213], phone2: [213, 237], email: [238, 262] }, eVal: 245,
+  fName: [297, 323], fA: [350, 399], fB: [399, 425], fDate: [426, 452], fVal: 123, fSig: [404, 536],
+  gName: [300, 326], gSig: [326, 352], gDate: [353, 379], gVal: 174,
+  dIn: { name: [167, 195], sig: [195, 224], date: [224, 252] }, dBy: { name: [295, 323], sig: [323, 352], date: [352, 380] }, dVal: 174 };
+const indWA = s => String(s == null ? '' : s).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/›/g, '>').replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
+const indUKd = t => t ? new Date(t).toLocaleDateString('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const indUKt = t => t ? new Date(t).toLocaleString('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '') + ' (UK time)' : '';
+function indDevice() { const ua = navigator.userAgent || '', ipad = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const dev = ipad ? 'iPad' : /iPhone/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows computer' : /Macintosh/.test(ua) ? 'Mac' : 'Computer';
+  const os = (ua.match(/OS (\d+)[_.](\d+)/) || []).slice(1).join('.') , an = (ua.match(/Android ([\d.]+)/) || [])[1];
+  const br = /Edg\//.test(ua) ? 'Edge' : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /FxiOS|Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'browser';
+  const sa = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  return `${dev}${(dev === 'iPad' || dev === 'iPhone') && os ? ' (iOS ' + os + ')' : an ? ' (Android ' + an + ')' : ''}, ${sa ? 'home-screen app' : br}`; }
+const indPackName = (r, p) => `Induction - ${indWA(((indD(r).forms || {}).details || {}).name || (p && p.full_name) || 'record').replace(/[\\/:*?"<>|]+/g, '-').trim()} - ${(indD(r).completedAt || indD(r).submittedAt || indNow()).slice(0, 10)}.pdf`;
+
+async function indPackBytes() {   // the current pack from the private bucket; the last copy is kept on the device for offline countersigning
+  if (online()) { try { const [u] = await indSigned([IND_PACK]); const res = u && await fetch(u); if (res && res.ok) { const b = new Uint8Array(await res.arrayBuffer()); if (b.length > 1000 && String.fromCharCode(...b.slice(0, 5)) === '%PDF-') { let s = ''; for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode.apply(null, b.subarray(i, i + 32768)); DB.setKV('ind.packpdf', btoa(s)); return b; } } } catch (e) { } }
+  const c = await DB.getKV('ind.packpdf'); if (!c) return null; const s = atob(c), b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; }
+
+async function indSignedPack(r, person, o = {}) {
+  const bytes = o.bytes || await indPackBytes(); if (!bytes) return null;
+  const { PDFDocument, StandardFonts, rgb } = await loadPdfLib(); const doc = await PDFDocument.load(bytes); if (doc.getPageCount() !== IND_PK.pages) throw new Error('The induction pack layout has changed (' + doc.getPageCount() + ' pages) - update the form positions');
+  const F = await doc.embedFont(StandardFonts.Helvetica), FB = await doc.embedFont(StandardFonts.HelveticaBold), INK = rgb(0.05, 0.12, 0.36), GREY = rgb(0.35, 0.38, 0.45), NAVY = rgb(15 / 255, 37 / 255, 66 / 255);
+  const d = indD(r), det = (d.forms || {}).details || {}, ir = d.inductor || {}, c = indC(), name = det.name || (person && person.full_name) || '';
+  const pg = n => doc.getPage(n - 1), H = pg(1).getHeight(), Y = t => H - t;
+  const fit = (s, w, size, f = F) => { s = indWA(s); let z = size; while (z > 6 && f.widthOfTextAtSize(s, z) > w) z -= 0.5; while (s.length > 3 && f.widthOfTextAtSize(s, z) > w) s = s.slice(0, -4) + '...'; return [s, z]; };
+  const put = (n, s, x, row, w = 290, size = 10, f = F) => { if (s == null || s === '') return; const [t, z] = fit(s, w, size, f); pg(n).drawText(t, { x, y: Y((row[0] + row[1]) / 2) - z * 0.35, size: z, font: f, color: INK }); };
+  const put2 = (n, s, x, row, w = 290) => { const words = indWA(s).split(/\s+/); let l1 = '', i = 0; for (; i < words.length; i++) { const t = (l1 ? l1 + ' ' : '') + words[i]; if (F.widthOfTextAtSize(t, 8.5) > w) break; l1 = t; }
+    if (i >= words.length) return put(n, s, x, row, w); const mid = (row[0] + row[1]) / 2; pg(n).drawText(l1, { x, y: Y(mid - 1) , size: 8.5, font: F, color: INK }); const [l2, z] = fit(words.slice(i).join(' '), w, 8.5); pg(n).drawText(l2, { x, y: Y(mid + 8.5), size: z, font: F, color: INK }); };
+  const sigs = {}; const sig = async (s) => { if (!s || !s.sig || !/^data:image\/png;base64,/.test(s.sig)) return null; return sigs[s.sig] || (sigs[s.sig] = await doc.embedPng(s.sig)); };
+  const drawSig = async (n, s, x0, x1, row) => { const im = await sig(s); if (!im) return; const bw = x1 - x0 - 4, bh = row[1] - row[0] - 4, k = Math.min(bw / im.width, bh / im.height); const w = im.width * k, h = im.height * k; pg(n).drawImage(im, { x: x0 + 2, y: Y(row[0] + 2) - h - (bh - h) / 2, width: w, height: h }); };
+  const ring = (n, x0, x1, row) => pg(n).drawEllipse({ x: (x0 + x1) / 2, y: Y((row[0] + row[1]) / 2) + 0.5, xScale: (x1 - x0) / 2 + 3, yScale: 7, borderColor: INK, borderWidth: 1.1 });
+  const esign = (n, who) => { const t = indWA(`Signed electronically in the ARS app: ${who.map(([lab, s]) => s && s.at ? `${lab} ${s.name || ''}, ${indUKt(s.at)}` : '').filter(Boolean).join('; ')}. Record ${r.id}.`); const [a, z] = fit(t, 482, 7.5); pg(n).drawText(a, { x: 57, y: 36, size: z, font: F, color: GREY }); };
+  const ini = s => indWA(s || '').split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase()).join('');
+
+  // Appendix A: induction record + right to work
+  const A = IND_PK.A, R = IND_PK.aRows, at = d.decl && d.decl.at;
+  put(A, indUKd(at || d.submittedAt), IND_PK.aVal, R.date); put(A, ir.lineManager, IND_PK.aVal, R.lm); put(A, ir.name, IND_PK.aVal, R.ind); put(A, name, IND_PK.aVal, R.name);
+  put(A, det.dob ? det.dob.split('-').reverse().join('/') : '', IND_PK.aVal, R.dob); put(A, det.ni, IND_PK.aVal, R.ni); put2(A, det.address, IND_PK.aVal, R.addr); put(A, det.email || (person && person.email && !/\.invalid$/i.test(person.email) ? person.email : ''), IND_PK.aVal, R.email);
+  if (ir.at) { put(A, ir.rtwChecked ? 'Yes' : 'No', IND_PK.aYes, IND_PK.aRtw, 78); put(A, ini(ir.name), IND_PK.aIni, IND_PK.aRtw, 76); put(A, ir.idSeen ? 'Yes' : 'No', IND_PK.aYes, IND_PK.aId, 78); put(A, ini(ir.name), IND_PK.aIni, IND_PK.aId, 76); }
+  if (det.shareCode) pg(A).drawText(indWA(det.shareCode).slice(0, 20), { x: 66, y: Y(356), size: 9, font: FB, color: INK });
+  const idTxt = [det.idType, ir.idSeen && ir.idSeen !== det.idType ? 'seen: ' + ir.idSeen : '', ir.rtwMethod ? 'check: ' + ir.rtwMethod : ''].filter(Boolean).join(' - '); put(A, idTxt, 150, IND_PK.aId, 215, 8);
+  put(A, (d.forms.nok || {}).at ? 'Yes' : 'No', IND_PK.aYes, IND_PK.aNok, 78); if (ir.at) put(A, ini(ir.name), IND_PK.aIni, IND_PK.aNok, 76);
+  if (det.notice && d.decl) { await drawSig(A, d.decl, IND_PK.aSig[0], IND_PK.aSig[0] + IND_PK.aSig[2], [IND_PK.aSig[1], IND_PK.aSig[1] + IND_PK.aSig[3]]); put(A, indUKd(det.at || at), IND_PK.aDate[0], [IND_PK.aDate[1], IND_PK.aDate[2]], 160); }
+  esign(A, [['inductee', d.decl], ['inductor', ir.at ? ir : null]]);
+
+  // Appendix B: PPE + sizes
+  const B = IND_PK.B, pp = d.forms.ppe || {}, C2 = IND_PK.bCols, its = pp.items || {}, sz = pp.sizes || {}, own = indOwnPpe(pp);
+  const empL = (IND_EMP.find(x => x[0] === pp.emp) || [])[1]; if (empL) { const t = indWA('Employment status: ' + empL); pg(B).drawText(t, { x: 538 - FB.widthOfTextAtSize(t, 9), y: Y(129), size: 9, font: FB, color: INK }); }
+  const ROWS = { gloves: ['gloves'], hat: ['hat'], hivis: ['vest', 'coat', 'trousers'], goggles: ['eye'], boots: ['boots'], ear: ['hearing'], harness: ['harness'] };
+  for (const [k] of IND_PPE) { const st = its[k]; if (!st || !ROWS[k]) continue; for (const rk of ROWS[k]) { const row = IND_PK.bRows[rk];
+    if (st === 'own') { const mid = (row[0] + row[1]) / 2, l2 = ir.ownPpeChecked ? `${indUKd(ir.at).replace(/\/20(\d\d)$/, '/$1')} ${ini(ir.name)}` : 'to be checked';
+      pg(B).drawText('Own - checked', { x: C2.owned[0], y: Y(mid - 0.5), size: 7.5, font: F, color: INK }); pg(B).drawText(indWA(l2), { x: C2.owned[0], y: Y(mid + 7.5), size: 7.5, font: F, color: INK }); }
+    else if (st === 'na') put(B, 'Not required (RAMS)', C2.owned[0], row, C2.owned[1] - C2.owned[0] - 2, 7.5);
+    else if (st === 'issued') { put(B, 'Issued by ARS', C2.issued[0], row, 57, 8); put(B, indUKd(pp.at), C2.date[0], row, 50, 8); put(B, name, C2.name[0], row, 70, 8); if (d.decl) await drawSig(B, d.decl, C2.sig[0], C2.sig[1], row); } } }
+  const oth = ['overalls', 'masks'].filter(k => its[k]).map(k => `${IND_PPE.find(x => x[0] === k)[1]}: ${indPpeTxt(pp, k)}`).concat(pp.other ? [pp.other] : []).join('; '); if (oth) put(B, oth, C2.owned[0], IND_PK.bRows.other, 348, 8);
+  const clRing = (v, rk) => { const m = String(v || '').match(/^(Male|Female) (.+)$/); if (!m) return; const t = (m[1] === 'Male' ? IND_PK.bMale : IND_PK.bFem).find(x => x[0] === m[2]); if (t) ring(B, t[1], t[2], IND_PK.bSz[rk]); };
+  if (its.hivis === 'issued') ['vest', 'coat', 'trousers'].forEach(rk => clRing(sz.hivis, rk));
+  if (its.boots === 'issued') { const t = IND_PK.bBoot.find(x => x[0] === sz.boots); if (t) ring(B, t[1], t[2], IND_PK.bSz.boot); }
+  if (its.gloves === 'issued') { const t = IND_PK.bGloves.find(x => x[0] === sz.gloves); if (t) ring(B, t[1], t[2], IND_PK.bSz.gloves); }
+  const notes = []; if (pp.at) notes.push(`PPE and sizes confirmed by ${name} in the app ${indUKt(pp.at)}${pp.confirm ? '; PPE issued by ARS received free of charge' : ''}.`);
+  if (own.length) notes.push(ir.ownPpeChecked ? `Own PPE checked as suitable by ${ir.name} at countersign, ${indUKt(ir.at)}: ${own.join(', ')}.` : `Own PPE to be checked as suitable by the manager: ${own.join(', ')}.`);
+  let ny = 664; notes.forEach(t => { const words = indWA(t).split(' '); let l = ''; words.forEach(w => { const u = l ? l + ' ' + w : w; if (F.widthOfTextAtSize(u, 8) > 482) { pg(B).drawText(l, { x: 57, y: Y(ny), size: 8, font: F, color: INK }); ny += 11; l = w; } else l = u; }); pg(B).drawText(l, { x: 57, y: Y(ny), size: 8, font: F, color: INK }); ny += 11; });
+  esign(B, [['inductee', d.decl], ['manager (own PPE check)', own.length && ir.ownPpeChecked ? ir : null]]);
+
+  // Appendices C and D: health - never in this PDF
+  // (the original pages are removed and replaced by clean pages, so not even the blank questions are left in the file)
+  const NC = IND_PK.C.length, W0 = pg(1).getWidth(); for (let i = NC - 1; i >= 0; i--) doc.removePage(IND_PK.C[i] - 1);
+  ['Appendix C: Medical self-certification', 'Appendix D: Occupational health questionnaire', 'Appendix D: Occupational health questionnaire (continued)'].slice(0, NC).forEach((title, i) => {
+    const n = IND_PK.C[i], p = doc.insertPage(n - 1, [W0, H]);
+    p.drawText('Staff Safety Induction', { x: W0 / 2 - F.widthOfTextAtSize('Staff Safety Induction', 9) / 2, y: Y(50), size: 9, font: F, color: GREY });
+    p.drawText(title, { x: 57, y: Y(75), size: 15, font: FB, color: NAVY });
+    p.drawRectangle({ x: 90, y: Y(330), width: 415, height: 140, borderColor: rgb(0.7, 0.1, 0.1), borderWidth: 1.5, color: rgb(1, 0.97, 0.97) });
+    p.drawText('Confidential: held by Admin', { x: W0 / 2 - FB.widthOfTextAtSize('Confidential: held by Admin', 20) / 2, y: Y(232), size: 20, font: FB, color: rgb(0.6, 0.08, 0.08) });
+    ['These answers are special category (health) data. They are held separately in the', 'ARS app with access limited to the Admin role, and are not included in this pack.', d.healthSubmittedAt ? `Submitted confidentially by the new starter ${indUKt(d.healthSubmittedAt)}.` : 'Not submitted.']
+      .forEach((l, j) => p.drawText(indWA(l), { x: W0 / 2 - F.widthOfTextAtSize(indWA(l), 10) / 2, y: Y(262 + j * 16), size: 10, font: F, color: rgb(0.2, 0.2, 0.25) }));
+    p.drawText(indWA('©Absolute Roofing Solutions Ltd Controlled & Published Document 2026'), { x: 57, y: Y(818), size: 8, font: F, color: GREY }); p.drawText(`Page ${n} of ${IND_PK.pages}`, { x: 475, y: Y(818), size: 8, font: F, color: GREY }); });
+
+  // Appendix E: next of kin
+  const nk = d.forms.nok || {}; for (const k of Object.keys(IND_PK.eRows)) (k === 'address' ? put2 : put)(IND_PK.E, nk[k], IND_PK.eVal, IND_PK.eRows[k], 290);
+
+  // Appendix F: working time choice
+  const F_ = IND_PK.F, wt = d.forms.wto || {}; put(F_, wt.name || name, IND_PK.fVal, IND_PK.fName, 400);
+  if (wt.choice === 'a' || wt.choice === 'b') await drawSig(F_, wt, IND_PK.fSig[0], IND_PK.fSig[1], wt.choice === 'a' ? [IND_PK.fA[0] + 8, IND_PK.fA[1] - 8] : IND_PK.fB);
+  else if (wt.at) put(F_, 'No choice made (optional) - the 48-hour limit applies', IND_PK.fSig[0] - 0, IND_PK.fB, 132, 7);
+  put(F_, wt.at ? indUKt(wt.at) : '', IND_PK.fVal, IND_PK.fDate, 400); if (wt.choice) esign(F_, [['employee', wt]]);
+
+  // Appendix G: drug & alcohol acceptance
+  const G = IND_PK.G, da = d.forms.da || {}; if (da.at) { put(G, da.name || name, IND_PK.gVal, IND_PK.gName, 360); await drawSig(G, da, IND_PK.gVal, IND_PK.gVal + 120, IND_PK.gSig); put(G, indUKt(da.at), IND_PK.gVal, IND_PK.gDate, 360);
+    [234, 247, 260, 273].forEach(t => pg(G).drawText('x', { x: 58.5, y: Y(t + 8.5), size: 9, font: FB, color: INK })); esign(G, [['employee', da]]); }
+
+  // Final declaration
+  const FD = IND_PK.FD; if (d.decl) { put(FD, d.decl.name, IND_PK.dVal, IND_PK.dIn.name, 360); await drawSig(FD, d.decl, IND_PK.dVal, IND_PK.dVal + 110, IND_PK.dIn.sig); put(FD, indUKt(d.decl.at), IND_PK.dVal, IND_PK.dIn.date, 360); }
+  if (ir.at) { put(FD, ir.name, IND_PK.dVal, IND_PK.dBy.name, 360); await drawSig(FD, ir, IND_PK.dVal, IND_PK.dVal + 110, IND_PK.dBy.sig); put(FD, indUKt(ir.at), IND_PK.dVal, IND_PK.dBy.date, 360); }
+  esign(FD, [['inductee', d.decl], ['inductor', ir.at ? ir : null]]);
+
+  // Audit trail page(s)
+  let p = doc.addPage([595.3, 841.9]), y = 60; const M = 57, W = 482;
+  const np = () => { p = doc.addPage([595.3, 841.9]); y = 60; };
+  const line = (s, o = {}) => { const f = o.b ? FB : F, z = o.s || 9; const words = indWA(s).split(' '); let l = ''; const out = []; words.forEach(w => { const t = l ? l + ' ' + w : w; if (f.widthOfTextAtSize(t, z) > W - (o.ind || 0)) { out.push(l); l = w; } else l = t; }); out.push(l);
+    out.forEach(t => { if (y > 800) np(); p.drawText(t, { x: M + (o.ind || 0), y: Y(y), size: z, font: f, color: o.c || rgb(0, 0, 0) }); y += z * 1.35; }); y += o.gap || 1; };
+  const kv = (k, v) => { const z = 9; const vs = indWA(v == null || v === '' ? '-' : v); if (y > 800) np(); p.drawText(indWA(k), { x: M, y: Y(y), size: z, font: FB }); const words = vs.split(' '); let l = '', first = true;
+    const flush = t => { if (y > 800) np(); p.drawText(t, { x: M + 165, y: Y(y), size: z, font: F }); y += 12.2; first = false; }; words.forEach(w => { const t = l ? l + ' ' + w : w; if (F.widthOfTextAtSize(t, z) > W - 165) { flush(l); l = w; } else l = t; }); flush(l); };
+  const head = t => { y += 6; if (y > 780) np(); p.drawRectangle({ x: M, y: Y(y + 4), width: W, height: 16, color: NAVY }); p.drawText(indWA(t), { x: M + 5, y: Y(y) - 3, size: 10, font: FB, color: rgb(1, 1, 1) }); y += 20; };
+  p.drawText('Induction audit trail', { x: M, y: Y(y), size: 17, font: FB, color: NAVY }); y += 18;
+  line(`${name} - Absolute Roofing Solutions Ltd - New Starter Induction pack version ${c.packVersion || '-'}, dated ${c.packDate || '-'}. All times are UK time.`, { s: 9, c: GREY, gap: 4 });
+  head('Record'); kv('Record', r.id); kv('Inductee', `${name}${person && person.role ? ' (' + person.role + ')' : ''}`); kv('Assigned', `${indUKt(d.assignedAt)} by ${d.assignedBy || '-'}`); kv('Started', indUKt(d.startedAt));
+  head('Induction videos and check questions');
+  IND_CH.forEach((ch, i) => { const s = d.ch[ch.id] || {}; line(`${i + 1}. ${ch.t}`, { b: 1, s: 9.5 }); kv('Watched to the end', s.watchedAt ? indUKt(s.watchedAt) : 'Not watched');
+    const tries = (s.tries || []).map((t, j) => `${j + 1}) ${indUKt(t.at)}: ${t.wrong ? t.wrong + ' wrong' : 'all correct'}`).join('; ');
+    kv('Check questions', s.quizAt ? `Passed ${indUKt(s.quizAt)} after ${s.attempts || 1} attempt${(s.attempts || 1) > 1 ? 's' : ''}` : 'Not passed'); if (tries) kv('Attempts', tries); });
+  head('Forms'); kv('Personal details / GDPR notice', det.at ? `${indUKt(det.at)}${det.notice ? ' - notice read and confirmed' : ''}` : '-'); kv('PPE and sizes', pp.at ? `${indUKt(pp.at)} - ${(IND_EMP.find(x => x[0] === pp.emp) || [])[1] || ''}` : '-'); kv('Own PPE checked as suitable', own.length ? (ir.ownPpeChecked ? `${ir.name}, ${indUKt(ir.at)} (${own.join(', ')})` : 'Not yet') : 'No own PPE');
+  kv('Medical and occupational health', d.healthSubmittedAt ? `Submitted confidentially ${indUKt(d.healthSubmittedAt)} (answers held by Admin, not in this pack)` : '-'); kv('Next of kin', nk.at ? indUKt(nk.at) : '-');
+  kv('Working time (48-hour opt-out)', wt.at ? `${wt.choice === 'a' ? '(a) opted out' : wt.choice === 'b' ? '(b) did not opt out' : 'no choice made'} - ${indUKt(wt.at)}` : '-'); kv('Drug & alcohol acceptance', da.at ? `Signed ${indUKt(da.at)}` : '-');
+  kv('Full company policies opened', d.policiesOpenedAt ? indUKt(d.policiesOpenedAt) : 'Not opened');
+  head('Signatures'); kv('Inductee declaration', d.decl ? `${d.decl.name}, ${indUKt(d.decl.at)}` : 'Not signed'); kv('Device / app', d.decl ? `${d.decl.device || 'not recorded'} - ARS app v${d.decl.app || '-'}` : '-');
+  kv('Countersigned by', ir.at ? `${ir.name}, ${indUKt(ir.at)}` : 'Not countersigned'); kv('Device / app', ir.at ? `${ir.device || 'not recorded'} - ARS app v${ir.app || '-'}` : '-');
+  kv('Right to work', ir.at ? `${ir.rtwChecked ? 'Checked' : 'Not checked'}${ir.rtwMethod ? ' - ' + ir.rtwMethod : ''}; ID seen: ${ir.idSeen || '-'}; share code: ${det.shareCode || '-'}` : '-'); kv('Line manager', ir.lineManager); if (ir.note) kv('Inductor notes', ir.note);
+  y += 6; line('All signatures in this pack were drawn by hand on the signer\'s own device and signed electronically in the ARS app. Each signature, its time and the device are stored with the record.', { s: 8.5, c: GREY });
+  line(`Generated ${indUKt(Date.now())} by ARS app v${APP_VERSION}. Contains personal data - keep secure.`, { s: 8.5, c: GREY });
+  const n0 = doc.getPageCount(); for (let i = IND_PK.pages; i < n0; i++) { const q = doc.getPage(i); q.drawText(indWA(`Induction audit trail - ${name} - page ${i - IND_PK.pages + 1} of ${n0 - IND_PK.pages}`), { x: M, y: 30, size: 7.5, font: F, color: GREY }); }
+  doc.setTitle(indPackName(r, person).replace(/\.pdf$/, '')); doc.setAuthor('Absolute Roofing Solutions Ltd'); doc.setSubject('Signed New Starter Induction pack'); doc.setCreator('ARS app v' + APP_VERSION); doc.setProducer('ARS app');
+  return doc.save(o.plain ? { useObjectStreams: false } : undefined);
+}
+const indB64 = b => { let s = ''; for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode.apply(null, b.subarray(i, i + 32768)); return btoa(s); };
+
+/* ---------- Admin only: the health forms as their own PDF (made on demand, never stored or emailed) ---------- */
+function indHealthPDF(h, person) { const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4' }); const M = 14, W = 182; let y = 16; const o = h.oh || {};
+  const need = k => { if (y + k > 282) { doc.addPage(); y = 16; } };
+  const P = (t, s = 9.5, b) => { doc.setFont('helvetica', b ? 'bold' : 'normal'); doc.setFontSize(s); doc.splitTextToSize(String(t), W).forEach(l => { need(5); doc.text(l, M, y); y += s * 0.45; }); y += 1; };
+  const Hh = t => { need(12); y += 3; doc.setFillColor(127, 29, 29); doc.rect(M, y - 4.5, W, 7, 'F'); doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.text(t, M + 2, y); doc.setTextColor(0); y += 6; };
+  const yn = v => v === 'y' ? 'YES' : v === 'n' ? 'No' : v === 'na' ? 'N/A' : '-';
+  const rows = (list, obj) => list.forEach(([k, l]) => { doc.setFontSize(9); const L = doc.splitTextToSize(l, 150); need(L.length * 4.2 + 1); doc.setFont('helvetica', 'normal'); L.forEach((x, i) => doc.text(x, M, y + i * 4.2)); doc.setFont('helvetica', obj[k] === 'y' ? 'bold' : 'normal'); doc.text(yn(obj[k]), M + 160, y); y += L.length * 4.2 + 1.2; });
+  const L = arr => arr.map(x => [hk(x), x]);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(127, 29, 29); doc.text('CONFIDENTIAL - health forms (Appendices C and D)', M, y); doc.setTextColor(0); y += 7;
+  P(`${(person && person.full_name) || h.signed_name || ''}. Special category (health) data: Admin role only. Do not email or file with the general induction pack. Submitted ${indUKt(h.submitted_at)} by ${h.signed_name || '-'}.`, 9);
+  Hh('Appendix C: Medical self-certification'); rows([...IND_MED, ...IND_MED2], h.medical || {});
+  Hh('Appendix D: Occupational health questionnaire'); P('Time off work for', 9.5, 1); rows(L(IND_ILL), o.ill || {}); P('Exposure in previous jobs', 9.5, 1); rows(L(IND_EXP), o.exp || {}); if (o.expDetails) P('Details: ' + o.expDetails, 9);
+  P('Do you suffer from', 9.5, 1); rows(L(IND_SUF), o.suf || {}); P('Are you', 9.5, 1); rows(L(IND_ARE), o.are || {}); if (o.phobias) P('Phobias / details: ' + o.phobias, 9);
+  Hh('Declaration'); P(`Signed by ${h.signed_name || '-'} ${indUKt(h.submitted_at)} (signed electronically in the ARS app).`, 9); if (h.signature) { need(26); try { doc.addImage(h.signature, 'PNG', M, y, 60, 21); } catch (e) { } y += 24; }
+  P(h.reviewed_at ? `Reviewed by ${h.reviewed_by} ${indUKt(h.reviewed_at)}${h.review_note ? ': ' + h.review_note : ''}` : 'Not reviewed yet.', 9);
+  const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setFontSize(7.5); doc.setTextColor(127, 29, 29); doc.text(`CONFIDENTIAL health data - Admin only - generated ${indUKt(Date.now())} - page ${i} of ${n}`, M, 291); doc.setTextColor(0); }
+  return doc; }
+Object.assign(ACTIONS, {
+  async 'ind-hpdf'(a) { if (!isAdminRole()) return toast('Only the Admin role can see health forms'); const pid = a.dataset.pid, p = indPerson(pid); let h;
+    try { h = ((await sbFetch(`/rest/v1/induction_health?person=eq.${encodeURIComponent(pid)}&select=*`)) || [])[0]; } catch (e) { return toast(e.offline ? 'You need signal - health forms are never stored on the phone' : (e.message || String(e))); }
+    if (!h) return toast('No health forms found (or you do not have access)');
+    qOut(indHealthPDF(h, p).output('blob'), `Induction health forms - CONFIDENTIAL - ${indWA(p.full_name || h.signed_name || 'person').replace(/[\\/:*?"<>|]+/g, '-')} - ${String(h.submitted_at || indNow()).slice(0, 10)}.pdf`); },
+});
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
