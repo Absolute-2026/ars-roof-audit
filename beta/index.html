@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.7">
+<meta name="app-version" content="1.11.8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -878,7 +878,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.7';
+const APP_VERSION = '1.11.8';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -11289,11 +11289,275 @@ ACTIONS['qa-open'] = async function () {
   if (r === 'tbt') return go('#/briefings'); if (r === 'flash') return go('#/flash'); if (r === 'sheets') return go('#/sheets');
 };
 { const _vl = viewList; viewList = function () { const v = _vl(); if (!signedIn()) return v;
-  v.body = v.body.replace(`<button class="fab" data-act="newjob">${I.plus} New audit</button>`, `<button class="fab qa-fab" data-act="qa-open" aria-label="Start something new">${I.plus} New</button>`);
+  // v1.11.8 fix: match the button however it was serialised (the manager team-grouping wrapper re-writes the home HTML through the DOM)
+  v.body = v.body.replace(/<button class="fab" data-act="newjob">[\s\S]*?<\/button>/, `<button class="fab qa-fab" data-act="qa-open" aria-label="Start something new">${I.plus} New</button>`);
   const rp = rpCardStaff(); if (rp) v.body = rp + v.body;   // first thing on home
   return v; }; }
 { const _vh = viewOpHome; viewOpHome = function () { const v = _vh(); if (!signedIn()) return v;   // operatives: an in-page + button at the top (a floating one would cover "Tick off today")
   v.body = `<div class="qa-oprow"><button class="btn primary qa-fab qa-op" data-act="qa-open" aria-label="New: daily check or expense">${I.plus.replace('<svg', '<svg width="26" height="26"')}<span>New</span></button></div>` + rpCardOp() + v.body; return v; }; }
+
+/* ===== v1.11.8 (BETA): overdue nudges, photo-first audits, voice notes (Matt approved 22 Oct 2026).
+   1. Overdue nudges (managers + admins only): a "Needs attention" card at the top of home with red count badges for
+      - weekly sheets not signed off: last week's sheet, counted from the first working day of this week at the "start of week" reminder
+        time (the same Friday/Monday rule and settings as the reminder emails - rmUnsigned / rmFirstWorkingDay / Ops.remCfg),
+      - not ticked off today on assigned active jobs: from the manager reminder time on working days (rmMissingToday, Settings > Reminders),
+      - audits left in Draft for more than 7 days (started 7+ days ago, still Draft),
+      - expenses awaiting approval.
+      Tap a badge: a list; tap a row to open that sheet / audit / expense. Reads existing data only (weekly sheet rows are fetched
+      read-only and kept on the device for offline use). Sends nothing.
+   2. Photo-first audits (surveys + works inspections): "Quick photos" - snap photos in a row (live camera where the browser allows it,
+      otherwise the normal camera picker) with an optional roof-area tag. They are saved straight into the audit (job.inbox) so they are
+      stored on the device and synced with the audit exactly like every other audit photo (same object, same id, same storage path).
+      "Sort photos" then moves each one (the same photo object - nothing is re-encoded or re-uploaded) into a section, checklist item,
+      defect / snag (or a new one) or progress photos, with a note.
+   3. Voice notes: a "Speak" button on note / description boxes (audits, inspections, weekly sheet notes, expenses) using the device's own
+      speech-to-text. Chrome / Android: only on-device recognition (processLocally) - if the phone can't do it on the device the button is
+      hidden, so no audio ever goes to a server. Safari (iPhone / iPad / Mac browser): Apple's built-in dictation service, the same one the
+      keyboard microphone uses. Not available in iPhone home-screen apps (an iOS limit) - hidden there; the keyboard microphone is the fallback.
+      The app never records or uploads audio itself. */
+(() => { const st = document.createElement('style'); st.textContent = `
+.ov-card h2{margin-bottom:8px}.ov-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.ov-tile{position:relative;display:flex;align-items:center;gap:10px;min-height:64px;padding:10px 12px;border:1px solid #fecaca;border-radius:12px;background:#fff5f5;color:#7f1d1d;font-weight:700;text-align:left;font-size:15px;line-height:1.2;cursor:pointer}
+.ov-n{flex:0 0 auto;min-width:30px;height:30px;padding:0 8px;border-radius:15px;background:#dc2626;color:#fff;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center}
+.ov-list .item{cursor:pointer}.ov-list .t2{white-space:normal}
+.qp-bar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}.qp-bar .btn{flex:1 1 140px;min-height:48px}.qp-badge{background:#dc2626;color:#fff;border-radius:11px;padding:1px 8px;font-size:13px;margin-left:6px}
+.qp-chips{display:flex;gap:8px;flex-wrap:wrap}.qp-chips button{min-height:40px;padding:0 14px;border-radius:20px;border:2px solid #1C2B39;background:#fff;font-weight:700}.qp-chips button.on{background:#1C2B39;color:#fff}
+.qp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}.qp-grid figure{margin:0;position:relative}.qp-grid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block}
+.qp-grid figcaption{position:absolute;left:4px;bottom:4px;background:rgba(15,23,42,.8);color:#fff;font-size:11px;padding:1px 6px;border-radius:6px;max-width:90%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#qp-cam{position:fixed;inset:0;z-index:300;background:#000;display:flex;flex-direction:column}#qp-cam video{flex:1;min-height:0;width:100%;object-fit:cover;background:#000}
+#qp-cam .qp-top{padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;background:rgba(0,0,0,.6)}#qp-cam .qp-chips button{border-color:#fff;background:transparent;color:#fff}#qp-cam .qp-chips button.on{background:#fff;color:#000}
+#qp-cam .qp-bot{display:flex;align-items:center;justify-content:space-between;padding:14px 18px calc(env(safe-area-inset-bottom) + 14px);background:rgba(0,0,0,.6);color:#fff}
+#qp-shut{width:78px;height:78px;border-radius:50%;border:6px solid #fff;background:#F18902}#qp-shut:active{transform:scale(.94)}#qp-cam .qp-last{width:56px;height:56px;border-radius:8px;object-fit:cover;background:#222}
+#qp-cam .qp-done{min-height:48px;padding:0 18px;border-radius:24px;border:0;background:#fff;color:#000;font-weight:800}#qp-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .15s}
+.qp-sort .card img{width:100%;max-height:300px;object-fit:contain;border-radius:8px;background:#f1f5f9}.qp-sort select{width:100%}
+.vn-btn{display:inline-flex;align-items:center;gap:6px;min-height:36px;margin:4px 0 6px;padding:0 12px;border-radius:18px;border:1.5px solid #cbd5e1;background:#fff;color:#1C2B39;font-weight:700;font-size:14px}
+body:has(#qp-cam) .modal-bg{z-index:400}
+.vn-btn.on{background:#dc2626;border-color:#dc2626;color:#fff;animation:sdp .9s ease-in-out infinite alternate}`; document.head.appendChild(st); })();
+const ovNow = () => window.__ovNow || Date.now();
+
+/* ---------- 1. overdue nudges (managers + admins) ---------- */
+const OV = { sheets: null, t: 0, busy: false, sig: '' };
+const ovCfg = () => rmCfg(Ops.remCfg || OV.cfg || {});
+const ovMins = hm => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hm || '')); return m ? +m[1] * 60 + +m[2] : 0; };
+async function ovLoad(force) {
+  if (!signedIn() || !isAdm() || OV.busy) return; if (!force && ovNow() - OV.t < 120000 && OV.sheets) return;
+  OV.busy = true; OV.t = ovNow();
+  try {
+    if (OV.sheets == null) { const c = await DB.getKV('ov.cache.' + me()); if (c) { OV.sheets = c.sheets || []; OV.cfg = c.cfg; } }
+    if (online()) {
+      try { if (!Ops.remCfg) await rmLoad(); } catch (e) { }
+      const ws = wkStartOf(rmLondon(ovNow()).date), lw = wkAddDays(ws, -7);
+      const rows = await sbFetch(`/rest/v1/daily_checks?select=id,owner,owner_name,job_id,check_date,days:data->days,signed:data->signoff->at&kind=eq.weekly&deleted=eq.false&check_date=in.(${lw},${ws})`) || [];
+      OV.sheets = rows.map(r => ({ id: r.id, owner: r.owner, owner_name: r.owner_name, job_id: r.job_id, check_date: r.check_date, data: { days: r.days || {}, signoff: { at: r.signed || 0 } } }));
+      await DB.setKV('ov.cache.' + me(), { sheets: OV.sheets, cfg: Ops.remCfg || OV.cfg || null, at: ovNow() });
+    }
+  } catch (e) { } finally { OV.busy = false; }
+  const s = JSON.stringify(ovCounts()); if (s !== OV.sig && !route().length) rerender();
+}
+function ovData() {
+  const L = rmLondon(ovNow()), cfg = ovCfg(), now = L.hm, people = Cloud.profiles || [], jobs = (Ops.jobsTbl || []).filter(j => j.active !== false), sh = OV.sheets || [];
+  const work = rmWorkingDay(cfg, L.date, L.dow), first = rmFirstWorkingDay(cfg, L.date);
+  const lwDue = first && (L.date > first || (L.date === first && ovMins(now) >= ovMins(cfg.monTime)));
+  const todayDue = work && ovMins(now) >= ovMins(cfg.mgrTime);
+  const ws = wkStartOf(L.date), lw = wkAddDays(ws, -7);
+  const flat = (groups, week) => groups.flatMap(g => g.missing.map(m => { const s = sh.find(r => r.owner === m.id && r.job_id === g.job.id && r.check_date === week); const p = people.find(x => x.id === m.id) || {}; return { job: g.job, pid: m.id, name: m.name, why: m.why, sheet: s ? s.id : '', phone: p.phone || '' }; }));
+  const unsigned = lwDue && OV.sheets ? flat(rmUnsigned(jobs, people, sh, L.date), lw) : [];
+  const today = todayDue && OV.sheets ? flat(rmMissingToday(jobs, people, sh, L.date), ws) : [];
+  const cut = ovNow() - 7 * 86400000;
+  const drafts = (S.jobs || []).filter(j => j.status === 'Draft' && !j.deleted && !j.locked && (j.created || j.updated || 0) && (j.created || j.updated) < cut).sort((a, b) => (a.created || 0) - (b.created || 0));
+  let exp = []; try { exp = recAll('expense', e => (e.status || 'submitted') === 'submitted').sort((a, b) => String(a.data.date || '').localeCompare(String(b.data.date || ''))); } catch (e) { }
+  return { L, lw, unsigned, today, drafts, exp, cfg };
+}
+function ovCounts() { if (!signedIn() || !isAdm()) return {}; const d = ovData(); return { u: d.unsigned.length, t: d.today.length, d: d.drafts.length, e: d.exp.length }; }
+function ovCard() {
+  if (!signedIn() || !isAdm()) return ''; ovLoad(); const d = ovData(); const c = { u: d.unsigned.length, t: d.today.length, d: d.drafts.length, e: d.exp.length }; OV.sig = JSON.stringify(c);
+  const T = [['u', c.u, `Weekly sheet${c.u === 1 ? '' : 's'} not signed off`], ['t', c.t, 'Not ticked off today'], ['d', c.d, `Draft${c.d === 1 ? '' : 's'} over 7 days`], ['e', c.e, `Expense${c.e === 1 ? '' : 's'} to approve`]].filter(x => x[1]);
+  if (!T.length) return '';
+  return `<div class="card ov-card" id="ov-card"><h2>Needs attention</h2><div class="ov-grid">${T.map(([k, n, l]) => `<button type="button" class="ov-tile" data-act="ov-open" data-k="${k}" aria-label="${n} ${esc(l)}"><span class="ov-n">${n > 99 ? '99+' : n}</span><span>${esc(l)}</span></button>`).join('')}</div></div>`;
+}
+const ovRow = (r, t1, t2) => `<div class="item" role="button" tabindex="0" data-r="${esc(r)}"><div class="bd"><div class="t1">${t1}</div><div class="t2">${t2}</div></div><span aria-hidden="true">›</span></div>`;
+ACTIONS['ov-open'] = async function (a) {
+  const k = a.dataset.k, d = ovData(); let title = '', rows = '', hint = '';
+  const jl = j => esc(`${j.ref || ''}${j.site_name ? ' · ' + j.site_name : ''}`);
+  if (k === 'u') { title = "Last week's sheets not signed off"; hint = `Week commencing ${fmtDate(d.lw)}.`; rows = d.unsigned.map((x, i) => ovRow('u:' + i, esc(x.name), `${jl(x.job)}<br>${esc(x.why)}`)).join(''); }
+  if (k === 't') { title = 'Not ticked off today'; hint = `${fmtDate(d.L.date)} - counted from ${esc(d.cfg.mgrTime)} on working days (Settings > Reminders).`; rows = d.today.map((x, i) => ovRow('t:' + i, esc(x.name), `${jl(x.job)}<br>${esc(x.why)}`)).join(''); }
+  if (k === 'd') { title = 'Audits in Draft over 7 days'; rows = d.drafts.map(j => ovRow('d:' + j.id, `${esc(j.ref)} · ${esc(j.client.name || j.site.name || 'Untitled audit')}`, `${isWorks(j) ? 'Works inspection' : 'Survey'} · started ${fmtDate(new Date(j.created || j.updated).toISOString().slice(0, 10))} (${Math.floor((ovNow() - (j.created || j.updated)) / 86400000)} days)${j.surveyor ? ' · ' + esc(j.surveyor) : ''}`)).join(''); }
+  if (k === 'e') { title = 'Expenses to approve'; rows = d.exp.map(e => ovRow('e:' + e.id, `${fmtGBP(e.data.amount)} · ${esc(e.data.type || '')} · ${esc(e.data.name || admPerson(e.subject).full_name || '')}`, `${fmtDate(e.data.date)}${e.data.jobRef ? ' · ' + esc(e.data.jobRef) : ''}${e.data.note ? ' · ' + esc(e.data.note) : ''}`)).join(''); }
+  const r = await modal(`<h3>${esc(title)}</h3>${hint ? `<p class="small">${hint}</p>` : ''}<div class="ov-list">${rows || '<p class="hint">Nothing here now.</p>'}</div><button class="btn" data-r="">Close</button>`);
+  if (!r) return; const [kk, id] = [r.slice(0, 1), r.slice(2)];
+  if (kk === 'd') return go(`#/job/${id}/details`);
+  if (kk === 'e') { const e = Rec.items[id]; if (e) return ovExpense(e); return; }
+  const x = (kk === 'u' ? d.unsigned : d.today)[+id]; if (!x) return;
+  if (x.sheet) return go(`#/weekly/${x.sheet}`);
+  const aud = (S.jobs || []).find(j => j.projectId === x.job.id);
+  const r2 = await modal(`<h3>${esc(x.name)}</h3><p>${jl(x.job)}</p><p class="small">${esc(x.why)} - there is no sheet to open yet.</p>${x.phone ? `<a class="btn primary" href="tel:${esc(x.phone)}">Call ${esc(x.name.split(' ')[0])}</a>` : ''}${aud ? `<button class="btn" data-r="aud">Open the project's weekly sheets</button>` : ''}<button class="btn" data-r="">Close</button>`);
+  if (r2 === 'aud') go(`#/job/${aud.id}/daily`);
+};
+async function ovExpense(e) {
+  const r = await modal(`<h3>${fmtGBP(e.data.amount)} · ${esc(e.data.type || 'Expense')}</h3><p>${esc(e.data.name || admPerson(e.subject).full_name || '')} · ${fmtDate(e.data.date)}${e.data.jobRef ? ' · ' + esc(e.data.jobRef) : ''}</p>${e.data.note ? `<p class="small">${esc(e.data.note)}</p>` : ''}
+    <div style="max-height:40vh;overflow:hidden;border-radius:8px;margin:6px 0">${recImgTag(e, 'receipt', 'width:100%;max-height:40vh;object-fit:contain') || '<p class="hint">No receipt photo.</p>'}</div>
+    <button class="btn primary" data-r="approved">Approve</button><button class="btn" data-r="rejected">Reject…</button><button class="btn" data-r="adm">Open in Admin › Expenses</button><button class="btn" data-r="">Close</button>`);
+  if (r === 'approved' || r === 'rejected') return admExpSet(e, r);
+  if (r === 'adm') { S.adm.est = 'submitted'; go('#/admin/exp'); }
+}
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.ov-list .item[data-r]')) { e.preventDefault(); e.target.click(); } });
+{ const _vl = viewList; viewList = function () { const v = _vl(); if (!signedIn() || !isAdm()) return v; const c = ovCard(); if (c) v.body = c + v.body; return v; }; }
+setInterval(() => { if (signedIn() && isAdm() && !route().length && !document.querySelector('.modal-bg')) { const s = JSON.stringify(ovCounts()); if (s !== OV.sig) rerender(); } }, 60000);
+
+/* ---------- 2. photo-first audits ---------- */
+const qpInbox = job => (job.inbox = Array.isArray(job.inbox) ? job.inbox : []);
+const qpArea = {};   // per audit: the area tag chosen on site {id, name}
+function qpTagChips(job, cls = '') { const cur = qpArea[job.id] || {}; const L = [['', 'No area']].concat((job.areas || []).map(a => [a.id, a.name || 'Roof area']));
+  if (cur.id === 'txt:' + cur.name && cur.name) L.push([cur.id, cur.name]);
+  return `<div class="qp-chips ${cls}" role="group" aria-label="Roof area tag">${L.map(([id, n]) => `<button type="button" data-act="qp-tag" data-id="${esc(id)}" data-n="${esc(n)}" class="${(cur.id || '') === id ? 'on' : ''}">${esc(n)}</button>`).join('')}<button type="button" data-act="qp-tag" data-id="+">+ Other</button></div>`; }
+function qpBar(job) {
+  if (!job || job.locked) return ''; const n = qpInbox(job).length;
+  return `<div class="qp-bar"><a class="btn primary" href="#/job/${job.id}/quick">${I.camera} Quick photos</a>${n ? `<a class="btn" href="#/job/${job.id}/sort">Sort photos<span class="qp-badge">${n}</span></a>` : ''}</div>`;
+}
+const qpLive = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && window.isSecureContext !== false;
+function viewQuick(job) {
+  const ib = qpInbox(job);
+  return `<div class="card"><h2>${I.camera.replace('<svg', '<svg width="22" height="22"')} Quick photos</h2><p class="hint" style="margin:-4px 0 10px">Snap everything now, sort it into the audit later. Photos are saved in this audit on the phone straight away and upload with it.</p>
+    <span class="lbl">Roof area (optional)</span>${qpTagChips(job)}<div style="height:12px"></div>
+    <div class="btns">${qpLive() ? `<button class="btn primary" data-act="qp-cam">${I.camera.replace('<svg', '<svg width="22" height="22"')} Open camera - snap in a row</button>` : ''}<label class="btn ${qpLive() ? '' : 'primary'}">${I.camera} Take photo<input type="file" accept="image/*" capture="environment" data-qp="1" hidden></label><label class="btn">${I.image} From gallery<input type="file" accept="image/*" multiple data-qp="1" hidden></label></div></div>
+  <div class="card"><h2>To sort <span class="prog" style="margin-left:auto" id="qp-n">${ib.length}</span></h2>${ib.length ? `<div class="qp-grid">${ib.map(p => `<figure><img src="${p.data}" alt="Quick photo" data-act="viewphoto" data-key="inbox" data-id="${p.id}" loading="lazy">${p.qArea ? `<figcaption>${esc(p.qArea)}</figcaption>` : ''}</figure>`).join('')}</div>` : '<p class="hint">No quick photos yet.</p>'}</div>
+  <div class="btns">${ib.length ? `<a class="btn primary" href="#/job/${job.id}/sort">Sort ${ib.length} photo${ib.length > 1 ? 's' : ''} now</a>` : ''}<a class="btn" href="#/job/${job.id}/details">Done - sort later</a></div>`;
+}
+async function qpAdd(job, photos) {
+  if (!photos.length) return; const t = qpArea[job.id] || {};
+  photos.forEach(p => { p.ts = p.ts || Date.now(); p.quick = true; if (t.name) { p.qArea = t.name; if (t.id && !t.id.startsWith('txt:')) p.qAreaId = t.id; } });
+  qpInbox(job).push(...photos); markDirty(job); try { await flush(); } catch (e) { }   // on the phone at once, not after the 0.5 s debounce
+}
+document.addEventListener('change', async e => { const el = e.target; if (!el.matches || !el.matches('input[data-qp]')) return; const files = [...el.files]; el.value = '';
+  const rt = route(); const job = rt[0] === 'job' && getJob(rt[1]); if (!job || !files.length) return;
+  toast(`Saving ${files.length} photo${files.length > 1 ? 's' : ''}…`, 1200); const out = []; for (const f of files) { if (!/^image\//.test(f.type) && !/\.(jpe?g|png|webp|gif|heic)$/i.test(f.name)) continue; try { out.push(await compressImage(f)); } catch (x) { toast(x.message); } }
+  await qpAdd(job, out); toast(`${out.length} photo${out.length === 1 ? '' : 's'} saved - ${qpInbox(job).length} to sort`); rerender(); });
+Object.assign(ACTIONS, {
+  async 'qp-tag'(a) { const job = S.ctx && S.ctx.job; if (!job) return; let id = a.dataset.id, n = a.dataset.n || '';
+    if (id === '+') { const v = await modal(`<h3>Area tag</h3><input id="qp-t" placeholder="e.g. Unit 4 north slope" maxlength="60"><div style="height:10px"></div><button class="btn primary" id="qp-tok">Use</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => { const i = bg.querySelector('#qp-t'); setTimeout(() => i.focus(), 50); bg.querySelector('#qp-tok').addEventListener('click', () => close(i.value.trim())); }); if (!v) return; id = 'txt:' + v; n = v; }
+    qpArea[job.id] = id ? { id, name: n } : {}; const cam = $('#qp-cam'); if (cam) { const c = cam.querySelector('.qp-chips'); if (c) c.outerHTML = qpTagChips(job); } else rerender(); },
+  async 'qp-cam'() { const job = S.ctx && S.ctx.job; if (!job) return; return qpCamera(job); },
+});
+async function qpCamera(job) {
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false }); }
+  catch (e) { toast('Camera not available here - use "Take photo" instead', 4000); return; }
+  const ov = document.createElement('div'); ov.id = 'qp-cam'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', 'Quick photo camera');
+  ov.innerHTML = `<div class="qp-top">${qpTagChips(job)}</div><video playsinline muted autoplay></video><div id="qp-flash"></div><div class="qp-bot"><img class="qp-last" alt="" hidden><span id="qp-cnt" style="min-width:56px;font-weight:800">0</span><button type="button" id="qp-shut" aria-label="Take photo"></button><button type="button" class="qp-done">Done</button></div>`;
+  document.body.appendChild(ov); const v = ov.querySelector('video'); v.srcObject = stream; try { await v.play(); } catch (e) { }
+  let n = 0, busy = false; const stop = () => { stream.getTracks().forEach(t => t.stop()); ov.remove(); window.removeEventListener('hashchange', stop); rerender(); };
+  window.addEventListener('hashchange', stop);
+  ov.querySelector('.qp-done').addEventListener('click', stop);
+  ov.querySelector('#qp-shut').addEventListener('click', async () => { if (busy || !v.videoWidth) return; busy = true;
+    try { const s = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight)); const c = document.createElement('canvas'); c.width = Math.round(v.videoWidth * s); c.height = Math.round(v.videoHeight * s); c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+      const p = { id: uid(), data: c.toDataURL('image/jpeg', 0.72), w: c.width, h: c.height, caption: '', ts: Date.now() }; await qpAdd(job, [p]); n++;
+      const f = ov.querySelector('#qp-flash'); f.style.opacity = '.7'; setTimeout(() => { f.style.opacity = '0'; }, 120); const im = ov.querySelector('.qp-last'); im.src = p.data; im.hidden = false; ov.querySelector('#qp-cnt').textContent = `${n} saved`;
+      if (navigator.vibrate) try { navigator.vibrate(30); } catch (e) { } } finally { busy = false; } });
+}
+// where a photo can go: [{g: group, l: label, k: path or new:*}]
+function qpTargets(job) {
+  const T = [], W = isWorks(job); const it = (g, base, s) => { T.push({ g, l: `${s.title} - photos`, k: base + '.photos' }); (s.items || []).forEach(i => T.push({ g, l: `${s.title} › ${i.text}`, k: `${base}.items#${i.id}.photos` })); };
+  (job.sections || []).forEach(s => it(W ? 'Inspection' : 'General', `sections#${s.id}`, s));
+  (job.areas || []).forEach(a => { const g = a.name || 'Roof area';
+    if (W) { T.push({ g, l: 'Progress photos', k: `areas#${a.id}.progress`, aid: a.id }); (job.snags || []).filter(x => x.areaId === a.id).forEach(x => T.push({ g, l: `Snag ${x.ref}${x.description ? ' - ' + x.description.slice(0, 40) : ''}`, k: `snags#${x.id}.photos`, aid: a.id })); T.push({ g, l: '+ New snag here', k: 'newsnag:' + a.id, aid: a.id }); }
+    else { (a.defects || []).forEach(x => T.push({ g, l: `Defect ${x.ref}${x.description ? ' - ' + x.description.slice(0, 40) : ''}`, k: `areas#${a.id}.defects#${x.id}.photos`, aid: a.id })); T.push({ g, l: '+ New defect here', k: 'newdef:' + a.id, aid: a.id }); }
+    (a.sections || []).forEach(s => { const b = `areas#${a.id}.sections#${s.id}`; T.push({ g, l: `${s.title} - photos`, k: b + '.photos', aid: a.id }); (s.items || []).forEach(i => T.push({ g, l: `${s.title} › ${i.text}`, k: `${b}.items#${i.id}.photos`, aid: a.id })); }); });
+  if (W) { (job.snags || []).filter(x => !x.areaId).forEach(x => T.push({ g: 'Site-wide', l: `Snag ${x.ref}${x.description ? ' - ' + x.description.slice(0, 40) : ''}`, k: `snags#${x.id}.photos` })); T.push({ g: 'Site-wide', l: '+ New site-wide snag', k: 'newsnag:' }); }
+  return T;
+}
+function qpSelect(job, p) {
+  const T = qpTargets(job); const groups = [...new Set(T.map(t => t.g))]; const pref = p.qAreaId ? (job.areas.find(a => a.id === p.qAreaId) || {}).name : '';
+  groups.sort((a, b) => (b === pref) - (a === pref));
+  return `<select data-act-change="qp-to" data-id="${p.id}" aria-label="Where does this photo go?"><option value="">Choose where it goes…</option>${groups.map(g => `<optgroup label="${esc(g)}">${T.filter(t => t.g === g).map(t => `<option value="${esc(t.k)}" ${p.qTo === t.k ? 'selected' : ''}>${esc(t.l)}</option>`).join('')}</optgroup>`).join('')}</select>`;
+}
+function viewSort(job) {
+  const ib = qpInbox(job); if (!ib.length) return `<div class="card"><p>All quick photos are sorted.</p></div><div class="btns"><a class="btn primary" href="#/job/${job.id}/details">Back to the audit</a><a class="btn" href="#/job/${job.id}/quick">Quick photos</a></div>`;
+  const ready = ib.filter(p => p.qTo).length;
+  return `<div class="qp-sort"><p class="hint">Pick where each photo belongs and add a note. ${job.areas.length ? '' : 'Tip: add the roof areas first (Roofs tab) to sort into them. '}Moving a photo keeps the same saved photo - nothing is re-taken or re-uploaded.</p>
+    ${ib.map((p, i) => `<div class="card" id="qp-${p.id}"><h2 style="font-size:16px">Photo ${i + 1} of ${ib.length}${p.qArea ? ` <span class="tag">${esc(p.qArea)}</span>` : ''}<span class="small" style="margin-left:auto">${p.ts ? new Date(p.ts).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : ''}</span></h2>
+      <img src="${p.data}" alt="Quick photo ${i + 1}" data-act="viewphoto" data-key="inbox" data-id="${p.id}" loading="lazy">
+      <label class="f"><span class="lbl">Goes to</span>${qpSelect(job, p)}</label>
+      <label class="f"><span class="lbl">Note / caption</span><textarea data-b="inbox#${p.id}.caption" rows="2" placeholder="What does it show?">${esc(p.caption || '')}</textarea></label>
+      <div class="btns"><button class="btn primary" data-act="qp-move" data-id="${p.id}" ${p.qTo ? '' : 'disabled'}>Move it</button><button class="btn danger" data-act="qp-del" data-id="${p.id}">${I.trash} Delete</button></div></div>`).join('')}
+    <div class="btns">${ib.length > 1 ? `<button class="btn primary" data-act="qp-moveall" id="qp-all" ${ready ? '' : 'disabled'}>Move all chosen (${ready})</button>` : ''}<a class="btn" href="#/job/${job.id}/details">Finish later</a></div></div>`;
+}
+function qpMove(job, p) {
+  const k = p.qTo; if (!k) return false; let arr;
+  if (k.startsWith('newdef:')) { const a = job.areas.find(x => x.id === k.slice(7)); if (!a) return false; const d = newDefect(job); d.description = p.caption || ''; a.defects.push(d); arr = d.photos; }
+  else if (k.startsWith('newsnag:')) { const s = newSnag(job, k.slice(8) || ''); s.description = p.caption || ''; if (!k.slice(8)) s.areaId = ''; job.snags.push(s); arr = s.photos; }
+  else { arr = getPath(job, k); if (!Array.isArray(arr)) { const parent = getPath(job, k.replace(/\.[a-z]+$/i, '')); if (!parent) return false; arr = []; setPath(job, k, arr); } }
+  const ib = qpInbox(job); const i = ib.findIndex(x => x.id === p.id); if (i < 0) return false;
+  const ph = ib[i]; delete ph.qTo; delete ph.quick; if (ph.qArea && !ph.caption) ph.caption = ''; ib.splice(i, 1); arr.push(ph); return true;   // same object + id = same storage path: no re-upload
+}
+document.addEventListener('change', e => { const el = e.target; if (!el.matches || !el.matches('select[data-act-change="qp-to"]')) return; const job = S.ctx && S.ctx.job; if (!job) return; const p = qpInbox(job).find(x => x.id === el.dataset.id); if (!p) return; p.qTo = el.value; markDirty(job);
+  const b = el.closest('.card').querySelector('[data-act="qp-move"]'); if (b) b.disabled = !p.qTo;
+  const all = $('#qp-all'); if (all) { const n = qpInbox(job).filter(x => x.qTo).length; all.disabled = !n; all.textContent = `Move all chosen (${n})`; } });
+Object.assign(ACTIONS, {
+  'qp-move'(a) { const job = S.ctx && S.ctx.job; if (!job) return; const p = qpInbox(job).find(x => x.id === a.dataset.id); if (!p || !qpMove(job, p)) return toast('Pick where it goes first'); markDirty(job); toast('Photo moved'); rerender(); },
+  'qp-moveall'() { const job = S.ctx && S.ctx.job; if (!job) return; let n = 0; qpInbox(job).filter(p => p.qTo).forEach(p => { if (qpMove(job, p)) n++; }); markDirty(job); toast(`${n} photo${n === 1 ? '' : 's'} moved`); rerender(); },
+  async 'qp-del'(a) { const job = S.ctx && S.ctx.job; if (!job) return; if (!await confirmBox('Delete this photo?', 'It will be removed from this audit.', 'Delete')) return; const ib = qpInbox(job); const i = ib.findIndex(x => x.id === a.dataset.id); if (i >= 0) ib.splice(i, 1); markDirty(job); rerender(); },
+});
+{ const _ve = viewExtra; viewExtra = function (job, r) {
+  if (r[2] === 'quick' && !job.locked) return { body: viewQuick(job), title: 'Quick photos', tab: 'details', back: `#/job/${job.id}/details` };
+  if (r[2] === 'sort' && !job.locked) return { body: viewSort(job), title: 'Sort photos', tab: 'details', back: `#/job/${job.id}/details` };
+  return _ve(job, r); }; }
+{ const wrap = (name, f) => function (job, ...x) { const h = f(job, ...x); return qpBar(job) + h; };
+  viewDetails = wrap('d', viewDetails); viewWorksDetails = wrap('w', viewWorksDetails); viewRoofs = wrap('r', viewRoofs);
+  const _vr = viewReport; viewReport = function (job) { const h = _vr(job); const n = (job.inbox || []).length; return (n ? `<div class="lg-msg warn" style="margin:0 0 12px"><b>${n} quick photo${n > 1 ? 's are' : ' is'} not sorted yet</b> and won't be in the report. <a href="#/job/${job.id}/sort">Sort photos</a></div>` : '') + h; }; }
+
+/* ---------- 3. voice notes (device speech-to-text) ---------- */
+const VN = { st: '', rec: null, el: null };
+const vnSR = () => window.SpeechRecognition || window.webkitSpeechRecognition;
+// No speech API call at start-up: some Chromium builds without an on-device speech engine crash the tab on SpeechRecognition.available().
+// It is asked on the first tap instead; a crash during that check is remembered (probe flag) and voice typing is then switched off.
+function vnDetect() {
+  try { if (localStorage.getItem('ars-vn-probe')) { localStorage.removeItem('ars-vn-probe'); localStorage.setItem('ars-vn-off', '1'); } if (localStorage.getItem('ars-vn-off')) return 'no'; } catch (e) { }
+  const SR = vnSR(); if (!SR) return 'no';
+  const ua = navigator.userAgent || '', ios = /iP(hone|ad|od)/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  if (typeof SR.available === 'function') return 'chrome';   // Chrome / Android 139+: on-device only, checked on the first tap
+  if (ios && standalone) return 'no';   // iOS home-screen apps: Apple does not allow speech recognition there
+  if (/Apple/.test(navigator.vendor || '') && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua)) return 'apple';   // Safari: Apple's built-in dictation
+  return 'no';   // e.g. older Chrome without on-device support would send audio to a server - not offered
+}
+function vnOff(msg) { VN.st = 'no'; try { localStorage.setItem('ars-vn-off', '1'); } catch (e) { } document.querySelectorAll('.vn-btn').forEach(b => b.remove()); if (msg) toast(msg, 5000); }
+async function vnCheckLocal() {
+  const SR = vnSR(); let a = 'unavailable';
+  try { localStorage.setItem('ars-vn-probe', '1'); } catch (e) { }
+  try { a = await SR.available({ langs: ['en-GB'], processLocally: true }); } catch (e) { a = 'unavailable'; }
+  try { localStorage.removeItem('ars-vn-probe'); } catch (e) { }
+  return a === 'available' ? 'local' : (a === 'downloadable' || a === 'downloading') ? 'dl' : 'no';
+}
+const VN_SEL = '#app textarea[data-b]:not([readonly]):not([disabled]), .modal textarea:not([readonly]):not([disabled]), #ex-note, #app textarea.vn';
+function vnDecorate() {
+  if (!/^(chrome|local|dl|apple)$/.test(VN.st)) return;
+  document.querySelectorAll(VN_SEL).forEach(el => { if (el.dataset.vn || el.closest('#qp-cam') || el.id === 'pj-addr') return; el.dataset.vn = '1';
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'vn-btn'; b.dataset.vnFor = vnKey(el); b.setAttribute('aria-label', 'Speak to type into this box'); b.innerHTML = '🎤 <span>Speak</span>'; el.after(b); });
+}
+const vnKey = el => el.dataset.b ? 'b:' + el.dataset.b : el.id ? 'id:' + el.id : '';
+const vnFind = k => !k ? null : k.startsWith('b:') ? [...document.querySelectorAll('[data-b]')].find(x => x.dataset.b === k.slice(2)) : document.getElementById(k.slice(3));
+function vnStop(abort) { const r = VN.rec; VN.rec = null; if (r) { try { abort ? r.abort() : r.stop(); } catch (e) { } } document.querySelectorAll('.vn-btn.on').forEach(b => { b.classList.remove('on'); b.querySelector('span').textContent = 'Speak'; }); }
+function vnInsert(k, text) {
+  const el = vnFind(k); if (!el || !text) return; text = text.trim(); if (!text) return;
+  const v = el.value || ''; const cap = !v.trim() || /[.!?]\s*$/.test(v); if (cap) text = text[0].toUpperCase() + text.slice(1);
+  el.value = v + (v && !/\s$/.test(v) ? ' ' : '') + text; el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+async function vnStart(btn) {
+  const k = btn.dataset.vnFor; const SR = vnSR(); if (!SR) return;
+  if (VN.st === 'chrome') { VN.st = await vnCheckLocal(); if (VN.st === 'no') return vnOff("Voice typing can't run on this phone without sending audio away, so it's off. Use the microphone on your keyboard instead."); }
+  if (VN.st === 'dl') { if (!await confirmBox('Set up voice typing?', 'Your phone downloads its English speech pack once (from the browser maker). After that, what you say is turned into text on this phone only - no audio is sent anywhere.', 'Download', false)) return;
+    toast('Downloading the speech pack…', 4000); try { const ok = await SR.install({ langs: ['en-GB'], processLocally: true }); if (!ok) throw new Error(); VN.st = 'local'; } catch (e) { toast('Could not set up voice typing - use the microphone on your keyboard', 5000); return; } }
+  const r = new SR(); r.lang = 'en-GB'; r.interimResults = true; r.maxAlternatives = 1; r.continuous = VN.st === 'local';
+  if (VN.st === 'local') { r.processLocally = true; if ('processLocally' in r && r.processLocally !== true) { toast('Voice typing on this phone is not on-device - use the keyboard microphone'); return; } }
+  VN.rec = r; btn.classList.add('on'); btn.querySelector('span').textContent = 'Listening… tap to stop';
+  r.onresult = ev => { for (let i = ev.resultIndex; i < ev.results.length; i++) { const res = ev.results[i]; if (res.isFinal) vnInsert(k, res[0].transcript); } };
+  r.onerror = ev => { const m = { 'not-allowed': 'Microphone is blocked for this app - allow it in the phone settings', 'service-not-allowed': 'Voice typing is not available here - use the microphone on your keyboard', 'no-speech': "Didn't catch that - try again", 'audio-capture': 'No microphone found', 'network': 'Voice typing needs the phone\'s speech service - use the keyboard microphone', 'language-not-supported': 'English voice typing is not on this phone - use the keyboard microphone' }[ev.error];
+    if (m) toast(m, 4500); if (ev.error === 'service-not-allowed' || ev.error === 'language-not-supported') vnOff(); };
+  r.onend = () => { if (VN.rec === r) vnStop(); };
+  try { r.start(); } catch (e) { vnStop(true); toast('Voice typing could not start'); }
+}
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.vn-btn'); if (!b) return; e.preventDefault(); e.stopPropagation(); if (b.classList.contains('on')) return vnStop(); vnStop(true); vnStart(b); }, true);
+window.addEventListener('hashchange', () => vnStop(true));
+VN.st = vnDetect(); { const go_ = () => { vnDecorate(); new MutationObserver(vnDecorate).observe(document.body, { childList: true, subtree: true }); }; if (document.body) go_(); else document.addEventListener('DOMContentLoaded', go_); }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
