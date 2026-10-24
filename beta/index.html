@@ -11832,16 +11832,19 @@ async function indMountVideo() { const v = $('#ind-vid'); if (!v || v._ind) retu
   // v1.11.11: a stalled or failed video (weak signal, or the 2-hour link ran out while the screen was open) gets a fresh link and carries on
   // from the same point, up to 3 times, before asking the user to try again.
   let tries = 0, stallT = 0, want = false, fixing = false; v.addEventListener('play', () => { want = true; }); v.addEventListener('pause', () => { if (!fixing && !v.error) want = false; });
-  const recover = async (why) => { clearTimeout(stallT); if (tries >= 3 || !document.body.contains(v) || !online()) return false; tries++; const t = v.currentTime || cur()[1].maxT || 0, wasPlaying = want || why === 'stall'; fixing = true; setTimeout(() => { fixing = false; }, 4000);
+  const recover = async (why) => { clearTimeout(stallT); st0 = -1; if (tries >= 3 || !document.body.contains(v) || !online()) return false; tries++; const t = v.currentTime || cur()[1].maxT || 0, wasPlaying = want || why === 'stall'; fixing = true; setTimeout(() => { fixing = false; }, 4000);
     try { delete IND.urls['short/' + c.v]; const [u] = await indSigned(['short/' + c.v]); if (!u || !document.body.contains(v)) return false; v.dataset.recover = (+(v.dataset.recover || 0) + 1) + ':' + why;
       v.addEventListener('loadedmetadata', () => { try { v.currentTime = t; } catch (e) { } if (wasPlaying && v.isConnected) v.play().catch(() => { }); }, { once: true }); v.src = u; v.load(); return true; } catch (e) { return false; } };
   // a video that has left the screen (another chapter or page opened) never plays on in the background or counts progress for this chapter
   // stuck with the next part already downloaded: a nudge (seek to the same point) first, after 3 s; a fresh link after 8 s
   let nudgeT = 0; const ahead = () => { try { const B = v.buffered, t = v.currentTime; for (let i = 0; i < B.length; i++) if (B.start(i) <= t + 0.1 && B.end(i) > t + 1) return true; } catch (e) { } return false; };
-  const stalled = () => { clearTimeout(stallT); clearTimeout(nudgeT); if (!v.isConnected) return;
-    nudgeT = setTimeout(() => { if (!v.paused && v.readyState < 3 && v.isConnected && ahead()) { v.dataset.nudge = (+(v.dataset.nudge || 0) + 1); try { v.currentTime = v.currentTime + 0.01; } catch (e) { } } }, 3000);
-    stallT = setTimeout(() => { if (!v.paused && v.readyState < 3 && v.isConnected) recover('stall'); }, 8000); };
-  v.addEventListener('waiting', stalled); v.addEventListener('stalled', stalled); v.addEventListener('playing', () => { clearTimeout(stallT); clearTimeout(nudgeT); if (!v.isConnected) { v.pause(); return; } msg(''); });
+  // only when the playhead has really not moved (some browsers report 'waiting'/low readyState while still playing - a seek or reload then would cause the stall)
+  let st0 = -1; const stuck = () => !v.paused && v.isConnected && v.currentTime <= st0 + 0.05;
+  const stalled = () => { if (!v.isConnected) return; if (st0 >= 0 && v.currentTime <= st0 + 0.05) return; clearTimeout(stallT); clearTimeout(nudgeT); st0 = v.currentTime;
+    nudgeT = setTimeout(() => { if (stuck() && v.readyState < 3 && ahead()) { v.dataset.nudge = (+(v.dataset.nudge || 0) + 1); try { v.currentTime = v.currentTime + 0.01; } catch (e) { } } }, 3000);
+    stallT = setTimeout(() => { if (stuck()) recover('stall'); else st0 = -1; }, 8000); };
+  v.addEventListener('timeupdate', () => { if (st0 >= 0 && v.currentTime > st0 + 0.3) { clearTimeout(stallT); clearTimeout(nudgeT); st0 = -1; } });
+  v.addEventListener('waiting', stalled); v.addEventListener('stalled', stalled); v.addEventListener('playing', () => { if (!v.isConnected) { v.pause(); return; } msg(''); });
   v.addEventListener('error', async () => { if (!v.getAttribute('src')) return; if (await recover('error')) return; msg(online() ? 'The video could not load. Check your signal and try again.' : 'No signal: the videos need signal. Everything you have done is saved.'); });
   if (!signedIn() || !online()) { msg('No signal: the videos need signal. Everything you have done so far is saved on this phone.'); return; }
   try { const [mp4] = await indSigned(['short/' + c.v]); const vtt = await indVtt('short/' + c.c); if (!document.body.contains(v)) return;
