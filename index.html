@@ -137,7 +137,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--orange);box-shadow:0 
 .item .chev{width:22px;height:22px;color:var(--muted);flex:none}
 .empty{text-align:center;color:var(--muted);padding:30px 10px}
 .empty svg{width:64px;height:64px;color:var(--line)}
-.filters{display:flex;gap:8px;margin:0 0 12px}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
 .filters button{flex:1;min-height:46px;white-space:nowrap;font-size:15px;padding:0 6px;border-radius:999px;border:2px solid var(--line);background:#fff;font-weight:700;color:var(--navy2)}
 .filters button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .fab{position:fixed;right:16px;bottom:calc(20px + var(--safe-b));z-index:25;height:64px;border-radius:32px;padding:0 24px 0 18px;border:0;background:var(--orange);color:#fff;font-weight:800;font-size:18px;display:flex;align-items:center;gap:8px;box-shadow:0 6px 16px rgba(241,137,2,.45),0 2px 4px rgba(0,0,0,.2)}
@@ -454,6 +454,9 @@ body.fl-lock{overflow:hidden;position:fixed;width:100%}
 .sd-p{font-size:12px;font-weight:700;border-radius:6px;padding:1px 6px;background:#e2e8f0;flex:none}.sd-p.P1{background:#fee2e2;color:#991b1b}.sd-p.P2{background:#ffedd5;color:#9a3412}
 .sd-btn{margin:0 0 8px}
 
+
+/* bug fix (root 1.11.0 in place, = beta v1.11.11): tab rows wrap instead of pushing the page sideways */
+@media (max-width:600px){#adm-tabs{gap:6px}#adm-tabs button{font-size:14px;min-height:40px;padding:0 10px}}
 </style>
 </head>
 <body>
@@ -6916,7 +6919,7 @@ function flCutIdx(P) { const n = P.length; if (n < 3) return [0, n - 1];
   return [...c].sort((x, y) => x - y); }
 function flErasePart(d, p, whole) { let hit = false; const out = [];
   d.strokes.forEach(s => { const P = s.pts; let bi = -1, bd = 1e9; if (P.length === 1) { bd = Math.hypot(P[0][0] - p[0], P[0][1] - p[1]); bi = 0; } for (let i = 0; i < P.length - 1; i++) { const v = flSegD(p, P[i], P[i + 1]); if (v < bd) { bd = v; bi = i; } }
-    if (bd >= (whole ? 22 : 16)) { out.push(s); return; } hit = true; if (whole || P.length < 2 || flPathLen(P) < 60) return; // handwriting / tiny strokes go whole
+    if (bd >= (whole ? 22 : 16)) { out.push(s); return; } hit = true; if (whole || P.length < 2 || flPathLen(P) < 60 || (!s.tpl && flLooksHand(s, d, true))) return; // handwriting / tiny strokes go whole
     const C = flCutIdx(P); let k = 0; while (k < C.length - 2 && C[k + 1] <= bi) k++;
     const mk = Q => { const o = Object.assign({}, s, { pts: Q.map(q => q.slice()) }); delete o.raw; return o; };
     if (C[k] > 0) out.push(mk(P.slice(0, C[k] + 1))); if (C[k + 1] < P.length - 1) out.push(mk(P.slice(C[k + 1]))); });
@@ -6955,7 +6958,7 @@ function flIsStraight(P) { if (P.length < 2) return true; const C = Math.hypot(P
 function flSegsOf(s) { const P = flStraighten(s.pts, 14); const out = []; for (let i = 1; i < P.length; i++) out.push([P[i - 1], P[i]]); return out.length ? out : [[s.pts[0], s.pts[0]]]; }
 function flSplit(d) {
   const bb = s => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; s.pts.forEach(p => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }); return { x0, y0, x1, y1 }; };
-  const B = d.strokes.map(bb), big = B.map((b, k) => Math.hypot(b.x1 - b.x0, b.y1 - b.y0) >= 95 || !!(d.strokes[k].tpl && !d.strokes[k].welt)), SG = d.strokes.map(flSegsOf);
+  const B = d.strokes.map(bb), big = B.map((b, k) => !flLooksHand(d.strokes[k], d, true) || !!(d.strokes[k].tpl && !d.strokes[k].welt)) /* v1.11.11: same writing test as Read dimensions */, SG = d.strokes.map(flSegsOf);
   const dS = (p, k) => Math.min(...SG[k].map(([a, b]) => flDist(p, a, b)));
   const ends = k => [d.strokes[k].pts[0], d.strokes[k].pts[d.strokes[k].pts.length - 1]];
   // profile strokes: big ones, plus small ones touching a big one's end (welts)
@@ -6984,7 +6987,7 @@ function flGroupItem(d, g) { const b = flGroupBox(d, g), w = b.x1 - b.x0, h = b.
   const T = p => [Math.round((p[0] * sc + dx) * 10) / 10, Math.round((p[1] * sc + dy) * 10) / 10];
   const strokes = g.ks.map(k => Object.assign({ w: d.strokes[k].w, pts: d.strokes[k].pts.map(p => [...T(p), p[2]]) }, d.strokes[k].tpl ? { tpl: d.strokes[k].tpl, welt: d.strokes[k].welt, tplId: d.strokes[k].tplId } : {})); let qty = '';
   if (g.qty) qty = g.qty; const labels = []; g.ls.forEach(i => { const l = d.labels[i], m = FL_QTY.exec(String(l.t).trim()); if (m) { qty = qty || m[1] || m[2]; return; } if ((g.qls || []).includes(i)) return; const n = Object.assign({}, l), q = T([l.x, l.y]); n.x = q[0]; n.y = q[1]; if (l.cx != null) { const c = T([l.cx, l.cy]); n.cx = c[0]; n.cy = c[1]; } labels.push(n); });
-  const it = Object.assign(newFlashItem(), { drawing: { strokes, labels }, qty }); const G2 = flGeom(it.drawing); it.girth = G2.girthText; it.bends = G2.bendsText; if (G2.welts && G2.breakdown) it.girthNote = G2.breakdown; return it; }
+  const it = Object.assign(newFlashItem(), { drawing: { strokes, labels }, qty }); const G2 = flGeom(it.drawing); it.girth = G2.girthText; it.girthAuto = it.girth; it.bends = G2.bendsText; if (G2.welts && G2.breakdown) it.girthNote = G2.breakdown; return it; }
 function flSplitReview(d) {
   return new Promise(res => { let { groups, loose } = flSplit(d); let sel = new Set(), lasso = null, lassoOn = false;
     const bg = document.createElement('div'); bg.className = 'fl-ask fl-splitov';
@@ -7022,7 +7025,8 @@ function flSplitReview(d) {
    (digits, letters, welt hooks) or strokes over a label. The raw points are kept (s.raw) and the first Undo puts the line back as drawn. */
 function flLooksHand(s, d, noLab) { const P = s.pts; if (P.length < 2) return true; if (s.tpl && !s.welt) return false; /* v1.7.14: a template profile is never writing */ let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, len = 0;
   P.forEach((p, i) => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); if (i) len += Math.hypot(p[0] - P[i - 1][0], p[1] - P[i - 1][1]); });
-  const diag = Math.hypot(x1 - x0, y1 - y0); if (diag < 95) return true;                              // digits, letters, welt hooks
+  const z = s.z > 0 ? s.z : 1; len *= z; /* v1.11.11: size as it looked on screen when written (s.z = zoom at the time) */
+  const diag = Math.hypot(x1 - x0, y1 - y0) * z; if (diag < 95) return true;                              // digits, letters, welt hooks
   if (diag < 170 && len / diag > 2.4) return true;                                                     // compact scribble (8, 0, B...)
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2; if (!noLab && (d.labels || []).some(l => Math.hypot(l.x - cx, l.y - cy) < 45) && diag < 170) return true; // written over a label
   return false; }
@@ -7042,6 +7046,20 @@ function flStraightenAll(d) { const prof = d.strokes.map(s => !flLooksHand(s, d)
     const ux = (E[0] - N[0]) / L, uy = (E[1] - N[1]) / L, sg = side[k], nx = -uy * sg, ny = ux * sg, h = FL_WELT_H, pr = E[2] ?? 0.5;
     s.raw = s.raw || s.pts.map(q => q.slice()); s.pts = [[E[0], E[1], pr], [E[0] + nx * h, E[1] + ny * h, pr], [E[0] + nx * h - ux * h * 1.5, E[1] + ny * h - uy * h * 1.5, pr]].map(q => q.map(v => Math.round(v * 10) / 10)); nw++; });
   return { lines: n, welts: nw }; }
+// v1.11.11: new read values join the drawing; one written over an existing size or angle (within 40 units) is an edit and replaces it
+function flAddRead(d, L) { L.forEach(l => { const ang = /°|deg/i.test(l.t); const old = d.labels.findIndex(o => !o.tpl && /°|deg/i.test(o.t) === ang && !/\[__\]/.test(o.t) && Math.hypot(o.x - l.x, o.y - l.y) < 40);
+  if (old >= 0) d.labels.splice(old, 1); d.labels.push(flSnapAng(d, { x: l.x, y: l.y, t: l.t })); }); return d; }
+// v1.11.11: the girth / bends a drawing gives now (null when it has no sizes); used on Done so edits after Read are never lost
+function flGeomNow(d) { const G = flGeom(d); return G.girthText ? G : null; }
+const flSig = d => JSON.stringify([(d.labels || []).map(l => [l.t, Math.round(l.x), Math.round(l.y)]), d.strokes.length]);
+/* v1.11.11: before, the girth and bends were only the snapshot taken when Read dimensions / Girth & bends was accepted. A size added or changed
+   afterwards (Label tool, or a second Read) never reached the RFQ or the PDF. Now on Done: if the drawing is unchanged since the review, use what
+   was accepted there (it may hold the user's own figure); otherwise work it out again from the drawing - unless the girth field was typed by hand (it no longer equals girthAuto). */
+function flApplyGeom(it, d, sg) { const fresh = sg && sg.sig === flSig(d);
+  if (fresh) { if (sg.girth) { it.girth = sg.girth; it.girthNote = sg.girthNote && /welt/.test(sg.girthNote) ? sg.girthNote : ''; it.girthAuto = it.girth; } if (sg.bends) it.bends = sg.bends; return; }
+  const G = flGeomNow(d); if (!G) return; if (!it.girth || it.girth === it.girthAuto || sg) { it.girth = G.girthText; it.girthNote = G.welts && G.breakdown ? G.breakdown : ''; it.girthAuto = it.girth; if (G.bendsText) it.bends = G.bendsText; } }
+// v1.11.11: remove the template drag picture (and any left over from an earlier drag)
+function flDragEnd(st, keep) { if (st && st.dragTpl && st.dragTpl.ghost) st.dragTpl.ghost.remove(); if (st && !keep) st.dragTpl = null; document.querySelectorAll('.fl-drag-ghost').forEach(x => x.remove()); }
 function flDraw(item, title, opt = {}) {
   const SW = opt.sheet ? FL_SW : FL_W, SH = opt.sheet ? FL_SH : FL_H;
   return new Promise(resolve => {
@@ -7103,13 +7121,16 @@ function flDraw(item, title, opt = {}) {
         placeTpl(tpl, vis[0], vis[1]); strip.remove(); });
       // drag from thumb onto canvas
       strip.addEventListener('pointerdown', e => { const b = e.target.closest('[data-tid]'); if (!b) return; const tpl = flTplById(b.dataset.tid); if (!tpl) return;
-        st.dragTpl = { id: e.pointerId, tpl, ghost: null }; try { b.setPointerCapture(e.pointerId); } catch (_) {} });
+        flDragEnd(st); st.dragTpl = { id: e.pointerId, tpl, ghost: null, x0: e.clientX, y0: e.clientY }; try { b.setPointerCapture(e.pointerId); } catch (_) {} });
+      // v1.11.11: iOS cancels the pointer when the strip scrolls - the drag picture must never be left behind (it showed as ghost thumbnails over the header)
+      ['pointercancel', 'lostpointercapture'].forEach(ev => strip.addEventListener(ev, e => { if (st.dragTpl && st.dragTpl.id === e.pointerId && (ev === 'pointercancel' || !st.dragTpl.up)) flDragEnd(st); }));
       strip.addEventListener('pointermove', e => { if (!st.dragTpl || st.dragTpl.id !== e.pointerId) return; e.preventDefault();
-        if (!st.dragTpl.ghost) { const g = document.createElement('div'); g.style.cssText = 'position:fixed;z-index:200;pointer-events:none;opacity:.7;width:110px'; g.innerHTML = `<img src="${flTplThumb(st.dragTpl.tpl)}" style="width:100%">`; document.body.appendChild(g); st.dragTpl.ghost = g; }
+        if (!st.dragTpl.ghost && Math.hypot(e.clientX - st.dragTpl.x0, e.clientY - st.dragTpl.y0) < 10) return;
+        if (!st.dragTpl.ghost) { const g = document.createElement('div'); g.className = 'fl-drag-ghost'; g.style.cssText = 'position:fixed;z-index:200;pointer-events:none;opacity:.7;width:110px'; g.innerHTML = `<img src="${flTplThumb(st.dragTpl.tpl)}" style="width:100%">`; document.body.appendChild(g); st.dragTpl.ghost = g; }
         st.dragTpl.ghost.style.left = (e.clientX - 55) + 'px'; st.dragTpl.ghost.style.top = (e.clientY - 30) + 'px'; });
       strip.addEventListener('pointerup', e => { if (!st.dragTpl || st.dragTpl.id !== e.pointerId) return; const r = cv.getBoundingClientRect();
-        if (st.dragTpl.ghost) st.dragTpl.ghost.remove();
-        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) { const p = pos(e); placeTpl(st.dragTpl.tpl, p[0], p[1]); strip.remove(); }
+        st.dragTpl.up = true; const dragged = !!st.dragTpl.ghost; flDragEnd(st, true);
+        if (dragged && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) { const p = pos(e); placeTpl(st.dragTpl.tpl, p[0], p[1]); strip.remove(); }
         st.dragTpl = null; });
       ov.appendChild(strip); };
     const hs = () => Math.min(cv.width / FL_W, cv.height / FL_H), clampS = n => Math.max(hs() * 0.2, Math.min(hs() * 6, n));
@@ -7141,7 +7162,7 @@ function flDraw(item, title, opt = {}) {
         selAt(p, e.clientX, e.clientY); return; }
       try { cv.setPointerCapture(e.pointerId); } catch (_) { } snap();
       if (st.tool === 'erase') { st.cur = { erase: true, id: e.pointerId }; if (!eraseAt(p)) st.undo.pop(); paint(); return; }
-      st.cur = { touch: e.pointerType === 'touch', id: e.pointerId, s: { w: e.pointerType === 'pen' ? 5 : 4.5, pts: [p] } }; d.strokes.push(st.cur.s); paint();
+      st.cur = { touch: e.pointerType === 'touch', id: e.pointerId, s: Object.assign({ w: e.pointerType === 'pen' ? 5 : 4.5, pts: [p] }, (() => { const z = Math.round(V.s / hs() * 100) / 100; return opt.sheet && Math.abs(z - 1) > 0.05 ? { z } : {}; })()) }; d.strokes.push(st.cur.s); paint();
     });
     cv.addEventListener('pointermove', e => {
       if (st.tp.has(e.pointerId)) { st.tp.set(e.pointerId, dev(e)); if (st.pinch && st.tp.size >= 2) { e.preventDefault(); const q = pinchInfo(), v0 = st.pinch.v, n = clampS(v0.s * q.dd / st.pinch.dd);
@@ -7158,7 +7179,7 @@ function flDraw(item, title, opt = {}) {
     const block = e => { if (e.target.closest && e.target.closest('.fl-wrap')) e.preventDefault(); };
     document.addEventListener('touchmove', block, { passive: false }); document.addEventListener('touchstart', block, { passive: false });
     cv.addEventListener('contextmenu', e => e.preventDefault());
-    const close = v => { document.removeEventListener('touchmove', block); document.removeEventListener('touchstart', block); window.removeEventListener('resize', fit); document.body.classList.remove('fl-lock'); ov.remove(); resolve(v); };
+    const close = v => { flDragEnd(st); document.removeEventListener('touchmove', block); document.removeEventListener('touchstart', block); window.removeEventListener('resize', fit); document.body.classList.remove('fl-lock'); ov.remove(); resolve(v); };
     ov._view = V; ov.addEventListener('click', async e => {
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.t) { if (b.dataset.t === 'erase' && st.tool === 'erase') { st.eraseWhole = !st.eraseWhole; b.textContent = st.eraseWhole ? '⌫ Erase whole' : '⌫ Eraser'; toast(st.eraseWhole ? 'Eraser: whole strokes' : 'Eraser: one leg or welt at a time'); return; } unsel(); paint(); st.tool = b.dataset.t; $$('[data-t]', ov).forEach(x => x.classList.toggle('on', x === b)); return; }
@@ -7170,7 +7191,7 @@ function flDraw(item, title, opt = {}) {
       if (x === 'clear' && (d.strokes.length || d.labels.length)) { snap(); d.strokes = []; d.labels = []; paint(); }
       if (x === 'geom' || x === 'read') { let found = [];
         if (x === 'read') { b.disabled = true; const t0 = b.textContent; b.textContent = 'Reading…'; try { found = await flReadDims(d); } catch (er) { b.disabled = false; b.textContent = t0; return toast(er.offline ? er.message : er.status === 503 || /not.configured/i.test(er.message) ? 'Read dimensions is not set up on the server yet (vision API key needed). Use the Label tool.' : /^Sign in/.test(er.message) ? er.message : 'Could not read dimensions: ' + er.message, 5000); } b.disabled = false; b.textContent = t0; }
-        const rv = await flReview(d, found, x === 'read' ? 'Read dimensions' : 'Girth & bends'); if (!rv) return; snap(); const drop = new Set(rv.labels.flatMap(l => l.ks || [])); if (drop.size) d.strokes = d.strokes.filter((s, k) => !drop.has(k)); rv.labels.forEach(l => d.labels.push(flSnapAng(d, { x: l.x, y: l.y, t: l.t }))); d._sugg = { girth: rv.girth, girthNote: rv.girthNote, bends: rv.bends }; paint(); toast('Girth and bends will be filled in when you tap Done'); return; }
+        const rv = await flReview(d, found, x === 'read' ? 'Read dimensions' : 'Girth & bends'); if (!rv) return; snap(); const drop = new Set(rv.labels.flatMap(l => l.ks || [])); if (drop.size) d.strokes = d.strokes.filter((s, k) => !drop.has(k)); flAddRead(d, rv.labels); d._sugg = { girth: rv.girth, girthNote: rv.girthNote, bends: rv.bends, sig: flSig(d) }; paint(); toast('Girth and bends will be filled in when you tap Done'); return; }
       if (x === 'zin' || x === 'zout') zoomAt(x === 'zin' ? 1.4 : 1 / 1.4, cv.width / 2, cv.height / 2);
       if (x === 'zfit') { const bb = flBounds(d); if (!bb) { home(); paint(); } else { const pad = 60, s2 = Math.min(cv.width / (bb.x1 - bb.x0 + pad * 2), cv.height / (bb.y1 - bb.y0 + pad * 2), hs() * 6); V.s = s2; V.x = (cv.width - (bb.x1 + bb.x0) * s2) / 2; V.y = (cv.height - (bb.y1 + bb.y0) * s2) / 2; paint(); } }
       if (x === 'split') { if (!d.strokes.length) return toast('Draw some profiles first'); d._split = true; close(d); }
@@ -7304,12 +7325,18 @@ const flVisionOn = () => !!(S.settings.quotes && S.settings.quotes.flVision);
 // v1.7.3: handwriting marks = small strokes that are not welts (a welt touches the end of a profile line); nearby strokes are grouped into one mark
 function flMarks(d) {
   const bb = s => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; s.pts.forEach(p => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }); return { x0, y0, x1, y1 }; };
-  const B = d.strokes.map(bb); const small = B.map(b => Math.hypot(b.x1 - b.x0, b.y1 - b.y0) < 95);
+  /* v1.11.11: a mark is what flLooksHand calls writing (size judged at the zoom it was written, compact scribbles like a big 0 or 8 included).
+     Before, only strokes under 95 units counted, so writing done zoomed out, or a large 0, was skipped - and made the digits next to it look like welts. */
+  const B = d.strokes.map(bb); const small = d.strokes.map(s => !(s.tpl && !s.welt) && flLooksHand(s, d, true));
   const ends = d.strokes.map(s => [s.pts[0], s.pts[s.pts.length - 1]]);
   const isHem = k => ends[k].some(p => d.strokes.some((o, j) => j !== k && !small[j] && [o.pts[0], o.pts[o.pts.length - 1]].some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 25)));
   const ids = d.strokes.map((s, k) => k).filter(k => small[k] && !isHem(k));
   const groups = ids.map(k => ({ ks: [k], b: Object.assign({}, B[k]) }));
-  const near = (a, b) => a.x0 - 22 <= b.x1 && b.x0 - 22 <= a.x1 && a.y0 - 14 <= b.y1 && b.y0 - 14 <= a.y1;
+  // v1.11.11: strokes join into one mark like letters into a word - overlapping, or on the same line with a gap under ~0.6 x the writing height.
+  // Before, any two marks within 22 x 14 units merged, so two sizes written either side of a corner came back as one value and the other was lost.
+  const near = (a, b) => { const ha = a.y1 - a.y0, hb = b.y1 - b.y0, H = Math.max(ha, hb, 12), ov = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+    const gx = Math.max(a.x0, b.x0) - Math.min(a.x1, b.x1); if (gx <= 0 && ov >= -4) return true; // boxes touch / overlap
+    return ov >= 0.4 * Math.max(6, Math.min(ha, hb)) && gx <= Math.max(14, 0.6 * H); };
   for (let ch = true; ch;) { ch = false; for (let i = 0; i < groups.length; i++) for (let j = i + 1; j < groups.length; j++) if (near(groups[i].b, groups[j].b)) { const a = groups[i], c = groups[j]; a.ks.push(...c.ks); a.b = { x0: Math.min(a.b.x0, c.b.x0), y0: Math.min(a.b.y0, c.b.y0), x1: Math.max(a.b.x1, c.b.x1), y1: Math.max(a.b.y1, c.b.y1) }; groups.splice(j, 1); ch = true; j--; } }
   return groups.map(g => { const pad = 10, w = g.b.x1 - g.b.x0 + pad * 2, h = g.b.y1 - g.b.y0 + pad * 2, H = 96, W = Math.max(48, Math.round(H * w / h)); const c = document.createElement('canvas'); c.width = Math.min(W, 480); c.height = H; const x = c.getContext('2d');
     const sc = Math.min(c.width / w, H / h); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, H); x.lineCap = x.lineJoin = 'round'; x.strokeStyle = '#000'; x.lineWidth = Math.max(2.5, 4 * sc);
@@ -7324,17 +7351,27 @@ async function flSheet(M) {
   imgs.forEach((im, i) => { const y = 4 + i * RH; x.strokeStyle = '#888'; x.lineWidth = 2; x.strokeRect(4, y, W - 8, RH - 8); x.fillStyle = '#c00'; x.fillText('#' + (i + 1), 14, y + RH / 2 - 4); x.drawImage(im, 110, y + 6, Math.min(im.width, W - 130), RH - 20); });
   return { sheet: c.toDataURL('image/png'), n: M.length };
 }
+// v1.11.11: if one mark comes back as two or more values ("200 45", "200, 45"), keep each as its own label, placed over its own part of the writing
+function flSplitRead(d, m, t) { const one = { x: m.x, y: m.y, t, src: 'ai', ks: m.ks };
+  const toks = t.split(/[\s,;\/]+/).filter(Boolean); if (toks.length < 2 || !toks.every(x => /^\d+(\.\d+)?(°|mm)?$/.test(x)) || m.ks.length < toks.length) return [one];
+  const ks = m.ks.slice().sort((a, b) => d.strokes[a].pts.reduce((s, p) => s + p[0], 0) / d.strokes[a].pts.length - d.strokes[b].pts.reduce((s, p) => s + p[0], 0) / d.strokes[b].pts.length);
+  // cut the strokes (left to right) at the biggest gaps into as many pieces as there are values
+  const bx = ks.map(k => { let x0 = 1e9, x1 = -1e9, y = 0; d.strokes[k].pts.forEach(p => { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y += p[1]; }); return { k, x0, x1, y: y / d.strokes[k].pts.length }; });
+  const gaps = bx.slice(1).map((b, i) => ({ i, g: b.x0 - Math.max(...bx.slice(0, i + 1).map(q => q.x1)) })).sort((a, b) => b.g - a.g).slice(0, toks.length - 1).map(x => x.i).sort((a, b) => a - b);
+  const parts = []; let st = 0; [...gaps, bx.length - 1].forEach(e => { parts.push(bx.slice(st, e + 1)); st = e + 1; });
+  return parts.map((P, i) => ({ x: (Math.min(...P.map(q => q.x0)) + Math.max(...P.map(q => q.x1))) / 2, y: P.reduce((s, q) => s + q.y, 0) / P.length, t: toks[i], src: 'ai', ks: i ? [] : m.ks })); }
 async function flReadDims(d) {
   if (!navigator.onLine) throw Object.assign(new Error('You are offline. Read dimensions needs signal - add the labels with the Label tool (Scribble works offline).'), { offline: true });
   if (!signedIn()) throw new Error('Sign in to use Read dimensions.');
   const M = flMarks(d); if (!M.length) return [];
   const out = []; for (let i = 0; i < Math.min(M.length, 96); i += 24) { const part = M.slice(i, i + 24); // a site sketch can hold many marks: read them 24 at a time
-    const r = await sbFetch('/functions/v1/read-dimensions', { method: 'POST', body: await flSheet(part) }); part.forEach((m, k) => out.push({ x: m.x, y: m.y, t: String((r && r.texts || [])[k] || '').trim().slice(0, 24), src: 'ai', ks: m.ks })); }
+    const r = await sbFetch('/functions/v1/read-dimensions', { method: 'POST', body: await flSheet(part) }); part.forEach((m, k) => out.push(...flSplitRead(d, m, String((r && r.texts || [])[k] || '').trim().slice(0, 24)))); }
   return out.filter(l => l.t);
 }
 async function flReview(d, found, title) {
   found = found.filter(f => !d.labels.some(l => l.t === f.t && Math.hypot(l.x - f.x, l.y - f.y) < 40)); // already on the drawing
-  const G = flGeom(Object.assign({}, d, { labels: [...d.labels, ...found] }));
+  // v1.11.11: a value read over an existing size replaces it (flAddRead), so the girth shown here is worked out the same way
+  const withRead = L => flAddRead(Object.assign({}, d, { labels: d.labels.slice() }), L); const G = flGeom(withRead(found));
   return new Promise(res => { const bg = document.createElement('div'); bg.className = 'fl-ask';
     bg.innerHTML = `<div class="fl-askb fl-rev"><h3 style="margin:0 0 6px">${esc(title)}</h3>
       ${found.length ? `<p class="hint">Check each value against your drawing. Untick anything that is wrong.</p>${found.map((l, i) => `<label class="ckl"><input type="checkbox" data-i="${i}" checked> <input class="fl-rv" data-v="${i}" value="${esc(l.t)}" aria-label="Value ${i + 1}"></label>`).join('')}` : (title.startsWith('Read') ? '<p class="hint">No handwritten numbers found. Use the Label tool instead.</p>' : '')}
@@ -7342,7 +7379,7 @@ async function flReview(d, found, title) {
       <p class="hint">Girth = the labelled legs added up, plus ${flWeltMm()} mm for each welt. Bends = corners in the drawing; each welt is 1 bend.</p>
       <div class="fl-qb"><button type="button" class="btn sm primary" data-r="ok">Accept</button><button type="button" class="btn sm" data-r="x">Cancel</button></div></div>`;
     document.body.appendChild(bg);
-    const recalc = () => { const keep = found.filter((l, i) => $(`[data-i="${i}"]`, bg).checked).map((l, i) => Object.assign({}, l, { t: $(`[data-v="${found.indexOf(l)}"]`, bg).value.trim() })); const g = flGeom(Object.assign({}, d, { labels: [...d.labels, ...keep] })); $('#flg', bg).value = g.girthText; $('#flb', bg).value = g.bendsText; $('#flgb', bg).textContent = g.breakdown; return keep; };
+    const recalc = () => { const keep = found.filter((l, i) => $(`[data-i="${i}"]`, bg).checked).map((l, i) => Object.assign({}, l, { t: $(`[data-v="${found.indexOf(l)}"]`, bg).value.trim() })); const g = flGeom(withRead(keep)); $('#flg', bg).value = g.girthText; $('#flb', bg).value = g.bendsText; $('#flgb', bg).textContent = g.breakdown; return keep; };
     bg.addEventListener('change', e => { if (e.target.matches('[data-i],[data-v]')) recalc(); });
     bg.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (!b) return; const keep = found.length ? recalc() : []; const out = b.dataset.r === 'ok' ? { labels: keep.filter(l => l.t), girth: $('#flg', bg).value.trim(), girthNote: $('#flgb', bg).textContent.trim(), bends: $('#flb', bg).value.trim() } : null; bg.remove(); res(out); });
   });
@@ -7351,7 +7388,7 @@ async function flReview(d, found, title) {
 function viewFlashList(h, base, job) {
   const L = h.flashRfqs || [];
   return `<div class="card"><h2>Flashings RFQ <span class="prog" style="margin-left:auto">${L.length}</span></h2><p class="hint" style="margin-bottom:10px">Optional. Draw each flashing profile with your Apple Pencil, finger or mouse, add the girth, bends, material, colour, length and quantity, then send the PDF to your supplier for a price.${job ? '' : ' Standalone requests are kept on this device only.'}</p>
-    ${L.map(r => `<a class="item" href="${base}/${r.id}"><div class="th"><img src="${r.items[0] && r.items[0].drawing.strokes.length ? flThumb(r.items[0].drawing) : ''}" alt="" style="width:100%;height:100%;object-fit:contain;background:#fff"></div><div class="bd"><div class="t1">${esc(r.ref || 'No ref')} · ${esc(r.project || 'Untitled')}</div><div class="t2">${qDate(r.date)} · ${r.items.length} flashing${r.items.length === 1 ? '' : 's'}${r.extras.length ? ` + ${r.extras.length} extra${r.extras.length === 1 ? '' : 's'}` : ''}</div></div>${I.chev}</a>`).join('') || '<p class="hint">No flashing requests yet.</p>'}
+    ${L.map(r => `<a class="item" href="${base}/${r.id}"><div class="th">${r.items[0] && r.items[0].drawing.strokes.length ? `<img src="${flThumb(r.items[0].drawing)}" alt="" style="width:100%;height:100%;object-fit:contain;background:#fff">` : ''}</div><div class="bd"><div class="t1">${esc(r.ref || 'No ref')} · ${esc(r.project || 'Untitled')}</div><div class="t2">${qDate(r.date)} · ${r.items.length} flashing${r.items.length === 1 ? '' : 's'}${r.extras.length ? ` + ${r.extras.length} extra${r.extras.length === 1 ? '' : 's'}` : ''}</div></div>${I.chev}</a>`).join('') || '<p class="hint">No flashing requests yet.</p>'}
     <button class="btn primary block" style="margin-top:10px" data-act="flnew">${I.plus} New flashings RFQ</button></div>`;
 }
 function viewFlashRfq(h, r) {
@@ -7389,7 +7426,7 @@ Object.assign(ACTIONS, {
     r.sketch = d; if (r.sketchInPdf === undefined) r.sketchInPdf = true; c.save();
     if (split) { let gs = null; try { gs = await flSplitReview(d); } catch (er) { console.error(er); document.querySelectorAll('.fl-splitov').forEach(x => x.remove()); toast('Could not split the sketch: ' + er.message + '. Your sketch is saved.', 6000); } if (gs && gs.length) { const blank = r.items.length === 1 && !r.items[0].drawing.strokes.length && !r.items[0].desc; if (blank) r.items = []; gs.forEach(gr => r.items.push(flGroupItem(d, gr))); c.save(); toast(`${gs.length} flashing${gs.length > 1 ? 's' : ''} added from the sketch - check each one`, 4000); } }
     rerender(true); },
-  async fldraw(a) { const c = flCtx(), r = flRfq(); const i = r.items.findIndex(x => x.id === a.dataset.id); const it = r.items[i]; const d = await flDraw(it, `${flCode(r, i)} ${it.desc || 'profile'}`); if (!d) return; const sg = d._sugg; delete d._sugg; if (sg) { if (sg.girth) { it.girth = sg.girth; it.girthNote = sg.girthNote && /welt/.test(sg.girthNote) ? sg.girthNote : ''; } if (sg.bends) it.bends = sg.bends; } it.drawing = d; c.save(); rerender(true); },
+  async fldraw(a) { const c = flCtx(), r = flRfq(); const i = r.items.findIndex(x => x.id === a.dataset.id); const it = r.items[i]; const d = await flDraw(it, `${flCode(r, i)} ${it.desc || 'profile'}`); if (!d) return; const sg = d._sugg; delete d._sugg; flApplyGeom(it, d, sg); it.drawing = d; c.save(); rerender(true); },
   async flpdf() { const r = flRfq(); toast('Building flashings RFQ…', 1500); const o = await buildFlashRFQ(r); qOut(o.blob, o.name); },
   async flcopy() { const c = flCtx(), r = flRfq(); const n = JSON.parse(JSON.stringify(r)); n.id = uid(); n.date = todayISO(); n.items.forEach(x => x.id = uid()); n.extras.forEach(x => x.id = uid()); c.h.flashRfqs.push(n); c.save(); go(`${c.base}/${n.id}`); toast('Copied'); },
   async flrm() { const c = flCtx(), r = flRfq(); if (!await confirmBox('Delete flashings RFQ?', `${r.ref || r.project || 'This request'} and its drawings will be deleted.`, 'Delete')) return; c.h.flashRfqs = c.h.flashRfqs.filter(x => x !== r); c.save(); go(c.base); },
