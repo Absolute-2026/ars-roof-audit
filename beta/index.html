@@ -11824,7 +11824,7 @@ async function indMountVideo() { const v = $('#ind-vid'); if (!v || v._ind) retu
   // v1.11.11: progress also comes from what the browser really played (v.played). iPhones send timeupdate rarely (screen locked, full screen,
   // busy phone), and a gap of more than 2.5 s used to freeze the progress for good, so the chapter never counted as watched.
   const played = () => { const st = cur()[1], P = v.played; let m = st.maxT || 0; try { for (let i = 0; i < (P ? P.length : 0); i++) if (P.start(i) <= m + 1.5 && P.end(i) > m) m = P.end(i); } catch (e) { } return m; };
-  const prog = () => { const st = cur()[1], t = v.currentTime; st.maxT = st.maxT || 0; let m = played(); if (!v.seeking && t > st.maxT && t <= st.maxT + 2.5) m = Math.max(m, t); if (m > st.maxT) { st.maxT = m; saveSoon(); } upd(); };
+  const prog = () => { if (!v.isConnected) { if (!v.paused) v.pause(); return; } const st = cur()[1], t = v.currentTime; st.maxT = st.maxT || 0; let m = played(); if (!v.seeking && t > st.maxT && t <= st.maxT + 2.5) m = Math.max(m, t); if (m > st.maxT) { st.maxT = m; saveSoon(); } upd(); };
   v.addEventListener('timeupdate', prog); v.addEventListener('pause', prog);
   v.addEventListener('seeking', () => { const st = cur()[1]; if (!st.watchedAt && v.currentTime > (st.maxT || 0) + 1) { v.currentTime = st.maxT || 0; msg("You can't skip ahead until you've watched this part"); setTimeout(() => msg(''), 2500); } });
   v.addEventListener('ended', () => { prog(); const st = cur()[1], D = dur(); if ((st.maxT || 0) >= D - 4) { st.maxT = D; done(); } });
@@ -11834,9 +11834,14 @@ async function indMountVideo() { const v = $('#ind-vid'); if (!v || v._ind) retu
   let tries = 0, stallT = 0, want = false, fixing = false; v.addEventListener('play', () => { want = true; }); v.addEventListener('pause', () => { if (!fixing && !v.error) want = false; });
   const recover = async (why) => { clearTimeout(stallT); if (tries >= 3 || !document.body.contains(v) || !online()) return false; tries++; const t = v.currentTime || cur()[1].maxT || 0, wasPlaying = want || why === 'stall'; fixing = true; setTimeout(() => { fixing = false; }, 4000);
     try { delete IND.urls['short/' + c.v]; const [u] = await indSigned(['short/' + c.v]); if (!u || !document.body.contains(v)) return false; v.dataset.recover = (+(v.dataset.recover || 0) + 1) + ':' + why;
-      v.addEventListener('loadedmetadata', () => { try { v.currentTime = t; } catch (e) { } if (wasPlaying) v.play().catch(() => { }); }, { once: true }); v.src = u; v.load(); return true; } catch (e) { return false; } };
-  const stalled = () => { clearTimeout(stallT); stallT = setTimeout(() => { if (!v.paused && v.readyState < 3 && document.body.contains(v)) recover('stall'); }, 8000); };
-  v.addEventListener('waiting', stalled); v.addEventListener('stalled', stalled); v.addEventListener('playing', () => { clearTimeout(stallT); msg(''); });
+      v.addEventListener('loadedmetadata', () => { try { v.currentTime = t; } catch (e) { } if (wasPlaying && v.isConnected) v.play().catch(() => { }); }, { once: true }); v.src = u; v.load(); return true; } catch (e) { return false; } };
+  // a video that has left the screen (another chapter or page opened) never plays on in the background or counts progress for this chapter
+  // stuck with the next part already downloaded: a nudge (seek to the same point) first, after 3 s; a fresh link after 8 s
+  let nudgeT = 0; const ahead = () => { try { const B = v.buffered, t = v.currentTime; for (let i = 0; i < B.length; i++) if (B.start(i) <= t + 0.1 && B.end(i) > t + 1) return true; } catch (e) { } return false; };
+  const stalled = () => { clearTimeout(stallT); clearTimeout(nudgeT); if (!v.isConnected) return;
+    nudgeT = setTimeout(() => { if (!v.paused && v.readyState < 3 && v.isConnected && ahead()) { v.dataset.nudge = (+(v.dataset.nudge || 0) + 1); try { v.currentTime = v.currentTime + 0.01; } catch (e) { } } }, 3000);
+    stallT = setTimeout(() => { if (!v.paused && v.readyState < 3 && v.isConnected) recover('stall'); }, 8000); };
+  v.addEventListener('waiting', stalled); v.addEventListener('stalled', stalled); v.addEventListener('playing', () => { clearTimeout(stallT); clearTimeout(nudgeT); if (!v.isConnected) { v.pause(); return; } msg(''); });
   v.addEventListener('error', async () => { if (!v.getAttribute('src')) return; if (await recover('error')) return; msg(online() ? 'The video could not load. Check your signal and try again.' : 'No signal: the videos need signal. Everything you have done is saved.'); });
   if (!signedIn() || !online()) { msg('No signal: the videos need signal. Everything you have done so far is saved on this phone.'); return; }
   try { const [mp4] = await indSigned(['short/' + c.v]); const vtt = await indVtt('short/' + c.c); if (!document.body.contains(v)) return;
