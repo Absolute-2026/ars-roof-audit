@@ -2,7 +2,7 @@
 // v1.11.0: the live (root) app has its own cache family 'ars-site-audit-root-v...' so the archived v1.8.5 copy (its own
 // service worker deletes every other 'ars-site-audit-v...' cache) can never remove the live cache. Old 'ars-site-audit-v...'
 // caches (live <= v1.8.5) are still removed here; the beta's 'ars-site-audit-beta-v...' caches are never touched.
-const CACHE = 'ars-site-audit-root-v1.11.0';
+const CACHE = 'ars-site-audit-root-v1.11.11';
 const PREFIX = 'ars-site-audit-root-v', LEGACY = 'ars-site-audit-v';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/icon.svg', './pdf-lib.min.js', './quote-assets.js', './pdfjs.min.js', './pdfjs.worker.min.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
