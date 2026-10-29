@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.18">
+<meta name="app-version" content="1.11.19">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.18';
+const APP_VERSION = '1.11.19';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -15343,7 +15343,11 @@ setTimeout(() => { oaLoadMe(true); oaLoadAll(true); }, 1800);
    Timesheet rows hold hours only. Operatives / foremen write only through security-definer RPCs (ts_save_days / ts_submit / ts_gang_book /
    ts_sign_for). Off in the 'prod' build (root keeps working unchanged). */
 const TS_ON = BUILD.variant !== 'prod';
-const TS_DEF = { halfMax: 4, shortFlag: 3, stdHours: 8, otAfter: 8, sdAutofill: true, retentionPct: 5, retAfterCis: false, budgetDayRate: 660, accountsTo: '' };
+const TS_DEF = { halfMax: 4, shortFlag: 3, stdHours: 8, otAfter: 8, sdAutofill: true, retentionPct: 5, retAfterCis: false, budgetDayRate: 660, accountsTo: '', accountsList: [] };
+/* v1.11.19: payroll recipients = a list (accountsList). An older single/comma 'accountsTo' string is read as the list until it is next saved. */
+const TS_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+function tsRecips(c) { c = c || tsCfgV(); const seen = new Set(); return (Array.isArray(c.accountsList) && c.accountsList.length ? c.accountsList : String(c.accountsTo || '').split(/[,;\s]+/)).map(x => String(x || '').trim()).filter(x => { const k = x.toLowerCase(); if (!TS_EMAIL.test(x) || seen.has(k)) return false; seen.add(k); return true; }); }
+async function tsCfgMerge(patch) { const v = await tsRpc('ts_cfg_merge', { p: patch }); TS.cfg = (v && typeof v === 'object') ? v : Object.assign({}, TS.cfg || {}, patch); TS.cfgAt = Date.now(); DB.setKV('ts.cfg', TS.cfg); return TS.cfg; }
 /* ---- TSC: pure timesheet maths (also run by build/tstest.js) ---- TSC-START */
 const TSC = {
   num: v => { const n = parseFloat(v); return isFinite(n) ? n : 0; },
@@ -15406,6 +15410,15 @@ const TSC = {
   retAfter: (o, cfg) => o && o.ret_after_cis != null ? !!o.ret_after_cis : !!(cfg || TS_DEF).retAfterCis,
   deduct(gross, retPct, cisPct, after) { gross = TSC.r2(gross); let ret, cis; if (after) { cis = TSC.r2(gross * TSC.num(cisPct) / 100); ret = TSC.r2((gross - cis) * TSC.num(retPct) / 100); }
     else { ret = TSC.r2(gross * TSC.num(retPct) / 100); cis = TSC.r2((gross - ret) * TSC.num(cisPct) / 100); } return { gross, ret, cis, net: TSC.r2(gross - ret - cis) }; },
+  // v1.11.19: a NET (take-home) day rate grossed up with the gang's retention %, CIS % and order, to the penny. Both orders give
+  // net = gross x (1 - ret) x (1 - cis) before rounding; we then search the nearby pennies for a gross whose deductions give EXACTLY the net.
+  grossUp(net, retPct, cisPct, after) { net = TSC.r2(net); const k = (1 - TSC.num(retPct) / 100) * (1 - TSC.num(cisPct) / 100); if (!(net > 0)) return { gross: 0, ok: net === 0, check: TSC.deduct(0, retPct, cisPct, after) };
+    if (!(k > 0)) return { gross: 0, ok: false, check: null }; const g0 = net / k, c = Math.round(g0 * 100); let best = null;
+    for (let d = 0; d <= 10 && !best; d++) for (const p of d ? [c - d, c + d] : [c]) { const g = p / 100, x = TSC.deduct(g, retPct, cisPct, after); if (Math.abs(x.net - net) < 0.005) { best = { gross: TSC.r2(g), ok: true, check: x }; break; } }
+    if (!best) { const g = TSC.r2(g0); best = { gross: g, ok: false, check: TSC.deduct(g, retPct, cisPct, after) }; } return best; },
+  // a worker's gross day rate: own rate (gross, or net grossed up) else null (= the gang's per-man rate)
+  manRate(sub, m, cfg) { if (!m || m.rate == null || m.rate === '' || !(TSC.num(m.rate) >= 0)) return null; if (m.rate_basis !== 'net') return TSC.r2(TSC.num(m.rate));
+    return TSC.grossUp(TSC.num(m.rate), TSC.retPct(sub, cfg), TSC.num(sub && sub.cis_pct != null ? sub.cis_pct : 20), TSC.retAfter(sub, cfg)).gross; },
   // gang rate by men count: {"1":200,"2":380,"3":540,"extra":160} - 4+ men = the 3-man rate + extra per man above 3 (or the highest set count)
   gangRate(sub, n) { const g = (sub && sub.gang) || {}; if (!(n > 0)) return 0; if (g[n] != null && g[n] !== '') return TSC.num(g[n]);
     const ks = Object.keys(g).filter(k => /^\d+$/.test(k) && g[k] !== '' && g[k] != null).map(Number).sort((a, b) => a - b); if (!ks.length) return 0;
@@ -15415,12 +15428,14 @@ const TSC = {
   subWeek(sub, rows, cfg) { cfg = cfg || TS_DEF; const by = {}; (rows || []).forEach(r => (r.men || []).forEach(m => { const d = by[r.day] = by[r.day] || {}; const x = d[m.mid] = d[m.mid] || { name: m.name, h: 0, jobs: {} }; const h = TSC.entH(m); x.h += h; const k = r.job || 'txt:' + (r.jt || ''); x.jobs[k] = (x.jobs[k] || 0) + h; }));
     const out = { men: {}, days: [], jobs: {}, manDays: 0, full: 0, half: 0, gross: 0 };
     Object.keys(by).sort().forEach(day => { const ms = Object.entries(by[day]).map(([mid, x]) => Object.assign({ mid, dv: TSC.dv(TSC.r2(x.h), cfg) }, x)).filter(x => x.dv !== 'none'); const n = ms.length; if (!n) return;
-      const per = sub && sub.rate_mode === 'gang' ? TSC.gangRate(sub, n) / n : TSC.num(sub && sub.day_rate); let dayG = 0, dayE = 0;
-      ms.forEach(x => { const e = TSC.dvN(x.dv), g = TSC.r2(per * e); dayG += g; dayE += e; const o = out.men[x.mid] = out.men[x.mid] || { name: x.name, full: 0, half: 0, dayEq: 0, gbp: 0, days: {} }; o.days[day] = x.dv; o.dayEq += e; o.gbp = TSC.r2(o.gbp + g); if (x.dv === 'full') { o.full++; out.full++; } else { o.half++; out.half++; }
+      const per = sub && sub.rate_mode === 'gang' ? TSC.gangRate(sub, n) / n : TSC.num(sub && sub.day_rate); let dayG = 0, dayE = 0; const own = (sub && sub.rates) || {};
+      ms.forEach(x => { const e = TSC.dvN(x.dv), g = TSC.r2((own[x.mid] != null ? own[x.mid] : per) * e); dayG += g; dayE += e; const o = out.men[x.mid] = out.men[x.mid] || { name: x.name, full: 0, half: 0, dayEq: 0, gbp: 0, days: {} }; o.days[day] = x.dv; o.dayEq += e; o.own = own[x.mid] != null; o.gbp = TSC.r2(o.gbp + g); if (x.dv === 'full') { o.full++; out.full++; } else { o.half++; out.half++; }
         const tot = Object.values(x.jobs).reduce((a, b) => a + b, 0) || 1; Object.entries(x.jobs).forEach(([j, h]) => { const q = out.jobs[j] = out.jobs[j] || { days: 0, gbp: 0, h: 0 }; q.days += e * h / tot; q.gbp += g * h / tot; q.h += h; }); });
       out.days.push({ day, n, dayEq: dayE, gbp: TSC.r2(dayG) }); out.manDays += dayE; out.gross += dayG; });
-    out.gross = TSC.r2(out.gross); out.retPct = TSC.retPct(sub, cfg); out.cisPct = TSC.num(sub && sub.cis_pct != null ? sub.cis_pct : 20); out.after = TSC.retAfter(sub, cfg);
-    const dd = TSC.deduct(out.gross, out.retPct, out.cisPct, out.after); out.retention = dd.ret; out.cis = dd.cis; out.net = dd.net; return out; },
+    out.retPct = TSC.retPct(sub, cfg); out.cisPct = TSC.num(sub && sub.cis_pct != null ? sub.cis_pct : 20); out.after = TSC.retAfter(sub, cfg);
+    // v1.11.19: deductions per worker (one line each); the gang total is the sum of the lines, so the lines always add up to the total
+    let G = 0, R = 0, C = 0; Object.values(out.men).forEach(o => { const dd = TSC.deduct(o.gbp, out.retPct, out.cisPct, out.after); o.ret = dd.ret; o.cis = dd.cis; o.net = dd.net; G += dd.gross; R += dd.ret; C += dd.cis; });
+    out.gross = TSC.r2(G); out.retention = TSC.r2(R); out.cis = TSC.r2(C); out.net = TSC.r2(G - R - C); return out; },
 };
 /* TSC-END */
 const TS = { cfg: null, cfgAt: 0, w: {}, sds: {}, busy: false, open: null, gang: null, off: { week: null, rows: null, f: { st: 'all', p: '', j: '' } }, rates: null, rlog: null, people: null, adj: {}, jc: null };
@@ -15455,6 +15470,8 @@ const tsTag = st => { const [c, t] = tsStTag(st); return `<span class="tag ${c}"
 .ts-bar{height:12px;background:#e2e8f0;border-radius:6px;overflow:hidden;margin:4px 0}.ts-bar i{display:block;height:100%;background:#16a34a}.ts-bar i.w{background:#f59e0b}.ts-bar i.r{background:#dc2626}
 .ts-lock{background:#eef1f5;border-radius:12px;padding:10px 12px;font-size:14px;margin:10px 0}
 .ts-pay{border:2px solid #1e3a5f}.ts-hist{font-size:13px;color:#475569;margin:6px 0 0}
+.ts-rcprows{display:flex;flex-direction:column;gap:6px;margin:4px 0 8px}.ts-rcprow{display:flex;align-items:center;gap:8px;justify-content:space-between;border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;background:#f8fafc}.ts-rcprow span{overflow-wrap:anywhere;min-width:0;font-weight:600}.ts-rcprow .btn{flex:none}
+.ts-rcpadd{display:flex;gap:8px}.ts-rcpadd input{flex:1;min-width:0}.ts-rcplist{display:flex;flex-wrap:wrap;gap:6px}.ts-rcplist .tag{overflow-wrap:anywhere;text-transform:none;letter-spacing:0;font-size:13px}.ts-rcpul{margin:4px 0 8px;padding-left:20px}.ts-rcpul li{overflow-wrap:anywhere}
 .ts-dnote{margin-top:4px;padding:4px 8px;background:#fffbeb;border-left:3px solid #f59e0b;font-size:13px;white-space:pre-wrap}.ts-home{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;padding:14px 16px;margin-bottom:12px}.ts-home .ic{font-size:28px}.ts-home .bd{flex:1}.ts-home .t1{font-weight:800;font-size:17px}.ts-home .t2{font-size:13px;color:#64748b}
 `; document.head.appendChild(st); })();
 
@@ -15869,18 +15886,26 @@ function tsSendView(ws) {
     ${noRate.length ? `<div class="lg-msg err">${noRate.length} approved with no pay rate - set it on their page first: ${noRate.map(r => esc(r.p.full_name || '')).join(', ')}</div>` : ''}
     ${tbl('PAYE')}${tbl('CIS')}${!L.length ? '<p class="hint" style="margin-top:10px">Nothing approved and unsent for this week.</p>' : `<div class="lg-msg" style="background:#eef1f5;margin-top:10px"><b>${L.length} people · gross ${fmtGBP(sum(L, 'gross'))} · retention ${fmtGBP(sum(L, 'ret'))} · net ${fmtGBP(sum(L, 'net'))}</b><br>
       Files: ARS-payroll-${ws}.xlsx (PAYE + CIS tabs), .csv, signed timesheets (${L.length} PDFs, zipped).</div>
-      <div class="f" style="margin-top:8px"><label>To</label><input value="${esc(cfg.accountsTo || '')}" disabled placeholder="Not set - Settings > Timesheets"></div>
+      ${(() => { const rc = tsRecips(cfg); return `<div class="f ts-rcpto" style="margin-top:8px"><label>To (${rc.length} recipient${rc.length === 1 ? '' : 's'} - one email to all)</label>${rc.length ? `<div class="ts-rcplist">${rc.map(e => `<span class="tag">${esc(e)}</span>`).join(' ')}</div>` : `<div class="lg-msg err" id="tss-norcp">No payroll recipients are set, so nothing can be sent. Add at least one email in <a href="#/settings/timesheets">Settings › Timesheets › Payroll recipients</a>.</div>`}</div>`; })()}
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="tss-dl">⬇ Download the files</button><button class="btn" data-act="tss-send" data-test="1">Send a test to abscaff+ars@mail.grokbot.com</button>
-      <button class="btn primary" data-act="tss-send" ${cfg.accountsTo ? '' : 'disabled title="Set the accounts email in Settings > Timesheets"'}>📤 Send to accounts &amp; lock</button></div>`}</div>
+      <button class="btn primary" data-act="tss-send" ${tsRecips(cfg).length ? '' : 'disabled title="Add a payroll recipient in Settings > Timesheets"'}>📤 Send to accounts &amp; lock</button></div>`}</div>
     ${sent.length || B.length ? `<div class="card"><h2>Already sent</h2>${B.map(b => `<div class="ts-hist">${esc(new Date(b.sent_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))} · ${esc(b.sent_name)} → ${esc(b.to_addr)}${b.test ? ' <span class="tag amber">TEST</span>' : ''} · ${b.people} people · ${fmtGBP(b.total)} · ${(b.files || []).length} files</div>`).join('')}${sent.length ? `<p class="small">${sent.length} locked: ${sent.map(r => esc(r.p.full_name || '')).join(', ')}</p>` : ''}</div>` : ''}`;
 }
 Object.assign(ACTIONS, {
   async 'tss-dl'() { const ws = TS.off.week, rows = tsPayRows(ws); const f = await tsAttachments(ws, rows); download(f.xlsx, `ARS-payroll-${ws}.xlsx`); setTimeout(() => download(new Blob([f.csv], { type: 'text/csv' }), `ARS-payroll-${ws}.csv`), 400); setTimeout(() => download(f.z instanceof Blob ? f.z : new Blob([f.z], { type: 'application/zip' }), `ARS-signed-timesheets-${ws}.zip`), 800); },
   async 'tss-send'(a) { const ws = TS.off.week, rows = tsPayRows(ws), test = a.dataset.test === '1'; if (!rows.length) return; if (!online()) return toast('Sending needs signal');
+    if (!test && !tsRecips(await tsCfgLoad(true)).length) { await modal(`<h3>No payroll recipients</h3><p id="tss-norcp-m">Nothing can be sent until at least one email is added in Settings › Timesheets › Payroll recipients.</p><a class="btn primary" href="#/settings/timesheets" data-r="go">Open timesheet settings</a><button class="btn" data-r="cancel">Close</button>`); return; }
     const f = await tsAttachments(ws, rows); const body = { week: ws, ids: rows.map(r => r.w.id), subject: `ARS payroll - ${tsWc(ws)}`, attachments: f.att, people: rows.length, total: TSC.r2(f.L.reduce((n, l) => n + l.gross, 0)), test };
     let pv; try { pv = await fnCall('ts-send', Object.assign({}, body, { dry: true })); } catch (e) { return toast(tsErr(e), 5000); } if (!pv || !pv.ok) return toast((pv && pv.error) || 'Could not prepare the email', 5000);
     const willLock = pv.lock !== false;
-    if (!await confirmBox(test ? 'Send a test?' : 'Send to accounts?', `${rows.length} people · ${fmtGBP(body.total)} gross · ${f.att.length} attachments\nTo: ${Array.isArray(pv.to) ? pv.to.join(', ') : pv.to}${willLock ? '\nThe weeks lock once sent.' : '\nTest only - nothing is locked.'}`, test ? 'Send test' : 'Send & lock', false)) return;
+    const to = Array.isArray(pv.to) ? pv.to : [], list = Array.isArray(pv.list) ? pv.list : tsRecips();
+    const li = xs => `<ul class="ts-rcpul">${xs.map(e => `<li>${esc(e)}</li>`).join('')}</ul>`;
+    const ok = await modal(`<h3>${test ? 'Send a test?' : 'Send to accounts?'}</h3><p>${rows.length} people · ${fmtGBP(body.total)} gross · ${f.att.length} attachments</p>
+      <div id="tss-cf-to"><b>${pv.test ? 'Goes ONLY to the test inbox:' : `One email, to all ${to.length} recipient${to.length === 1 ? '' : 's'}:`}</b>${li(to)}</div>
+      ${pv.test ? `<p class="small" id="tss-cf-list">${test ? 'Test send' : 'Temporary test accounts'} - the payroll recipients (${list.length ? list.map(esc).join(', ') : 'none set'}) do <b>not</b> get this.</p>` : ''}
+      <p class="small">${willLock ? 'The weeks lock once sent.' : 'Test only - nothing is locked.'}</p>
+      <button class="btn primary" data-r="ok">${test ? 'Send test' : 'Send &amp; lock'}</button><button class="btn" data-r="cancel">Cancel</button>`);
+    if (ok !== 'ok') return;
     try { const r = await fnCall('ts-send', body); if (!r || !r.ok) return toast((r && r.error) || 'Not sent', 5000); toast(r.batch ? `Sent ✓ - ${rows.length} weeks locked` : 'Test sent ✓', 4000); TS.batches = null; tsOffLoad(ws, true); } catch (e) { toast(tsErr(e), 5000); } },
 });
 
@@ -15938,13 +15963,29 @@ function tsSettingsView() { const c = tsCfgV(); const num = (id, lab, v, step, h
     <div class="row2">${num('tsc-ret', 'Retention % (company default)', c.retentionPct, 0.5, 'Taken off every operative / subcontractor unless their own % is set')}${num('tsc-bdr', 'Budget day rate £ (labour ÷ this = gang-days)', c.budgetDayRate, 1)}</div>
     <label class="ckl"><input type="checkbox" id="tsc-rac" ${c.retAfterCis ? 'checked' : ''}> Retention after CIS (company default) - CIS is worked out on the gross first, then retention on what is left. Off = retention on the gross, then CIS on the balance.</label>
     <label class="ckl"><input type="checkbox" id="tsc-sd" ${c.sdAutofill !== false ? 'checked' : ''}> Auto-fill stand-downs from the site sheets (operatives can change it)</label>
-    <div class="f"><label for="tsc-to">Accounts email (payroll goes here)</label><input id="tsc-to" type="email" multiple value="${esc(c.accountsTo || '')}" placeholder="Not set - nothing can be sent until this is filled in"><p class="small" style="margin:2px 0 0">Temporary test accounts always go to the test inbox only.</p></div>
+    ${tsRcpHtml(c)}
     <button class="btn primary block" data-act="tsc-save">Save timesheet settings</button></div>`; }
-ACTIONS['tsc-save'] = async () => { const g = id => $('#' + id).value, n = id => TSC.num(g(id)); const to = g('tsc-to').trim();
-  if (to && !to.split(/[,;\s]+/).filter(Boolean).every(x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) return toast('Check the email address');
-  const v = { halfMax: n('tsc-half'), shortFlag: n('tsc-short'), stdHours: n('tsc-std') || 8, otAfter: n('tsc-ota') || 8, retentionPct: Math.min(100, n('tsc-ret')), retAfterCis: !!($('#tsc-rac') && $('#tsc-rac').checked), budgetDayRate: n('tsc-bdr') || 660, sdAutofill: $('#tsc-sd').checked, accountsTo: to };
+function tsRcpHtml(c) { const rc = tsRecips(c); return `<div class="f" id="tsc-rcp"><label for="tsc-rcp-new">Payroll recipients - "Send to accounts" goes to all of these, in one email</label>
+      <div class="ts-rcprows">${rc.length ? rc.map(e => `<div class="ts-rcprow"><span>${esc(e)}</span><button class="btn sm" data-act="tsc-rcp-del" data-e="${esc(e)}" aria-label="Remove ${esc(e)}">✕ Remove</button></div>`).join('') : '<div class="lg-msg warn" id="tsc-rcp-none">No recipients yet - nothing can be sent until you add one.</div>'}</div>
+      <div class="ts-rcpadd"><input id="tsc-rcp-new" type="email" autocomplete="off" placeholder="name@company.co.uk"><button class="btn" data-act="tsc-rcp-add">+ Add email</button></div>
+      <p class="small" style="margin:2px 0 0">Changes save straight away. Temporary test accounts and "Send a test" always go only to abscaff+ars@mail.grokbot.com.</p></div>`; }
+async function tsRcpSave(list) { if (!isMgr()) return toast('Managers only'); if (!online()) return toast('Needs signal to save');
+  try { await tsCfgMerge({ accountsList: list, accountsTo: list.join(', ') }); const el = $('#tsc-rcp'); if (el) el.outerHTML = tsRcpHtml(tsCfgV()); return true; } catch (e) { toast(tsErr(e), 4000); return false; } }
+Object.assign(ACTIONS, {
+  async 'tsc-rcp-add'() { const inp = $('#tsc-rcp-new'); if (!inp) return; const e = inp.value.trim(); if (!e) return toast('Type an email address first');
+    if (!TS_EMAIL.test(e) || e.length > 200) return toast('That is not a valid email address', 3500);
+    const cur = tsRecips(await tsCfgLoad(true)); if (cur.some(x => x.toLowerCase() === e.toLowerCase())) return toast('Already on the list', 3500);
+    if (cur.length >= 20) return toast('Up to 20 recipients');
+    if (await tsRcpSave(cur.concat(e))) { toast('Added ✓ ' + e); const n = $('#tsc-rcp-new'); n && n.focus(); } },
+  async 'tsc-rcp-del'(a) { const e = a.dataset.e; const cur = tsRecips(await tsCfgLoad(true));
+    if (!await confirmBox('Remove recipient?', `${e} will stop getting the payroll email.` + (cur.length === 1 ? ' This is the last one - nothing can be sent until you add another.' : ''), 'Remove', true)) return;
+    if (await tsRcpSave(cur.filter(x => x.toLowerCase() !== String(e).toLowerCase()))) toast('Removed ✓'); },
+});
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target && e.target.id === 'tsc-rcp-new') { e.preventDefault(); ACTIONS['tsc-rcp-add'](); } });
+ACTIONS['tsc-save'] = async () => { const g = id => $('#' + id).value, n = id => TSC.num(g(id));
+  const v = { halfMax: n('tsc-half'), shortFlag: n('tsc-short'), stdHours: n('tsc-std') || 8, otAfter: n('tsc-ota') || 8, retentionPct: Math.min(100, n('tsc-ret')), retAfterCis: !!($('#tsc-rac') && $('#tsc-rac').checked), budgetDayRate: n('tsc-bdr') || 660, sdAutofill: $('#tsc-sd').checked };
   if (!(v.halfMax > 0)) return toast('Half day hours must be more than 0');
-  try { await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'timesheets', value: v }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); TS.cfg = v; TS.cfgAt = Date.now(); toast('Saved ✓'); }
+  try { await tsCfgMerge(v); toast('Saved ✓'); }
   catch (e) { toast(e.offline ? 'Needs signal to save' : (e.message || 'Could not save'), 4000); } };
 { const _vs = viewSettings; viewSettings = function () { const h = _vs(); if (!tsOn() || !isMgr()) return h;
   const link = `<a class="item" href="#/settings/timesheets" id="ts-set-link"><div class="th" style="font-size:24px">⏱</div><div class="bd"><div class="t1">Timesheets</div><div class="t2">Half / full day, overtime, retention, accounts email</div></div>${I.chev}</a>`;
@@ -16018,13 +16059,15 @@ const TSS = { list: null, men: null, mine: null, mineAt: 0, off: {}, book: null 
 async function tssLoad(force) { if (TSS.list && !force) return; const [l, m] = await Promise.all([sbFetch('/rest/v1/ts_subs?select=*&order=name'), sbFetch('/rest/v1/ts_sub_men?select=*&order=name')]); TSS.list = l || []; TSS.men = m || []; }
 async function tssMine(force) { if (!tsOpOn()) return []; if (TSS.mine && !force && Date.now() - TSS.mineAt < 300000) return TSS.mine; try { TSS.mine = (await tsRpc('ts_sub_mine')) || []; } catch (e) { TSS.mine = TSS.mine || []; } TSS.mineAt = Date.now(); return TSS.mine; }
 function tssMen(sub) { if (sub.men) return sub.men.filter(m => m.active !== false); return (TSS.men || []).filter(m => m.sub_id === sub.id && m.active); }
+// v1.11.19: the gang plus each worker's own gross day rate (blank = the gang's per-man rate). Manager/admin screens only (ts_sub_men is RLS is_admin).
+function tssR(s, cfg) { const rates = {}; (TSS.men || []).filter(m => m.sub_id === s.id).forEach(m => { const g = TSC.manRate(s, m, cfg || tsCfgV()); if (g != null) rates[m.id] = g; }); return Object.assign({}, s, { rates }); }
 function tssRates(s, cfg) { const ret = TSC.retPct(s, cfg), after = TSC.retAfter(s, cfg);
   const r = s.rate_mode === 'gang' ? 'Gang rate: ' + ['1', '2', '3'].filter(k => s.gang && s.gang[k] != null && s.gang[k] !== '').map(k => `${k} man ${fmtGBP(s.gang[k])}`).join(' · ') + (s.gang && s.gang.extra ? ` · +${fmtGBP(s.gang.extra)} each extra man` : '') : `${fmtGBP(s.day_rate)} per man per day`;
   return `${r} · CIS ${TSC.num(s.cis_pct)}% · retention ${ret}%${after ? ' after CIS' : ' on the gross'}`; }
 function tssJobs() { const L = isOp() ? (Ops.jobs || []) : (Ops.jobsTbl || []).filter(j => !j.status || !/complete|closed|cancel|archiv/i.test(j.status)); return L; }
 function tssJobTxt(r) { if (r.job) { const j = (Ops.jobsTbl || []).find(x => x.id === r.job) || (Ops.jobs || []).find(x => x.id === r.job); return j ? [j.ref, j.site_name].filter(Boolean).join(' - ') : (r.jl || 'Job'); } return (r.jt || 'Other') + ' (typed)'; }
 const TSS_DV = { full: 'F', half: '½' };
-function tssGrid(sub, rows, ws, cfg, money) { const men = tssMen(sub), t = TSC.subWeek(Object.assign({}, sub, money ? {} : { rate_mode: 'man', day_rate: 0 }), rows, cfg), dts = TSC.dates(ws);
+function tssGrid(sub, rows, ws, cfg, money) { const men = tssMen(sub), t = TSC.subWeek(money ? tssR(sub, cfg) : Object.assign({}, sub, { rate_mode: 'man', day_rate: 0, rates: {} }), rows, cfg), dts = TSC.dates(ws);
   const ids = [...new Set([...men.map(m => m.id), ...Object.keys(t.men)])]; if (!ids.length) return { t, html: '<p class="hint">No men set up yet.</p>' };
   const nm = id => (t.men[id] && t.men[id].name) || (men.find(m => m.id === id) || {}).name || '?';
   const html = `<div class="ts-wrap"><table class="ts-tbl tss-grid"><thead><tr><th>Man</th>${dts.map(d => `<th class="c">${esc(TSC.dayName(d).slice(0, 3))}<br><span class="small">${esc(d.slice(8))}</span></th>`).join('')}<th class="n">Days</th>${money ? '<th class="n">£</th>' : ''}</tr></thead><tbody>
@@ -16037,8 +16080,8 @@ function tssSetupView() { if (!TSS.list) { tssLoad().then(() => { if (route()[0]
   const cfg = tsCfgV(), ops = (typeof operatives === 'function' ? operatives() : []) || [];
   return `<div class="card"><h2>👷 Subcontractor gangs</h2><p class="small">Rates and £ are only seen by managers and admin. The gang lead books his men's times on his phone (no £ shown). Men are names only - they don't need a login. No fuel or expenses are paid through this.</p>
     <button class="btn primary block" data-act="tsx-edit" data-id="" id="tsx-add">+ Add subcontractor</button></div>
-    ${TSS.list.map(s => { const men = tssMen(s), ld = ops.find(o => o.id === s.lead_uid); return `<div class="card tss-sub${s.active ? '' : ' off'}" data-sub="${esc(s.id)}"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:17px">${esc(s.name)}</b>${s.active ? '' : '<span class="chip">Not active</span>'}<button class="btn sm" style="margin-left:auto" data-act="tsx-edit" data-id="${esc(s.id)}">Edit</button></div>
-      <p class="small" style="margin:6px 0 2px">${esc(tssRates(s, cfg))}</p><p class="small" style="margin:0">Lead: ${esc(ld ? ld.full_name : 'none (office books)')} · ${men.length} men: ${esc(men.map(m => m.name).join(', ') || '-')}</p></div>`; }).join('') || '<p class="hint">No subcontractors yet.</p>'}`; }
+    ${TSS.list.map(s => { const men = tssMen(s), ld = ops.find(o => o.id === s.lead_uid); return `<div class="card tss-sub${s.active ? '' : ' off'}" data-sub="${esc(s.id)}"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:17px">${esc(s.name)}</b>${s.active ? '' : '<span class="chip">Not active</span>'}<span style="margin-left:auto;display:flex;gap:6px"><button class="btn sm" data-act="tsx-rates" data-id="${esc(s.id)}">💷 Worker rates</button><button class="btn sm" data-act="tsx-edit" data-id="${esc(s.id)}">Edit</button></span></div>
+      <p class="small" style="margin:6px 0 2px">${esc(tssRates(s, cfg))}</p><p class="small" style="margin:0">Lead: ${esc(ld ? ld.full_name : 'none (office books)')} · ${men.length} men: ${esc(men.map(m => m.name + (m.rate != null ? ` (${fmtGBP(m.rate)} ${m.rate_basis === 'net' ? 'net → ' + fmtGBP(TSC.manRate(s, m, cfg)) + ' gross' : 'gross'})` : '')).join(', ') || '-')}</p></div>`; }).join('') || '<p class="hint">No subcontractors yet.</p>'}`; }
 async function tssEdit(id) { await Promise.all([tssLoad(), tsCfgLoad()]); const s = TSS.list.find(x => x.id === id) || { active: true, rate_mode: 'man', cis_pct: 20, gang: {} }, g = s.gang || {}, cfg = tsCfgV();
   const ops = ((typeof operatives === 'function' ? operatives() : []) || []).filter(o => o.active !== false), men = id ? tssMen(s) : [];
   const n = (i, l, v, ph) => `<div class="f"><label>${l}</label><input id="${i}" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(v ?? '')}" placeholder="${esc(ph || '')}"></div>`;
@@ -16112,7 +16155,7 @@ async function tssOffLoad(ws, force) { if (TSS.off.ws === ws && TSS.off.data && 
     TSS.off = { ws, data: { days: d || [], weeks: Object.fromEntries((w || []).map(x => [x.sub_id, x])) } }; } catch (e) { TSS.off = { ws, err: tsErr(e) }; }
   if (route()[0] === 'tssubs') rerender(true); }
 function tssCalc(ws) { const D = TSS.off.data, cfg = tsCfgV(); return (TSS.list || []).map(s => { const rows = D.days.filter(r => r.sub_id === s.id), wk = D.weeks[s.id] || {}; if (!s.active && !rows.length) return null;
-  const t = TSC.subWeek(s, rows, cfg), inv = wk.invoice_total != null ? +wk.invoice_total : null; return { s, rows, wk, t, inv, diff: inv == null ? null : TSC.r2(inv - t.net) }; }).filter(Boolean); }
+  const t = TSC.subWeek(tssR(s, cfg), rows, cfg), inv = wk.invoice_total != null ? +wk.invoice_total : null; return { s, rows, wk, t, inv, diff: inv == null ? null : TSC.r2(inv - t.net) }; }).filter(Boolean); }
 function tssOfficeView(ws) { const O = TSS.off; if (O.ws !== ws || !O.data) { if (!O.loading || O.ws !== ws) tssOffLoad(ws); return O.err ? `<div class="lg-msg err">${esc(O.err)}</div>` : '<p class="hint">Loading…</p>'; }
   const cfg = tsCfgV(), L = tssCalc(ws), pw = TSC.addDays(ws, -7), nw = TSC.addDays(ws, 7), sum = k => TSC.r2(L.reduce((a, x) => a + x.t[k], 0));
   const flag = x => x.inv == null ? '<span class="chip">No invoice entered</span>' : Math.abs(x.diff) < 0.01 ? '<span class="chip ok tss-match">✓ Invoice matches</span>' : `<span class="chip bad tss-diff">⚑ Invoice is ${fmtGBP(Math.abs(x.diff))} ${x.diff > 0 ? 'MORE' : 'LESS'} than the app</span>`;
@@ -16122,11 +16165,11 @@ function tssOfficeView(ws) { const O = TSS.off; if (O.ws !== ws || !O.data) { if
     ${L.length ? `<div class="ts-wrap"><table class="ts-tbl"><tbody><tr><td>Gross</td><td class="n">${fmtGBP(sum('gross'))}</td><td>Retention</td><td class="n">${fmtGBP(sum('retention'))}</td><td>CIS</td><td class="n">${fmtGBP(sum('cis'))}</td><td><b>Net</b></td><td class="n"><b>${fmtGBP(sum('net'))}</b></td></tr></tbody></table></div>` : ''}</div>
     ${L.map(x => { const g = tssGrid(x.s, x.rows, ws, cfg, true), t = x.t, lk = !!x.wk.locked; const ret = `<tr><td>Retention ${t.retPct}%${t.after ? ' (after CIS)' : ''}</td><td class="n">− ${fmtGBP(t.retention)}</td></tr>`, cis = `<tr><td>CIS ${t.cisPct}%${t.after ? '' : ' (on gross less retention)'}</td><td class="n">− ${fmtGBP(t.cis)}</td></tr>`;
       return `<div class="card tss-off" data-sub="${esc(x.s.id)}"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:17px">${esc(x.s.name)}</b>${lk ? '<span class="chip ok">Approved · locked</span>' : ''}${flag(x)}</div>
-        <p class="small" style="margin:4px 0 8px">${esc(tssRates(x.s, cfg))}</p>${g.html}
+        <p class="small" style="margin:4px 0 8px">${esc(tssRates(x.s, cfg))}</p>${g.html}${tssLinesHtml(x, cfg)}
         <table class="ts-tbl tss-fig" style="margin-top:8px"><tbody><tr><td>Man-days</td><td class="n">${TSC.r2(t.manDays)} (${t.full} full, ${t.half} half)</td></tr><tr><td>Gross</td><td class="n">${fmtGBP(t.gross)}</td></tr>${t.after ? cis + ret : ret + cis}
           <tr class="tot"><td>Net payable</td><td class="n tss-net">${fmtGBP(t.net)}</td></tr></tbody></table>
         <div class="row2" style="margin-top:8px"><div class="f"><label>Invoice total £ (net payable on their invoice)</label><input class="tss-inv" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(x.inv ?? '')}" ${lk ? 'disabled' : ''}></div><div class="f"><label>Invoice ref</label><input class="tss-ref" value="${esc(x.wk.invoice_ref || '')}" maxlength="40" ${lk ? 'disabled' : ''}></div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#/tssub/${esc(x.s.id)}/${ws}" style="text-decoration:none">✎ Days</a>${lk ? `<button class="btn" data-act="tss-lock" data-sub="${esc(x.s.id)}" data-on="0">Unlock</button>` : `<button class="btn primary" data-act="tss-lock" data-sub="${esc(x.s.id)}" data-on="1">✓ Approve &amp; lock</button>`}</div></div>`; }).join('') || '<p class="hint">No subcontractor gangs set up. Use ⚙ Set up gangs.</p>'}`; }
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#/tssub/${esc(x.s.id)}/${ws}" style="text-decoration:none">✎ Days</a><button class="btn" data-act="tss-pdf" data-sub="${esc(x.s.id)}">📄 PDF</button>${lk ? `<button class="btn" data-act="tss-lock" data-sub="${esc(x.s.id)}" data-on="0">Unlock</button>` : `<button class="btn primary" data-act="tss-lock" data-sub="${esc(x.s.id)}" data-on="1">✓ Approve &amp; lock</button>`}</div></div>`; }).join('') || '<p class="hint">No subcontractor gangs set up. Use ⚙ Set up gangs.</p>'}`; }
 async function tssWeekSave(sid, patch) { const ws = TSS.off.ws; await sbFetch('/rest/v1/ts_sub_weeks?on_conflict=sub_id,week', { method: 'POST', body: [Object.assign({ sub_id: sid, week: ws, updated_at: new Date().toISOString(), updated_by: Cloud.user && Cloud.user.id }, patch)], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); }
 document.addEventListener('change', async e => { const el = e.target; if (!el || !el.closest || !(el.classList.contains('tss-inv') || el.classList.contains('tss-ref'))) return; const c = el.closest('.tss-off'), sid = c.dataset.sub;
   const inv = c.querySelector('.tss-inv').value, ref = c.querySelector('.tss-ref').value.trim(); try { await tssWeekSave(sid, { invoice_total: inv === '' ? null : TSC.r2(TSC.num(inv)), invoice_ref: ref || null }); await tssOffLoad(TSS.off.ws, true); toast('Saved ✓'); } catch (er) { toast(tsErr(er)); } });
@@ -16136,8 +16179,8 @@ ACTIONS['tss-lock'] = async a => { const x = tssCalc(TSS.off.ws).find(y => y.s.i
   try { await tssWeekSave(x.s.id, { locked: on, status: on ? 'approved' : 'open' }); await tssOffLoad(TSS.off.ws, true); toast(on ? 'Approved ✓' : 'Unlocked'); } catch (e) { toast(tsErr(e)); } };
 ACTIONS['tss-export'] = a => { const ws = a.dataset.ws, L = tssCalc(ws), cfg = tsCfgV(), dts = TSC.dates(ws); const rows = [['ARS subcontractor gangs - week commencing ' + tsWcLong(ws)], []];
   const sum = [['Subcontractor', 'Rate', 'Man-days', 'Gross £', 'Retention %', 'Retention £', 'CIS %', 'CIS £', 'Net payable £', 'Invoice total £', 'Invoice ref', 'Difference £ (invoice - app)', 'Status']];
-  L.forEach(x => { const t = x.t; rows.push([x.s.name, tssRates(x.s, cfg)]); rows.push(['', 'Man', ...dts.map(d => TSC.dayName(d).slice(0, 3) + ' ' + d.slice(8)), 'Days', '£']);
-    Object.values(t.men).forEach(m => rows.push(['', m.name, ...dts.map(d => m.days[d] === 'full' ? 'F' : m.days[d] === 'half' ? 'H' : ''), TSC.r2(m.dayEq), m.gbp]));
+  L.forEach(x => { const t = x.t; rows.push([x.s.name, tssRates(x.s, cfg)]); rows.push(['', 'Man', ...dts.map(d => TSC.dayName(d).slice(0, 3) + ' ' + d.slice(8)), 'Days', 'Gross £', 'Day rate (gross)', 'Retention £', 'CIS £', 'Net £']); const LL = tssLines(x, cfg);
+    Object.entries(t.men).forEach(([mid, m]) => { const l = LL.find(y => y.mid === mid) || {}; rows.push(['', m.name, ...dts.map(d => m.days[d] === 'full' ? 'F' : m.days[d] === 'half' ? 'H' : ''), TSC.r2(m.dayEq), m.gbp, l.rt || '', m.ret, m.cis, m.net]); });
     Object.entries(t.jobs).forEach(([j, q]) => rows.push(['', 'Job: ' + (/^txt:/.test(j) ? j.slice(4) + ' (typed)' : tssJobTxt({ job: j })), ...dts.map(() => ''), TSC.r2(q.days), TSC.r2(q.gbp)]));
     const z = (l, v) => rows.push(['', l, ...dts.map(() => ''), '', v]); z('Gross', t.gross); if (t.after) { z(`CIS ${t.cisPct}%`, -t.cis); z(`Retention ${t.retPct}% (after CIS)`, -t.retention); } else { z(`Retention ${t.retPct}%`, -t.retention); z(`CIS ${t.cisPct}%`, -t.cis); }
     z('Net payable', t.net); z('Invoice total', x.inv == null ? '' : x.inv); z('Difference (invoice - app)', x.diff == null ? '' : x.diff); rows.push([]);
@@ -16147,12 +16190,49 @@ ACTIONS['tss-export'] = a => { const ws = a.dataset.ws, L = tssCalc(ws), cfg = t
   const csv = rows.concat([[], ...sum]).map(r => r.map(v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
   setTimeout(() => download(new Blob([csv], { type: 'text/csv' }), name + '.csv'), 400); toast('Exported ✓'); };
 ACTIONS['tsx-edit'] = a => tssEdit(a.dataset.id || null);
+ACTIONS['tsx-rates'] = a => tssRatesEdit(a.dataset.id);
+/* v1.11.19 worker rates: optional own day rate per man, entered as GROSS or as NET (take-home). NET is grossed up with the gang's
+   retention %, CIS % and deduction order; the computed gross is shown to the penny with the check gross - deductions = net. */
+function tssRateCalc(s, cfg, v, basis) { if (v === '' || v == null) return { txt: `Gang rate (${s.rate_mode === 'gang' ? 'share of the gang rate' : fmtGBP(s.day_rate) + ' gross'})`, ok: true, blank: true };
+  const n = TSC.num(v); if (!(n >= 0) || n > 5000) return { txt: 'Enter £0 - £5,000', ok: false }; const ret = TSC.retPct(s, cfg), cis = TSC.num(s.cis_pct == null ? 20 : s.cis_pct), after = TSC.retAfter(s, cfg);
+  if (basis !== 'net') { const d = TSC.deduct(n, ret, cis, after); return { ok: true, gross: TSC.r2(n), txt: `Gross ${fmtGBP(n)}/day → retention ${fmtGBP(d.ret)}, CIS ${fmtGBP(d.cis)}, net ${fmtGBP(d.net)}` }; }
+  const g = TSC.grossUp(n, ret, cis, after), d = g.check; return { ok: g.ok, gross: g.gross, txt: `Gross <b class="tsx-gross">${fmtGBP(g.gross)}</b>/day = ${fmtGBP(g.gross)} − ${after ? `CIS ${fmtGBP(d.cis)} − retention ${fmtGBP(d.ret)}` : `retention ${fmtGBP(d.ret)} − CIS ${fmtGBP(d.cis)}`} = <b>${fmtGBP(d.net)}</b> ${g.ok ? '<span class="tsx-ck ok">✓ matches the net</span>' : `<span class="tsx-ck bad">⚑ no exact penny - nearest gives ${fmtGBP(d.net)}</span>`}` }; }
+async function tssRatesEdit(id) { await Promise.all([tssLoad(true), tsCfgLoad()]); const s = TSS.list.find(x => x.id === id); if (!s) return; const cfg = tsCfgV(), men = tssMen(s);
+  if (!men.length) return toast('Add the men first (Edit)');
+  const r = await modal(`<h3>💷 Worker rates · ${esc(s.name)}</h3><p class="small">${esc(tssRates(s, cfg))}. Leave a rate blank to use the gang's ${s.rate_mode === 'gang' ? 'gang rate' : 'per-man rate'}. <b>Net</b> = what he takes home; the app works out the gross with this gang's deductions.</p>
+    <div class="tsx-rates">${men.map(m => `<div class="tsx-rrow" data-mid="${esc(m.id)}"><div class="tsx-rname">${esc(m.name)}</div><div class="tsx-rin"><input type="number" class="tsx-rate" inputmode="decimal" step="0.01" min="0" max="5000" placeholder="Gang rate" value="${esc(m.rate ?? '')}" aria-label="Day rate for ${esc(m.name)}">
+      <select class="tsx-basis" aria-label="Gross or net"><option value="gross" ${m.rate_basis !== 'net' ? 'selected' : ''}>Gross</option><option value="net" ${m.rate_basis === 'net' ? 'selected' : ''}>Net (take-home)</option></select></div><div class="small tsx-calc"></div></div>`).join('')}</div>
+    <button class="btn primary" id="tsx-rok">Save rates</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => {
+    const upd = row => { const c = tssRateCalc(s, cfg, row.querySelector('.tsx-rate').value, row.querySelector('.tsx-basis').value); row.querySelector('.tsx-calc').innerHTML = c.txt; row.classList.toggle('bad', !c.ok); };
+    bg.querySelectorAll('.tsx-rrow').forEach(row => { upd(row); row.addEventListener('input', () => upd(row)); row.addEventListener('change', () => upd(row)); });
+    bg.querySelector('#tsx-rok').addEventListener('click', () => { const out = []; for (const row of bg.querySelectorAll('.tsx-rrow')) { const v = row.querySelector('.tsx-rate').value, b = row.querySelector('.tsx-basis').value, c = tssRateCalc(s, cfg, v, b);
+      if (!c.blank && !(TSC.num(v) >= 0 && TSC.num(v) <= 5000)) return toast('Check the rates (£0 - £5,000)'); out.push({ id: row.dataset.mid, rate: v === '' ? null : TSC.r2(TSC.num(v)), rate_basis: b }); } close(out); }); });
+  if (!Array.isArray(r)) return;
+  try { for (const x of r) { const m = men.find(y => y.id === x.id); if (m && (m.rate ?? null) === x.rate && (m.rate_basis || 'gross') === x.rate_basis) continue;
+      await sbFetch(`/rest/v1/ts_sub_men?id=eq.${x.id}`, { method: 'PATCH', body: { rate: x.rate, rate_basis: x.rate_basis }, headers: { Prefer: 'return=minimal' } }); }
+    await tssLoad(true); TSS.off = {}; toast('Rates saved ✓'); rerender(); } catch (e) { toast(tsErr(e)); } }
+// per-worker money lines (office check, PDF, export): [name, rate txt, days, gross, ret, cis, net]
+function tssLines(x, cfg) { const t = x.t; return Object.entries(t.men).map(([mid, o]) => { const m = (TSS.men || []).find(y => y.id === mid);
+  const rt = m && m.rate != null ? (m.rate_basis === 'net' ? `${fmtGBP(TSC.manRate(x.s, m, cfg))} (net ${fmtGBP(m.rate)})` : fmtGBP(m.rate)) : (x.s.rate_mode === 'gang' ? 'gang share' : fmtGBP(x.s.day_rate));
+  return { mid, name: o.name, rt, days: TSC.r2(o.dayEq), gross: o.gbp, ret: o.ret, cis: o.cis, net: o.net }; }); }
+function tssLinesHtml(x, cfg) { const t = x.t, Ls = tssLines(x, cfg); if (!Ls.length) return '';
+  return `<div class="ts-wrap"><table class="ts-tbl tss-lines" style="margin-top:8px"><thead><tr><th>Worker</th><th class="n">Day rate (gross)</th><th class="n">Days</th><th class="n">Gross</th><th class="n">Retention</th><th class="n">CIS</th><th class="n">Net</th></tr></thead><tbody>
+    ${Ls.map(l => `<tr><td>${esc(l.name)}</td><td class="n">${esc(l.rt)}</td><td class="n">${l.days}</td><td class="n">${fmtGBP(l.gross)}</td><td class="n">${fmtGBP(l.ret)}</td><td class="n">${fmtGBP(l.cis)}</td><td class="n">${fmtGBP(l.net)}</td></tr>`).join('')}
+    <tr class="tot"><td>Gang total</td><td></td><td class="n">${TSC.r2(t.manDays)}</td><td class="n">${fmtGBP(t.gross)}</td><td class="n">${fmtGBP(t.retention)}</td><td class="n">${fmtGBP(t.cis)}</td><td class="n">${fmtGBP(t.net)}</td></tr></tbody></table></div>`; }
+function tssPdf(x, ws) { const cfg = tsCfgV(), t = x.t, k = dcPdfKit('Subcontractor timesheet'), { doc, tx, M, W } = k, dts = TSC.dates(ws), Ls = tssLines(x, cfg);
+  k.font(18, 'bold', [20, 20, 20]); doc.text('Subcontractor timesheet', M, 20); k.font(9, 'bold', [20, 20, 20]); doc.text('Subcontractor', M, 32); doc.text('Week Commencing', W - M, 32, { align: 'right' });
+  k.font(9, 'normal', [20, 20, 20]); doc.text(tx(x.s.name), M, 37); doc.text(tsWcLong(ws), W - M, 37, { align: 'right' }); doc.text(tx(tssRates(x.s, cfg)), M, 43); k.y = 49;
+  k.table({ head: [['Worker', ...dts.map(d => TSC.dayName(d).slice(0, 3) + ' ' + d.slice(8)), 'Days']], body: Object.values(t.men).map(o => [o.name, ...dts.map(d => o.days[d] === 'full' ? 'F' : o.days[d] === 'half' ? 'H' : ''), String(TSC.r2(o.dayEq))].map(tx)) });
+  k.h2('Pay per worker'); k.table({ head: [['Worker', 'Day rate (gross)', 'Days', 'Gross', 'Retention', 'CIS', 'Net']], body: Ls.map(l => [l.name, l.rt, String(l.days), fmtGBP(l.gross), fmtGBP(l.ret), fmtGBP(l.cis), fmtGBP(l.net)].map(tx)).concat([['Gang total', '', String(TSC.r2(t.manDays)), fmtGBP(t.gross), fmtGBP(t.retention), fmtGBP(t.cis), fmtGBP(t.net)].map(tx)]) });
+  k.kv([['Retention', `${t.retPct}%${t.after ? ' (after CIS)' : ' (on the gross)'}`], ['CIS', `${t.cisPct}%${t.after ? ' (on the gross)' : ' (on gross less retention)'}`], ['Net payable (app)', fmtGBP(t.net)], ['Invoice total', x.inv == null ? 'not entered' : fmtGBP(x.inv)], ['Difference (invoice - app)', x.diff == null ? '' : fmtGBP(x.diff)], ['Status', x.wk.locked ? 'Approved' : 'Open']]);
+  return k.finish(`Subcontractor timesheet - ${x.s.name} - ${tsWcLong(ws)}`); }
+ACTIONS['tss-pdf'] = a => { const x = tssCalc(TSS.off.ws).find(y => y.s.id === a.dataset.sub); if (!x) return; qOut(tssPdf(x, TSS.off.ws).output('blob'), `Subcontractor-${safeName(x.s.name)}-${TSS.off.ws}.pdf`); };
 
 /* ---------- labour vs budget: add approved subcontractor weeks ---------- */
 { const _bl = tsBudLoad; tsBudLoad = async function () { await _bl(); if (!TS.bud || !TS.bud.by) return;
   try { const [w, d] = await Promise.all([sbFetch('/rest/v1/ts_sub_weeks?status=in.(approved,sent)&select=sub_id,week&limit=5000'), sbFetch('/rest/v1/ts_sub_days?select=sub_id,week,day,job,jt,men&limit=10000'), tssLoad(true)]);
     const ok = new Set((w || []).map(x => x.sub_id + '|' + x.week)), grp = {}; (d || []).filter(r => ok.has(r.sub_id + '|' + r.week)).forEach(r => { (grp[r.sub_id + '|' + r.week] = grp[r.sub_id + '|' + r.week] || []).push(r); });
-    Object.entries(grp).forEach(([k, rows]) => { const s = TSS.list.find(x => x.id === k.split('|')[0]); if (!s) return; const t = TSC.subWeek(s, rows, tsCfgV());
+    Object.entries(grp).forEach(([k, rows]) => { const s = TSS.list.find(x => x.id === k.split('|')[0]); if (!s) return; const t = TSC.subWeek(tssR(s, tsCfgV()), rows, tsCfgV());
       Object.entries(t.jobs).forEach(([j, q]) => { if (/^txt:/.test(j)) return; const o = TS.bud.by[j] = TS.bud.by[j] || { days: 0, gbp: 0, h: 0, ppl: new Set(), pend: 0 }; o.days += q.days; o.gbp += q.gbp; o.h += q.h; Object.values(t.men).forEach(m => o.ppl.add('sub:' + s.id + ':' + m.name)); }); });
     if (route()[0] === 'tsbudget') rerender(); } catch (e) { /* subcontractor figures are optional here */ } }; }
 
@@ -16171,7 +16251,7 @@ ACTIONS['tsx-edit'] = a => tssEdit(a.dataset.id || null);
   if (k === 'tssetup') { paint('Subcontractors', 'Set up gangs', '#/tssubs/' + TSC.monday(todayISO()), tssSetupView()); return; }
   const ws = /^\d{4}-\d{2}-\d{2}$/.test(rt[1] || '') ? TSC.monday(rt[1]) : TSC.monday(todayISO()); paint('Subcontractors', tsWc(ws), '#/tsoffice/' + ws, tssOfficeView(ws)); }; }
 addEventListener('hashchange', () => { const k = route()[0]; if (k === 'tssubs' && TSS.off.data) tssOffLoad(TSC.monday(route()[1] || todayISO()), true); if (k === 'tssetup') TSS.list = null; });
-(() => { const st = document.createElement('style'); st.textContent = `.tss-man{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid #eef2f7}.tss-man details input{width:96px}.tss-grid td.c,.tss-grid th.c{text-align:center}.tss-sub.off{opacity:.6}.chip.bad{background:#fee2e2;color:#991b1b}.chip.ok{background:#dcfce7;color:#166534}.tss-fig td{padding:4px 8px}.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.row3 .f{min-width:0}.row3 input{width:100%;min-width:0;box-sizing:border-box}`; document.head.appendChild(st); })();
+(() => { const st = document.createElement('style'); st.textContent = `.tsx-rrow{border:1px solid #cbd5e1;border-radius:8px;padding:8px;margin:6px 0}.tsx-rrow.bad{border-color:#dc2626;background:#fef2f2}.tsx-rname{font-weight:700;margin-bottom:4px}.tsx-rin{display:flex;gap:6px}.tsx-rin input{flex:1;min-width:0}.tsx-rin select{flex:none;width:auto}.tsx-calc{margin-top:4px}.tsx-ck.ok{color:#15803d;font-weight:700}.tsx-ck.bad{color:#b91c1c;font-weight:700}.tss-lines td,.tss-lines th{white-space:nowrap}.tss-man{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid #eef2f7}.tss-man details input{width:96px}.tss-grid td.c,.tss-grid th.c{text-align:center}.tss-sub.off{opacity:.6}.chip.bad{background:#fee2e2;color:#991b1b}.chip.ok{background:#dcfce7;color:#166534}.tss-fig td{padding:4px 8px}.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.row3 .f{min-width:0}.row3 input{width:100%;min-width:0;box-sizing:border-box}`; document.head.appendChild(st); })();
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
