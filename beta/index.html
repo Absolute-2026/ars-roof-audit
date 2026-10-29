@@ -16361,6 +16361,62 @@ if (typeof tssJobs === 'function') tssJobs = function () { return isOp() ? (Ops.
   Promise.all([pjlStLoad(), (Ops.jobsTbl || []).length ? null : loadJobsTbl(), typeof tsJcLoad === 'function' ? tsJcLoad() : null]).then(fresh); }; }
 document.head.insertAdjacentHTML('beforeend', '<style>.pjl-tabs b{margin-left:6px;font-weight:800}.pjl-home{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}.pjl-home .ic{font-size:26px}.pjl-home .t1{font-weight:800}.pjl-home .bd{flex:1}#pjl-status .btn{margin:6px 0}</style>');
 
+/* ===== v1.11.22 (BETA): admin-only Delete project (Matt, 29 Oct 2026: "Can jobs be deleted as we have run a few test projects" /
+   "Can it just be an option for me to delete"). Only a project admin (Matt; or role admin) sees it - the database enforces it (RPCs
+   job_soft_delete / job_restore / job_deleted_list, edge function project-admin for the permanent delete).
+   Delete = soft: hidden from every list and picker, kept 30 days in "Recently deleted" (Restore), then removed with its audits,
+   inspections, daily checks and their files. Timesheet entries, subcontractor days and messages are kept (pay / conversation history). */
+const PJA = { on: null, list: null, err: '' };
+async function pjaLoad() { if (PJA.on !== null) return PJA.on; try { PJA.on = (await sbFetch('/rest/v1/rpc/is_project_admin', { method: 'POST', body: {} })) === true; } catch (e) { PJA.on = false; } return PJA.on; }
+const pjaCountRows = c => { c = c || {}; const n = (k, one, many) => `${c[k] || 0} ${(c[k] || 0) === 1 ? one : many}`;
+  return [[n('audits', 'audit', 'audits') + (c.binned_audits ? ` (+${c.binned_audits} already binned)` : ''), 'del'], [n('inspections', 'works inspection', 'works inspections'), 'del'], [n('daily_checks', 'daily check', 'daily checks'), 'del'],
+    [n('files', 'photo / file', 'photos / files'), 'del'], [n('timesheet_entries', 'timesheet entry', 'timesheet entries'), 'keep'], [n('sub_bookings', 'subcontractor day', 'subcontractor days'), 'keep'], [n('messages', 'message', 'messages'), 'keep']]; };
+const pjaCountsHtml = c => `<ul class="pja-counts">${pjaCountRows(c).map(([t, k]) => `<li class="${k}">${k === 'del' ? '🗑' : '✓'} ${esc(t)}${k === 'keep' ? ' <span class="small">- kept</span>' : ''}</li>`).join('')}</ul>`;
+const pjaName = p => [p.ref, p.site_name].filter(Boolean).join(' · ') || 'this project';
+const pjaKey = p => (p.ref || '').trim() || (p.site_name || '').trim();
+function pjaCard(p) { if (!PJA.on) return '';
+  return `<div class="card pja-zone" id="pja-zone"><h2>Delete project</h2><p class="small">Only you (admin) can see this. It goes to <b>Recently deleted</b> for 30 days, where you can restore it.</p><button type="button" class="btn danger" data-act="pja-del" data-id="${esc(p.id)}" id="pja-del">🗑 Delete project</button></div>`; }
+ACTIONS['pja-del'] = async function (a) { const p = (Ops.jobsTbl || []).find(x => x.id === a.dataset.id); if (!p || !PJA.on) return; if (!online()) return toast('Needs signal');
+  let c; try { c = await sbFetch('/rest/v1/rpc/job_link_counts', { method: 'POST', body: { p_job: p.id } }); } catch (e) { return toast('Could not check what is linked: ' + (e.message || e), 5000); }
+  const key = pjaKey(p); let typed = '', note = '';
+  const r = await modal(`<h3>Delete ${esc(pjaName(p))}?</h3><p class="small">Linked to this project:</p>${pjaCountsHtml(c)}
+    <p class="small">It disappears from every list and picker straight away (root app too) and the folder sync will not bring it back. For <b>30 days</b> it stays in <b>Recently deleted</b> where you can restore it; after that the items marked 🗑 are removed for good. Items marked ✓ are kept.</p>
+    <div class="f"><label for="pja-type">Type <b>${esc(key)}</b> to confirm</label><input id="pja-type" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(key)}"></div>
+    <div class="f"><label for="pja-note">Reason <span class="small">(optional)</span></label><input id="pja-note" maxlength="300" placeholder="e.g. test project"></div>
+    <button class="btn danger" data-r="ok" id="pja-ok">Delete project</button><button class="btn" data-r="cancel">Cancel</button>`,
+    bg => { const sync = () => { typed = ($('#pja-type', bg) || {}).value || ''; note = ($('#pja-note', bg) || {}).value || ''; }; bg.addEventListener('input', sync, true); bg.addEventListener('click', sync, true); });
+  if (r !== 'ok') return;
+  if (typed.trim().toLowerCase() !== key.toLowerCase() && typed.trim().toLowerCase() !== (p.site_name || '').trim().toLowerCase()) return toast(`Not deleted - type ${key} exactly`, 5000);
+  try { await sbFetch('/rest/v1/rpc/job_soft_delete', { method: 'POST', body: { p_job: p.id, p_confirm: typed.trim(), p_note: note.trim() || null } }); }
+  catch (e) { return toast('Not deleted: ' + (e.message || e), 5000); }
+  PJA.list = null; await loadJobsTbl(); toast('Moved to Recently deleted (30 days)'); go('#/projects/deleted'); };
+async function pjaListLoad() { try { PJA.list = await sbFetch('/rest/v1/rpc/job_deleted_list', { method: 'POST', body: {} }) || []; PJA.err = ''; } catch (e) { PJA.err = e.message || String(e); PJA.list = PJA.list || []; } }
+function pjaListView() { if (!PJA.on) return '<p class="hint">Only an admin can see Recently deleted.</p>'; if (!PJA.list) return '<p class="hint">Loading…</p>';
+  const d = s => s ? fmtDate(String(s).slice(0, 10)) : '';
+  return `<p class="small">Deleted projects are kept here for 30 days, hidden from everyone else. Restore puts everything back. After 30 days they are removed for good.</p>${PJA.err ? `<p class="lg-msg">${esc(PJA.err)}</p>` : ''}
+    <div class="card list" id="pja-list">${PJA.list.map(x => `<div class="item pja-row" data-id="${esc(x.job_id)}"><div class="bd"><div class="t1">${esc(pjaName(x))}</div><div class="t2">${esc([x.site_address, x.postcode].filter(Boolean).join(', '))}</div>
+      <div class="meta"><span class="tag red">Deleted by ${esc(x.deleted_by_name || '?')} · ${d(x.deleted_at)}</span><span class="tag">Gone for good ${d(x.purge_after)}</span></div>${x.note ? `<p class="small"><i>“${esc(x.note)}”</i></p>` : ''}
+      ${pjaCountsHtml(x.counts)}<div class="pja-btns"><button type="button" class="btn" data-act="pja-restore" data-id="${esc(x.job_id)}">↺ Restore</button><button type="button" class="btn danger sm" data-act="pja-purge" data-id="${esc(x.job_id)}">Delete permanently</button></div></div></div>`).join('') || '<p class="hint" style="padding:12px">Nothing deleted in the last 30 days.</p>'}</div>`; }
+ACTIONS['pja-restore'] = async function (a) { const x = (PJA.list || []).find(r => r.job_id === a.dataset.id); if (!x) return;
+  if (!(await confirmBox('Restore project?', `${pjaName(x)} comes back exactly as it was, with everything linked to it.`, 'Restore', false))) return;
+  try { await sbFetch('/rest/v1/rpc/job_restore', { method: 'POST', body: { p_job: x.job_id } }); await Promise.all([loadJobsTbl(), pjaListLoad()]); toast('Restored'); rerender(); } catch (e) { toast('Not restored: ' + (e.message || e), 5000); } };
+ACTIONS['pja-purge'] = async function (a) { const x = (PJA.list || []).find(r => r.job_id === a.dataset.id); if (!x) return; const key = pjaKey(x); let typed = '';
+  const r = await modal(`<h3>Delete permanently?</h3><p><b>${esc(pjaName(x))}</b> and the items marked 🗑 are removed for good - this cannot be undone.</p>${pjaCountsHtml(x.counts)}
+    <div class="f"><label for="pja-type2">Type <b>${esc(key)}</b> again to confirm</label><input id="pja-type2" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    <button class="btn danger" data-r="ok" id="pja-ok2">Delete permanently</button><button class="btn" data-r="cancel">Cancel</button>`, bg => { const s = () => { typed = ($('#pja-type2', bg) || {}).value || ''; }; bg.addEventListener('input', s, true); bg.addEventListener('click', s, true); });
+  if (r !== 'ok') return; if (!online()) return toast('Needs signal');
+  try { await fnCall('project-admin', { action: 'purge', job: x.job_id, confirm: typed.trim() }); await pjaListLoad(); toast('Deleted permanently'); rerender(); } catch (e) { toast('Not deleted: ' + (e.message || e), 5000); } };
+// project page: the admin's delete card; projects list: link to Recently deleted
+{ const _pv = pjlProjectView; pjlProjectView = function (id) { const h = _pv(id); const p = (Ops.jobsTbl || []).find(x => x.id === id); return p ? h + pjaCard(p) : h; }; }
+{ const _lv = pjlView; pjlView = function () { return _lv() + (PJA.on ? `<p style="text-align:center;margin:14px 0"><a href="#/projects/deleted" id="pja-link" class="small">🗑 Recently deleted</a></p>` : ''); }; }
+{ const _r = render; render = function (keep) { const rt = route();
+  if ((rt[0] === 'projects' || rt[0] === 'project') && PJA.on === null && signedIn() && !isOp()) pjaLoad().then(on => { if (on) { const r2 = route(); if (r2[0] === rt[0]) rerender(); } });
+  if (rt[0] !== 'projects' || rt[1] !== 'deleted') return _r(keep);
+  if (!signedIn() || isOp()) { go('#/'); return; } S.ctx = null; document.body.classList.remove('hasnav');
+  $('#app').innerHTML = header({ title: 'Recently deleted', sub: 'Projects · admin only', back: '#/projects' }) + `<main>${pjaListView()}</main>`; lastHash = location.hash;
+  pjaLoad().then(on => on ? pjaListLoad() : null).then(() => { const r2 = route(); if (r2[0] === 'projects' && r2[1] === 'deleted') { const m = $('main'); if (m) m.innerHTML = pjaListView(); } }); }; }
+document.head.insertAdjacentHTML('beforeend', '<style>.pja-counts{margin:6px 0 10px;padding-left:4px;list-style:none}.pja-counts li{margin:3px 0}.pja-counts li.keep{color:#5a6b7d}.pja-zone{border:1px solid #f1c4c4}.btn.danger{background:#c62828;color:#fff;border-color:#c62828}.pja-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.pja-row .bd{width:100%}</style>');
+
 /* v1.11.22 (Matt 29 Oct, iPhone feedback):
    A) every LIVE project in the operative / foreman / gang lead job pickers - from rpc live_jobs_pick (id, ref, site name ONLY; no money / surveyor / commercial).
    B) time wheel: tap a time -> our own 15-minute wheel; nothing changes until Done (Cancel leaves it). Replaces iOS's native wheel that committed as it scrolled. */
