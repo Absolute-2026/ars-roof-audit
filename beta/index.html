@@ -15534,7 +15534,7 @@ async function tsAutoSd(w) {
 
 /* ---------- operative screens ---------- */
 const TS_BRK = [0, 15, 20, 30, 45, 60, 90];
-function tsJobLabel(e) { if (!e) return ''; if (e.job) { const j = (Ops.jobs || []).find(x => x.id === e.job) || (typeof LJP !== 'undefined' && LJP.list || []).find(x => x.id === e.job); return j ? [j.ref, j.site_name].filter(Boolean).join(' · ') : (e.jl || 'Job'); } return e.jt ? e.jt + ' (other)' : ''; }
+function tsJobLabel(e) { if (!e) return ''; if (e.job) { const j = (Ops.jobs || []).find(x => x.id === e.job) || (Ops.jobsTbl || []).find(x => x.id === e.job) || (typeof LJP !== 'undefined' && LJP.list || []).find(x => x.id === e.job); return j ? [j.ref, j.site_name].filter(Boolean).join(' · ') : (e.jl || 'Job'); } return e.jt ? e.jt + ' (other)' : ''; }
 function tsDaySummary(d) { if (!d) return ''; const ents = (d.e || []).filter(e => e.s || e.f);
   return ents.map(e => `${esc(e.s || '?')} – ${esc(e.f || '?')}${+e.b ? ' · ' + (+e.b) + ' min break' : ''}${tsJobLabel(e) ? ' · ' + esc(tsJobLabel(e)) : ''}`).join('<br>'); }
 function tsDayTags(d, ro) {
