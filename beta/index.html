@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.11">
+<meta name="app-version" content="1.11.12">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.11';
+const APP_VERSION = '1.11.12';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -11608,7 +11608,11 @@ const IND_CH = [{"id": "01", "t": "Welcome and your responsibilities", "v": "ARS
 const IND_BUCKET = 'induction', IND_POLICIES = 'policies/ARS-Induction-Pack.pdf', IND_PACK = 'pack/ARS-New-Starter-Induction.pdf';
 const IND = { urls: {}, contacts: null, cT: 0, hd: null, fT: 0, saveT: 0, sending: false };
 const indId = pid => 'ind-' + pid;
-const indRec = (pid = me()) => { const r = Rec.items[indId(pid)]; return r && !r.deleted ? r : null; };
+// v1.11.12: IND.as = the attendee whose steps are on screen in a group session (the leader's device); otherwise the signed-in person
+const indBase = () => IND.as ? '#/indgroup/p/' + IND.as : '#/induction';
+const indMyName = () => IND.as ? (indPersonG(IND.as).full_name || '') : myName();
+const indPersonG = id => (Cloud.profiles || []).find(p => p.id === id) || { id, full_name: '' };
+const indRec = (pid = IND.as || me()) => { const r = Rec.items[indId(pid)]; return r && !r.deleted ? r : null; };
 const indD = r => { const d = r.data || (r.data = {}); d.ch = d.ch || {}; d.forms = d.forms || {}; return d; };
 const indUK = t => { if (!t) return ''; const x = new Date(t); return isNaN(x) ? '' : x.toLocaleString('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '') + ' (UK time)'; };
 const indNow = () => new Date().toISOString();
@@ -11661,8 +11665,18 @@ const IND_STEPS = [{ id: 'intro', t: 'Welcome', g: 'Start', done: d => !!d.start
     { id: 'policies', t: 'Read the full company policies', g: 'Finish', done: d => !!d.policiesOpenedAt },
     { id: 'declare', t: 'Final declaration and signature', g: 'Finish', done: d => !!(d.decl && d.decl.at) }]);
 const indStep = id => IND_STEPS.find(s => s.id === id);
-const indFirstOpen = r => { const d = indD(r); return IND_STEPS.find(s => !s.done(d)); };
-const indCanOpen = (r, id) => { const d = indD(r); for (const s of IND_STEPS) { if (s.id === id) return true; if (s.done(d)) continue; if (s.id === 'health' && IND.hq) continue; return false; } return false; };
+// v1.11.12: in a live group session (attendee on their own phone) the forms can be done while the group watches the videos;
+// a chapter's check questions open once that chapter is watched, and the declaration only once everything else is done
+const indLive = r => { const g = r && indD(r).group; return !!(g && g.live && g.mode === 'phone') && ['assigned', 'in_progress'].includes(r.status); };
+function indLiveOpen(r, id) { const d = indD(r), s = indStep(id); if (!s) return false;
+  // a video opens on the phone only to catch up on a chapter the group has already watched (e.g. joined late)
+  const gs = IND.gs && IND.gs.id === d.group.id ? IND.gs : null, gw = c => !!gs && !!(gs.ch[c.id] || {}).watchedAt;
+  if (s.kind === 'video') { const i = IND_CH.indexOf(s.ch); return gw(s.ch) && IND_CH.slice(0, i).every(c => (d.ch[c.id] || {}).watchedAt); }
+  if (s.kind === 'quiz') return !!(d.ch[s.ch.id] || {}).watchedAt;
+  if (id === 'declare') return IND_CH.every(gw) && IND_STEPS.every(x => x.id === 'declare' || x.done(d) || (x.id === 'health' && IND.hq));
+  return true; }
+const indFirstOpen = r => { const d = indD(r), live = indLive(r); return IND_STEPS.find(s => !s.done(d) && (!live || indLiveOpen(r, s.id))); };
+const indCanOpen = (r, id) => { if (indLive(r)) return indLiveOpen(r, id); const d = indD(r); for (const s of IND_STEPS) { if (s.id === id) return true; if (s.done(d)) continue; if (s.id === 'health' && IND.hq) continue; return false; } return false; };
 const indCount = r => { const d = indD(r); return [IND_STEPS.filter(s => s.done(d)).length, IND_STEPS.length]; };
 const indChDone = d => IND_CH.filter(c => d.ch && d.ch[c.id] && d.ch[c.id].quizAt).length;
 function indSave(r) { const d = indD(r); if (!d.startedAt) d.startedAt = indNow(); if (r.status === 'assigned' || !r.status) r.status = 'in_progress'; recPut(r); }
@@ -11740,7 +11754,7 @@ function indStepHTML(r, id) { const d = indD(r), s = indStep(id); if (!s) return
   const ro = r.status === 'submitted' || r.status === 'complete', dis = ro ? 'disabled' : '';
   const f = (k, l, v, x = '') => `<div class="f"><label for="if-${k}">${l}</label><input id="if-${k}" data-if="${k}" value="${esc(v || '')}" ${x} ${dis}></div>`;
   const save = (lbl = 'Save and continue') => ro ? '' : `<button class="btn primary block" data-act="ind-form" data-step="${id}">${lbl}</button>`;
-  if (id === 'details') { const x = d.forms.details || {}, p = Cloud.profile || {}, em = p.email && !/\.invalid$/.test(p.email) ? p.email : '';
+  if (id === 'details') { const x = d.forms.details || {}, p = (IND.as ? indPersonG(IND.as) : Cloud.profile) || {}, em = p.email && !/\.invalid$/.test(p.email) ? p.email : '';
     return `<div class="card" id="ind-form">${nav}<h2>Your details</h2>${f('name', 'Full name', x.name || p.full_name, 'autocomplete="name"')}${f('dob', 'Date of birth', x.dob, 'type="date"')}${f('ni', 'National Insurance number', x.ni, 'autocapitalize="characters" placeholder="e.g. QQ 12 34 56 C"')}
       <div class="f"><label for="if-address">Home address</label><textarea id="if-address" data-if="address" rows="3" ${dis}>${esc(x.address || '')}</textarea></div>${f('email', 'Email address', x.email || em, 'type="email" autocomplete="email"')}${f('phone', 'Mobile number', x.phone || p.phone, 'type="tel" autocomplete="tel"')}
       <h3 class="ind-g">Right to work in the UK</h3><p class="hint">Your inductor checks this. If you're not a British or Irish citizen, get a share code at gov.uk/prove-right-to-work and enter it here.</p>
@@ -11772,7 +11786,7 @@ function indStepHTML(r, id) { const d = indD(r), s = indStep(id); if (!s) return
       <button class="btn primary block" data-act="ind-policies" id="ind-pol">Open the full policies (PDF)</button><button class="btn block" data-act="ind-policies" data-f="pack" id="ind-pack">Open the New Starter Induction pack (PDF)</button>${d.policiesOpenedAt ? `<p class="hint">Opened ${esc(indUK(d.policiesOpenedAt))}.</p><button class="btn block" data-act="ind-next" data-step="policies">Next: final declaration</button>` : ''}</div>` + indContactsHTML();
   if (id === 'declare') { const miss = IND_STEPS.filter(x => x.id !== 'declare' && !x.done(d));
     return `<div class="card">${nav}<h2>Final declaration</h2><p class="ind-decl">“${esc(IND_DECL)}”</p>${miss.length ? `<div class="lg-msg">Still to do: ${miss.map(x => esc(x.kind === 'quiz' ? x.g + ' questions' : x.t)).join('; ')}.${miss.some(x => x.id === 'health') && IND.hq ? ' Your health forms will send when you have signal.' : ''}</div>` : ''}
-      ${d.decl && d.decl.at ? `<p class="hint">Signed ${esc(indUK(d.decl.at))}</p><img class="ind-sig" src="${d.decl.sig}" alt="signature">` : `<div class="f"><label for="if-dname">Your name (print)</label><input id="if-dname" value="${esc((d.forms.details || {}).name || myName())}"></div><button class="btn primary block" data-act="ind-declare" ${miss.length ? 'disabled' : ''}>Sign and submit</button>`}</div>`; }
+      ${d.decl && d.decl.at ? `<p class="hint">Signed ${esc(indUK(d.decl.at))}</p><img class="ind-sig" src="${d.decl.sig}" alt="signature">` : `<div class="f"><label for="if-dname">Your name (print)</label><input id="if-dname" value="${esc((d.forms.details || {}).name || indMyName())}"></div><button class="btn primary block" data-act="ind-declare" ${miss.length ? 'disabled' : ''}>Sign and submit</button>`}</div>`; }
   return indOverviewHTML(r); }
 
 function indHealthHTML(r) { const d = indD(r), h = IND.hd || {}, m = h.medical || {}, o = h.oh || {};
@@ -11791,7 +11805,7 @@ function indHealthHTML(r) { const d = indD(r), h = IND.hd || {}, m = h.medical |
     ${sec('Do you suffer from:', L(IND_SUF), o.suf || {}, 'suf')}${sec('Are you:', L(IND_ARE), o.are || {}, 'are')}
     <div class="f"><label for="ih-phob">Phobias / details</label><textarea id="ih-phob" data-ih="phobias" rows="2">${esc(o.phobias || '')}</textarea></div>
     <h3 class="ind-g">Declaration</h3><label class="ind-chk"><input type="checkbox" id="ih-decl" ${h.decl ? 'checked' : ''}><span>I confirm that the information I have given is true and complete to the best of my knowledge. I will tell the Company if my health changes in a way that may affect my work.</span></label>
-    <div class="f"><label for="ih-name">Name (print)</label><input id="ih-name" value="${esc(h.name || (d.forms.details || {}).name || myName())}"></div>
+    <div class="f"><label for="ih-name">Name (print)</label><input id="ih-name" value="${esc(h.name || (d.forms.details || {}).name || indMyName())}"></div>
     <button class="btn primary block" data-act="ind-hsubmit">Sign and send confidentially</button></div>`; }
 
 /* ---------- health: draft on the phone until sent, then deleted ---------- */
@@ -11800,26 +11814,26 @@ function indHealthRead() { const root = $('#ind-health'); if (!root) return IND.
   root.querySelectorAll('.ind-yn').forEach(row => { const [sec, k] = row.dataset.yn.split('.'), c = row.querySelector('input:checked'); if (!c) return; if (sec === 'med') h.medical[k] = c.value; else h.oh[sec][k] = c.value; });
   root.querySelectorAll('[data-ih]').forEach(t => { h.oh[t.dataset.ih] = t.value.trim(); });
   h.decl = !!($('#ih-decl') || {}).checked; h.name = (($('#ih-name') || {}).value || '').trim(); return h; }
-let indHT = 0; function indHealthKeep() { if (!$('#ind-health')) return; IND.hd = indHealthRead(); clearTimeout(indHT); indHT = setTimeout(() => DB.setKV(indHKey('hd'), IND.hd), 200); }
+let indHT = 0; function indHealthKeep() { if (!$('#ind-health')) return; IND.hd = indHealthRead(); if (IND.as) return; /* group session: never stored on the shared device */ clearTimeout(indHT); indHT = setTimeout(() => DB.setKV(indHKey('hd'), IND.hd), 200); }
 async function indHealthLoad() { if (IND.hdU === me()) return; IND.hdU = me(); IND.hd = (await DB.getKV(indHKey('hd'))) || null; IND.hq = (await DB.getKV(indHKey('hq'))) || null; }
 async function indHealthSend() { if (!IND.hq || IND.sending || !signedIn() || !online()) return false; const r = indRec(); if (!r) return false; IND.sending = true;
   try { if (r._q) await recFlush();   // the induction record must exist on the server first
-    const res = await sbFetch('/rest/v1/rpc/submit_induction_health', { method: 'POST', body: { p: IND.hq } });
+    const gp = IND.as; const res = gp ? await sbFetch('/rest/v1/rpc/submit_induction_health_group', { method: 'POST', body: { person: gp, p: IND.hq } }) : await sbFetch('/rest/v1/rpc/submit_induction_health', { method: 'POST', body: { p: IND.hq } });
     if (!res || !res.ok) throw new Error('Not sent');
-    indD(r).healthSubmittedAt = res.submitted_at; IND.hq = null; IND.hd = null; await DB.setKV(indHKey('hq'), null); await DB.setKV(indHKey('hd'), null); recPut(r); toast('Health forms sent confidentially'); return true;
+    indD(r).healthSubmittedAt = res.submitted_at; IND.hq = null; IND.hd = null; if (!gp) { await DB.setKV(indHKey('hq'), null); await DB.setKV(indHKey('hd'), null); } recPut(r); toast('Health forms sent confidentially'); return true;
   } catch (e) { if (!e.offline) toast('Health forms not sent yet: ' + (e.message || e), 4000); return false; } finally { IND.sending = false; } }
 window.addEventListener('online', () => { if (IND.hq) indHealthSend().then(ok => ok && /^#\/induction/.test(location.hash) && rerender()); });
 
 /* ---------- video: signed URL, captions on, no skipping ahead ---------- */
-async function indMountVideo() { const v = $('#ind-vid'); if (!v || v._ind) return; v._ind = 1; if (!indRec()) return; const c = IND_CH.find(x => x.id === v.dataset.ch);
+async function indMountVideo() { const v = $('#ind-vid'); if (!v || v._ind) return; v._ind = 1; const vr = IND.vrec || (() => indRec()), vs = IND.vsave || indSave; if (!vr()) return; const c = IND_CH.find(x => x.id === v.dataset.ch);
   // always work on the current copy of the record (a background sync can replace the object)
-  const cur = () => { const r = indRec(); if (!r) return [null, { maxT: 0 }]; const d = indD(r); return [r, d.ch[c.id] || (d.ch[c.id] = { maxT: 0 })]; };
+  const cur = () => { const r = vr(); if (!r) return [null, { maxT: 0 }]; const d = indD(r); return [r, d.ch[c.id] || (d.ch[c.id] = { maxT: 0 })]; };
   const msg = (t) => { const m = $('#ind-vmsg'); if (m) { m.textContent = t || ''; m.hidden = !t; } };
   const dur = () => v.duration && isFinite(v.duration) ? v.duration : (cur()[1].dur || c.d);
   const upd = () => { const st = cur()[1], D = dur(); const pct = st.watchedAt ? 100 : Math.min(99, Math.round(100 * (st.maxT || 0) / D)); const b = $('#ind-pbar'), t = $('#ind-pct'); if (b) b.style.width = pct + '%'; if (t) t.textContent = st.watchedAt ? 'Watched' : pct + '%';
     if (!st.watchedAt && (st.maxT || 0) >= D - 3) done(); };
-  let saveT = 0; const saveSoon = () => { const [r] = cur(); if (!r) return; if (Date.now() - saveT > 15000) { saveT = Date.now(); indSave(r); } else { r._q = true; r.updated_at = new Date().toISOString(); recSaveLocal(); } };   // kept queued so a background fetch can't roll it back
-  const done = () => { const [r, st] = cur(); if (!r || st.watchedAt) return; st.watchedAt = indNow(); st.dur = Math.round(dur() * 10) / 10; indSave(r); const b = $('#ind-vnext'); if (b) b.disabled = false; const h = $('#ind-vhint'); if (h) h.textContent = 'Watched. Now answer the check questions.'; toast('Chapter watched'); upd(); };
+  let saveT = 0; const saveSoon = () => { const [r] = cur(); if (!r) return; if (Date.now() - saveT > 15000) { saveT = Date.now(); vs(r); } else if (IND.vsave) vs(r, 1); else { r._q = true; r.updated_at = new Date().toISOString(); recSaveLocal(); } };   // kept queued so a background fetch can't roll it back
+  const done = () => { const [r, st] = cur(); if (!r || st.watchedAt) return; st.watchedAt = indNow(); st.dur = Math.round(dur() * 10) / 10; vs(r); const b = $('#ind-vnext'); if (b) b.disabled = false; const h = $('#ind-vhint'); if (h) h.textContent = IND.vsave ? 'Watched - marked as watched for everyone in the session.' : 'Watched. Now answer the check questions.'; toast('Chapter watched'); upd(); };
   v.addEventListener('loadedmetadata', () => { const st = cur()[1]; if (isFinite(v.duration)) st.dur = v.duration; if (!st.watchedAt && st.maxT > 2 && st.maxT < v.duration - 3) try { v.currentTime = st.maxT; } catch (e) { } [...v.textTracks].forEach(t => { t.mode = 'showing'; }); upd(); });
   // v1.11.11: progress also comes from what the browser really played (v.played). iPhones send timeupdate rarely (screen locked, full screen,
   // busy phone), and a gap of more than 2.5 s used to freeze the progress for good, so the chapter never counted as watched.
@@ -11828,7 +11842,7 @@ async function indMountVideo() { const v = $('#ind-vid'); if (!v || v._ind) retu
   v.addEventListener('timeupdate', prog); v.addEventListener('pause', prog);
   v.addEventListener('seeking', () => { const st = cur()[1]; if (!st.watchedAt && v.currentTime > (st.maxT || 0) + 1) { v.currentTime = st.maxT || 0; msg("You can't skip ahead until you've watched this part"); setTimeout(() => msg(''), 2500); } });
   v.addEventListener('ended', () => { prog(); const st = cur()[1], D = dur(); if ((st.maxT || 0) >= D - 4) { st.maxT = D; done(); } });
-  v.addEventListener('pause', () => { const [r, st] = cur(); if (r && !st.watchedAt) indSave(r); });
+  v.addEventListener('pause', () => { const [r, st] = cur(); if (r && !st.watchedAt) vs(r); });
   // v1.11.11: a stalled or failed video (weak signal, or the 2-hour link ran out while the screen was open) gets a fresh link and carries on
   // from the same point, up to 3 times, before asking the user to try again.
   let tries = 0, stallT = 0, want = false, fixing = false; v.addEventListener('play', () => { want = true; }); v.addEventListener('pause', () => { if (!fixing && !v.error) want = false; });
@@ -11853,16 +11867,16 @@ async function indMountVideo() { const v = $('#ind-vid'); if (!v || v._ind) retu
 
 /* ---------- actions ---------- */
 Object.assign(ACTIONS, {
-  'ind-go'(a) { go('#/induction/' + a.dataset.step); },
-  'ind-start'() { const r = indRec(); if (!r) return; indSave(r); go('#/induction/' + IND_STEPS[1].id); },
-  'ind-next'(a) { const r = indRec(); if (!r) return; const i = IND_STEPS.findIndex(s => s.id === a.dataset.step), nx = IND_STEPS[i + 1]; go(nx && indCanOpen(r, nx.id) ? '#/induction/' + nx.id : '#/induction'); },
+  'ind-go'(a) { go(indBase() + '/' + a.dataset.step); },
+  'ind-start'() { const r = indRec(); if (!r) return; indSave(r); go(indBase() + '/' + IND_STEPS[1].id); },
+  'ind-next'(a) { const r = indRec(); if (!r) return; if (indLive(r)) { const f = indFirstOpen(r); go(f ? indBase() + '/' + f.id : indBase()); return; } const i = IND_STEPS.findIndex(s => s.id === a.dataset.step), nx = IND_STEPS[i + 1]; go(nx && indCanOpen(r, nx.id) ? indBase() + '/' + nx.id : indBase()); },
   'ind-quiz'() { const r = indRec(), box = $('#ind-quiz'); if (!r || !box) return; const c = IND_CH.find(x => x.id === box.dataset.ch), d = indD(r), st = d.ch[c.id] || (d.ch[c.id] = {}); let bad = 0, miss = 0; const ans = [];
     c.q.forEach((q, i) => { const fs = box.querySelector(`.ind-q[data-i="${i}"]`), sel = fs.querySelector('input:checked'), m = fs.querySelector('.ind-qmsg'); fs.classList.remove('ok', 'bad');
       if (!sel) { miss++; m.hidden = false; m.textContent = 'Choose an answer'; return; } const v = +sel.value; ans.push(v);
       if (v === q.a) { fs.classList.add('ok'); m.hidden = false; m.textContent = 'Correct'; } else { bad++; fs.classList.add('bad'); m.hidden = false; m.textContent = 'Not quite. Have another go (or watch the video again).'; sel.checked = false; } });
     if (miss) return toast('Answer every question'); st.attempts = (st.attempts || 0) + 1; (st.tries = st.tries || []).push({ at: indNow(), wrong: bad });
     if (bad) { indSave(r); return toast(bad === 1 ? 'One answer is wrong - try again' : bad + ' answers are wrong - try again'); }
-    st.answers = ans; st.quizAt = indNow(); indSave(r); toast('All correct'); const i = IND_STEPS.findIndex(s => s.id === 'q' + c.id); go('#/induction/' + IND_STEPS[i + 1].id); },
+    st.answers = ans; st.quizAt = indNow(); indSave(r); toast('All correct'); if (indLive(r)) return ACTIONS['ind-next']({ dataset: { step: 'q' + c.id } }); const i = IND_STEPS.findIndex(s => s.id === 'q' + c.id); go(indBase() + '/' + IND_STEPS[i + 1].id); },
   async 'ind-form'(a) { const r = indRec(); if (!r || r.status === 'submitted' || r.status === 'complete') return; const id = a.dataset.step, d = indD(r), root = $('#ind-form'); const V = {}; root.querySelectorAll('[data-if]').forEach(e => { V[e.dataset.if] = e.type === 'checkbox' ? e.checked : e.value.trim(); });
     const need = (ks, lab) => { const m = ks.filter(k => !V[k]); if (m.length) { toast('Please fill in: ' + m.map(k => lab[k] || k).join(', '), 3500); const el = root.querySelector(`[data-if="${m[0]}"]`); if (el) el.focus(); return false; } return true; };
     if (id === 'details') { if (!need(['name', 'dob', 'ni', 'address', 'idType'], { name: 'full name', dob: 'date of birth', ni: 'NI number', address: 'address', idType: 'type of ID' })) return; if (!V.notice) return toast('Tick to confirm you have read the notice about your information');
@@ -11875,18 +11889,18 @@ Object.assign(ACTIONS, {
       d.forms.ppe = { emp, items, sizes, other: V.other, confirm: Object.values(items).includes('issued') && !!V.confirm, at: indNow() }; }
     else if (id === 'nok') { if (!need(['name', 'rel', 'phone'], { name: 'name', rel: 'relationship', phone: 'contact number' })) return; d.forms.nok = Object.assign(V, { at: indNow() }); }
     else if (id === 'wto') { const sel = root.querySelector('input[name=iw]:checked'); if (!sel) return toast('Choose (a), (b) or "don’t want to choose now"'); const choice = sel.value; let sig = null;
-      if (choice) { sig = await signaturePad({ name: (d.forms.details || {}).name || myName() }); if (!sig) return; }
-      d.forms.wto = { choice, text: choice === 'a' ? IND_WTO_A : choice === 'b' ? IND_WTO_B : 'No choice made', name: (d.forms.details || {}).name || myName(), sig, at: indNow() }; }
+      if (choice) { sig = await signaturePad({ name: (d.forms.details || {}).name || indMyName() }); if (!sig) return; }
+      d.forms.wto = { choice, text: choice === 'a' ? IND_WTO_A : choice === 'b' ? IND_WTO_B : 'No choice made', name: (d.forms.details || {}).name || indMyName(), sig, at: indNow() }; }
     else if (id === 'da') { const t = [...root.querySelectorAll('[data-da]')].map(e => e.checked); if (t.some(x => !x)) return toast('Tick all four statements to accept the policy');
-      const sig = await signaturePad({ name: (d.forms.details || {}).name || myName() }); if (!sig) return; d.forms.da = { ticks: IND_DA, name: (d.forms.details || {}).name || myName(), sig, at: indNow() }; }
+      const sig = await signaturePad({ name: (d.forms.details || {}).name || indMyName() }); if (!sig) return; d.forms.da = { ticks: IND_DA, name: (d.forms.details || {}).name || indMyName(), sig, at: indNow() }; }
     indSave(r); toast('Saved'); ACTIONS['ind-next']({ dataset: { step: id } }); },
   'ind-hno'(a) { const sec = $(`.ind-hsec[data-sec="${a.dataset.sec}"]`); if (!sec) return; sec.querySelectorAll('.ind-yn').forEach(row => { if (!row.querySelector('input:checked')) { const n = row.querySelector('input[value=n]'); n.checked = true; n.dispatchEvent(new Event('change', { bubbles: true })); } }); },
   async 'ind-hsubmit'() { const r = indRec(); if (!r) return; const h = indHealthRead(); const un = $$('#ind-health .ind-yn.unans');
     if (un.length) { un[0].scrollIntoView({ block: 'center' }); return toast(`${un.length} question${un.length > 1 ? 's' : ''} still to answer (Yes or No)`); }
     if (!h.decl) return toast('Tick the declaration'); if (!h.name) return toast('Print your name');
     const sig = await signaturePad({ name: h.name }); if (!sig) return;
-    IND.hq = { medical: h.medical, oh: h.oh, name: h.name, sig, signedAt: indNow() }; await DB.setKV(indHKey('hq'), IND.hq); await DB.setKV(indHKey('hd'), null); IND.hd = null;
-    indSave(r); const ok = await indHealthSend(); if (!ok && IND.hq) toast('Saved on this phone - it will send confidentially when you have signal', 4000); rerender(); },
+    IND.hq = { medical: h.medical, oh: h.oh, name: h.name, sig, signedAt: indNow() }; IND.hd = null; if (!IND.as) { await DB.setKV(indHKey('hq'), IND.hq); await DB.setKV(indHKey('hd'), null); }
+    indSave(r); const ok = await indHealthSend(); if (!ok && IND.hq) toast(IND.as ? 'Not sent yet - it needs signal. Nothing is stored on this device: tap “Try sending now” when there is signal.' : 'Saved on this phone - it will send confidentially when you have signal', 4000); rerender(); },
   async 'ind-hsend'() { await indHealthSend(); rerender(); },
   async 'ind-policies'(a) { const r = indRec(), pack = a && a.dataset && a.dataset.f === 'pack'; const w = window.open('', '_blank');
     try { const [u] = await indSigned([pack ? IND_PACK : IND_POLICIES]); if (!u) throw new Error('no link'); if (w) w.location.href = u; else location.href = u;
@@ -11894,7 +11908,8 @@ Object.assign(ACTIONS, {
     catch (e) { if (w) w.close(); toast(e.offline || !online() ? 'You need signal to open the policies' : 'Could not open the policies: ' + (e.message || e), 4000); } },
   async 'ind-declare'() { const r = indRec(); if (!r) return; const d = indD(r); const miss = IND_STEPS.filter(x => x.id !== 'declare' && !x.done(d)); if (miss.length) return toast('Finish the other steps first');
     const name = ($('#if-dname').value || '').trim(); if (!name) return toast('Print your name'); const sig = await signaturePad({ name }); if (!sig) return;
-    d.decl = { text: IND_DECL, name, sig, at: indNow(), device: indDevice(), app: APP_VERSION }; d.submittedAt = d.decl.at; r.status = 'submitted'; recPut(r); toast('Induction submitted - your manager will countersign'); go('#/induction'); },
+    d.decl = { text: IND_DECL, name, sig, at: indNow(), device: indDevice(), app: APP_VERSION }; if (d.group) d.decl.group = d.group.id; d.submittedAt = d.decl.at; r.status = 'submitted'; recPut(r);
+    if (IND.as) { toast('Signed - pass the device back to the person running the session', 4000); return go('#/indgroup/pass'); } toast('Induction submitted - your manager will countersign'); go('#/induction'); },
 });
 
 /* ---------- the signed induction record PDF (NO health answers) ---------- */
@@ -11912,8 +11927,9 @@ function indPDF(r, person, o = {}) { const { jsPDF } = window.jspdf; const doc =
   H('2. Right to work and ID'); KV('Type of ID provided', det.idType); KV('Share code', det.shareCode); const ir = d.inductor || {};
   KV('Right to work checked by inductor', ir.at ? (ir.rtwChecked ? `Yes - ${ir.rtwMethod || ''}` : 'No') : 'Not yet'); KV('ID seen by inductor', ir.idSeen); KV('Next of kin provided', d.forms.nok && d.forms.nok.at ? 'Yes' : 'No'); KV('Line manager', ir.lineManager);
   KV('Your information (GDPR notice)', det.notice ? `Read and confirmed ${indUK(det.at)}` : 'Not confirmed');
+  if (d.group && d.group.id) { H('Group induction session'); KV('Session', d.group.id); KV('Date and time', indUK(d.group.at)); KV('Led by', d.group.leader); KV('Number of attendees', String(d.group.n || '-')); }
   H('3. Induction videos and check questions');
-  IND_CH.forEach((ch, i) => { const s = d.ch[ch.id] || {}; P(`${i + 1}. ${ch.t}`, { b: 1 }); KV('Watched', s.watchedAt ? `${indUK(s.watchedAt)} (to the end)` : 'Not watched'); KV('Questions passed', s.quizAt ? `${indUK(s.quizAt)} (attempts: ${s.attempts || 1})` : 'Not passed');
+  IND_CH.forEach((ch, i) => { const s = d.ch[ch.id] || {}; P(`${i + 1}. ${ch.t}`, { b: 1 }); KV('Watched', s.watchedAt ? `${indUK(s.watchedAt)} (to the end)${s.group ? ' in group session ' + s.group + ', led by ' + (s.leader || '-') : ''}` : 'Not watched'); KV('Questions passed', s.quizAt ? `${indUK(s.quizAt)} (attempts: ${s.attempts || 1})` : 'Not passed');
     ch.q.forEach((q, j) => { const a = (s.answers || [])[j]; P(`Q: ${q.q}  -  A: ${a != null ? q.o[a] : '-'}`, { s: 8.5, ind: 4 }); }); });
   H('4. PPE issue and sizes (Appendix B)'); const pp = d.forms.ppe || {}; KV('Employment status', (IND_EMP.find(x => x[0] === pp.emp) || [])[1]);
   IND_PPE.forEach(([k, l]) => KV(l, indPpeTxt(pp, k))); KV('Other / requirements', pp.other); KV('Confirmed', pp.at ? `${pp.confirm ? 'Issued PPE received free of charge' : 'No PPE issued'} ${indUK(pp.at)}` : '-'); KV('Own PPE checked as suitable', indOwnPpe(pp).length ? ((d.inductor || {}).ownPpeChecked ? `Yes - ${(d.inductor || {}).name} ${indUK((d.inductor || {}).at)}` : 'Not yet') : 'No own PPE');
@@ -11956,7 +11972,7 @@ function indReviewHTML(pid) { const r = indRec(pid), p = indPerson(pid); if (!r)
   const kv = (a, b) => `<div class="ind-kv"><b>${esc(a)}</b><div>${b == null || b === '' ? '-' : esc(b)}</div></div>`;
   const staff = (Cloud.profiles || []).filter(x => x.active !== false && x.role !== 'operative');
   return `<div class="card"><h2>${esc(det.name || p.full_name || '')} <span class="tag ind-${k}">${esc(l)}</span></h2>
-    ${kv('Videos', `${indChDone(d)} of ${IND_CH.length} watched and questions passed`)}${IND_CH.map((c, i) => { const s = d.ch[c.id] || {}; return kv(`${i + 1}. ${c.t}`, s.quizAt ? `Watched ${indUK(s.watchedAt)} · passed ${indUK(s.quizAt)} (attempts ${s.attempts || 1})` : s.watchedAt ? 'Watched, questions not passed yet' : 'Not watched'); }).join('')}</div>
+    ${d.group && d.group.id ? kv('Group session', indGrpTxt(d)) : ''}${kv('Videos', `${indChDone(d)} of ${IND_CH.length} watched and questions passed`)}${IND_CH.map((c, i) => { const s = d.ch[c.id] || {}; return kv(`${i + 1}. ${c.t}`, s.quizAt ? `Watched ${indUK(s.watchedAt)}${s.group ? ' (group session)' : ''} · passed ${indUK(s.quizAt)} (attempts ${s.attempts || 1})` : s.watchedAt ? 'Watched, questions not passed yet' : 'Not watched'); }).join('')}</div>
     <div class="card"><h2>Details and right to work</h2>${kv('Date of birth', det.dob ? det.dob.split('-').reverse().join('/') : '')}${kv('NI number', det.ni)}${kv('Address', det.address)}${kv('Email', det.email)}${kv('Mobile', det.phone)}${kv('Type of ID', det.idType)}
       <div class="ind-kv"><b>Share code</b><div class="ind-code">${det.shareCode ? esc(det.shareCode) : '-'}</div></div><p class="hint">Check a share code at gov.uk/view-right-to-work using the date of birth above.</p></div>
     <div class="card"><h2>Forms</h2>${kv('Employment status', (IND_EMP.find(x => x[0] === pp.emp) || [])[1] || '-')}${kv('PPE', IND_PPE.map(([x, t]) => `${t.split(' (')[0]}: ${indPpeTxt(pp, x)}`).join('; '))}${kv('Other PPE', pp.other)}
@@ -12122,6 +12138,8 @@ async function indPackBytes() {   // the current pack from the private bucket; t
   if (online()) { try { const [u] = await indSigned([IND_PACK]); const res = u && await fetch(u); if (res && res.ok) { const b = new Uint8Array(await res.arrayBuffer()); if (b.length > 1000 && String.fromCharCode(...b.slice(0, 5)) === '%PDF-') { let s = ''; for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode.apply(null, b.subarray(i, i + 32768)); DB.setKV('ind.packpdf', btoa(s)); return b; } } } catch (e) { } }
   const c = await DB.getKV('ind.packpdf'); if (!c) return null; const s = atob(c), b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; }
 
+// v1.11.12: group induction session line (pack pages, audit trail and the record PDF)
+const indGrpTxt = d => { const g = d && d.group; return g && g.id ? `Group induction session ${g.id}: ${indUKt(g.at)}, led by ${g.leader || '-'}, ${g.n || '?'} attendee${g.n === 1 ? '' : 's'}` : ''; };
 async function indSignedPack(r, person, o = {}) {
   const bytes = o.bytes || await indPackBytes(); if (!bytes) return null;
   const { PDFDocument, StandardFonts, rgb } = await loadPdfLib(); const doc = await PDFDocument.load(bytes); if (doc.getPageCount() !== IND_PK.pages) throw new Error('The induction pack layout has changed (' + doc.getPageCount() + ' pages) - update the form positions');
@@ -12136,6 +12154,7 @@ async function indSignedPack(r, person, o = {}) {
   const drawSig = async (n, s, x0, x1, row) => { const im = await sig(s); if (!im) return; const bw = x1 - x0 - 4, bh = row[1] - row[0] - 4, k = Math.min(bw / im.width, bh / im.height); const w = im.width * k, h = im.height * k; pg(n).drawImage(im, { x: x0 + 2, y: Y(row[0] + 2) - h - (bh - h) / 2, width: w, height: h }); };
   const ring = (n, x0, x1, row) => pg(n).drawEllipse({ x: (x0 + x1) / 2, y: Y((row[0] + row[1]) / 2) + 0.5, xScale: (x1 - x0) / 2 + 3, yScale: 7, borderColor: INK, borderWidth: 1.1 });
   const esign = (n, who) => { const t = indWA(`Signed electronically in the ARS app: ${who.map(([lab, s]) => s && s.at ? `${lab} ${s.name || ''}, ${indUKt(s.at)}` : '').filter(Boolean).join('; ')}. Record ${r.id}.`); const [a, z] = fit(t, 482, 7.5); pg(n).drawText(a, { x: 57, y: 36, size: z, font: F, color: GREY }); };
+  const grp = indGrpTxt(d); const gline = n => { if (!grp) return; const [a, z] = fit(grp + (d.group.mode === 'phone' ? ' (videos shown together; forms and signature on own phone).' : ' (videos shown together; forms and signature on the session device).'), 482, 7.5, FB); pg(n).drawText(a, { x: 57, y: 47, size: z, font: FB, color: INK }); };
   const ini = s => indWA(s || '').split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase()).join('');
 
   // Appendix A: induction record + right to work
@@ -12147,7 +12166,7 @@ async function indSignedPack(r, person, o = {}) {
   const idTxt = [det.idType, ir.idSeen && ir.idSeen !== det.idType ? 'seen: ' + ir.idSeen : '', ir.rtwMethod ? 'check: ' + ir.rtwMethod : ''].filter(Boolean).join(' - '); put(A, idTxt, 150, IND_PK.aId, 215, 8);
   put(A, (d.forms.nok || {}).at ? 'Yes' : 'No', IND_PK.aYes, IND_PK.aNok, 78); if (ir.at) put(A, ini(ir.name), IND_PK.aIni, IND_PK.aNok, 76);
   if (det.notice && d.decl) { await drawSig(A, d.decl, IND_PK.aSig[0], IND_PK.aSig[0] + IND_PK.aSig[2], [IND_PK.aSig[1], IND_PK.aSig[1] + IND_PK.aSig[3]]); put(A, indUKd(det.at || at), IND_PK.aDate[0], [IND_PK.aDate[1], IND_PK.aDate[2]], 160); }
-  esign(A, [['inductee', d.decl], ['inductor', ir.at ? ir : null]]);
+  esign(A, [['inductee', d.decl], ['inductor', ir.at ? ir : null]]); gline(A);
 
   // Appendix B: PPE + sizes
   const B = IND_PK.B, pp = d.forms.ppe || {}, C2 = IND_PK.bCols, its = pp.items || {}, sz = pp.sizes || {}, own = indOwnPpe(pp);
@@ -12197,7 +12216,7 @@ async function indSignedPack(r, person, o = {}) {
   // Final declaration
   const FD = IND_PK.FD; if (d.decl) { put(FD, d.decl.name, IND_PK.dVal, IND_PK.dIn.name, 360); await drawSig(FD, d.decl, IND_PK.dVal, IND_PK.dVal + 110, IND_PK.dIn.sig); put(FD, indUKt(d.decl.at), IND_PK.dVal, IND_PK.dIn.date, 360); }
   if (ir.at) { put(FD, ir.name, IND_PK.dVal, IND_PK.dBy.name, 360); await drawSig(FD, ir, IND_PK.dVal, IND_PK.dVal + 110, IND_PK.dBy.sig); put(FD, indUKt(ir.at), IND_PK.dVal, IND_PK.dBy.date, 360); }
-  esign(FD, [['inductee', d.decl], ['inductor', ir.at ? ir : null]]);
+  esign(FD, [['inductee', d.decl], ['inductor', ir.at ? ir : null]]); gline(FD);
 
   // Audit trail page(s)
   let p = doc.addPage([595.3, 841.9]), y = 60; const M = 57, W = 482;
@@ -12210,8 +12229,9 @@ async function indSignedPack(r, person, o = {}) {
   p.drawText('Induction audit trail', { x: M, y: Y(y), size: 17, font: FB, color: NAVY }); y += 18;
   line(`${name} - Absolute Roofing Solutions Ltd - New Starter Induction pack version ${c.packVersion || '-'}, dated ${c.packDate || '-'}. All times are UK time.`, { s: 9, c: GREY, gap: 4 });
   head('Record'); kv('Record', r.id); kv('Inductee', `${name}${person && person.role ? ' (' + person.role + ')' : ''}`); kv('Assigned', `${indUKt(d.assignedAt)} by ${d.assignedBy || '-'}`); kv('Started', indUKt(d.startedAt));
+  if (grp) { const g = d.group; head('Group induction session'); kv('Session', g.id); kv('Date and time', indUKt(g.at)); kv('Led by', g.leader); kv('Number of attendees', String(g.n || '-')); kv('How it worked', g.mode === 'phone' ? 'The videos were played once on the leader\'s device to the whole group. This person joined the session on their own phone (signed in to their own account) and completed their own details, PPE, health forms (sent confidentially, not shown to anyone else), check questions and declaration there.' : 'The videos were played once on the leader\'s device to the whole group. This person did not use their own phone: they completed their own details, PPE, health forms (sent confidentially, not stored on the device or shown to anyone else), check questions and declaration on the session device, handed to them by the leader.'); if (g.joinedAt) kv('Joined the session', indUKt(g.joinedAt)); }
   head('Induction videos and check questions');
-  IND_CH.forEach((ch, i) => { const s = d.ch[ch.id] || {}; line(`${i + 1}. ${ch.t}`, { b: 1, s: 9.5 }); kv('Watched to the end', s.watchedAt ? indUKt(s.watchedAt) : 'Not watched');
+  IND_CH.forEach((ch, i) => { const s = d.ch[ch.id] || {}; line(`${i + 1}. ${ch.t}`, { b: 1, s: 9.5 }); kv('Watched to the end', s.watchedAt ? indUKt(s.watchedAt) : 'Not watched'); if (s.group) kv('Watched in group session', `${s.group}, finished ${indUKt(s.groupAt || s.watchedAt)}, led by ${s.leader || '-'}`);
     const tries = (s.tries || []).map((t, j) => `${j + 1}) ${indUKt(t.at)}: ${t.wrong ? t.wrong + ' wrong' : 'all correct'}`).join('; ');
     kv('Check questions', s.quizAt ? `Passed ${indUKt(s.quizAt)} after ${s.attempts || 1} attempt${(s.attempts || 1) > 1 ? 's' : ''}` : 'Not passed'); if (tries) kv('Attempts', tries); });
   head('Forms'); kv('Personal details / GDPR notice', det.at ? `${indUKt(det.at)}${det.notice ? ' - notice read and confirmed' : ''}` : '-'); kv('PPE and sizes', pp.at ? `${indUKt(pp.at)} - ${(IND_EMP.find(x => x[0] === pp.emp) || [])[1] || ''}` : '-'); kv('Own PPE checked as suitable', own.length ? (ir.ownPpeChecked ? `${ir.name}, ${indUKt(ir.at)} (${own.join(', ')})` : 'Not yet') : 'No own PPE');
@@ -12219,9 +12239,9 @@ async function indSignedPack(r, person, o = {}) {
   kv('Working time (48-hour opt-out)', wt.at ? `${wt.choice === 'a' ? '(a) opted out' : wt.choice === 'b' ? '(b) did not opt out' : 'no choice made'} - ${indUKt(wt.at)}` : '-'); kv('Drug & alcohol acceptance', da.at ? `Signed ${indUKt(da.at)}` : '-');
   kv('Full company policies opened', d.policiesOpenedAt ? indUKt(d.policiesOpenedAt) : 'Not opened');
   head('Signatures'); kv('Inductee declaration', d.decl ? `${d.decl.name}, ${indUKt(d.decl.at)}` : 'Not signed'); kv('Device / app', d.decl ? `${d.decl.device || 'not recorded'} - ARS app v${d.decl.app || '-'}` : '-');
-  kv('Countersigned by', ir.at ? `${ir.name}, ${indUKt(ir.at)}` : 'Not countersigned'); kv('Device / app', ir.at ? `${ir.device || 'not recorded'} - ARS app v${ir.app || '-'}` : '-');
+  kv('Countersigned by', ir.at ? `${ir.name}, ${indUKt(ir.at)}${ir.bulk ? ' (group countersign: each person listed and confirmed, separate record)' : ''}` : 'Not countersigned'); kv('Device / app', ir.at ? `${ir.device || 'not recorded'} - ARS app v${ir.app || '-'}` : '-');
   kv('Right to work', ir.at ? `${ir.rtwChecked ? 'Checked' : 'Not checked'}${ir.rtwMethod ? ' - ' + ir.rtwMethod : ''}; ID seen: ${ir.idSeen || '-'}; share code: ${det.shareCode || '-'}` : '-'); kv('Line manager', ir.lineManager); if (ir.note) kv('Inductor notes', ir.note);
-  y += 6; line('All signatures in this pack were drawn by hand on the signer\'s own device and signed electronically in the ARS app. Each signature, its time and the device are stored with the record.', { s: 8.5, c: GREY });
+  y += 6; line(grp && d.group.mode !== 'phone' ? 'All signatures in this pack were drawn by hand by the signer on the group session device and signed electronically in the ARS app. Each signature, its time and the device are stored with the record.' : 'All signatures in this pack were drawn by hand on the signer\'s own device and signed electronically in the ARS app. Each signature, its time and the device are stored with the record.', { s: 8.5, c: GREY });
   line(`Generated ${indUKt(Date.now())} by ARS app v${APP_VERSION}. Contains personal data - keep secure.`, { s: 8.5, c: GREY });
   const n0 = doc.getPageCount(); for (let i = IND_PK.pages; i < n0; i++) { const q = doc.getPage(i); q.drawText(indWA(`Induction audit trail - ${name} - page ${i - IND_PK.pages + 1} of ${n0 - IND_PK.pages}`), { x: M, y: 30, size: 7.5, font: F, color: GREY }); }
   doc.setTitle(indPackName(r, person).replace(/\.pdf$/, '')); doc.setAuthor('Absolute Roofing Solutions Ltd'); doc.setSubject('Signed New Starter Induction pack'); doc.setCreator('ARS app v' + APP_VERSION); doc.setProducer('ARS app');
@@ -12252,6 +12272,2548 @@ Object.assign(ACTIONS, {
     if (!h) return toast('No health forms found (or you do not have access)');
     qOut(indHealthPDF(h, p).output('blob'), `Induction health forms - CONFIDENTIAL - ${indWA(p.full_name || h.signed_name || 'person').replace(/[\\/:*?"<>|]+/g, '-')} - ${String(h.submitted_at || indNow()).slice(0, 10)}.pdf`); },
 });
+
+/* v1.11.12: QR codes for group induction join links. qrcode-generator 2.0.4 (MIT, Kazuhiko Arase), inlined so it works offline. */
+const QRGEN = (function () {
+//---------------------------------------------------------------------
+//
+// QR Code Generator for JavaScript
+//
+// Copyright (c) 2009 Kazuhiko Arase
+//
+// URL: http://www.d-project.com/
+//
+// Licensed under the MIT license:
+//  http://www.opensource.org/licenses/mit-license.php
+//
+// The word 'QR Code' is registered trademark of
+// DENSO WAVE INCORPORATED
+//  http://www.denso-wave.com/qrcode/faqpatent-e.html
+//
+//---------------------------------------------------------------------
+
+var qrcode = function() {
+
+  //---------------------------------------------------------------------
+  // qrcode
+  //---------------------------------------------------------------------
+
+  /**
+   * qrcode
+   * @param typeNumber 1 to 40
+   * @param errorCorrectionLevel 'L','M','Q','H'
+   */
+  var qrcode = function(typeNumber, errorCorrectionLevel) {
+
+    var PAD0 = 0xEC;
+    var PAD1 = 0x11;
+
+    var _typeNumber = typeNumber;
+    var _errorCorrectionLevel = QRErrorCorrectionLevel[errorCorrectionLevel];
+    var _modules = null;
+    var _moduleCount = 0;
+    var _dataCache = null;
+    var _dataList = [];
+
+    var _this = {};
+
+    var makeImpl = function(test, maskPattern) {
+
+      _moduleCount = _typeNumber * 4 + 17;
+      _modules = function(moduleCount) {
+        var modules = new Array(moduleCount);
+        for (var row = 0; row < moduleCount; row += 1) {
+          modules[row] = new Array(moduleCount);
+          for (var col = 0; col < moduleCount; col += 1) {
+            modules[row][col] = null;
+          }
+        }
+        return modules;
+      }(_moduleCount);
+
+      setupPositionProbePattern(0, 0);
+      setupPositionProbePattern(_moduleCount - 7, 0);
+      setupPositionProbePattern(0, _moduleCount - 7);
+      setupPositionAdjustPattern();
+      setupTimingPattern();
+      setupTypeInfo(test, maskPattern);
+
+      if (_typeNumber >= 7) {
+        setupTypeNumber(test);
+      }
+
+      if (_dataCache == null) {
+        _dataCache = createData(_typeNumber, _errorCorrectionLevel, _dataList);
+      }
+
+      mapData(_dataCache, maskPattern);
+    };
+
+    var setupPositionProbePattern = function(row, col) {
+
+      for (var r = -1; r <= 7; r += 1) {
+
+        if (row + r <= -1 || _moduleCount <= row + r) continue;
+
+        for (var c = -1; c <= 7; c += 1) {
+
+          if (col + c <= -1 || _moduleCount <= col + c) continue;
+
+          if ( (0 <= r && r <= 6 && (c == 0 || c == 6) )
+              || (0 <= c && c <= 6 && (r == 0 || r == 6) )
+              || (2 <= r && r <= 4 && 2 <= c && c <= 4) ) {
+            _modules[row + r][col + c] = true;
+          } else {
+            _modules[row + r][col + c] = false;
+          }
+        }
+      }
+    };
+
+    var getBestMaskPattern = function() {
+
+      var minLostPoint = 0;
+      var pattern = 0;
+
+      for (var i = 0; i < 8; i += 1) {
+
+        makeImpl(true, i);
+
+        var lostPoint = QRUtil.getLostPoint(_this);
+
+        if (i == 0 || minLostPoint > lostPoint) {
+          minLostPoint = lostPoint;
+          pattern = i;
+        }
+      }
+
+      return pattern;
+    };
+
+    var setupTimingPattern = function() {
+
+      for (var r = 8; r < _moduleCount - 8; r += 1) {
+        if (_modules[r][6] != null) {
+          continue;
+        }
+        _modules[r][6] = (r % 2 == 0);
+      }
+
+      for (var c = 8; c < _moduleCount - 8; c += 1) {
+        if (_modules[6][c] != null) {
+          continue;
+        }
+        _modules[6][c] = (c % 2 == 0);
+      }
+    };
+
+    var setupPositionAdjustPattern = function() {
+
+      var pos = QRUtil.getPatternPosition(_typeNumber);
+
+      for (var i = 0; i < pos.length; i += 1) {
+
+        for (var j = 0; j < pos.length; j += 1) {
+
+          var row = pos[i];
+          var col = pos[j];
+
+          if (_modules[row][col] != null) {
+            continue;
+          }
+
+          for (var r = -2; r <= 2; r += 1) {
+
+            for (var c = -2; c <= 2; c += 1) {
+
+              if (r == -2 || r == 2 || c == -2 || c == 2
+                  || (r == 0 && c == 0) ) {
+                _modules[row + r][col + c] = true;
+              } else {
+                _modules[row + r][col + c] = false;
+              }
+            }
+          }
+        }
+      }
+    };
+
+    var setupTypeNumber = function(test) {
+
+      var bits = QRUtil.getBCHTypeNumber(_typeNumber);
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[Math.floor(i / 3)][i % 3 + _moduleCount - 8 - 3] = mod;
+      }
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[i % 3 + _moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+      }
+    };
+
+    var setupTypeInfo = function(test, maskPattern) {
+
+      var data = (_errorCorrectionLevel << 3) | maskPattern;
+      var bits = QRUtil.getBCHTypeInfo(data);
+
+      // vertical
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 6) {
+          _modules[i][8] = mod;
+        } else if (i < 8) {
+          _modules[i + 1][8] = mod;
+        } else {
+          _modules[_moduleCount - 15 + i][8] = mod;
+        }
+      }
+
+      // horizontal
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 8) {
+          _modules[8][_moduleCount - i - 1] = mod;
+        } else if (i < 9) {
+          _modules[8][15 - i - 1 + 1] = mod;
+        } else {
+          _modules[8][15 - i - 1] = mod;
+        }
+      }
+
+      // fixed module
+      _modules[_moduleCount - 8][8] = (!test);
+    };
+
+    var mapData = function(data, maskPattern) {
+
+      var inc = -1;
+      var row = _moduleCount - 1;
+      var bitIndex = 7;
+      var byteIndex = 0;
+      var maskFunc = QRUtil.getMaskFunction(maskPattern);
+
+      for (var col = _moduleCount - 1; col > 0; col -= 2) {
+
+        if (col == 6) col -= 1;
+
+        while (true) {
+
+          for (var c = 0; c < 2; c += 1) {
+
+            if (_modules[row][col - c] == null) {
+
+              var dark = false;
+
+              if (byteIndex < data.length) {
+                dark = ( ( (data[byteIndex] >>> bitIndex) & 1) == 1);
+              }
+
+              var mask = maskFunc(row, col - c);
+
+              if (mask) {
+                dark = !dark;
+              }
+
+              _modules[row][col - c] = dark;
+              bitIndex -= 1;
+
+              if (bitIndex == -1) {
+                byteIndex += 1;
+                bitIndex = 7;
+              }
+            }
+          }
+
+          row += inc;
+
+          if (row < 0 || _moduleCount <= row) {
+            row -= inc;
+            inc = -inc;
+            break;
+          }
+        }
+      }
+    };
+
+    var createBytes = function(buffer, rsBlocks) {
+
+      var offset = 0;
+
+      var maxDcCount = 0;
+      var maxEcCount = 0;
+
+      var dcdata = new Array(rsBlocks.length);
+      var ecdata = new Array(rsBlocks.length);
+
+      for (var r = 0; r < rsBlocks.length; r += 1) {
+
+        var dcCount = rsBlocks[r].dataCount;
+        var ecCount = rsBlocks[r].totalCount - dcCount;
+
+        maxDcCount = Math.max(maxDcCount, dcCount);
+        maxEcCount = Math.max(maxEcCount, ecCount);
+
+        dcdata[r] = new Array(dcCount);
+
+        for (var i = 0; i < dcdata[r].length; i += 1) {
+          dcdata[r][i] = 0xff & buffer.getBuffer()[i + offset];
+        }
+        offset += dcCount;
+
+        var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+        var rawPoly = qrPolynomial(dcdata[r], rsPoly.getLength() - 1);
+
+        var modPoly = rawPoly.mod(rsPoly);
+        ecdata[r] = new Array(rsPoly.getLength() - 1);
+        for (var i = 0; i < ecdata[r].length; i += 1) {
+          var modIndex = i + modPoly.getLength() - ecdata[r].length;
+          ecdata[r][i] = (modIndex >= 0)? modPoly.getAt(modIndex) : 0;
+        }
+      }
+
+      var totalCodeCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalCodeCount += rsBlocks[i].totalCount;
+      }
+
+      var data = new Array(totalCodeCount);
+      var index = 0;
+
+      for (var i = 0; i < maxDcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < dcdata[r].length) {
+            data[index] = dcdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      for (var i = 0; i < maxEcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < ecdata[r].length) {
+            data[index] = ecdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      return data;
+    };
+
+    var createData = function(typeNumber, errorCorrectionLevel, dataList) {
+
+      var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectionLevel);
+
+      var buffer = qrBitBuffer();
+
+      for (var i = 0; i < dataList.length; i += 1) {
+        var data = dataList[i];
+        buffer.put(data.getMode(), 4);
+        buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+        data.write(buffer);
+      }
+
+      // calc num max data.
+      var totalDataCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalDataCount += rsBlocks[i].dataCount;
+      }
+
+      if (buffer.getLengthInBits() > totalDataCount * 8) {
+        throw 'code length overflow. ('
+          + buffer.getLengthInBits()
+          + '>'
+          + totalDataCount * 8
+          + ')';
+      }
+
+      // end code
+      if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
+        buffer.put(0, 4);
+      }
+
+      // padding
+      while (buffer.getLengthInBits() % 8 != 0) {
+        buffer.putBit(false);
+      }
+
+      // padding
+      while (true) {
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD0, 8);
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD1, 8);
+      }
+
+      return createBytes(buffer, rsBlocks);
+    };
+
+    _this.addData = function(data, mode) {
+
+      mode = mode || 'Byte';
+
+      var newData = null;
+
+      switch(mode) {
+      case 'Numeric' :
+        newData = qrNumber(data);
+        break;
+      case 'Alphanumeric' :
+        newData = qrAlphaNum(data);
+        break;
+      case 'Byte' :
+        newData = qr8BitByte(data);
+        break;
+      case 'Kanji' :
+        newData = qrKanji(data);
+        break;
+      default :
+        throw 'mode:' + mode;
+      }
+
+      _dataList.push(newData);
+      _dataCache = null;
+    };
+
+    _this.isDark = function(row, col) {
+      if (row < 0 || _moduleCount <= row || col < 0 || _moduleCount <= col) {
+        throw row + ',' + col;
+      }
+      return _modules[row][col];
+    };
+
+    _this.getModuleCount = function() {
+      return _moduleCount;
+    };
+
+    _this.make = function() {
+      if (_typeNumber < 1) {
+        var typeNumber = 1;
+
+        for (; typeNumber < 40; typeNumber++) {
+          var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, _errorCorrectionLevel);
+          var buffer = qrBitBuffer();
+
+          for (var i = 0; i < _dataList.length; i++) {
+            var data = _dataList[i];
+            buffer.put(data.getMode(), 4);
+            buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+            data.write(buffer);
+          }
+
+          var totalDataCount = 0;
+          for (var i = 0; i < rsBlocks.length; i++) {
+            totalDataCount += rsBlocks[i].dataCount;
+          }
+
+          if (buffer.getLengthInBits() <= totalDataCount * 8) {
+            break;
+          }
+        }
+
+        _typeNumber = typeNumber;
+      }
+
+      makeImpl(false, getBestMaskPattern() );
+    };
+
+    _this.createTableTag = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var qrHtml = '';
+
+      qrHtml += '<table style="';
+      qrHtml += ' border-width: 0px; border-style: none;';
+      qrHtml += ' border-collapse: collapse;';
+      qrHtml += ' padding: 0px; margin: ' + margin + 'px;';
+      qrHtml += '">';
+      qrHtml += '<tbody>';
+
+      for (var r = 0; r < _this.getModuleCount(); r += 1) {
+
+        qrHtml += '<tr>';
+
+        for (var c = 0; c < _this.getModuleCount(); c += 1) {
+          qrHtml += '<td style="';
+          qrHtml += ' border-width: 0px; border-style: none;';
+          qrHtml += ' border-collapse: collapse;';
+          qrHtml += ' padding: 0px; margin: 0px;';
+          qrHtml += ' width: ' + cellSize + 'px;';
+          qrHtml += ' height: ' + cellSize + 'px;';
+          qrHtml += ' background-color: ';
+          qrHtml += _this.isDark(r, c)? '#000000' : '#ffffff';
+          qrHtml += ';';
+          qrHtml += '"/>';
+        }
+
+        qrHtml += '</tr>';
+      }
+
+      qrHtml += '</tbody>';
+      qrHtml += '</table>';
+
+      return qrHtml;
+    };
+
+    _this.createSvgTag = function(cellSize, margin, alt, title) {
+
+      var opts = {};
+      if (typeof arguments[0] == 'object') {
+        // Called by options.
+        opts = arguments[0];
+        // overwrite cellSize and margin.
+        cellSize = opts.cellSize;
+        margin = opts.margin;
+        alt = opts.alt;
+        title = opts.title;
+      }
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      // Compose alt property surrogate
+      alt = (typeof alt === 'string') ? {text: alt} : alt || {};
+      alt.text = alt.text || null;
+      alt.id = (alt.text) ? alt.id || 'qrcode-description' : null;
+
+      // Compose title property surrogate
+      title = (typeof title === 'string') ? {text: title} : title || {};
+      title.text = title.text || null;
+      title.id = (title.text) ? title.id || 'qrcode-title' : null;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var c, mc, r, mr, qrSvg='', rect;
+
+      rect = 'l' + cellSize + ',0 0,' + cellSize +
+        ' -' + cellSize + ',0 0,-' + cellSize + 'z ';
+
+      qrSvg += '<svg version="1.1" xmlns="http://www.w3.org/2000/svg"';
+      qrSvg += !opts.scalable ? ' width="' + size + 'px" height="' + size + 'px"' : '';
+      qrSvg += ' viewBox="0 0 ' + size + ' ' + size + '" ';
+      qrSvg += ' preserveAspectRatio="xMinYMin meet"';
+      qrSvg += (title.text || alt.text) ? ' role="img" aria-labelledby="' +
+          escapeXml([title.id, alt.id].join(' ').trim() ) + '"' : '';
+      qrSvg += '>';
+      qrSvg += (title.text) ? '<title id="' + escapeXml(title.id) + '">' +
+          escapeXml(title.text) + '</title>' : '';
+      qrSvg += (alt.text) ? '<description id="' + escapeXml(alt.id) + '">' +
+          escapeXml(alt.text) + '</description>' : '';
+      qrSvg += '<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>';
+      qrSvg += '<path d="';
+
+      for (r = 0; r < _this.getModuleCount(); r += 1) {
+        mr = r * cellSize + margin;
+        for (c = 0; c < _this.getModuleCount(); c += 1) {
+          if (_this.isDark(r, c) ) {
+            mc = c*cellSize+margin;
+            qrSvg += 'M' + mc + ',' + mr + rect;
+          }
+        }
+      }
+
+      qrSvg += '" stroke="transparent" fill="black"/>';
+      qrSvg += '</svg>';
+
+      return qrSvg;
+    };
+
+    _this.createDataURL = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      return createDataURL(size, size, function(x, y) {
+        if (min <= x && x < max && min <= y && y < max) {
+          var c = Math.floor( (x - min) / cellSize);
+          var r = Math.floor( (y - min) / cellSize);
+          return _this.isDark(r, c)? 0 : 1;
+        } else {
+          return 1;
+        }
+      } );
+    };
+
+    _this.createImgTag = function(cellSize, margin, alt) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+
+      var img = '';
+      img += '<img';
+      img += '\u0020src="';
+      img += _this.createDataURL(cellSize, margin);
+      img += '"';
+      img += '\u0020width="';
+      img += size;
+      img += '"';
+      img += '\u0020height="';
+      img += size;
+      img += '"';
+      if (alt) {
+        img += '\u0020alt="';
+        img += escapeXml(alt);
+        img += '"';
+      }
+      img += '/>';
+
+      return img;
+    };
+
+    var escapeXml = function(s) {
+      var escaped = '';
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charAt(i);
+        switch(c) {
+        case '<': escaped += '&lt;'; break;
+        case '>': escaped += '&gt;'; break;
+        case '&': escaped += '&amp;'; break;
+        case '"': escaped += '&quot;'; break;
+        default : escaped += c; break;
+        }
+      }
+      return escaped;
+    };
+
+    var _createHalfASCII = function(margin) {
+      var cellSize = 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r1, r2, p;
+
+      var blocks = {
+        '██': '█',
+        '█ ': '▀',
+        ' █': '▄',
+        '  ': ' '
+      };
+
+      var blocksLastLineNoMargin = {
+        '██': '▀',
+        '█ ': '▀',
+        ' █': ' ',
+        '  ': ' '
+      };
+
+      var ascii = '';
+      for (y = 0; y < size; y += 2) {
+        r1 = Math.floor((y - min) / cellSize);
+        r2 = Math.floor((y + 1 - min) / cellSize);
+        for (x = 0; x < size; x += 1) {
+          p = '█';
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r1, Math.floor((x - min) / cellSize))) {
+            p = ' ';
+          }
+
+          if (min <= x && x < max && min <= y+1 && y+1 < max && _this.isDark(r2, Math.floor((x - min) / cellSize))) {
+            p += ' ';
+          }
+          else {
+            p += '█';
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          ascii += (margin < 1 && y+1 >= max) ? blocksLastLineNoMargin[p] : blocks[p];
+        }
+
+        ascii += '\n';
+      }
+
+      if (size % 2 && margin > 0) {
+        return ascii.substring(0, ascii.length - size - 1) + Array(size+1).join('▀');
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.createASCII = function(cellSize, margin) {
+      cellSize = cellSize || 1;
+
+      if (cellSize < 2) {
+        return _createHalfASCII(margin);
+      }
+
+      cellSize -= 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r, p;
+
+      var white = Array(cellSize+1).join('██');
+      var black = Array(cellSize+1).join('  ');
+
+      var ascii = '';
+      var line = '';
+      for (y = 0; y < size; y += 1) {
+        r = Math.floor( (y - min) / cellSize);
+        line = '';
+        for (x = 0; x < size; x += 1) {
+          p = 1;
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r, Math.floor((x - min) / cellSize))) {
+            p = 0;
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          line += p ? white : black;
+        }
+
+        for (r = 0; r < cellSize; r += 1) {
+          ascii += line + '\n';
+        }
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.renderTo2dContext = function(context, cellSize) {
+      cellSize = cellSize || 2;
+      var length = _this.getModuleCount();
+      for (var row = 0; row < length; row++) {
+        for (var col = 0; col < length; col++) {
+          context.fillStyle = _this.isDark(row, col) ? 'black' : 'white';
+          context.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrcode.stringToBytes
+  //---------------------------------------------------------------------
+
+  qrcode.stringToBytesFuncs = {
+    'default' : function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        bytes.push(c & 0xff);
+      }
+      return bytes;
+    }
+  };
+
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['default'];
+
+  //---------------------------------------------------------------------
+  // qrcode.createStringToBytes
+  //---------------------------------------------------------------------
+
+  /**
+   * @param unicodeData base64 string of byte array.
+   * [16bit Unicode],[16bit Bytes], ...
+   * @param numChars
+   */
+  qrcode.createStringToBytes = function(unicodeData, numChars) {
+
+    // create conversion map.
+
+    var unicodeMap = function() {
+
+      var bin = base64DecodeInputStream(unicodeData);
+      var read = function() {
+        var b = bin.read();
+        if (b == -1) throw 'eof';
+        return b;
+      };
+
+      var count = 0;
+      var unicodeMap = {};
+      while (true) {
+        var b0 = bin.read();
+        if (b0 == -1) break;
+        var b1 = read();
+        var b2 = read();
+        var b3 = read();
+        var k = String.fromCharCode( (b0 << 8) | b1);
+        var v = (b2 << 8) | b3;
+        unicodeMap[k] = v;
+        count += 1;
+      }
+      if (count != numChars) {
+        throw count + ' != ' + numChars;
+      }
+
+      return unicodeMap;
+    }();
+
+    var unknownChar = '?'.charCodeAt(0);
+
+    return function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        if (c < 128) {
+          bytes.push(c);
+        } else {
+          var b = unicodeMap[s.charAt(i)];
+          if (typeof b == 'number') {
+            if ( (b & 0xff) == b) {
+              // 1byte
+              bytes.push(b);
+            } else {
+              // 2bytes
+              bytes.push(b >>> 8);
+              bytes.push(b & 0xff);
+            }
+          } else {
+            bytes.push(unknownChar);
+          }
+        }
+      }
+      return bytes;
+    };
+  };
+
+  //---------------------------------------------------------------------
+  // QRMode
+  //---------------------------------------------------------------------
+
+  var QRMode = {
+    MODE_NUMBER :    1 << 0,
+    MODE_ALPHA_NUM : 1 << 1,
+    MODE_8BIT_BYTE : 1 << 2,
+    MODE_KANJI :     1 << 3
+  };
+
+  //---------------------------------------------------------------------
+  // QRErrorCorrectionLevel
+  //---------------------------------------------------------------------
+
+  var QRErrorCorrectionLevel = {
+    L : 1,
+    M : 0,
+    Q : 3,
+    H : 2
+  };
+
+  //---------------------------------------------------------------------
+  // QRMaskPattern
+  //---------------------------------------------------------------------
+
+  var QRMaskPattern = {
+    PATTERN000 : 0,
+    PATTERN001 : 1,
+    PATTERN010 : 2,
+    PATTERN011 : 3,
+    PATTERN100 : 4,
+    PATTERN101 : 5,
+    PATTERN110 : 6,
+    PATTERN111 : 7
+  };
+
+  //---------------------------------------------------------------------
+  // QRUtil
+  //---------------------------------------------------------------------
+
+  var QRUtil = function() {
+
+    var PATTERN_POSITION_TABLE = [
+      [],
+      [6, 18],
+      [6, 22],
+      [6, 26],
+      [6, 30],
+      [6, 34],
+      [6, 22, 38],
+      [6, 24, 42],
+      [6, 26, 46],
+      [6, 28, 50],
+      [6, 30, 54],
+      [6, 32, 58],
+      [6, 34, 62],
+      [6, 26, 46, 66],
+      [6, 26, 48, 70],
+      [6, 26, 50, 74],
+      [6, 30, 54, 78],
+      [6, 30, 56, 82],
+      [6, 30, 58, 86],
+      [6, 34, 62, 90],
+      [6, 28, 50, 72, 94],
+      [6, 26, 50, 74, 98],
+      [6, 30, 54, 78, 102],
+      [6, 28, 54, 80, 106],
+      [6, 32, 58, 84, 110],
+      [6, 30, 58, 86, 114],
+      [6, 34, 62, 90, 118],
+      [6, 26, 50, 74, 98, 122],
+      [6, 30, 54, 78, 102, 126],
+      [6, 26, 52, 78, 104, 130],
+      [6, 30, 56, 82, 108, 134],
+      [6, 34, 60, 86, 112, 138],
+      [6, 30, 58, 86, 114, 142],
+      [6, 34, 62, 90, 118, 146],
+      [6, 30, 54, 78, 102, 126, 150],
+      [6, 24, 50, 76, 102, 128, 154],
+      [6, 28, 54, 80, 106, 132, 158],
+      [6, 32, 58, 84, 110, 136, 162],
+      [6, 26, 54, 82, 110, 138, 166],
+      [6, 30, 58, 86, 114, 142, 170]
+    ];
+    var G15 = (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0);
+    var G18 = (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0);
+    var G15_MASK = (1 << 14) | (1 << 12) | (1 << 10) | (1 << 4) | (1 << 1);
+
+    var _this = {};
+
+    var getBCHDigit = function(data) {
+      var digit = 0;
+      while (data != 0) {
+        digit += 1;
+        data >>>= 1;
+      }
+      return digit;
+    };
+
+    _this.getBCHTypeInfo = function(data) {
+      var d = data << 10;
+      while (getBCHDigit(d) - getBCHDigit(G15) >= 0) {
+        d ^= (G15 << (getBCHDigit(d) - getBCHDigit(G15) ) );
+      }
+      return ( (data << 10) | d) ^ G15_MASK;
+    };
+
+    _this.getBCHTypeNumber = function(data) {
+      var d = data << 12;
+      while (getBCHDigit(d) - getBCHDigit(G18) >= 0) {
+        d ^= (G18 << (getBCHDigit(d) - getBCHDigit(G18) ) );
+      }
+      return (data << 12) | d;
+    };
+
+    _this.getPatternPosition = function(typeNumber) {
+      return PATTERN_POSITION_TABLE[typeNumber - 1];
+    };
+
+    _this.getMaskFunction = function(maskPattern) {
+
+      switch (maskPattern) {
+
+      case QRMaskPattern.PATTERN000 :
+        return function(i, j) { return (i + j) % 2 == 0; };
+      case QRMaskPattern.PATTERN001 :
+        return function(i, j) { return i % 2 == 0; };
+      case QRMaskPattern.PATTERN010 :
+        return function(i, j) { return j % 3 == 0; };
+      case QRMaskPattern.PATTERN011 :
+        return function(i, j) { return (i + j) % 3 == 0; };
+      case QRMaskPattern.PATTERN100 :
+        return function(i, j) { return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 == 0; };
+      case QRMaskPattern.PATTERN101 :
+        return function(i, j) { return (i * j) % 2 + (i * j) % 3 == 0; };
+      case QRMaskPattern.PATTERN110 :
+        return function(i, j) { return ( (i * j) % 2 + (i * j) % 3) % 2 == 0; };
+      case QRMaskPattern.PATTERN111 :
+        return function(i, j) { return ( (i * j) % 3 + (i + j) % 2) % 2 == 0; };
+
+      default :
+        throw 'bad maskPattern:' + maskPattern;
+      }
+    };
+
+    _this.getErrorCorrectPolynomial = function(errorCorrectLength) {
+      var a = qrPolynomial([1], 0);
+      for (var i = 0; i < errorCorrectLength; i += 1) {
+        a = a.multiply(qrPolynomial([1, QRMath.gexp(i)], 0) );
+      }
+      return a;
+    };
+
+    _this.getLengthInBits = function(mode, type) {
+
+      if (1 <= type && type < 10) {
+
+        // 1 - 9
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 10;
+        case QRMode.MODE_ALPHA_NUM : return 9;
+        case QRMode.MODE_8BIT_BYTE : return 8;
+        case QRMode.MODE_KANJI     : return 8;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 27) {
+
+        // 10 - 26
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 12;
+        case QRMode.MODE_ALPHA_NUM : return 11;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 10;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 41) {
+
+        // 27 - 40
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 14;
+        case QRMode.MODE_ALPHA_NUM : return 13;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 12;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else {
+        throw 'type:' + type;
+      }
+    };
+
+    _this.getLostPoint = function(qrcode) {
+
+      var moduleCount = qrcode.getModuleCount();
+
+      var lostPoint = 0;
+
+      // LEVEL1
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount; col += 1) {
+
+          var sameCount = 0;
+          var dark = qrcode.isDark(row, col);
+
+          for (var r = -1; r <= 1; r += 1) {
+
+            if (row + r < 0 || moduleCount <= row + r) {
+              continue;
+            }
+
+            for (var c = -1; c <= 1; c += 1) {
+
+              if (col + c < 0 || moduleCount <= col + c) {
+                continue;
+              }
+
+              if (r == 0 && c == 0) {
+                continue;
+              }
+
+              if (dark == qrcode.isDark(row + r, col + c) ) {
+                sameCount += 1;
+              }
+            }
+          }
+
+          if (sameCount > 5) {
+            lostPoint += (3 + sameCount - 5);
+          }
+        }
+      };
+
+      // LEVEL2
+
+      for (var row = 0; row < moduleCount - 1; row += 1) {
+        for (var col = 0; col < moduleCount - 1; col += 1) {
+          var count = 0;
+          if (qrcode.isDark(row, col) ) count += 1;
+          if (qrcode.isDark(row + 1, col) ) count += 1;
+          if (qrcode.isDark(row, col + 1) ) count += 1;
+          if (qrcode.isDark(row + 1, col + 1) ) count += 1;
+          if (count == 0 || count == 4) {
+            lostPoint += 3;
+          }
+        }
+      }
+
+      // LEVEL3
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount - 6; col += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row, col + 1)
+              &&  qrcode.isDark(row, col + 2)
+              &&  qrcode.isDark(row, col + 3)
+              &&  qrcode.isDark(row, col + 4)
+              && !qrcode.isDark(row, col + 5)
+              &&  qrcode.isDark(row, col + 6) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount - 6; row += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row + 1, col)
+              &&  qrcode.isDark(row + 2, col)
+              &&  qrcode.isDark(row + 3, col)
+              &&  qrcode.isDark(row + 4, col)
+              && !qrcode.isDark(row + 5, col)
+              &&  qrcode.isDark(row + 6, col) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      // LEVEL4
+
+      var darkCount = 0;
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount; row += 1) {
+          if (qrcode.isDark(row, col) ) {
+            darkCount += 1;
+          }
+        }
+      }
+
+      var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+      lostPoint += ratio * 10;
+
+      return lostPoint;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // QRMath
+  //---------------------------------------------------------------------
+
+  var QRMath = function() {
+
+    var EXP_TABLE = new Array(256);
+    var LOG_TABLE = new Array(256);
+
+    // initialize tables
+    for (var i = 0; i < 8; i += 1) {
+      EXP_TABLE[i] = 1 << i;
+    }
+    for (var i = 8; i < 256; i += 1) {
+      EXP_TABLE[i] = EXP_TABLE[i - 4]
+        ^ EXP_TABLE[i - 5]
+        ^ EXP_TABLE[i - 6]
+        ^ EXP_TABLE[i - 8];
+    }
+    for (var i = 0; i < 255; i += 1) {
+      LOG_TABLE[EXP_TABLE[i] ] = i;
+    }
+
+    var _this = {};
+
+    _this.glog = function(n) {
+
+      if (n < 1) {
+        throw 'glog(' + n + ')';
+      }
+
+      return LOG_TABLE[n];
+    };
+
+    _this.gexp = function(n) {
+
+      while (n < 0) {
+        n += 255;
+      }
+
+      while (n >= 256) {
+        n -= 255;
+      }
+
+      return EXP_TABLE[n];
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrPolynomial
+  //---------------------------------------------------------------------
+
+  function qrPolynomial(num, shift) {
+
+    if (typeof num.length == 'undefined') {
+      throw num.length + '/' + shift;
+    }
+
+    var _num = function() {
+      var offset = 0;
+      while (offset < num.length && num[offset] == 0) {
+        offset += 1;
+      }
+      var _num = new Array(num.length - offset + shift);
+      for (var i = 0; i < num.length - offset; i += 1) {
+        _num[i] = num[i + offset];
+      }
+      return _num;
+    }();
+
+    var _this = {};
+
+    _this.getAt = function(index) {
+      return _num[index];
+    };
+
+    _this.getLength = function() {
+      return _num.length;
+    };
+
+    _this.multiply = function(e) {
+
+      var num = new Array(_this.getLength() + e.getLength() - 1);
+
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        for (var j = 0; j < e.getLength(); j += 1) {
+          num[i + j] ^= QRMath.gexp(QRMath.glog(_this.getAt(i) ) + QRMath.glog(e.getAt(j) ) );
+        }
+      }
+
+      return qrPolynomial(num, 0);
+    };
+
+    _this.mod = function(e) {
+
+      if (_this.getLength() - e.getLength() < 0) {
+        return _this;
+      }
+
+      var ratio = QRMath.glog(_this.getAt(0) ) - QRMath.glog(e.getAt(0) );
+
+      var num = new Array(_this.getLength() );
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        num[i] = _this.getAt(i);
+      }
+
+      for (var i = 0; i < e.getLength(); i += 1) {
+        num[i] ^= QRMath.gexp(QRMath.glog(e.getAt(i) ) + ratio);
+      }
+
+      // recursive call
+      return qrPolynomial(num, 0).mod(e);
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // QRRSBlock
+  //---------------------------------------------------------------------
+
+  var QRRSBlock = function() {
+
+    var RS_BLOCK_TABLE = [
+
+      // L
+      // M
+      // Q
+      // H
+
+      // 1
+      [1, 26, 19],
+      [1, 26, 16],
+      [1, 26, 13],
+      [1, 26, 9],
+
+      // 2
+      [1, 44, 34],
+      [1, 44, 28],
+      [1, 44, 22],
+      [1, 44, 16],
+
+      // 3
+      [1, 70, 55],
+      [1, 70, 44],
+      [2, 35, 17],
+      [2, 35, 13],
+
+      // 4
+      [1, 100, 80],
+      [2, 50, 32],
+      [2, 50, 24],
+      [4, 25, 9],
+
+      // 5
+      [1, 134, 108],
+      [2, 67, 43],
+      [2, 33, 15, 2, 34, 16],
+      [2, 33, 11, 2, 34, 12],
+
+      // 6
+      [2, 86, 68],
+      [4, 43, 27],
+      [4, 43, 19],
+      [4, 43, 15],
+
+      // 7
+      [2, 98, 78],
+      [4, 49, 31],
+      [2, 32, 14, 4, 33, 15],
+      [4, 39, 13, 1, 40, 14],
+
+      // 8
+      [2, 121, 97],
+      [2, 60, 38, 2, 61, 39],
+      [4, 40, 18, 2, 41, 19],
+      [4, 40, 14, 2, 41, 15],
+
+      // 9
+      [2, 146, 116],
+      [3, 58, 36, 2, 59, 37],
+      [4, 36, 16, 4, 37, 17],
+      [4, 36, 12, 4, 37, 13],
+
+      // 10
+      [2, 86, 68, 2, 87, 69],
+      [4, 69, 43, 1, 70, 44],
+      [6, 43, 19, 2, 44, 20],
+      [6, 43, 15, 2, 44, 16],
+
+      // 11
+      [4, 101, 81],
+      [1, 80, 50, 4, 81, 51],
+      [4, 50, 22, 4, 51, 23],
+      [3, 36, 12, 8, 37, 13],
+
+      // 12
+      [2, 116, 92, 2, 117, 93],
+      [6, 58, 36, 2, 59, 37],
+      [4, 46, 20, 6, 47, 21],
+      [7, 42, 14, 4, 43, 15],
+
+      // 13
+      [4, 133, 107],
+      [8, 59, 37, 1, 60, 38],
+      [8, 44, 20, 4, 45, 21],
+      [12, 33, 11, 4, 34, 12],
+
+      // 14
+      [3, 145, 115, 1, 146, 116],
+      [4, 64, 40, 5, 65, 41],
+      [11, 36, 16, 5, 37, 17],
+      [11, 36, 12, 5, 37, 13],
+
+      // 15
+      [5, 109, 87, 1, 110, 88],
+      [5, 65, 41, 5, 66, 42],
+      [5, 54, 24, 7, 55, 25],
+      [11, 36, 12, 7, 37, 13],
+
+      // 16
+      [5, 122, 98, 1, 123, 99],
+      [7, 73, 45, 3, 74, 46],
+      [15, 43, 19, 2, 44, 20],
+      [3, 45, 15, 13, 46, 16],
+
+      // 17
+      [1, 135, 107, 5, 136, 108],
+      [10, 74, 46, 1, 75, 47],
+      [1, 50, 22, 15, 51, 23],
+      [2, 42, 14, 17, 43, 15],
+
+      // 18
+      [5, 150, 120, 1, 151, 121],
+      [9, 69, 43, 4, 70, 44],
+      [17, 50, 22, 1, 51, 23],
+      [2, 42, 14, 19, 43, 15],
+
+      // 19
+      [3, 141, 113, 4, 142, 114],
+      [3, 70, 44, 11, 71, 45],
+      [17, 47, 21, 4, 48, 22],
+      [9, 39, 13, 16, 40, 14],
+
+      // 20
+      [3, 135, 107, 5, 136, 108],
+      [3, 67, 41, 13, 68, 42],
+      [15, 54, 24, 5, 55, 25],
+      [15, 43, 15, 10, 44, 16],
+
+      // 21
+      [4, 144, 116, 4, 145, 117],
+      [17, 68, 42],
+      [17, 50, 22, 6, 51, 23],
+      [19, 46, 16, 6, 47, 17],
+
+      // 22
+      [2, 139, 111, 7, 140, 112],
+      [17, 74, 46],
+      [7, 54, 24, 16, 55, 25],
+      [34, 37, 13],
+
+      // 23
+      [4, 151, 121, 5, 152, 122],
+      [4, 75, 47, 14, 76, 48],
+      [11, 54, 24, 14, 55, 25],
+      [16, 45, 15, 14, 46, 16],
+
+      // 24
+      [6, 147, 117, 4, 148, 118],
+      [6, 73, 45, 14, 74, 46],
+      [11, 54, 24, 16, 55, 25],
+      [30, 46, 16, 2, 47, 17],
+
+      // 25
+      [8, 132, 106, 4, 133, 107],
+      [8, 75, 47, 13, 76, 48],
+      [7, 54, 24, 22, 55, 25],
+      [22, 45, 15, 13, 46, 16],
+
+      // 26
+      [10, 142, 114, 2, 143, 115],
+      [19, 74, 46, 4, 75, 47],
+      [28, 50, 22, 6, 51, 23],
+      [33, 46, 16, 4, 47, 17],
+
+      // 27
+      [8, 152, 122, 4, 153, 123],
+      [22, 73, 45, 3, 74, 46],
+      [8, 53, 23, 26, 54, 24],
+      [12, 45, 15, 28, 46, 16],
+
+      // 28
+      [3, 147, 117, 10, 148, 118],
+      [3, 73, 45, 23, 74, 46],
+      [4, 54, 24, 31, 55, 25],
+      [11, 45, 15, 31, 46, 16],
+
+      // 29
+      [7, 146, 116, 7, 147, 117],
+      [21, 73, 45, 7, 74, 46],
+      [1, 53, 23, 37, 54, 24],
+      [19, 45, 15, 26, 46, 16],
+
+      // 30
+      [5, 145, 115, 10, 146, 116],
+      [19, 75, 47, 10, 76, 48],
+      [15, 54, 24, 25, 55, 25],
+      [23, 45, 15, 25, 46, 16],
+
+      // 31
+      [13, 145, 115, 3, 146, 116],
+      [2, 74, 46, 29, 75, 47],
+      [42, 54, 24, 1, 55, 25],
+      [23, 45, 15, 28, 46, 16],
+
+      // 32
+      [17, 145, 115],
+      [10, 74, 46, 23, 75, 47],
+      [10, 54, 24, 35, 55, 25],
+      [19, 45, 15, 35, 46, 16],
+
+      // 33
+      [17, 145, 115, 1, 146, 116],
+      [14, 74, 46, 21, 75, 47],
+      [29, 54, 24, 19, 55, 25],
+      [11, 45, 15, 46, 46, 16],
+
+      // 34
+      [13, 145, 115, 6, 146, 116],
+      [14, 74, 46, 23, 75, 47],
+      [44, 54, 24, 7, 55, 25],
+      [59, 46, 16, 1, 47, 17],
+
+      // 35
+      [12, 151, 121, 7, 152, 122],
+      [12, 75, 47, 26, 76, 48],
+      [39, 54, 24, 14, 55, 25],
+      [22, 45, 15, 41, 46, 16],
+
+      // 36
+      [6, 151, 121, 14, 152, 122],
+      [6, 75, 47, 34, 76, 48],
+      [46, 54, 24, 10, 55, 25],
+      [2, 45, 15, 64, 46, 16],
+
+      // 37
+      [17, 152, 122, 4, 153, 123],
+      [29, 74, 46, 14, 75, 47],
+      [49, 54, 24, 10, 55, 25],
+      [24, 45, 15, 46, 46, 16],
+
+      // 38
+      [4, 152, 122, 18, 153, 123],
+      [13, 74, 46, 32, 75, 47],
+      [48, 54, 24, 14, 55, 25],
+      [42, 45, 15, 32, 46, 16],
+
+      // 39
+      [20, 147, 117, 4, 148, 118],
+      [40, 75, 47, 7, 76, 48],
+      [43, 54, 24, 22, 55, 25],
+      [10, 45, 15, 67, 46, 16],
+
+      // 40
+      [19, 148, 118, 6, 149, 119],
+      [18, 75, 47, 31, 76, 48],
+      [34, 54, 24, 34, 55, 25],
+      [20, 45, 15, 61, 46, 16]
+    ];
+
+    var qrRSBlock = function(totalCount, dataCount) {
+      var _this = {};
+      _this.totalCount = totalCount;
+      _this.dataCount = dataCount;
+      return _this;
+    };
+
+    var _this = {};
+
+    var getRsBlockTable = function(typeNumber, errorCorrectionLevel) {
+
+      switch(errorCorrectionLevel) {
+      case QRErrorCorrectionLevel.L :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+      case QRErrorCorrectionLevel.M :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+      case QRErrorCorrectionLevel.Q :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+      case QRErrorCorrectionLevel.H :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+      default :
+        return undefined;
+      }
+    };
+
+    _this.getRSBlocks = function(typeNumber, errorCorrectionLevel) {
+
+      var rsBlock = getRsBlockTable(typeNumber, errorCorrectionLevel);
+
+      if (typeof rsBlock == 'undefined') {
+        throw 'bad rs block @ typeNumber:' + typeNumber +
+            '/errorCorrectionLevel:' + errorCorrectionLevel;
+      }
+
+      var length = rsBlock.length / 3;
+
+      var list = [];
+
+      for (var i = 0; i < length; i += 1) {
+
+        var count = rsBlock[i * 3 + 0];
+        var totalCount = rsBlock[i * 3 + 1];
+        var dataCount = rsBlock[i * 3 + 2];
+
+        for (var j = 0; j < count; j += 1) {
+          list.push(qrRSBlock(totalCount, dataCount) );
+        }
+      }
+
+      return list;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrBitBuffer
+  //---------------------------------------------------------------------
+
+  var qrBitBuffer = function() {
+
+    var _buffer = [];
+    var _length = 0;
+
+    var _this = {};
+
+    _this.getBuffer = function() {
+      return _buffer;
+    };
+
+    _this.getAt = function(index) {
+      var bufIndex = Math.floor(index / 8);
+      return ( (_buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;
+    };
+
+    _this.put = function(num, length) {
+      for (var i = 0; i < length; i += 1) {
+        _this.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);
+      }
+    };
+
+    _this.getLengthInBits = function() {
+      return _length;
+    };
+
+    _this.putBit = function(bit) {
+
+      var bufIndex = Math.floor(_length / 8);
+      if (_buffer.length <= bufIndex) {
+        _buffer.push(0);
+      }
+
+      if (bit) {
+        _buffer[bufIndex] |= (0x80 >>> (_length % 8) );
+      }
+
+      _length += 1;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrNumber
+  //---------------------------------------------------------------------
+
+  var qrNumber = function(data) {
+
+    var _mode = QRMode.MODE_NUMBER;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _data;
+
+      var i = 0;
+
+      while (i + 2 < data.length) {
+        buffer.put(strToNum(data.substring(i, i + 3) ), 10);
+        i += 3;
+      }
+
+      if (i < data.length) {
+        if (data.length - i == 1) {
+          buffer.put(strToNum(data.substring(i, i + 1) ), 4);
+        } else if (data.length - i == 2) {
+          buffer.put(strToNum(data.substring(i, i + 2) ), 7);
+        }
+      }
+    };
+
+    var strToNum = function(s) {
+      var num = 0;
+      for (var i = 0; i < s.length; i += 1) {
+        num = num * 10 + chatToNum(s.charAt(i) );
+      }
+      return num;
+    };
+
+    var chatToNum = function(c) {
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      }
+      throw 'illegal char :' + c;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrAlphaNum
+  //---------------------------------------------------------------------
+
+  var qrAlphaNum = function(data) {
+
+    var _mode = QRMode.MODE_ALPHA_NUM;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var s = _data;
+
+      var i = 0;
+
+      while (i + 1 < s.length) {
+        buffer.put(
+          getCode(s.charAt(i) ) * 45 +
+          getCode(s.charAt(i + 1) ), 11);
+        i += 2;
+      }
+
+      if (i < s.length) {
+        buffer.put(getCode(s.charAt(i) ), 6);
+      }
+    };
+
+    var getCode = function(c) {
+
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      } else if ('A' <= c && c <= 'Z') {
+        return c.charCodeAt(0) - 'A'.charCodeAt(0) + 10;
+      } else {
+        switch (c) {
+        case ' ' : return 36;
+        case '$' : return 37;
+        case '%' : return 38;
+        case '*' : return 39;
+        case '+' : return 40;
+        case '-' : return 41;
+        case '.' : return 42;
+        case '/' : return 43;
+        case ':' : return 44;
+        default :
+          throw 'illegal char :' + c;
+        }
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qr8BitByte
+  //---------------------------------------------------------------------
+
+  var qr8BitByte = function(data) {
+
+    var _mode = QRMode.MODE_8BIT_BYTE;
+    var _data = data;
+    var _bytes = qrcode.stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _bytes.length;
+    };
+
+    _this.write = function(buffer) {
+      for (var i = 0; i < _bytes.length; i += 1) {
+        buffer.put(_bytes[i], 8);
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrKanji
+  //---------------------------------------------------------------------
+
+  var qrKanji = function(data) {
+
+    var _mode = QRMode.MODE_KANJI;
+    var _data = data;
+
+    var stringToBytes = qrcode.stringToBytesFuncs['SJIS'];
+    if (!stringToBytes) {
+      throw 'sjis not supported.';
+    }
+    !function(c, code) {
+      // self test for sjis support.
+      var test = stringToBytes(c);
+      if (test.length != 2 || ( (test[0] << 8) | test[1]) != code) {
+        throw 'sjis not supported.';
+      }
+    }('\u53cb', 0x9746);
+
+    var _bytes = stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return ~~(_bytes.length / 2);
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _bytes;
+
+      var i = 0;
+
+      while (i + 1 < data.length) {
+
+        var c = ( (0xff & data[i]) << 8) | (0xff & data[i + 1]);
+
+        if (0x8140 <= c && c <= 0x9FFC) {
+          c -= 0x8140;
+        } else if (0xE040 <= c && c <= 0xEBBF) {
+          c -= 0xC140;
+        } else {
+          throw 'illegal char at ' + (i + 1) + '/' + c;
+        }
+
+        c = ( (c >>> 8) & 0xff) * 0xC0 + (c & 0xff);
+
+        buffer.put(c, 13);
+
+        i += 2;
+      }
+
+      if (i < data.length) {
+        throw 'illegal char at ' + (i + 1);
+      }
+    };
+
+    return _this;
+  };
+
+  //=====================================================================
+  // GIF Support etc.
+  //
+
+  //---------------------------------------------------------------------
+  // byteArrayOutputStream
+  //---------------------------------------------------------------------
+
+  var byteArrayOutputStream = function() {
+
+    var _bytes = [];
+
+    var _this = {};
+
+    _this.writeByte = function(b) {
+      _bytes.push(b & 0xff);
+    };
+
+    _this.writeShort = function(i) {
+      _this.writeByte(i);
+      _this.writeByte(i >>> 8);
+    };
+
+    _this.writeBytes = function(b, off, len) {
+      off = off || 0;
+      len = len || b.length;
+      for (var i = 0; i < len; i += 1) {
+        _this.writeByte(b[i + off]);
+      }
+    };
+
+    _this.writeString = function(s) {
+      for (var i = 0; i < s.length; i += 1) {
+        _this.writeByte(s.charCodeAt(i) );
+      }
+    };
+
+    _this.toByteArray = function() {
+      return _bytes;
+    };
+
+    _this.toString = function() {
+      var s = '';
+      s += '[';
+      for (var i = 0; i < _bytes.length; i += 1) {
+        if (i > 0) {
+          s += ',';
+        }
+        s += _bytes[i];
+      }
+      s += ']';
+      return s;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64EncodeOutputStream
+  //---------------------------------------------------------------------
+
+  var base64EncodeOutputStream = function() {
+
+    var _buffer = 0;
+    var _buflen = 0;
+    var _length = 0;
+    var _base64 = '';
+
+    var _this = {};
+
+    var writeEncoded = function(b) {
+      _base64 += String.fromCharCode(encode(b & 0x3f) );
+    };
+
+    var encode = function(n) {
+      if (n < 0) {
+        // error.
+      } else if (n < 26) {
+        return 0x41 + n;
+      } else if (n < 52) {
+        return 0x61 + (n - 26);
+      } else if (n < 62) {
+        return 0x30 + (n - 52);
+      } else if (n == 62) {
+        return 0x2b;
+      } else if (n == 63) {
+        return 0x2f;
+      }
+      throw 'n:' + n;
+    };
+
+    _this.writeByte = function(n) {
+
+      _buffer = (_buffer << 8) | (n & 0xff);
+      _buflen += 8;
+      _length += 1;
+
+      while (_buflen >= 6) {
+        writeEncoded(_buffer >>> (_buflen - 6) );
+        _buflen -= 6;
+      }
+    };
+
+    _this.flush = function() {
+
+      if (_buflen > 0) {
+        writeEncoded(_buffer << (6 - _buflen) );
+        _buffer = 0;
+        _buflen = 0;
+      }
+
+      if (_length % 3 != 0) {
+        // padding
+        var padlen = 3 - _length % 3;
+        for (var i = 0; i < padlen; i += 1) {
+          _base64 += '=';
+        }
+      }
+    };
+
+    _this.toString = function() {
+      return _base64;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64DecodeInputStream
+  //---------------------------------------------------------------------
+
+  var base64DecodeInputStream = function(str) {
+
+    var _str = str;
+    var _pos = 0;
+    var _buffer = 0;
+    var _buflen = 0;
+
+    var _this = {};
+
+    _this.read = function() {
+
+      while (_buflen < 8) {
+
+        if (_pos >= _str.length) {
+          if (_buflen == 0) {
+            return -1;
+          }
+          throw 'unexpected end of file./' + _buflen;
+        }
+
+        var c = _str.charAt(_pos);
+        _pos += 1;
+
+        if (c == '=') {
+          _buflen = 0;
+          return -1;
+        } else if (c.match(/^\s$/) ) {
+          // ignore if whitespace.
+          continue;
+        }
+
+        _buffer = (_buffer << 6) | decode(c.charCodeAt(0) );
+        _buflen += 6;
+      }
+
+      var n = (_buffer >>> (_buflen - 8) ) & 0xff;
+      _buflen -= 8;
+      return n;
+    };
+
+    var decode = function(c) {
+      if (0x41 <= c && c <= 0x5a) {
+        return c - 0x41;
+      } else if (0x61 <= c && c <= 0x7a) {
+        return c - 0x61 + 26;
+      } else if (0x30 <= c && c <= 0x39) {
+        return c - 0x30 + 52;
+      } else if (c == 0x2b) {
+        return 62;
+      } else if (c == 0x2f) {
+        return 63;
+      } else {
+        throw 'c:' + c;
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // gifImage (B/W)
+  //---------------------------------------------------------------------
+
+  var gifImage = function(width, height) {
+
+    var _width = width;
+    var _height = height;
+    var _data = new Array(width * height);
+
+    var _this = {};
+
+    _this.setPixel = function(x, y, pixel) {
+      _data[y * _width + x] = pixel;
+    };
+
+    _this.write = function(out) {
+
+      //---------------------------------
+      // GIF Signature
+
+      out.writeString('GIF87a');
+
+      //---------------------------------
+      // Screen Descriptor
+
+      out.writeShort(_width);
+      out.writeShort(_height);
+
+      out.writeByte(0x80); // 2bit
+      out.writeByte(0);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Global Color Map
+
+      // black
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+
+      // white
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+
+      //---------------------------------
+      // Image Descriptor
+
+      out.writeString(',');
+      out.writeShort(0);
+      out.writeShort(0);
+      out.writeShort(_width);
+      out.writeShort(_height);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Local Color Map
+
+      //---------------------------------
+      // Raster Data
+
+      var lzwMinCodeSize = 2;
+      var raster = getLZWRaster(lzwMinCodeSize);
+
+      out.writeByte(lzwMinCodeSize);
+
+      var offset = 0;
+
+      while (raster.length - offset > 255) {
+        out.writeByte(255);
+        out.writeBytes(raster, offset, 255);
+        offset += 255;
+      }
+
+      out.writeByte(raster.length - offset);
+      out.writeBytes(raster, offset, raster.length - offset);
+      out.writeByte(0x00);
+
+      //---------------------------------
+      // GIF Terminator
+      out.writeString(';');
+    };
+
+    var bitOutputStream = function(out) {
+
+      var _out = out;
+      var _bitLength = 0;
+      var _bitBuffer = 0;
+
+      var _this = {};
+
+      _this.write = function(data, length) {
+
+        if ( (data >>> length) != 0) {
+          throw 'length over';
+        }
+
+        while (_bitLength + length >= 8) {
+          _out.writeByte(0xff & ( (data << _bitLength) | _bitBuffer) );
+          length -= (8 - _bitLength);
+          data >>>= (8 - _bitLength);
+          _bitBuffer = 0;
+          _bitLength = 0;
+        }
+
+        _bitBuffer = (data << _bitLength) | _bitBuffer;
+        _bitLength = _bitLength + length;
+      };
+
+      _this.flush = function() {
+        if (_bitLength > 0) {
+          _out.writeByte(_bitBuffer);
+        }
+      };
+
+      return _this;
+    };
+
+    var getLZWRaster = function(lzwMinCodeSize) {
+
+      var clearCode = 1 << lzwMinCodeSize;
+      var endCode = (1 << lzwMinCodeSize) + 1;
+      var bitLength = lzwMinCodeSize + 1;
+
+      // Setup LZWTable
+      var table = lzwTable();
+
+      for (var i = 0; i < clearCode; i += 1) {
+        table.add(String.fromCharCode(i) );
+      }
+      table.add(String.fromCharCode(clearCode) );
+      table.add(String.fromCharCode(endCode) );
+
+      var byteOut = byteArrayOutputStream();
+      var bitOut = bitOutputStream(byteOut);
+
+      // clear code
+      bitOut.write(clearCode, bitLength);
+
+      var dataIndex = 0;
+
+      var s = String.fromCharCode(_data[dataIndex]);
+      dataIndex += 1;
+
+      while (dataIndex < _data.length) {
+
+        var c = String.fromCharCode(_data[dataIndex]);
+        dataIndex += 1;
+
+        if (table.contains(s + c) ) {
+
+          s = s + c;
+
+        } else {
+
+          bitOut.write(table.indexOf(s), bitLength);
+
+          if (table.size() < 0xfff) {
+
+            if (table.size() == (1 << bitLength) ) {
+              bitLength += 1;
+            }
+
+            table.add(s + c);
+          }
+
+          s = c;
+        }
+      }
+
+      bitOut.write(table.indexOf(s), bitLength);
+
+      // end code
+      bitOut.write(endCode, bitLength);
+
+      bitOut.flush();
+
+      return byteOut.toByteArray();
+    };
+
+    var lzwTable = function() {
+
+      var _map = {};
+      var _size = 0;
+
+      var _this = {};
+
+      _this.add = function(key) {
+        if (_this.contains(key) ) {
+          throw 'dup key:' + key;
+        }
+        _map[key] = _size;
+        _size += 1;
+      };
+
+      _this.size = function() {
+        return _size;
+      };
+
+      _this.indexOf = function(key) {
+        return _map[key];
+      };
+
+      _this.contains = function(key) {
+        return typeof _map[key] != 'undefined';
+      };
+
+      return _this;
+    };
+
+    return _this;
+  };
+
+  var createDataURL = function(width, height, getPixel) {
+    var gif = gifImage(width, height);
+    for (var y = 0; y < height; y += 1) {
+      for (var x = 0; x < width; x += 1) {
+        gif.setPixel(x, y, getPixel(x, y) );
+      }
+    }
+
+    var b = byteArrayOutputStream();
+    gif.write(b);
+
+    var base64 = base64EncodeOutputStream();
+    var bytes = b.toByteArray();
+    for (var i = 0; i < bytes.length; i += 1) {
+      base64.writeByte(bytes[i]);
+    }
+    base64.flush();
+
+    return 'data:image/gif;base64,' + base64;
+  };
+
+  //---------------------------------------------------------------------
+  // returns qrcode function.
+
+  return qrcode;
+}();
+
+// multibyte support
+!function() {
+
+  qrcode.stringToBytesFuncs['UTF-8'] = function(s) {
+    // http://stackoverflow.com/questions/18729405/how-to-convert-utf8-string-to-byte-array
+    function toUTF8Array(str) {
+      var utf8 = [];
+      for (var i=0; i < str.length; i++) {
+        var charcode = str.charCodeAt(i);
+        if (charcode < 0x80) utf8.push(charcode);
+        else if (charcode < 0x800) {
+          utf8.push(0xc0 | (charcode >> 6),
+              0x80 | (charcode & 0x3f));
+        }
+        else if (charcode < 0xd800 || charcode >= 0xe000) {
+          utf8.push(0xe0 | (charcode >> 12),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+        // surrogate pair
+        else {
+          i++;
+          // UTF-16 encodes 0x10000-0x10FFFF by
+          // subtracting 0x10000 and splitting the
+          // 20 bits of 0x0-0xFFFFF into two halves
+          charcode = 0x10000 + (((charcode & 0x3ff)<<10)
+            | (str.charCodeAt(i) & 0x3ff));
+          utf8.push(0xf0 | (charcode >>18),
+              0x80 | ((charcode>>12) & 0x3f),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+      }
+      return utf8;
+    }
+    return toUTF8Array(s);
+  };
+
+}();
+
+
+return qrcode; })();
+
+/* ARS v1.11.12 (beta): group induction sessions.
+   Main flow: the manager starts a session on a shared screen (tablet / laptop) which shows a QR code and a short join code.
+   Each attendee joins on their OWN phone, signed in as themselves (operatives: mobile + PIN; staff: their usual login). Joining goes
+   through join_induction_session() (code expires after 60 minutes or when the session ends; rate-limited; RLS limits the session to
+   its leader, managers and the people who joined). The manager plays the videos on the shared screen (same no-skip rules); each
+   finished chapter is recorded in the session and credited to every attendee who had joined before that chapter started. Meanwhile
+   each attendee does their details, PPE, health, check questions and signature on their own phone; the declaration unlocks once the
+   group has watched every chapter. The manager's screen shows a live roster (joined, forms, signed) and countersigns one by one or
+   with "countersign all" (a separate countersignature record per person).
+   Fallback for someone without a phone: the manager adds them to the session ("pass the device") and they use the shared screen in
+   turn. Their health answers are never stored on the shared device: kept in memory only while their health screen is open, sent
+   straight away through submit_induction_health_group() (only for a "device" member of the caller's own session), cleared after. */
+const INDG = { g: null, u: null, mem: [], err: '', pT: 0 };   // g = the leader's open session (ids, code, video progress), never health data
+const indgKey = () => 'indg.' + me();
+const indgRpc = (n, b) => sbFetch('/rest/v1/rpc/' + n, { method: 'POST', body: b || {} });
+async function indgLoad() { if (INDG.u === me()) return; INDG.u = me(); INDG.g = (await DB.getKV(indgKey())) || null; INDG.mem = []; if (INDG.g && !INDG.g.dev) INDG.g = null; if (INDG.g) await indgSync().catch(() => { }); }
+function indgKeep() { return DB.setKV(indgKey(), INDG.g); }
+const indgOpen = r => !!r && ['assigned', 'in_progress'].includes(r.status);
+const indgName = pid => { const p = indPerson(pid), r = indRec(pid), det = r ? (indD(r).forms.details || {}) : {}; return det.name || p.full_name || p.email || '?'; };
+const indgAny = g => IND_CH.some(c => (g.ch[c.id] || {}).watchedAt);
+const indgAllWatched = g => IND_CH.every(c => (g.ch[c.id] || {}).watchedAt);
+const indgAtt = () => INDG.mem.map(m => m.person);
+const indgMem = pid => INDG.mem.find(m => m.person === pid);
+const indgStamp = (g, mode, joinedAt) => ({ id: g.id, at: g.at, leader: g.leader, leaderId: g.leaderId, mode, joinedAt, n: INDG.mem.length || 1 });
+const indgTime = t => t ? new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+const indgJoinUrl = code => location.origin + location.pathname + '#/join/' + code;
+const indgSince = (s, joinedAt) => !!(s && s.watchedAt && s.startedAt && joinedAt && Date.parse(s.startedAt) >= Date.parse(joinedAt));
+
+// the person whose turn it is on the shared device: everything they type stays theirs; leaving clears any health answers held in memory
+function indgEnter(pid) { if (IND.as === pid) return; IND.hd = null; IND.hq = null; IND.as = pid; IND.hdU = null; }
+function indgLeave() { if (!IND.as) return; IND.as = null; IND.hd = null; IND.hq = null; IND.hdU = null; }
+
+/* ---------- server: session, roster ---------- */
+async function indgSync() { const g = INDG.g; if (!g || !online()) return false; const before = JSON.stringify([INDG.mem, g.code, g.exp, g.status]);
+  const [s] = (await sbFetch(`/rest/v1/induction_sessions?select=*&id=eq.${encodeURIComponent(g.id)}`)) || [];
+  if (!s || s.status !== 'open') { INDG.g = null; INDG.mem = []; await indgKeep(); return true; }
+  g.code = s.code; g.exp = s.code_expires; g.status = s.status; IND_CH.forEach(c => { const a = g.ch[c.id], b = (s.ch || {})[c.id]; if (b && (!a || (!a.watchedAt && b.watchedAt))) g.ch[c.id] = Object.assign({}, a, b); });
+  INDG.mem = (await sbFetch(`/rest/v1/induction_session_members?select=*&session_id=eq.${encodeURIComponent(g.id)}&order=joined_at.asc`)) || [];
+  g.dev = INDG.mem.filter(m => m.mode === 'device').map(m => m.person);
+  const ph = INDG.mem.filter(m => m.mode === 'phone').map(m => indId(m.person)); if (ph.length) await recFetch(`id=in.(${ph.join(',')})`);
+  if (INDG.mem.some(m => indPerson(m.person).full_name === '(unknown)') && Date.now() - INDG.pT > 20000) { INDG.pT = Date.now(); await loadProfiles(); }
+  await indgKeep(); return before !== JSON.stringify([INDG.mem, g.code, g.exp, g.status]) || ph.length > 0; }
+let indgChSent = '';
+function indgChPush() { const g = INDG.g; if (!g || !online()) return; const k = JSON.stringify(IND_CH.map(c => [(g.ch[c.id] || {}).startedAt, (g.ch[c.id] || {}).watchedAt])); if (k === indgChSent) return; indgChSent = k;
+  const ch = {}; IND_CH.forEach(c => { const x = g.ch[c.id]; if (x) ch[c.id] = { startedAt: x.startedAt || null, watchedAt: x.watchedAt || null, dur: x.dur || null, maxT: x.maxT || null }; });
+  sbFetch(`/rest/v1/induction_sessions?id=eq.${encodeURIComponent(g.id)}`, { method: 'PATCH', body: { ch }, headers: { Prefer: 'return=minimal' } }).catch(e => { indgChSent = ''; console.warn('session progress', e); }); }
+
+// chapter progress for the whole group: a pseudo record (the session) for the shared video player
+function indgVideoHooks(chId) { const g = INDG.g; const vr = { id: g.id, kind: 'indgroup', data: { ch: g.ch, forms: {} } };
+  IND.vrec = () => (INDG.g && INDG.g.id === vr.id ? vr : null);
+  IND.vsave = (r, light) => { const s = g.ch[chId]; if (s && !s.startedAt && (s.maxT || s.watchedAt)) s.startedAt = indNow(); indgKeep(); indgChPush(); if (!light) indgPush(); }; }
+// "pass the device" attendees: the leader writes the chapter credit into their records (only chapters started after they were added)
+function indgPush() { const g = INDG.g; if (!g) return; let n = 0;
+  INDG.mem.filter(m => m.mode === 'device').forEach(m => { const r = indRec(m.person); if (!indgOpen(r)) return; const d = indD(r); let ch = 0;
+    IND_CH.forEach(c => { const s = g.ch[c.id]; if (!indgSince(s, m.joined_at)) return; const st = d.ch[c.id] || (d.ch[c.id] = {}); if (st.group === g.id) return;
+      if (!st.watchedAt) { st.watchedAt = s.watchedAt; st.maxT = s.dur || s.maxT; st.dur = s.dur; } st.group = g.id; st.leader = g.leader; st.leaderId = g.leaderId; st.groupAt = s.watchedAt; ch++; });
+    if (ch) { d.group = Object.assign(d.group || {}, indgStamp(g, 'device', m.joined_at)); indSave(r); n++; } });
+  return n; }
+// before countersigning: the chapter credit and the attendee count are taken from the server session, not from the attendee's phone
+async function indgVerify(r) { const d = indD(r), gp = d.group; if (!gp || !gp.id || !online()) return;
+  const [s] = (await sbFetch(`/rest/v1/induction_sessions?select=*&id=eq.${encodeURIComponent(gp.id)}`)) || []; if (!s) return;
+  const ms = (await sbFetch(`/rest/v1/induction_session_members?select=*&session_id=eq.${encodeURIComponent(gp.id)}`)) || []; const m = ms.find(x => x.person === r.subject); if (!m) return;
+  IND_CH.forEach(c => { const sc = (s.ch || {})[c.id], st = d.ch[c.id]; if (!st) return;
+    if (indgSince(sc, m.joined_at) && st.watchedAt) { st.group = s.id; st.groupAt = sc.watchedAt; st.leader = s.leader_name || gp.leader; st.leaderId = s.leader; }
+    else if (st.group === s.id) { delete st.group; delete st.groupAt; delete st.leader; delete st.leaderId; } });
+  d.group = Object.assign({}, gp, { id: s.id, at: s.created_at, leader: s.leader_name || gp.leader, leaderId: s.leader, mode: m.mode, joinedAt: m.joined_at, n: ms.length, live: false, verifiedAt: indNow() }); }
+async function indgAddDev(pid) { const g = INDG.g; if (!g) return; if (!online()) return toast('Adding someone needs signal');
+  if (!indRec(pid)) ACTIONS['indg-assign1'](pid); await recFlush();
+  try { const [m] = await sbFetch('/rest/v1/induction_session_members', { method: 'POST', body: { session_id: g.id, person: pid, mode: 'device' }, headers: { Prefer: 'return=representation' } }) || [];
+    if (m) { INDG.mem.push(m); const r = indRec(pid); indD(r).group = indgStamp(g, 'device', m.joined_at); indSave(r); await recFlush(); } }
+  catch (e) { return toast(/duplicate|23505/.test(e.message || '') ? 'Already in this session' : 'Could not add them: ' + (e.message || e), 4000); }
+  await indgSync().catch(() => { }); }
+
+/* ---------- manager screens ---------- */
+function indgSetupHTML() {
+  return `<div class="card"><h2>Group induction session</h2><p class="hint">Show the induction videos once to a group on this screen. Everyone joins on their own phone by scanning a QR code (or typing a short code), signed in as themselves. While you play the videos, each person fills in their own details, PPE, health forms and check questions on their phone, then signs. You see who has joined and signed, and countersign everyone at the end.</p>
+    <ul class="ind-ol"><li>Operatives sign in with their mobile number and PIN. Office staff use their usual login.</li><li>A brand-new starter needs an account first: add them on the next screen (or the Team page) and they sign in with the PIN you set.</li><li>Someone without a phone can use this screen in turn ("pass the device").</li><li>Health answers go only to the Admin role. No one else, including you, can see them.</li></ul>
+    <button class="btn primary block" data-act="indg-start" id="indg-start" style="margin-top:10px">Start a group session</button></div>
+    <div class="card"><a class="btn block" href="#/admin/ind">Back to inductions</a></div>`; }
+function indgCodeHTML() { const g = INDG.g, live = g.code && Date.parse(g.exp) > Date.now(); let svg = '';
+  if (live) { try { const q = QRGEN(0, 'M'); q.addData(indgJoinUrl(g.code)); q.make(); svg = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true }); } catch (e) { svg = ''; } }
+  return live ? `<div class="indg-join"><div class="indg-qr" aria-label="QR code to join">${svg}</div><div><p style="margin:0">Scan with your phone camera, or open the ARS app and choose <b>Induction › Join a group session</b>, then enter:</p>
+      <div class="indg-code" id="indg-code">${esc(g.code.slice(0, 3) + ' ' + g.code.slice(3))}</div><p class="hint" style="margin:0">Code runs out at ${esc(indgTime(g.exp))} or when the session ends.</p>
+      <button class="btn sm" data-act="indg-newcode" style="margin-top:6px">New code</button></div></div>`
+    : `<div class="lg-msg">The join code has run out.</div><button class="btn primary block" data-act="indg-newcode" id="indg-newcode">Make a new join code</button>`; }
+function indgRosterHTML() { const g = INDG.g, mem = INDG.mem; const fs = IND_STEPS.filter(s => s.g === 'Forms');
+  const rows = mem.map(m => { const pid = m.person, r = indRec(pid), d = r ? indD(r) : null, [k, l] = indStatus(r), dev = m.mode === 'device';
+    const vids = d ? IND_CH.filter(c => (d.ch[c.id] || {}).watchedAt).length : 0, qz = d ? indChDone(d) : 0, fm = d ? fs.filter(s => s.done(d)).length : 0;
+    const st = !r ? 'Loading…' : k === 'done' ? `Countersigned ${indgTime((d.inductor || {}).at)}` : k === 'wait' ? `Signed ${indgTime(d.submittedAt)} · ready to countersign` : `Videos ${vids}/${IND_CH.length} · questions ${qz}/${IND_CH.length} · forms ${fm}/${fs.length}${d.healthSubmittedAt ? ' · health sent' : ''}`;
+    return `<div class="item indg-att" data-pid="${esc(pid)}" data-st="${esc(k)}"><div class="bd"><div class="t1">${esc(indgName(pid))} <span class="tag">${dev ? 'This device' : 'Own phone'}</span> <span class="tag ind-${k}">${esc(k === 'wait' ? 'Signed' : l)}</span></div><div class="t2">Joined ${esc(indgTime(m.joined_at))} · ${st}</div>
+      <div class="btns" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">${dev && indgOpen(r) ? `<button class="btn sm primary" data-act="indg-hand" data-pid="${esc(pid)}">Hand the device to ${esc(indgName(pid))}</button>` : ''}${k === 'wait' ? `<a class="btn sm" href="#/inductions/${esc(pid)}">Countersign on their own</a>` : ''}</div></div></div>`; }).join('');
+  const w = mem.filter(m => (indRec(m.person) || {}).status === 'submitted').length, sg = mem.filter(m => ['submitted', 'complete'].includes((indRec(m.person) || {}).status)).length;
+  return `<h3 class="ind-g">Roster <span class="hint" style="font-weight:400">· ${mem.length} joined · ${sg} signed · updates every few seconds</span></h3>${rows || '<p class="hint">No one has joined yet.</p>'}
+    ${w ? `<a class="btn primary block" href="#/indgroup/sign" id="indg-signall" style="margin-top:8px">Countersign all signed (${w})</a>` : ''}`; }
+function indgHubHTML() { const g = INDG.g, any = indgAny(g), all = indgAllWatched(g); const nx = IND_CH.find(c => !(g.ch[c.id] || {}).watchedAt);
+  const ps = indPeople().filter(p => p.id !== me() && !indgMem(p.id)), opts = ps.filter(p => !indRec(p.id) ? p.role !== 'admin' : indgOpen(indRec(p.id)));
+  return `<div class="card indg-head"><h2>Group session <span class="tag">${esc(g.id)}</span></h2><p class="hint">Started ${esc(indUK(g.at))} by ${esc(g.leader)}</p><div id="indg-codebox">${indgCodeHTML()}</div></div>
+    <div class="card" id="indg-roster">${indgRosterHTML()}</div>
+    <div class="card indg-vids">${all ? `<div class="lg-msg ok" style="margin:6px 0">All ${IND_CH.length} videos watched by the group. Attendees can now sign the declaration on their phones.</div>`
+    : `<a class="btn primary block" href="#/indgroup/v/${nx.id}" id="indg-play">${any ? 'Carry on' : 'Start the videos'}: chapter ${IND_CH.indexOf(nx) + 1} - ${esc(nx.t)}</a><p class="hint">Play each video to the whole group. You can't skip ahead. Each finished chapter is recorded for everyone who had joined before it started; anyone who joins late catches up on their own phone.</p>`}
+    <div class="ind-steps">${IND_CH.map((c, i) => { const s = g.ch[c.id] || {}, open = i === 0 || (g.ch[IND_CH[i - 1].id] || {}).watchedAt;
+      return `<button class="ind-st ${s.watchedAt ? 'done' : open ? 'open' : 'lock'}" data-act="indg-ch" data-ch="${c.id}" ${open ? '' : 'disabled'}><span class="ind-ic">${s.watchedAt ? '✓' : open ? '›' : '🔒'}</span><span>${i + 1}. ${esc(c.t)}${s.watchedAt ? ` <em class="hint">watched ${esc(indgTime(s.watchedAt))}</em>` : ''}</span></button>`; }).join('')}</div></div>
+    <div class="card" id="indg-devcard"><h2>Someone without a phone?</h2><p class="hint">Add them here. They watch on this screen with everyone, then you hand them this device to do their own forms. Their health answers are sent straight away and not kept on this device.</p>
+      ${opts.length ? `<div class="f"><label for="indg-devpick">Person</label><select id="indg-devpick"><option value="">Choose…</option>${opts.map(p => `<option value="${esc(p.id)}">${esc(p.full_name || p.email || '?')}${indRec(p.id) ? '' : ' (no induction yet - it will be assigned)'}</option>`).join('')}</select></div><button class="btn block" data-act="indg-adddev" id="indg-adddev">Add to this session (use this device)</button>` : '<p class="hint">Everyone with an open induction is already in the session.</p>'}</div>
+    <div class="card" id="indg-newcard"><h2>Add a new starter</h2><p class="hint">Same as “Add operative” on the Team page: they get an operative account and the induction is assigned. If they have a phone, they sign in with their mobile and PIN and join with the code above. Without a phone, they are added to this session to use this device.</p>
+      <div class="f"><label for="op-name">Full name</label><input type="text" id="op-name" autocomplete="off"></div>
+      <div class="f"><label for="op-phone">UK mobile</label><input id="op-phone" type="tel" inputmode="tel" placeholder="07700 900123" autocomplete="off"></div>
+      <div class="row"><div class="f"><label for="op-pin">6-digit PIN</label><input id="op-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"></div><div class="f"><label for="op-pin2">Repeat PIN</label><input id="op-pin2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"></div></div>
+      <button class="btn block" data-act="indg-newop" id="indg-newop">${I.plus} Add new starter to this session</button></div>
+    
+    <div class="card">${any ? '' : `<button class="btn block" data-act="indg-cancel">Cancel this session</button>`}<button class="btn block" data-act="indg-end" id="indg-end">End the session${all ? '' : ' (records keep what was done)'}</button><a class="btn block" href="#/admin/ind">Back to inductions</a></div>`; }
+
+function indgVideoHTML(chId) { const g = INDG.g, c = IND_CH.find(x => x.id === chId), i = IND_CH.indexOf(c), s = g.ch[c.id] || {}, pct = s.watchedAt ? 100 : Math.min(99, Math.round(100 * (s.maxT || 0) / (s.dur || c.d))), nx = IND_CH[i + 1];
+  return `<div class="card"><p class="hint ind-crumb">Group session · chapter ${i + 1} of ${IND_CH.length} · ${INDG.mem.length} joined</p><h2>${esc(c.t)}</h2><div class="ind-vwrap"><video id="ind-vid" data-ch="${c.id}" playsinline controls preload="metadata" controlslist="nodownload noplaybackrate" disablepictureinpicture disableremoteplayback oncontextmenu="return false"></video><div class="ind-vmsg" id="ind-vmsg" hidden></div></div>
+    <div class="ind-prog"><div class="ind-bar"><span id="ind-pbar" style="width:${pct}%"></span></div><span id="ind-pct">${s.watchedAt ? 'Watched' : pct + '%'}</span></div>
+    <p class="hint" id="ind-vhint">${s.watchedAt ? 'Watched ' + esc(indUK(s.watchedAt)) + ' - recorded for everyone in the session.' : `Captions are on. Play to the end with everyone watching (about ${Math.round(c.d / 60) || 1} min). Everyone answers the check questions on their own phone (or on this device when it is passed round).`}</p>
+    <button class="btn primary block" id="ind-vnext" data-act="indg-vnext" data-ch="${c.id}" ${s.watchedAt ? '' : 'disabled'}>${nx ? `Next: chapter ${i + 2}` : 'Next: roster and countersigning'}</button><a class="btn block" href="#/indgroup">Session overview</a></div>`; }
+
+function indgPersonHTML(pid) { const r = indRec(pid), g = INDG.g, nm = indgName(pid);
+  return `<div class="card indg-who" id="indg-who"><p class="hint ind-crumb">Group session ${esc(g.id)}</p><h2>${esc(nm)}</h2><p>This screen is for <b>${esc(nm)}</b> only. Answer your check questions, fill in your own forms and sign. Your health answers are sent confidentially and no one here, including the person running the session, can see them.</p>
+    <button class="btn block" data-act="indg-back" id="indg-back">${r && r.status === 'submitted' ? 'Done - pass the device back' : 'Stop for now - pass the device back'}</button></div>` + indOverviewHTML(r); }
+
+function indgSignHTML() { const g = INDG.g, list = indgAtt().filter(pid => (indRec(pid) || {}).status === 'submitted'); if (!list.length) return `<div class="card"><p class="hint">No one is waiting to be countersigned.</p><a class="btn" href="#/indgroup">Back</a></div>`;
+  const staff = (Cloud.profiles || []).filter(x => x.active !== false && x.role !== 'operative');
+  return `<div class="card"><h2>Countersign all</h2><p class="hint">Check each person below. Each one gets their own countersignature record and signed pack, with your one signature. To do someone separately, use “Countersign on their own” on the roster.</p></div>
+    ${list.map(pid => { const r = indRec(pid), d = indD(r), det = d.forms.details || {}, own = indOwnPpe(d.forms.ppe);
+      return `<div class="card indg-cs" data-pid="${esc(pid)}"><h3 style="margin:0 0 4px">${esc(indgName(pid))}</h3><p class="hint">Signed ${esc(indUK(d.submittedAt))} · ID: ${esc(det.idType || '-')}${det.shareCode ? ' · share code ' + esc(det.shareCode) : ''}</p>
+        <label class="ind-chk"><input type="checkbox" data-cs-rtw="${esc(pid)}"><span>Right to work in the UK checked for ${esc(indgName(pid))}</span></label>${own.length ? `<label class="ind-chk"><input type="checkbox" data-cs-own="${esc(pid)}"><span>Own PPE checked as suitable: ${esc(own.join(', '))}</span></label>` : ''}
+        <div class="f"><label>ID seen</label><select data-cs-id="${esc(pid)}"><option value="">Choose…</option>${IND_IDS.map(o => `<option ${det.idType === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div></div>`; }).join('')}
+    <div class="card"><div class="f"><label for="ir-meth">How right to work was checked</label><select id="ir-meth"><option>Home Office online check (share code)</option><option>Original documents seen, copied and dated</option></select></div>
+      <div class="f"><label for="ir-lm">Line manager</label><select id="ir-lm"><option value="">Choose…</option>${staff.map(x => `<option ${x.id === me() ? 'selected' : ''}>${esc(x.full_name || x.email)}</option>`).join('')}</select></div>
+      <div class="f"><label for="ir-note">Notes (optional, added to each record)</label><textarea id="ir-note" rows="2"></textarea></div><div class="f"><label for="ir-name">Your name (print)</label><input id="ir-name" value="${esc(myName())}"></div>
+      <button class="btn primary block" data-act="indg-signall" id="indg-signgo">Countersign all ${list.length}</button><a class="btn block" href="#/indgroup">Back</a></div>`; }
+
+/* ---------- complete one record (same as the single countersign, used for each person) ---------- */
+async function indgComplete(r, pid, ir) { const d = indD(r); d.inductor = ir; d.completedAt = ir.at; r.status = 'complete'; let pdf = null;
+  try { const b = await indSignedPack(r, indPerson(pid)); if (b) { pdf = 'data:application/pdf;base64,' + indB64(b); d.pdfKind = 'pack'; } } catch (e) { console.warn('signed pack', e); }
+  if (!pdf) { pdf = indPDF(r, indPerson(pid)).output('datauristring'); d.pdfKind = 'record'; }
+  r._files = Object.assign(r._files || {}, { pdf }); recPut(r); }
+
+
+/* ---------- attendee's own phone: join, live banner ---------- */
+function indgJoinHTML(code) { const r = indRec();
+  return `<div class="card"><h2>Join a group induction</h2><p class="hint">Enter the 6-character code shown on the screen of the person running the session.</p>
+    <div class="f"><label for="indg-jcode">Join code</label><input id="indg-jcode" autocomplete="off" autocapitalize="characters" maxlength="8" value="${esc(code || '')}" style="font-size:24px;letter-spacing:4px;text-transform:uppercase"></div>
+    <div class="lg-msg" id="indg-jmsg" ${INDG.err ? '' : 'hidden'}>${esc(INDG.err)}</div>
+    <button class="btn primary block" data-act="indg-join" id="indg-join">Join</button>${r ? '' : '<p class="hint">You have no induction to do, so there is nothing to join.</p>'}<a class="btn block" href="#/">Cancel</a></div>`; }
+function indgBannerHTML(r) { const d = indD(r), gp = d.group, gs = IND.gs && IND.gs.id === gp.id ? IND.gs : null; let msg;
+  if (!gs) msg = 'Connecting to the group session…';
+  else { const cur = IND_CH.find(c => (gs.ch[c.id] || {}).startedAt && !(gs.ch[c.id] || {}).watchedAt), nx = IND_CH.find(c => !(gs.ch[c.id] || {}).watchedAt);
+    msg = !nx ? `The group has watched all ${IND_CH.length} videos.${indCanOpen(r, 'declare') ? ' You can now sign the declaration.' : ' Finish your forms and questions, then sign.'}`
+      : cur ? `The group is watching chapter ${IND_CH.indexOf(cur) + 1} of ${IND_CH.length}: ${cur.t}` : `Waiting for the group to start chapter ${IND_CH.indexOf(nx) + 1} of ${IND_CH.length}: ${nx.t}`; }
+  return `<div class="card indg-banner" id="indg-banner"><p class="hint ind-crumb">Group session ${esc(gp.id)} · led by ${esc(gp.leader || '')}</p><b id="indg-bmsg">${esc(msg)}</b><p class="hint" style="margin:4px 0 0">Watch the videos on the shared screen. Do your forms and the check questions here while the group watches. Your answers are only on your phone; health answers go confidentially to the Admin role.</p></div>`; }
+async function indgPhonePoll(force) { const r = indRec(); if (!indLive(r) || !online()) return; const d = indD(r), gp = d.group;
+  const [s] = (await sbFetch(`/rest/v1/induction_sessions?select=id,status,ch,leader,leader_name,created_at&id=eq.${encodeURIComponent(gp.id)}`)) || []; if (!s) return;
+  const prev = JSON.stringify(IND.gs || null); IND.gs = { id: s.id, ch: s.ch || {}, status: s.status }; let ch = false;
+  IND_CH.forEach(c => { const sc = IND.gs.ch[c.id], st = d.ch[c.id]; if (!indgSince(sc, gp.joinedAt) || (st && st.watchedAt)) return;
+    d.ch[c.id] = Object.assign(st || {}, { watchedAt: sc.watchedAt, maxT: sc.dur || sc.maxT, dur: sc.dur, group: s.id, groupAt: sc.watchedAt, leader: s.leader_name, leaderId: s.leader }); ch = true; });
+  if (s.status !== 'open') { gp.live = false; gp.closedAt = indNow(); if (!IND_CH.some(c => (d.ch[c.id] || {}).group === s.id)) delete d.group; ch = true; }
+  if (ch) indSave(r); const changed = ch || prev !== JSON.stringify(IND.gs);
+  if (changed && /^#\/induction\/?$/.test(location.hash)) render(true); else if (changed) { const b = $('#indg-banner'); if (b && d.group) b.outerHTML = indgBannerHTML(r); } }
+setInterval(() => { if (!signedIn() || !online() || document.hidden) return; const h = location.hash;
+  if (/^#\/induction(\/|$)/.test(h)) indgPhonePoll().catch(() => { });
+  else if (/^#\/indgroup\/?(pass|sign)?$/.test(h) && INDG.g && !$('#indg-signgo')) indgSync().then(ch => { if (!ch) return; if (!INDG.g) return rerender(); const ro = $('#indg-roster'), cb = $('#indg-codebox'); if (ro) ro.innerHTML = indgRosterHTML(); if (cb) cb.innerHTML = indgCodeHTML(); }).catch(() => { }); }, 4000);
+
+Object.assign(ACTIONS, {
+  async 'indg-newop'() { if (!online()) return toast('Adding a new starter needs signal'); const name = lgVal('op-name'), phone = normPhone(lgVal('op-phone')), pin = $('#op-pin').value, pin2 = $('#op-pin2').value;
+    if (!name) return toast('Enter the new starter’s name'); if (!phone) return toast('Enter a valid UK mobile number (07…)'); const bad = pinProblem(pin) || (pin !== pin2 ? 'The PINs do not match.' : ''); if (bad) return toast(bad);
+    const res = await opAdmin({ action: 'create', name, phone, pin }, `${name} added - they can sign in later with ${prettyPhone(phone)} and their PIN`); if (!res) return;
+    const pid = res.profile && res.profile.id; await indLoadAll(true);
+    if (pid) { if (!indRec(pid)) ACTIONS['indg-assign1'](pid); if (INDG.g) await indgAddDev(pid); } rerender(); },
+  'indg-assign1'(pid) { const ex = Rec.items[indId(pid)]; recPut({ id: indId(pid), kind: 'induction', subject: pid, owner: pid, status: 'assigned', data: { assignedAt: indNow(), assignedBy: myName(), assignedById: me() }, created_at: (ex && ex.created_at) || indNow() }); },
+  async 'indg-start'() { if (!online()) return toast('Starting a group session needs signal');
+    try { const s = await indgRpc('start_induction_session'); INDG.g = { id: s.id, at: s.created_at, leader: s.leader_name || myName(), leaderId: me(), code: s.code, exp: s.code_expires, status: 'open', ch: {}, dev: [] }; INDG.mem = []; }
+    catch (e) { return toast('Could not start the session: ' + (e.message || e), 4000); }
+    await indgKeep(); if (location.hash === '#/indgroup') rerender(); else go('#/indgroup'); },
+  async 'indg-newcode'() { const g = INDG.g; if (!g) return; try { const s = await indgRpc('new_induction_session_code', { sid: g.id }); g.code = s.code; g.exp = s.code_expires; await indgKeep(); } catch (e) { return toast(e.message || String(e), 4000); } const cb = $('#indg-codebox'); if (cb) cb.innerHTML = indgCodeHTML(); },
+  async 'indg-adddev'() { const pid = ($('#indg-devpick') || {}).value; if (!pid) return toast('Choose who to add'); await indgAddDev(pid); rerender(); },
+  'indg-ch'(a) { go('#/indgroup/v/' + a.dataset.ch); },
+  'indg-vnext'(a) { const i = IND_CH.findIndex(c => c.id === a.dataset.ch), nx = IND_CH[i + 1]; indgPush(); indgChPush(); go(nx ? '#/indgroup/v/' + nx.id : '#/indgroup'); },
+  async 'indg-hand'(a) { const pid = a.dataset.pid; if (!(await confirmBox(`Hand the device to ${indgName(pid)}`, `From now on only ${indgName(pid)} should look at the screen. Their answers are kept separate from everyone else's.`, `I am ${indgName(pid)} - start`, false))) return; indgEnter(pid); go('#/indgroup/p/' + pid); },
+  async 'indg-back'() { if (IND.hq && !(await confirmBox('Health forms not sent yet', 'They have not been sent (no signal) and are not stored on this device. If you pass the device back now, this person fills them in again later.', 'Pass back anyway'))) return;
+    indgLeave(); go('#/indgroup'); },
+  async 'indg-signall'() { const g = INDG.g; if (!g) return; const list = indgAtt().filter(pid => (indRec(pid) || {}).status === 'submitted');
+    for (const pid of list) { const r = indRec(pid), own = indOwnPpe(indD(r).forms.ppe), nm = indgName(pid);
+      if (!$(`[data-cs-rtw="${pid}"]`).checked) return toast(`Tick the right to work check for ${nm}`); if (own.length && !($(`[data-cs-own="${pid}"]`) || {}).checked) return toast(`Tick to confirm ${nm}'s own PPE has been checked`);
+      if (!$(`[data-cs-id="${pid}"]`).value) return toast(`Choose the ID you saw for ${nm}`); }
+    const name = $('#ir-name').value.trim(); if (!name) return toast('Print your name');
+    if (!(await confirmBox(`Countersign ${list.length} ${list.length === 1 ? 'person' : 'people'}?`, `${list.map(indgName).join(', ')}. Each gets their own countersignature record and signed pack.`, 'Sign', false))) return;
+    const sig = await signaturePad({ name }); if (!sig) return; const meth = $('#ir-meth').value, lm = $('#ir-lm').value, note = $('#ir-note').value.trim(), ids = {}; list.forEach(pid => { ids[pid] = $(`[data-cs-id="${pid}"]`).value; });
+    await indContacts(); toast('Making the signed packs…', 8000); const done = [];
+    for (const pid of list) { const r = indRec(pid); if (!r || r.status !== 'submitted') continue; await indgVerify(r).catch(e => console.warn('verify', e)); const own = indOwnPpe(indD(r).forms.ppe);
+      await indgComplete(r, pid, { id: me(), name, sig, at: indNow(), rtwChecked: true, rtwMethod: meth, idSeen: ids[pid], lineManager: lm, note, ownPpe: own, ownPpeChecked: own.length ? true : null, device: indDevice(), app: APP_VERSION, bulk: true, group: g.id }); done.push(pid); }
+    toast(`${done.length} countersigned - signed packs saved`, 4000); go('#/indgroup');
+    if (online()) { await recFlush(); for (const pid of done) { const r = indRec(pid); if (r && !r._q) await indEmail(r); } rerender(); } },
+  async 'indg-cancel'() { const g = INDG.g; if (!g || indgAny(g)) return; if (!(await confirmBox('Cancel this group session?', 'No videos have been played yet. The join code stops working and everyone keeps their induction to do on their own.', 'Cancel session'))) return;
+    try { await indgRpc('close_induction_session', { sid: g.id }); } catch (e) { return toast(e.message || String(e), 4000); }
+    INDG.mem.filter(m => m.mode === 'device').forEach(m => { const r = indRec(m.person); if (r && indD(r).group && indD(r).group.id === g.id) { delete indD(r).group; recPut(r); } }); INDG.g = null; INDG.mem = []; await indgKeep(); go('#/admin/ind'); },
+  async 'indg-join'() { const code = ($('#indg-jcode') || {}).value || ''; if (!online()) return toast('Joining needs signal'); const b = $('#indg-join'); if (b) b.disabled = true; INDG.err = '';
+    let res; try { res = await indgRpc('join_induction_session', { code }); } catch (e) { res = { ok: false, error: e.message || String(e) }; }
+    if (!res || !res.ok) { INDG.err = (res && res.error) || 'Could not join'; const m = $('#indg-jmsg'); if (m) { m.hidden = false; m.textContent = INDG.err; } if (b) b.disabled = false; return; }
+    await recFetch(`kind=eq.induction&subject=eq.${me()}`); const r = indRec(); if (!r) return toast('Your induction could not be loaded - try again', 4000);
+    indD(r).group = { id: res.id, at: res.created_at, leader: res.leader_name || '', leaderId: res.leader, joinedAt: res.joined_at, mode: 'phone', live: true }; IND.gs = null; indSave(r); await recFlush();
+    toast('Joined ' + (res.leader_name ? res.leader_name + '’s ' : '') + 'group session'); go('#/induction'); indgPhonePoll().catch(() => { }); },
+  async 'indg-end'() { const g = INDG.g; if (!g) return; const left = INDG.mem.filter(m => indgOpen(indRec(m.person))).length;
+    if (!(await confirmBox('End the group session?', (left ? `${left} ${left === 1 ? 'person has' : 'people have'} not signed yet. What they have done is kept: they can finish on their own phone.` : 'Everything is saved on each person\'s record.') + ' The join code stops working.', 'End session', false))) return;
+    indgPush(); indgChPush(); try { await indgRpc('close_induction_session', { sid: g.id }); } catch (e) { return toast(e.message || String(e), 4000); } INDG.g = null; INDG.mem = []; await indgKeep(); go('#/admin/ind'); },
+});
+// countersigning someone on their own (review page): check the group chapter credit against the session first
+{ const _cs = ACTIONS['ind-countersign']; ACTIONS['ind-countersign'] = async function (a) { const r = indRec(a.dataset.pid); if (r && r.status === 'submitted' && indD(r).group && online()) await indgVerify(r).catch(e => console.warn('verify', e)); return _cs.call(this, a); }; }
+
+/* ---------- Team > Induction: the group session card ---------- */
+{ const _v = ADM_VIEWS.ind; ADM_VIEWS.ind = function () { const h = _v(); if (INDG.u !== me()) indgLoad().then(() => INDG.g && /^#\/admin\/ind/.test(location.hash) && rerender());
+  return `<div class="card" id="indg-card"><h2>Group session</h2><p class="hint">Showing the videos to several people at once? Everyone joins on their own phone with a QR code and signs their own forms; people without a phone can use your screen in turn.</p><a class="btn primary block" href="#/indgroup" id="indg-open">${INDG.g ? 'Carry on the group session (' + (INDG.mem.length || 0) + ' joined)' : 'Start a group session'}</a></div>` + h; }; }
+
+/* ---------- routes ---------- */
+{ const _r = render; render = function (keep) { const rt = route(), isG = rt[0] === 'indgroup', isJ = rt[0] === 'join', person = isG && rt[1] === 'p' && rt[2];
+  if (!person) indgLeave(); if (!(isG && rt[1] === 'v')) { IND.vrec = null; IND.vsave = null; }
+  // join link opened while signed out: remember the code until they have signed in (code only, nothing else)
+  if (isJ && !signedIn()) { if (rt[1]) try { localStorage.setItem('ars-join', String(rt[1]).slice(0, 12)); } catch (e) { } _r(keep); const m = $('#app main') || $('#app');
+    if (m && !$('#indg-signin')) m.insertAdjacentHTML('afterbegin', `<div class="card indg-banner" id="indg-signin"><b>Joining group induction ${esc(rt[1] || '')}</b><p class="hint" style="margin:4px 0 0">Sign in first: operatives with your mobile number and PIN, office staff with your usual login.</p></div>`); return; }
+  if (signedIn() && !isJ) { let c = null; try { c = localStorage.getItem('ars-join'); } catch (e) { } if (c) { try { localStorage.removeItem('ars-join'); } catch (e) { } go('#/join/' + c); return; } }
+  if (isJ) { if (!Rec.ready || Rec.uid !== me() || (!indRec() && online() && INDG.jf !== me())) { INDG.jf = me(); $('#app').innerHTML = header({ title: 'Join group induction' }) + '<main><p class="hint">Loading…</p></main>'; recInit().then(() => recFetch(`kind=eq.induction&subject=eq.${me()}`)).finally(() => render(keep)); return; }
+    try { localStorage.removeItem('ars-join'); } catch (e) { } const code = (rt[1] || '').toUpperCase(); S.ctx = null; document.body.classList.remove('hasnav');
+    const r = indRec(); if (r && indLive(r) && code && !INDG.err) { go('#/induction'); return; }
+    $('#app').innerHTML = header({ title: 'Join group induction', back: '#/' }) + `<main>${indgJoinHTML(code)}</main>`; lastHash = location.hash;
+    if (code && r && INDG.auto !== code && online()) { INDG.auto = code; ACTIONS['indg-join'](); } return; }
+  if (rt[0] === 'induction' && signedIn()) { const out = _r(keep); const r = indRec(), m = $('#app main');
+    if (r && m && indLive(r)) { if (!$('#indg-banner')) m.insertAdjacentHTML('afterbegin', indgBannerHTML(r)); if (!IND.gs) indgPhonePoll().catch(() => { }); }
+    else if (r && m && !rt[1] && indgOpen(r) && !$('#indg-joincard')) m.insertAdjacentHTML('beforeend', `<div class="card" id="indg-joincard"><a class="btn block" href="#/join">In a group session? Join it here</a></div>`);
+    return out; }
+  if (!isG || !signedIn()) return _r(keep);
+  if (!isAdm()) { go('#/'); return; }
+  if (!Rec.ready || Rec.uid !== me() || INDG.u !== me()) { $('#app').innerHTML = header({ title: 'Group induction' }) + '<main><p class="hint">Loading…</p></main>'; Promise.all([recInit(), indgLoad(), indContacts()]).then(() => render(keep)); return; }
+  indLoadAll(); S.ctx = null; const y = window.scrollY; document.body.classList.remove('hasnav'); const g = INDG.g; let head, body;
+  if (!g) { if (rt[1]) { go('#/indgroup'); return; } head = header({ title: 'Group induction', back: '#/admin/ind' }); body = indgSetupHTML(); }
+  else if (rt[1] === 'v') { const c = IND_CH.find(x => x.id === rt[2]), i = IND_CH.indexOf(c); if (!c || (i > 0 && !(g.ch[IND_CH[i - 1].id] || {}).watchedAt)) { go('#/indgroup'); return; }
+    indgVideoHooks(c.id); head = header({ title: 'Group induction', sub: `Chapter ${i + 1} of ${IND_CH.length}`, back: '#/indgroup' }); body = indgVideoHTML(c.id); }
+  else if (rt[1] === 'sign') { head = header({ title: 'Group induction', sub: 'Countersign', back: '#/indgroup' }); body = indgSignHTML(); }
+  else if (person) { const pid = rt[2], r = indRec(pid), m = indgMem(pid); if (!m || m.mode !== 'device' || !r) { go('#/indgroup'); return; } indgEnter(pid); const step = rt[3];
+    if (step && (!indgOpen(r) || !indCanOpen(r, step))) { go('#/indgroup/p/' + pid); return; }
+    head = header({ title: indgName(pid), sub: step ? (indStep(step) || {}).g || '' : 'Group session', back: step ? '#/indgroup/p/' + pid : '#/indgroup' }); body = step ? indStepHTML(r, step) : indgPersonHTML(pid); }
+  else { if (rt[1] === 'pass') { go('#/indgroup'); return; } head = header({ title: 'Group induction', back: '#/admin/ind' }); body = indgHubHTML(); }
+  const ov = $('#ind-vid'); $('#app').innerHTML = head + `<main>${body}</main>`; const nv = $('#ind-vid'); if (ov && ov._ind && nv && nv.dataset.ch === ov.dataset.ch) nv.replaceWith(ov);
+  // one person's typing must never be offered to the next person by the browser's form memory
+  if (person) $$('#app input, #app textarea').forEach(i => { if (i.type !== 'hidden') i.setAttribute('autocomplete', 'off'); });
+  window.scrollTo(0, keep ? y : 0); lastHash = location.hash; if (rt[1] === 'v') indMountVideo(); }; }
+{ const st = document.createElement('style'); st.textContent = '.indg-who{border-left:6px solid #0e7490}.indg-banner{border-left:6px solid #0e7490;background:#ecfeff}.indg-att .btns .btn{min-height:40px}.indg-cs h3{font-size:17px}.indg-join{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.indg-qr{width:200px;max-width:60vw;flex:none}.indg-qr svg{width:100%;height:auto;display:block}.indg-code{font:700 44px/1.1 ui-monospace,Menlo,monospace;letter-spacing:6px;margin:6px 0;color:#0f172a}'; document.head.appendChild(st); }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
