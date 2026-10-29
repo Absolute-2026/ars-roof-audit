@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.20">
+<meta name="app-version" content="1.11.21">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.20';
+const APP_VERSION = '1.11.21';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -15466,7 +15466,7 @@ const tsTag = st => { const [c, t] = tsStTag(st); return `<span class="tag ${c}"
 .ts-tot{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}.ts-tot>div{background:#f1f5f9;border-radius:12px;padding:8px;text-align:center}.ts-tot b{display:block;font-size:20px;color:#1e3a5f}.ts-tot span{font-size:12px;color:#64748b}.ts-tot .big{background:#1e3a5f}.ts-tot .big b,.ts-tot .big span{color:#fff}
 .ts-linkb{background:none;border:0;color:#1d4ed8;font-weight:700;padding:10px 0;font-size:15px}
 .ts-tbl{width:100%;border-collapse:collapse;font-size:14px}.ts-tbl th,.ts-tbl td{border-bottom:1px solid #e2e8f0;padding:7px 6px;text-align:left;vertical-align:top}.ts-tbl th{font-size:12px;color:#64748b;text-transform:uppercase}.ts-tbl .n{text-align:right;white-space:nowrap}
-.ts-tbl tr.flag td{background:#fffbeb}.ts-fl{display:block;font-size:12px;color:#92400e;font-weight:700;margin-top:3px}.ts-fl.r{color:#b91c1c}
+.ts-tbl tr.flag td{background:#fffbeb}.ts-fl{display:block;font-size:12px;color:#92400e;font-weight:700;margin-top:3px}.ts-fl.r{color:#b91c1c}.tsb-fig{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;margin:4px 0 6px}.tsb-gbp{font-size:24px;font-weight:800}.tsb-fig .ts-fl{display:inline-block;margin:0;padding:2px 8px;border-radius:10px;background:#fef3c7}.tsb-calc{background:#f1f5f9;border-radius:8px;padding:8px 10px}.tsb-note{font-style:italic}.tsb-btns{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.tsb-btns .btn{margin:0}
 .ts-wrap{overflow-x:auto}.ts-acts{white-space:nowrap}.ts-acts .btn{min-height:38px;padding:0 10px;font-size:14px;margin:2px}
 .ts-gi{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #eef2f7}.ts-gi input[type=checkbox]{width:28px;height:28px}.ts-gi .nm{flex:1}.ts-gi .nm span{display:block;font-size:13px;color:#64748b}.ts-gi .hrs{text-align:right;font-size:14px}
 .ts-bar{height:12px;background:#e2e8f0;border-radius:6px;overflow:hidden;margin:4px 0}.ts-bar i{display:block;height:100%;background:#16a34a}.ts-bar i.w{background:#f59e0b}.ts-bar i.r{background:#dc2626}
@@ -15996,20 +15996,43 @@ ACTIONS['tsc-save'] = async () => { const g = id => $('#' + id).value, n = id =>
 
 /* ---------- labour budget on the project (job_commercial: managers + admin only) + labour vs budget ---------- */
 async function tsJcLoad(force) { if (!tsAdm() || (!force && TS.jc)) return; try { const r = await sbFetch('/rest/v1/job_commercial?select=*'); TS.jc = {}; (r || []).forEach(x => { TS.jc[x.job_id] = x; }); } catch (e) { TS.jc = TS.jc || {}; } }
+/* v1.11.21 (Matt: "can it be changed manually if wrong?"): the budget is shown read-only; "Set manually" (with an optional note) is a
+   manual override (who / when / note) that the live-jobs sync never overwrites - it still records "from pricing files: £X" next to it.
+   "Revert to pricing files" goes back to the calculated figure. Both are database RPCs (jc_set_manual / jc_revert_budget, is_admin()). */
+function tsBudgetCard(job) { const c = (TS.jc && job.projectId && TS.jc[job.projectId]) || {}; const cfg = tsCfgV(), DR = cfg.budgetDayRate || 660;
+  const man = !!c.budget_manual, pf = c.pricing_files != null, lb = c.labour_budget != null ? +c.labour_budget : null;
+  const bd = c.budget_days != null ? +c.budget_days : lb != null ? TSC.r2(lb / DR) : null;
+  const cl = c.calc_labour_budget != null ? +c.calc_labour_budget : null, cd = c.calc_budget_days != null ? +c.calc_budget_days : cl != null ? TSC.r2(cl / DR) : null;
+  const diff = man && pf && cl != null && lb != null ? TSC.r2(lb - cl) : null;
+  const calcTxt = cl != null ? `<b>${fmtGBP(cl)}</b> (${tsH(cd)} gang-days)` : `<b>no figure</b> (needs budget: no pricing file, £0 labour or #VALUE!)`;
+  return `<div class="card ts-pay" id="ts-budget"><h2>💷 Labour budget <span class="small">(managers / admin only)</span></h2>
+    <div class="tsb-fig"><span class="tsb-gbp" id="tsb-cur">${lb != null ? fmtGBP(lb) : 'Not set'}</span>${bd != null ? `<span class="small"> · ${tsH(bd)} gang-days</span>` : ''}
+      ${man ? '<span class="ts-fl tsb-man" id="tsb-badge">✎ Set manually</span>' : pf ? '<span class="tsb-src small">from the pricing files</span>' : ''}${!man && c.needs_budget ? '<span class="ts-fl">Needs budget</span>' : ''}</div>
+    ${man ? `<p class="small tsb-who" id="tsb-who">Manual override by <b>${esc(c.manual_by_name || 'a manager')}</b>${c.manual_at ? ' on ' + esc(fmtDate(String(c.manual_at).slice(0, 10))) + ' ' + esc(String(new Date(c.manual_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))) : ''}${c.manual_note ? `<br><span class="tsb-note">“${esc(c.manual_note)}”</span>` : ''}</p>` : ''}
+    ${man && pf ? `<p class="small tsb-calc" id="tsb-calc">From pricing files: ${calcTxt}${diff ? ` · manual is <b>${diff > 0 ? '+' : '−'}${fmtGBP(Math.abs(diff))}</b> ${diff > 0 ? 'more' : 'less'}` : diff === 0 ? ' · same as manual' : ''}. The sync keeps this up to date but never changes the manual budget.</p>` : ''}
+    ${c.surveyor || c.selling ? `<p class="small">${c.surveyor ? 'Surveyor ' + esc(c.surveyor) : ''}${c.selling ? ` · selling ${fmtGBP(c.selling)}` : ''}${c.margin != null ? ` · margin ${fmtGBP(c.margin)}` : ''}${c.synced_at ? ' · pricing files read ' + esc(fmtDate(String(c.synced_at).slice(0, 10))) : ''}</p>` : ''}
+    ${job.projectId ? `<div class="tsb-btns"><button type="button" class="btn" data-act="tsb-set" id="tsb-set">✎ Set manually</button>${man && pf ? '<button type="button" class="btn" data-act="tsb-revert" id="tsb-revert">↺ Revert to pricing files</button>' : ''}</div>` : '<p class="small">Save the project first, then set its budget.</p>'}
+    <p class="small">Never shown to operatives or foremen. <a href="#/tsbudget">Labour vs budget ›</a></p></div>`; }
+function tsBudgetRepaint(job) { const el = $('#ts-budget'); if (el) el.outerHTML = tsBudgetCard(job); }
 { const _vp = viewProject; viewProject = function (job) { const h = _vp(job); if (!tsAdm() || isOp()) return h; if (!TS.jc) tsJcLoad().then(() => { if (/\/project/.test(location.hash) || /details/.test(location.hash)) rerender(); });
-  const c = (TS.jc && job.projectId && TS.jc[job.projectId]) || {}; const cfg = tsCfgV();
-  const card = `<div class="card ts-pay" id="ts-budget"><h2>💷 Labour budget <span class="small">(managers / admin only)</span></h2>
-    <div class="row2"><div class="f"><label for="tsb-gbp">Labour cost before margin £</label><input id="tsb-gbp" type="number" step="0.01" min="0" value="${esc(c.labour_budget ?? '')}" placeholder="from the pricing SUMMARY B13"></div>
-    <div class="f"><label for="tsb-days">Budget gang-days</label><input id="tsb-days" type="number" step="0.5" min="0" value="${esc(c.budget_days ?? '')}" placeholder="blank = £ ÷ ${esc(cfg.budgetDayRate)}"></div></div>
-    ${c.surveyor || c.selling ? `<p class="small">${c.surveyor ? 'Surveyor ' + esc(c.surveyor) : ''}${c.selling ? ` · selling ${fmtGBP(c.selling)}` : ''}${c.margin != null ? ` · margin ${fmtGBP(c.margin)}` : ''}${c.synced_at ? ' · from the pricing files ' + esc(fmtDate(String(c.synced_at).slice(0, 10))) : ''}</p>` : ''}
-    <p class="small">Saved with the project. Never shown to operatives or foremen. <a href="#/tsbudget">Labour vs budget ›</a></p></div>`;
-  const k = h.indexOf('<button class="btn primary block" data-act="pj-save"'); return k > 0 ? h.slice(0, k) + card + h.slice(k) : h; }; }
-{ const _a = ACTIONS['pj-save']; ACTIONS['pj-save'] = async function (a, job) { const g = $('#tsb-gbp'), d = $('#tsb-days'); const before = g ? { gbp: g.value, days: d.value } : null; const r = await _a.apply(this, arguments);
-  if (before && tsAdm() && job && job.projectId && online()) { const c = (TS.jc && TS.jc[job.projectId]) || {}; const gbp = before.gbp === '' ? null : TSC.r2(TSC.num(before.gbp)), days = before.days === '' ? null : TSC.r2(TSC.num(before.days));
-    if (gbp !== (c.labour_budget == null ? null : +c.labour_budget) || days !== (c.budget_days == null ? null : +c.budget_days)) {
-      try { const p = projOf(job) || {}; await sbFetch('/rest/v1/job_commercial?on_conflict=job_id', { method: 'POST', body: [{ job_id: job.projectId, rp: p.ref || job.ref || null, labour_budget: gbp, budget_days: days, updated_by: me(), updated_at: new Date().toISOString() }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); await tsJcLoad(true); toast('Labour budget saved'); }
-      catch (e) { toast('Project saved, but the labour budget was not: ' + tsErr(e), 5000); } } }
-  return r; }; }
+  const k = h.indexOf('<button class="btn primary block" data-act="pj-save"'); return k > 0 ? h.slice(0, k) + tsBudgetCard(job) + h.slice(k) : h; }; }
+ACTIONS['tsb-set'] = async function (a, job) { if (!tsAdm() || !job || !job.projectId) return; if (!online()) { toast('Needs signal to save'); return; }
+  const c = (TS.jc && TS.jc[job.projectId]) || {}; const DR = tsCfgV().budgetDayRate || 660; let err = '';
+  for (;;) { let v = null; const r = await modal(`<h3>Set labour budget manually</h3><p class="small" style="margin:0 0 8px">A manual budget is kept until you revert it: the pricing-file sync will not overwrite it (it still shows the pricing-file figure next to it).</p>
+      ${err ? `<div class="lg-msg err">${esc(err)}</div>` : ''}<div class="row2"><div class="f"><label for="tsbm-gbp">Labour budget before margin £</label><input id="tsbm-gbp" type="number" step="0.01" min="0" inputmode="decimal" value="${esc(c.labour_budget ?? '')}"></div>
+      <div class="f"><label for="tsbm-days">Gang-days <span class="small">(blank = £ ÷ ${esc(fmtGBP(DR))})</span></label><input id="tsbm-days" type="number" step="0.01" min="0" value="${c.budget_manual && c.budget_days != null && c.labour_budget != null && TSC.r2(+c.labour_budget / DR) !== +c.budget_days ? esc(c.budget_days) : ''}"></div></div>
+      ${c.calc_labour_budget != null ? `<p class="small">From pricing files: ${fmtGBP(c.calc_labour_budget)}</p>` : ''}
+      <div class="f"><label for="tsbm-note">Note <span class="small">(optional - why it differs)</span></label><textarea id="tsbm-note" rows="3" maxlength="1000" placeholder="e.g. per PO 12345">${esc(c.manual_note || '')}</textarea></div>
+      <button class="btn primary" id="tsbm-ok" data-r="ok">Save manual budget</button><button class="btn" data-r="cancel">Cancel</button>`, bg => {
+      const g = $('#tsbm-gbp', bg); g.focus(); g.select(); bg.addEventListener('click', e => { if (e.target.closest('#tsbm-ok')) { v = { g: $('#tsbm-gbp', bg).value, d: $('#tsbm-days', bg).value, n: $('#tsbm-note', bg).value }; } }, true); });
+    if (r !== 'ok' || !v) return; err = '';
+    const gbp = TSC.num(v.g), days = v.d === '' ? null : TSC.num(v.d);
+    if (v.g === '' || !(gbp >= 0)) { err = 'Enter the labour budget in £'; continue; } if (days != null && !(days >= 0)) { err = 'Gang-days must be 0 or more'; continue; }
+    try { await sbFetch('/rest/v1/rpc/jc_set_manual', { method: 'POST', body: { p_job: job.projectId, p_gbp: TSC.r2(gbp), p_days: days == null ? null : TSC.r2(days), p_note: v.n.trim() || null } });
+      await tsJcLoad(true); tsBudgetRepaint(job); toast('Manual labour budget saved'); } catch (e) { toast('Not saved: ' + tsErr(e), 5000); } return; } };
+ACTIONS['tsb-revert'] = async function (a, job) { if (!tsAdm() || !job || !job.projectId) return; const c = (TS.jc && TS.jc[job.projectId]) || {};
+  if (!(await confirmBox('Revert to pricing files?', `The labour budget goes back to ${c.calc_labour_budget != null ? fmtGBP(c.calc_labour_budget) : 'blank (needs budget)'} from the pricing files and the sync keeps it up to date again. The manual figure ${c.labour_budget != null ? fmtGBP(c.labour_budget) : ''} and its note are kept in the budget log.`, 'Revert', false))) return;
+  try { await sbFetch('/rest/v1/rpc/jc_revert_budget', { method: 'POST', body: { p_job: job.projectId } }); await tsJcLoad(true); tsBudgetRepaint(job); toast('Back to the pricing-file budget'); } catch (e) { toast('Not reverted: ' + tsErr(e), 5000); } };
 async function tsBudLoad() { TS.bud = { loading: true }; try { const since = TSC.addDays(TSC.monday(todayISO()), -7 * 104);
     const [w, adj] = await Promise.all([sbFetch(`/rest/v1/ts_weeks?status=in.(approved,sent)&week=gte.${since}&select=id,uid,name,week,days,status&limit=5000`), sbFetch(`/rest/v1/ts_adjust?day=gte.${since}&select=week_id,day,after,at&order=at.asc&limit=10000`), tsJcLoad(true), tsRatesLoad(), tsCfgLoad(), Ops.jobsTbl && Ops.jobsTbl.length ? null : loadJobsTbl()]);
     const A = tsAdjMap(adj), by = {}; const add = (j, k, n) => { const o = by[j] = by[j] || { days: 0, gbp: 0, h: 0, ppl: new Set(), pend: 0 }; o[k] += n; return o; };
@@ -16022,7 +16045,7 @@ function tsBudgetView() { const B = TS.bud; if (!B) { tsBudLoad(); return '<p cl
   const bar = p => p == null ? '' : `<div class="ts-bar"><i class="${p > 1 ? 'r' : p > 0.85 ? 'w' : ''}" style="width:${Math.min(100, Math.round(p * 100))}%"></i></div>`;
   return `<div class="card"><h2>📊 Labour vs budget</h2><p class="small">Approved and sent timesheets only. A day split across jobs is shared by hours. Budget days = labour cost before margin ÷ ${fmtGBP(cfg.budgetDayRate)} unless set on the project.</p>
     <div class="ts-wrap"><table class="ts-tbl"><thead><tr><th>Project</th><th class="n">Days used / budget</th><th class="n">£ used / budget</th><th class="n">People</th></tr></thead><tbody>
-    ${rows.map(r => `<tr class="${(r.pD || 0) > 1 || (r.pG || 0) > 1 ? 'flag' : ''}"><td><b>${esc(tsJobName(r.id))}</b>${r.bG == null && r.bD == null ? '<span class="ts-fl">No budget set</span>' : ''}</td>
+    ${rows.map(r => `<tr class="${(r.pD || 0) > 1 || (r.pG || 0) > 1 ? 'flag' : ''}"><td><b>${esc(tsJobName(r.id))}</b>${r.bG == null && r.bD == null ? '<span class="ts-fl">No budget set</span>' : ''}${(jc[r.id] || {}).budget_manual ? '<span class="ts-fl">✎ Manual budget</span>' : ''}</td>
       <td class="n">${tsH(TSC.r2(r.u.days))} / ${r.bD != null ? tsH(r.bD) : '-'}${bar(r.pD)}${r.pD != null ? `<span class="small">${Math.round(r.pD * 100)}%</span>` : ''}</td>
       <td class="n">${fmtGBP(r.u.gbp)} / ${r.bG != null ? fmtGBP(r.bG) : '-'}${bar(r.pG)}${r.pG != null ? `<span class="small">${Math.round(r.pG * 100)}%</span>` : ''}</td><td class="n">${r.u.ppl.size}</td></tr>`).join('') || '<tr><td colspan="4" class="hint">No approved timesheets or budgets yet.</td></tr>'}
     </tbody></table></div></div>`; }
