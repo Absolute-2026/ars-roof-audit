@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.14">
+<meta name="app-version" content="1.11.15">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.14';
+const APP_VERSION = '1.11.15';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -11041,18 +11041,18 @@ function pjMode(sel) { const m = PJ_SEL[sel.id]; if (m !== 'auto') return pjCanC
 function pjEnhance(sel) {
   if (!sel || sel.dataset.pjc) return; sel.dataset.pjc = '1'; const mode = pjMode(sel);
   const box = document.createElement('div'); box.className = 'pjc';
-  box.innerHTML = `<input type="text" class="pjc-in" autocomplete="off" autocapitalize="words" enterkeyhint="done" placeholder="${mode === 'none' ? 'Search projects' : 'Search, or type a new project name'}" aria-label="Project"><button type="button" class="pjc-x" aria-label="Show list">▾</button><div class="pjc-list" role="listbox" hidden></div>`;
+  box.innerHTML = `<input type="text" class="pjc-in" autocomplete="off" autocapitalize="words" enterkeyhint="done" placeholder="${esc(sel.dataset.pjcPh || (mode === 'none' ? 'Search projects' : 'Search, or type a new project name'))}" aria-label="${esc(sel.dataset.pjcAria || 'Project')}"><button type="button" class="pjc-x" aria-label="Show list">▾</button><div class="pjc-list" role="listbox" hidden></div>`;
   sel.classList.add('pjc-sel'); sel.parentNode.insertBefore(box, sel);
   const inp = box.querySelector('.pjc-in'), list = box.querySelector('.pjc-list');
   const curLabel = () => { const o = sel.options[sel.selectedIndex]; return o && o.value ? pjTidy(o.textContent) : ''; };
-  const showSel = () => { inp.value = curLabel(); inp.placeholder = sel.value || !sel.options.length ? (mode === 'none' ? 'Search projects' : 'Search, or type a new project name') : ((sel.options[sel.selectedIndex] || {}).textContent || '').trim() || 'Search'; };
+  const showSel = () => { inp.value = curLabel(); inp.placeholder = sel.value || !sel.options.length ? (sel.dataset.pjcPh || (mode === 'none' ? 'Search projects' : 'Search, or type a new project name')) : ((sel.options[sel.selectedIndex] || {}).textContent || '').trim() || 'Search'; };
   const pick = v => { if (sel.value !== v) { sel.value = v; sel.dispatchEvent(new Event('change', { bubbles: true })); } showSel(); list.hidden = true; inp.blur(); };
   const draw = () => { const q = pjNorm(inp.value === curLabel() ? '' : inp.value); const opts = [...sel.options];
     const hits = opts.filter(o => !q || pjNorm(o.textContent).includes(q) || !o.value && !q);
     const exact = q && opts.some(o => o.value && pjNorm(o.textContent.replace('·', ' ')) === q) || (q && mode === 'project' && pjFind(inp.value));
     let h = hits.map(o => `<button type="button" class="pjc-o${o.value === sel.value ? ' on' : ''}" data-v="${esc(o.value)}">${esc(pjTidy(o.textContent))}</button>`).join('');
     if (q && !exact && mode === 'project') h = `<button type="button" class="pjc-o new" data-new="1">+ Add new project "${esc(inp.value.trim())}"<span class="s">Saved to the project list for everyone${online() ? '' : ' - uploads when you have signal'}</span></button>` + h;
-    if (q && !exact && mode === 'text') h = `<button type="button" class="pjc-o new" data-txt="1">+ Other job: "${esc(inp.value.trim())}"<span class="s">Kept on this expense only</span></button>` + h;
+    if (q && !exact && mode === 'text') h = `<button type="button" class="pjc-o new" data-txt="1">+ Other job: "${esc(inp.value.trim())}"<span class="s">${esc(sel.dataset.pjcNote || 'Kept on this expense only')}</span></button>` + h;
     list.innerHTML = h || `<div class="pjc-none">${mode === 'none' ? 'No match' : 'Type the project name'}</div>`; list.hidden = false; };
   inp.addEventListener('focus', () => { if (inp.value === curLabel()) inp.select && setTimeout(() => inp.select(), 0); draw(); });
   inp.addEventListener('input', draw);
@@ -14884,6 +14884,8 @@ function indPaRefresh(r) { const pa = indD(r).polAck || {}, b = $('#ind-pa-confi
 .ind-pa-ck .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.ind-pa-stmt{background:#fff7ed;border-left:4px solid #f18902;padding:10px;border-radius:6px;margin-top:10px}`; document.head.appendChild(st); }
 
 /* ===== v1.11.14 (BETA): in-app Messages =====
+   v1.11.15: the job link uses the app's project search box (app51 pjEnhance): type to filter the jobs you can see, or keep a typed job name
+   that isn't listed as text on the message ({ text }, no project id; nothing is added to the project list).
    Operatives message "the office" (one shared conversation each, seen by admin + managers). Staff message each other one-to-one and
    admin/managers reply to operatives. All writes go through security-definer RPCs (msg_thread_for / msg_send / msg_read / msg_archive);
    tables are read-only under RLS. Message ids are made on the phone so an offline queue can retry safely (msg_send is idempotent). */
@@ -14892,6 +14894,7 @@ const MSG = { inbox: null, at: 0, loading: null, cur: null, msgs: {}, urls: {}, 
 const msgOn = () => BUILD.variant !== 'prod' && signedIn() && !!Cloud.profile && (isOp() || isStaffRole(Cloud.profile.role));
 const msgUuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }));
 const msgRpc = (fn, body) => sbFetch('/rest/v1/rpc/' + fn, { method: 'POST', body: body || {} });
+const msgJobLabel = j => !j ? '' : j.text ? String(j.text) : [j.ref, j.site].filter(Boolean).join(' · ');
 const msgUnread = () => (MSG.inbox || []).reduce((n, t) => n + (t.unread || 0), 0);
 const msgTime = ts => { const d = new Date(ts), now = new Date(); const t = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   if (d.toDateString() === now.toDateString()) return t; const y = new Date(now); y.setDate(y.getDate() - 1); if (d.toDateString() === y.toDateString()) return 'Yesterday ' + t;
@@ -14913,7 +14916,7 @@ function msgPaintBadges() { const n = msgUnread(); $$('.msg-badge').forEach(b =>
 .msg-b img{display:block;max-width:100%;max-height:300px;border-radius:10px;margin:4px 0;background:#e2e8f0;min-width:120px;min-height:90px;object-fit:cover}
 .msg-b.q{opacity:.75;border-style:dashed}.msg-b.err{background:#fef2f2;color:#991b1b;border-color:#fca5a5}
 .msg-job{display:inline-block;margin:4px 0;padding:4px 10px;border-radius:12px;background:#fef3c7;color:#92400e;font-size:14px;font-weight:700;text-decoration:none;white-space:normal}
-.msg-seen{align-self:flex-end;font-size:12px;color:#64748b;margin:-2px 4px 0}
+.msg-job.txt{background:#e0f2fe;color:#075985}.msg-seen{align-self:flex-end;font-size:12px;color:#64748b;margin:-2px 4px 0}
 .msg-comp{position:sticky;bottom:0;background:#f1f5f9;padding:10px 0 calc(10px + env(safe-area-inset-bottom));border-top:1px solid #e2e8f0;margin-top:8px}
 .msg-comp textarea{width:100%;min-height:84px;font-size:18px;border-radius:14px;padding:12px;border:2px solid #cbd5e1;box-sizing:border-box}
 .msg-tools{display:flex;gap:8px;margin-top:8px}.msg-tools>*{flex:1;min-height:56px;font-size:17px}
@@ -14946,7 +14949,7 @@ async function msgFlush() {
           catch (e) { if (!(e.status === 409 || /exists|duplicate/i.test(e.message || ''))) throw e; }
           it.photoPath = path; await msgQSave();
         }
-        await msgRpc('msg_send', { p_id: it.id, p_thread: it.thread, p_body: it.body || '', p_photo: it.photoPath || null, p_job: it.job ? { id: it.job.id } : null });
+        await msgRpc('msg_send', { p_id: it.id, p_thread: it.thread, p_body: it.body || '', p_photo: it.photoPath || null, p_job: it.job ? (it.job.id ? { id: it.job.id } : { text: it.job.text }) : null });
         MSG.q = MSG.q.filter(x => x.id !== it.id); await msgQSave(); sent++;
         fnCall('msg-notify', { id: it.id }).catch(() => { });   // push / office email; never blocks the message
       } catch (e) {
@@ -15045,7 +15048,7 @@ function msgBubble(m, t, isLastMine, otherRead) {
   let who = '';
   if (!mine) { if (isOp()) who = m.from_office ? 'The office' + (m.sender_name ? ' · ' + m.sender_name.split(' ')[0] : '') : ''; else who = m.sender_name || (m.from_office ? 'Office' : 'Removed user'); }
   else if (!isOp() && t && t.kind === 'office') who = 'You (office)';
-  const job = m.job && m.job.id ? (isOp() ? `<a class="msg-job" href="#/today/${esc(m.job.id)}">📋 ${esc(m.job.ref || '')} ${esc(m.job.site || '')}</a>` : `<span class="msg-job">📋 ${esc(m.job.ref || '')} ${esc(m.job.site || '')}</span>`) : '';
+  const jl = msgJobLabel(m.job); const job = !jl ? '' : m.job.id && isOp() ? `<a class="msg-job" href="#/today/${esc(m.job.id)}">📋 ${esc(jl)}</a>` : `<span class="msg-job${m.job.id ? '' : ' txt'}">📋 ${esc(jl)}</span>`;
   const img = q && q.photo ? `<img src="${q.photo}" alt="Photo">` : m.photo ? `<img data-msgph="${esc(m.photo)}" alt="Photo" data-act="msg-photo">` : '';
   const tm = q ? (q.err ? `Not sent: ${esc(q.err)}` : '⏳ Waiting for signal - will send automatically') : esc(msgTime(m.created_at));
   return `<div class="msg-b ${mine ? 'me' : ''} ${q ? (q.err ? 'err' : 'q') : ''}" data-mid="${esc(m.id)}">${who ? `<div class="who">${esc(who)}</div>` : ''}${img}${m.body ? esc(m.body) : ''}${job ? `<div>${job}</div>` : ''}<div class="tm">${tm}</div>${q && q.err ? `<div class="btns" style="margin-top:6px"><button class="btn" data-act="msg-retry" data-id="${esc(m.id)}">Try again</button><button class="btn" data-act="msg-drop" data-id="${esc(m.id)}">Remove</button></div>` : ''}</div>${isLastMine && !q && otherRead && new Date(otherRead) >= new Date(m.created_at) ? '<div class="msg-seen">✓✓ Seen</div>' : ''}`;
@@ -15068,7 +15071,7 @@ function msgPaintOpen(scroll) {
 }
 const msgScrollEnd = () => requestAnimationFrame(() => window.scrollTo(0, document.body.scrollHeight));
 function msgRefreshOpen() { if (MSG.cur && route()[0] === 'msg') { msgLoadThread(MSG.cur).then(() => { msgPaintOpen(true); msgMarkRead(MSG.cur); }); } else msgPaintInbox(); }
-function msgAttHtml() { const d = MSG.draft; return `${d.photo ? `<img src="${d.photo}" alt="Photo to send"><button data-act="msg-unphoto">✕ Remove photo</button>` : ''}${d.job ? `<span class="msg-job">📋 ${esc(d.job.ref || '')} ${esc(d.job.site || '')}</span><button data-act="msg-unjob">✕</button>` : ''}`; }
+function msgAttHtml() { const d = MSG.draft; return `${d.photo ? `<img src="${d.photo}" alt="Photo to send"><button data-act="msg-unphoto">✕ Remove photo</button>` : ''}${d.job ? `<span class="msg-job${d.job.id ? '' : ' txt'}">📋 ${esc(msgJobLabel(d.job))}</span><button data-act="msg-unjob">✕</button>` : ''}`; }
 function msgBarHtml(t) { if (!t || isOp() || !isAdm()) return '';
   return `${t.archived ? '<p class="msg-note">This conversation is archived. A new message brings it back to the inbox.</p>' : ''}<div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button class="btn" style="min-height:40px" data-act="msg-archive" data-on="${t.archived ? '0' : '1'}">${t.archived ? '📤 Move back to inbox' : '🗄️ Archive'}</button></div>`; }
 function viewMsgThread(id) {
@@ -15143,12 +15146,21 @@ Object.assign(ACTIONS, {
   },
   'msg-unphoto': () => { MSG.draft.photo = null; const a = $('#msg-att'); if (a) a.innerHTML = msgAttHtml(); },
   'msg-unjob': () => { MSG.draft.job = null; const a = $('#msg-att'); if (a) a.innerHTML = msgAttHtml(); },
-  'msg-job': async () => {
+  'msg-job': async () => {   // v1.11.15: same type-ahead search box as the other job/project pickers (app51), free text allowed
     if (!isOp() && !(Ops.jobsTbl || []).length && online()) await loadJobsTbl();
-    const js = (isOp() ? Ops.jobs : Ops.jobsTbl) || [];
-    const list = js.filter(j => j && j.id).map(j => ({ id: j.id, ref: j.ref || '', site: j.site_name || j.site || j.name || '' }));
-    const r = await modal(`<h3>Link a job</h3>${list.length ? `<div style="max-height:55vh;overflow:auto">${list.map(j => `<button class="btn block" style="margin-bottom:6px;text-align:left;min-height:52px" data-r="${esc(j.id)}"><b>${esc(j.ref)}</b> ${esc(j.site)}</button>`).join('')}</div>` : '<p>No jobs to pick from.</p>'}<button class="btn" data-r="">Cancel</button>`);
-    if (!r) return; MSG.draft.job = list.find(j => j.id === r) || null; const a = $('#msg-att'); if (a) a.innerHTML = msgAttHtml();
+    const src = isOp() ? (Ops.jobs || []) : (typeof bsActiveJobs === 'function' ? bsActiveJobs() : (Ops.jobsTbl || []).filter(j => j.active !== false));
+    const list = src.filter(j => j && j.id).map(j => ({ id: j.id, ref: j.ref || '', site: j.site_name || j.site || '' }));
+    const cur = MSG.draft.job; const curV = cur ? (cur.id || 'txt:' + cur.text) : '';
+    const opts = `<option value="">— No job —</option>${list.map(j => `<option value="${esc(j.id)}" ${j.id === curV ? 'selected' : ''}>${esc(msgJobLabel(j))}</option>`).join('')}${cur && !cur.id ? `<option value="${esc(curV)}" selected>${esc(cur.text)}</option>` : ''}`;
+    const r = await modal(`<h3>Link a job</h3><p class="small" style="margin:0 0 6px">Type to search${list.length ? ' your jobs' : ''}, or type the job name if it isn't listed.</p>
+      <div class="f"><select id="msg-jobsel" data-pjc-ph="Type a job name or ref" data-pjc-aria="Job" data-pjc-note="Sent as text on this message - not linked to a project">${opts}</select></div><button class="btn" data-r="__cancel">Cancel</button>`,
+      (bg, close) => { const sel = bg.querySelector('#msg-jobsel'); sel.addEventListener('change', () => close(sel.value || '__none'));
+        setTimeout(() => { if (!sel.dataset.pjc && typeof pjEnhance === 'function') pjEnhance(sel); const i = bg.querySelector('.pjc-in'); if (i) { i.value = ''; i.focus(); } }, 60); });
+    if (!r || r === '__cancel') return;
+    if (r === '__none') MSG.draft.job = null;
+    else if (r.startsWith('txt:')) { const t = r.slice(4).replace(/\s+/g, ' ').trim().slice(0, 120); MSG.draft.job = t ? { text: t } : null; }
+    else MSG.draft.job = list.find(j => j.id === r) || null;
+    const a = $('#msg-att'); if (a) a.innerHTML = msgAttHtml();
   },
   'msg-send': async () => {
     const ta = $('#msg-text'); const body = (ta ? ta.value : '').trim(); const d = MSG.draft;
@@ -15182,6 +15194,10 @@ async function msgCfgLoad() { try { const r = await sbFetch('/rest/v1/app_settin
 { const _vs = viewSettings; viewSettings = function () { const h = _vs(); if (!msgOn() || !isMgr()) return h;
   const link = `<a class="item" href="#/settings/messages" id="msg-set-link"><div class="th" style="font-size:24px">💬</div><div class="bd"><div class="t1">Messages</div><div class="t2">Email the office when an operative sends a message</div></div>${I.chev}</a>`;
   return h.includes('<a class="item" href="#/settings/library">') ? h.replace('<a class="item" href="#/settings/library">', link + '<a class="item" href="#/settings/library">') : h + `<div class="card list">${link}</div>`; }; }
+
+// v1.11.15: the Messages job box (#msg-jobsel) uses the shared search box; everyone (operatives too) may keep a typed job as text on the message
+PJ_SEL['msg-jobsel'] = 'text';
+{ const _m = pjMode; pjMode = function (sel) { return sel && sel.id === 'msg-jobsel' ? 'text' : _m(sel); }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
