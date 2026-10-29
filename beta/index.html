@@ -16279,6 +16279,72 @@ ACTIONS['tss-pdf'] = a => { const x = tssCalc(TSS.off.ws).find(y => y.s.id === a
 addEventListener('hashchange', () => { const k = route()[0]; if (k === 'tssubs' && TSS.off.data) tssOffLoad(TSC.monday(route()[1] || todayISO()), true); if (k === 'tssetup') TSS.list = null; });
 (() => { const st = document.createElement('style'); st.textContent = `.tsx-rrow{border:1px solid #cbd5e1;border-radius:8px;padding:8px;margin:6px 0}.tsx-rrow.bad{border-color:#dc2626;background:#fef2f2}.tsx-rname{font-weight:700;margin-bottom:4px}.tsx-rin{display:flex;gap:6px}.tsx-rin input{flex:1;min-width:0}.tsx-rin select{flex:none;width:auto}.tsx-calc{margin-top:4px}.tsx-ck.ok{color:#15803d;font-weight:700}.tsx-ck.bad{color:#b91c1c;font-weight:700}.tss-lines td,.tss-lines th{white-space:nowrap}.tss-man{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid #eef2f7}.tss-man details input{width:96px}.tss-grid td.c,.tss-grid th.c{text-align:center}.tss-sub.off{opacity:.6}.chip.bad{background:#fee2e2;color:#991b1b}.chip.ok{background:#dcfce7;color:#166534}.tss-fig td{padding:4px 8px}.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.row3 .f{min-width:0}.row3 input{width:100%;min-width:0;box-sizing:border-box}`; document.head.appendChild(st); })();
 
+/* ===== v1.11.21b (BETA): Projects list with Live / Completed (Matt, 29 Oct 2026: "Can completed projects be moved into a completed section?").
+   Completed = jobs.active = false (closed by the ARS-24 sync when the folder goes, or marked completed by a manager/admin).
+   "Mark as completed" / "Reopen" (managers / admin only) go through the job_set_completed RPC and are stored as a MANUAL state
+   (job_status) that the sync never overrides. Completed projects keep all their records and stay searchable; job pickers list live
+   projects only (operatives' op_jobs already did; staff pickers use bsActiveJobs / tssJobs). Staff only (operatives never see this list). */
+const PJL = { tab: 'live', q: '', st: null, loading: false };
+async function pjlStLoad(force) { if (!force && (PJL.loading || PJL.st)) return; PJL.loading = true;
+  try { const r = await sbFetch('/rest/v1/job_status?select=*'); PJL.st = {}; (r || []).forEach(x => { PJL.st[x.job_id] = x; }); } catch (e) { PJL.st = PJL.st || {}; } finally { PJL.loading = false; } }
+const pjlDone = p => p && p.active === false;
+const pjlWhy = p => { const s = PJL.st && PJL.st[p.id], c = typeof TS !== 'undefined' && TS.jc && TS.jc[p.id];
+  if (s && s.manual_state === 'completed') return `Marked completed${s.by_name ? ' by ' + s.by_name : ''}${s.at ? ' · ' + fmtDate(String(s.at).slice(0, 10)) : ''}`;
+  if (c && c.closed_by_sync) return `Folder left Live Projects${c.closed_at ? ' · ' + fmtDate(String(c.closed_at).slice(0, 10)) : ''}`;
+  return 'Completed'; };
+const pjlHay = p => [p.ref, p.site_name, p.site_address, p.postcode, p.client_name].filter(Boolean).join(' ').toLowerCase();
+function pjlView() { const all = (Ops.jobsTbl || []).slice(); const q = PJL.q.trim().toLowerCase(); const hit = p => !q || q.split(/\s+/).every(w => pjlHay(p).includes(w));
+  const live = all.filter(p => !pjlDone(p)), done = all.filter(pjlDone); const cur = PJL.tab === 'done' ? done : live, other = PJL.tab === 'done' ? live : done;
+  const rows = cur.filter(hit), oth = q ? other.filter(hit).length : 0;
+  const row = p => { const s = PJL.st && PJL.st[p.id]; return `<a class="item pjl-row" href="#/project/${esc(p.id)}" data-id="${esc(p.id)}"><div class="th">${I.roof.replace('<svg', '<svg width="24" height="24"')}</div><div class="bd"><div class="t1">${esc(p.ref || '')}${p.site_name ? ' · ' + esc(p.site_name) : ''}</div><div class="t2">${esc([p.site_address, p.postcode].filter(Boolean).join(', '))}</div>
+    <div class="meta">${pjlDone(p) ? `<span class="tag">✔ ${esc(pjlWhy(p))}</span>` : s && s.manual_state === 'live' ? `<span class="tag navy">Reopened${s.by_name ? ' by ' + esc(s.by_name) : ''}</span>` : ''}${(p.operatives || []).length ? `<span class="tag">${(p.operatives || []).length} operative${(p.operatives || []).length === 1 ? '' : 's'}</span>` : ''}</div></div>${I.chev}</a>`; };
+  return `<div class="filters pjl-tabs" id="pjl-tabs"><button type="button" data-act="pjl-tab" data-v="live" class="${PJL.tab !== 'done' ? 'on' : ''}" id="pjl-live">Live <b>${live.length}</b></button><button type="button" data-act="pjl-tab" data-v="done" class="${PJL.tab === 'done' ? 'on' : ''}" id="pjl-done">Completed <b>${done.length}</b></button></div>
+    <div class="f"><input type="search" id="pjl-q" placeholder="Search ref, site, address, postcode" value="${esc(PJL.q)}" aria-label="Search projects"></div>
+    ${oth ? `<p class="small" id="pjl-other">${oth} more match${oth === 1 ? 'es' : ''} in <a href="#" data-act="pjl-tab" data-v="${PJL.tab === 'done' ? 'live' : 'done'}">${PJL.tab === 'done' ? 'Live' : 'Completed'}</a></p>` : ''}
+    <div class="card list" id="pjl-list">${rows.map(row).join('') || `<p class="hint" style="padding:12px">${q ? 'No matches' : PJL.tab === 'done' ? 'No completed projects yet.' : 'No live projects.'}</p>`}</div>`; }
+ACTIONS['pjl-tab'] = function (a) { PJL.tab = a.dataset.v === 'done' ? 'done' : 'live'; const m = $('main'); if (m) m.innerHTML = pjlView(); };
+document.addEventListener('input', e => { if (e.target.id !== 'pjl-q') return; PJL.q = e.target.value; const m = $('main'); if (!m) return; const pos = e.target.selectionStart; m.innerHTML = pjlView(); const i = $('#pjl-q'); if (i) { i.focus(); try { i.setSelectionRange(pos, pos); } catch (x) { } } });
+function pjlStatusCard(p) { const s = PJL.st && PJL.st[p.id]; const done = pjlDone(p);
+  return `<div class="card" id="pjl-status"><h2>Status</h2><p><span class="tag ${done ? '' : 'green'}" id="pjl-state">${done ? '✔ Completed' : '● Live'}</span> <span class="small">${done ? esc(pjlWhy(p)) : s && s.manual_state === 'live' ? 'Reopened' + (s.by_name ? ' by ' + esc(s.by_name) : '') + (s.at ? ' · ' + esc(fmtDate(String(s.at).slice(0, 10))) : '') + ' - the folder sync will not close it' : 'Follows the Live Projects folder'}</span></p>
+    ${s && s.note && s.manual_state ? `<p class="small"><i>“${esc(s.note)}”</i></p>` : ''}
+    ${isAdm() ? (done ? `<button type="button" class="btn" data-act="pjl-reopen" data-id="${esc(p.id)}" id="pjl-reopen">↺ Reopen</button>` : `<button type="button" class="btn" data-act="pjl-complete" data-id="${esc(p.id)}" id="pjl-complete">✔ Mark as completed</button>`) : ''}
+    <p class="small">${done ? 'Kept with all its audits, daily checks, timesheets and budget. Hidden from job pickers.' : 'Completed projects keep all their records; they are just hidden from job pickers.'}</p></div>`; }
+async function pjlSet(id, done) { const p = (Ops.jobsTbl || []).find(x => x.id === id); if (!p || !isAdm()) return; if (!online()) { toast('Needs signal'); return; }
+  let note = null;
+  if (done) { const r = await modal(`<h3>Mark as completed?</h3><p class="small">${esc([p.ref, p.site_name].filter(Boolean).join(' · '))} moves to <b>Completed</b>. Its records are kept and it stays searchable; it is hidden from job pickers. The folder sync will not reopen it - only Reopen does.</p>
+      <div class="f"><label for="pjl-note">Note <span class="small">(optional)</span></label><textarea id="pjl-note" rows="2" maxlength="1000" placeholder="e.g. handed over 28/10"></textarea></div>
+      <button class="btn primary" data-r="ok" id="pjl-ok">Mark as completed</button><button class="btn" data-r="cancel">Cancel</button>`, bg => { bg.addEventListener('click', e => { if (e.target.closest('#pjl-ok')) note = $('#pjl-note', bg).value.trim() || null; }, true); });
+    if (r !== 'ok') return; }
+  else if (!(await confirmBox('Reopen project?', `${[p.ref, p.site_name].filter(Boolean).join(' · ')} goes back to Live and shows in job pickers again. The folder sync will not close it again until it is marked completed.`, 'Reopen', false))) return;
+  try { await sbFetch('/rest/v1/rpc/job_set_completed', { method: 'POST', body: { p_job: id, p_completed: !!done, p_note: note } }); await Promise.all([loadJobsTbl(), pjlStLoad(true)]); toast(done ? 'Moved to Completed' : 'Reopened - back in Live'); rerender(); }
+  catch (e) { toast('Not changed: ' + (e.message || e), 5000); } }
+ACTIONS['pjl-complete'] = a => pjlSet(a.dataset.id, true);
+ACTIONS['pjl-reopen'] = a => pjlSet(a.dataset.id, false);
+function pjlProjectView(id) { const p = (Ops.jobsTbl || []).find(x => x.id === id); if (!p) return '<p class="hint">Project not found (it may need a refresh).</p>';
+  const au = typeof rpAudits === 'function' ? rpAudits(p.id) : [];
+  return `<div class="card"><h2>${esc(p.ref || 'Project')}</h2><p>${esc([p.site_name, p.site_address, p.postcode].filter(Boolean).join(', '))}</p>${p.client_name ? `<p class="small">Client ${esc(p.client_name)}</p>` : ''}</div>
+    ${pjlStatusCard(p)}
+    <div class="card"><h2>Audits on this device</h2>${au.length ? au.slice(0, 12).map(j => `<a class="item" href="#/job/${esc(j.id)}/details"><div class="bd"><div class="t1">${isWorks(j) ? 'Works insp. ' + esc(j.works.inspNo || '') : 'Survey'} · ${esc(j.ref)}</div><div class="t2">${fmtDate(j.date)}</div></div>${I.chev}</a>`).join('') : '<p class="hint">None on this device.</p>'}</div>
+    ${typeof tsBudgetCard === 'function' && typeof tsAdm === 'function' && tsAdm() ? tsBudgetCard({ id: 'pjl-' + p.id, projectId: p.id }) : ''}`; }
+// budget card actions on this page need a job context
+{ for (const k of ['tsb-set', 'tsb-revert']) { const _a = ACTIONS[k]; if (_a) ACTIONS[k] = function (a, job) { if (!job && route()[0] === 'project') job = { id: 'pjl', projectId: route()[1] }; return _a.call(this, a, job); }; } }
+// the audit's project form: the Active tick becomes the status card (manager/admin buttons); the hidden tick keeps pj-save working
+{ const _vp = viewProject; viewProject = function (job) { const h = _vp(job); const p = projOf(job); if (!p) return h;
+  return h.replace(/<label class="ckl"><input type="checkbox" id="pj-active"[^>]*>[^<]*<\/label>/, `<input type="checkbox" id="pj-active" hidden ${p.active === false ? '' : 'checked'}>`).replace('<div class="card"><h2>Assigned operatives</h2>', pjlStatusCard(p) + '<div class="card"><h2>Assigned operatives</h2>'); }; }
+// staff job pickers: live projects only (tssJobs looked at a non-existent status field)
+if (typeof tssJobs === 'function') tssJobs = function () { return isOp() ? (Ops.jobs || []) : (Ops.jobsTbl || []).filter(j => j.active !== false); };
+// home: a Projects entry for staff
+{ const _vl = viewList; viewList = function () { const v = _vl(); if (!signedIn() || isOp() || !Cloud.profile || !isStaffRole(Cloud.profile.role)) return v;
+  const all = Ops.jobsTbl || [], d = all.filter(pjlDone).length;
+  v.body = `<a class="card pjl-home" href="#/projects" id="pjl-homebtn"><span class="ic">📁</span><span class="bd"><span class="t1">Projects</span><br><span class="t2"><b>${all.length - d}</b> live · ${d} completed</span></span>${I.chev}</a>` + v.body; return v; }; }
+{ const _r = render; render = function (keep) { const rt = route(), k = rt[0]; if (k !== 'projects' && k !== 'project') return _r(keep);
+  if (!signedIn() || isOp() || !Cloud.profile || !isStaffRole(Cloud.profile.role)) { go('#/'); return; } S.ctx = null; document.body.classList.remove('hasnav');
+  const paint = (title, sub, back, body) => { $('#app').innerHTML = header({ title, sub, back }) + `<main>${body}</main>`; lastHash = location.hash; };
+  const fresh = () => { const r2 = route(); if (r2[0] !== k) return; const m = $('main'); if (!m || m.contains(document.activeElement) && document.activeElement.id === 'pjl-q') return; m.innerHTML = k === 'projects' ? pjlView() : pjlProjectView(r2[1]); };
+  if (k === 'projects') { paint('Projects', 'Live and completed', '#/', pjlView()); } else { const p = (Ops.jobsTbl || []).find(x => x.id === rt[1]); paint(p ? p.ref || 'Project' : 'Project', p ? (pjlDone(p) ? 'Completed' : 'Live') : '', '#/projects', pjlProjectView(rt[1])); }
+  Promise.all([pjlStLoad(), (Ops.jobsTbl || []).length ? null : loadJobsTbl(), typeof tsJcLoad === 'function' ? tsJcLoad() : null]).then(fresh); }; }
+document.head.insertAdjacentHTML('beforeend', '<style>.pjl-tabs b{margin-left:6px;font-weight:800}.pjl-home{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}.pjl-home .ic{font-size:26px}.pjl-home .t1{font-weight:800}.pjl-home .bd{flex:1}#pjl-status .btn{margin:6px 0}</style>');
+
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
    the original (and any superseded revision) gets job.locked = { reason, by, at, rev } and becomes read-only. */
