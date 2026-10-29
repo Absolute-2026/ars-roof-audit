@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.13">
+<meta name="app-version" content="1.11.14">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.13';
+const APP_VERSION = '1.11.14';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -14882,6 +14882,306 @@ function indPaRefresh(r) { const pa = indD(r).polAck || {}, b = $('#ind-pa-confi
 .ind-pa-t{flex:1;min-width:0;font-size:15px}.ind-pa-t>span{display:block}.ind-pa-open{font-size:13px;padding:2px 0;min-height:32px;background:none;border:0;color:#0e7490;text-decoration:underline;cursor:pointer}
 .ind-pa-ck{flex:none;display:flex;align-items:center;justify-content:center;min-width:56px;min-height:44px;border-left:1px solid #e2e8f0}.ind-pa-ck input{width:26px;height:26px}
 .ind-pa-ck .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.ind-pa-stmt{background:#fff7ed;border-left:4px solid #f18902;padding:10px;border-radius:6px;margin-top:10px}`; document.head.appendChild(st); }
+
+/* ===== v1.11.14 (BETA): in-app Messages =====
+   Operatives message "the office" (one shared conversation each, seen by admin + managers). Staff message each other one-to-one and
+   admin/managers reply to operatives. All writes go through security-definer RPCs (msg_thread_for / msg_send / msg_read / msg_archive);
+   tables are read-only under RLS. Message ids are made on the phone so an offline queue can retry safely (msg_send is idempotent). */
+const MSG = { inbox: null, at: 0, loading: null, cur: null, msgs: {}, urls: {}, q: [], qKey: '', busy: false, arch: false, draft: { photo: null, job: null },
+  ws: null, wsOk: false, wsTok: '', wsTry: 0, wsHb: null, lastPoll: 0, office: null, other: {} };
+const msgOn = () => BUILD.variant !== 'prod' && signedIn() && !!Cloud.profile && (isOp() || isStaffRole(Cloud.profile.role));
+const msgUuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }));
+const msgRpc = (fn, body) => sbFetch('/rest/v1/rpc/' + fn, { method: 'POST', body: body || {} });
+const msgUnread = () => (MSG.inbox || []).reduce((n, t) => n + (t.unread || 0), 0);
+const msgTime = ts => { const d = new Date(ts), now = new Date(); const t = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return t; const y = new Date(now); y.setDate(y.getDate() - 1); if (d.toDateString() === y.toDateString()) return 'Yesterday ' + t;
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + t; };
+const msgBadge = (cls = '') => { const n = msgUnread(); return `<span class="msg-badge ${cls}" ${n ? '' : 'hidden'}>${n > 99 ? '99+' : n}</span>`; };
+function msgPaintBadges() { const n = msgUnread(); $$('.msg-badge').forEach(b => { b.textContent = n > 99 ? '99+' : n; b.hidden = !n; }); }
+(() => { const st = document.createElement('style'); st.textContent = `
+.msg-badge{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 7px;border-radius:12px;background:#dc2626;color:#fff;font-size:14px;font-weight:800;margin-left:8px}
+.msg-badge[hidden]{display:none}
+.msg-opbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:64px;font-size:20px;font-weight:800;margin:0 0 12px;text-decoration:none}
+.msg-home{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;padding:14px 16px;margin-bottom:12px}
+.msg-home .ic{font-size:28px}.msg-home .bd{flex:1}.msg-home .t1{font-weight:800;font-size:17px}.msg-home .t2{font-size:13px;color:#64748b}
+.msg-list{display:flex;flex-direction:column;gap:6px;padding-bottom:8px}
+.msg-day{align-self:center;font-size:12px;color:#64748b;background:#e2e8f0;border-radius:10px;padding:2px 10px;margin:8px 0 2px}
+.msg-b{max-width:84%;padding:10px 12px;border-radius:16px;background:#fff;border:1px solid #e2e8f0;align-self:flex-start;font-size:17px;line-height:1.35;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere}
+.msg-b.me{align-self:flex-end;background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+.msg-b .who{font-size:12px;font-weight:700;color:#475569;margin-bottom:2px;white-space:normal}.msg-b.me .who{color:#cbd5e1}
+.msg-b .tm{font-size:11px;color:#94a3b8;margin-top:4px;text-align:right;white-space:normal}.msg-b.me .tm{color:#cbd5e1}
+.msg-b img{display:block;max-width:100%;max-height:300px;border-radius:10px;margin:4px 0;background:#e2e8f0;min-width:120px;min-height:90px;object-fit:cover}
+.msg-b.q{opacity:.75;border-style:dashed}.msg-b.err{background:#fef2f2;color:#991b1b;border-color:#fca5a5}
+.msg-job{display:inline-block;margin:4px 0;padding:4px 10px;border-radius:12px;background:#fef3c7;color:#92400e;font-size:14px;font-weight:700;text-decoration:none;white-space:normal}
+.msg-seen{align-self:flex-end;font-size:12px;color:#64748b;margin:-2px 4px 0}
+.msg-comp{position:sticky;bottom:0;background:#f1f5f9;padding:10px 0 calc(10px + env(safe-area-inset-bottom));border-top:1px solid #e2e8f0;margin-top:8px}
+.msg-comp textarea{width:100%;min-height:84px;font-size:18px;border-radius:14px;padding:12px;border:2px solid #cbd5e1;box-sizing:border-box}
+.msg-tools{display:flex;gap:8px;margin-top:8px}.msg-tools>*{flex:1;min-height:56px;font-size:17px}
+.msg-send{width:100%;min-height:60px;font-size:20px;font-weight:800;margin-top:8px}
+.msg-att{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}.msg-att img{height:64px;border-radius:8px}
+.msg-att button{border:0;background:#e2e8f0;border-radius:12px;min-height:40px;padding:0 12px;font-weight:700}
+.msg-row{display:flex;align-items:center;gap:12px;padding:12px 14px;text-decoration:none;color:inherit;border-bottom:1px solid #eef2f7}
+.msg-row .av{width:44px;height:44px;border-radius:22px;background:#1e3a5f;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;flex:none}
+.msg-row .av.op{background:#f59e0b}.msg-row .bd{flex:1;min-width:0}.msg-row .t1{font-weight:800;display:flex;justify-content:space-between;gap:8px}
+.msg-row .t1>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.msg-row .t1 small{font-weight:400;color:#64748b;flex:none}.msg-row .t2{color:#475569;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg-row>svg,.msg-home>svg{width:22px;height:22px;flex:none;opacity:.5}.msg-row.unread .t2{color:#0f172a;font-weight:700}
+.msg-note{font-size:13px;color:#64748b;text-align:center;margin:6px 0}`; document.head.appendChild(st); })();
+
+/* ---------- offline queue (per person, in IndexedDB) ---------- */
+async function msgQLoad() { if (!signedIn()) { MSG.q = []; MSG.qKey = ''; return; } const k = 'msg.q.' + me(); if (MSG.qKey === k) return; MSG.qKey = k; try { MSG.q = (await DB.getKV(k)) || []; } catch (e) { MSG.q = []; } }
+async function msgQSave() { if (MSG.qKey) try { await DB.setKV(MSG.qKey, MSG.q); } catch (e) { } try { updateBadge(); } catch (e) { } }
+{ const _pc = pendingCount; pendingCount = function () { return _pc() + (signedIn() && MSG.qKey === 'msg.q.' + me() ? MSG.q.filter(x => !x.err).length : 0); }; }
+
+async function msgFlush() {
+  if (MSG.busy || !msgOn() || !online()) return; await msgQLoad(); if (!MSG.q.some(x => !x.err)) return;
+  MSG.busy = true; let sent = 0;
+  try {
+    for (const it of [...MSG.q]) {
+      if (it.err) continue;
+      try {
+        if (!it.thread) { it.thread = await msgRpc('msg_thread_for', { p_to: it.to || null }); if (isOp()) { MSG.office = it.thread; DB.setKV('msg.office.' + me(), it.thread); } await msgQSave(); }
+        if (it.photo && !it.photoPath) {
+          const path = `${it.thread}/${it.id}.jpg`;
+          try { await sbFetch('/storage/v1/object/messages/' + path, { method: 'POST', body: dataURLtoBlob(it.photo), headers: { 'Content-Type': 'image/jpeg', 'x-upsert': 'false' } }); }
+          catch (e) { if (!(e.status === 409 || /exists|duplicate/i.test(e.message || ''))) throw e; }
+          it.photoPath = path; await msgQSave();
+        }
+        await msgRpc('msg_send', { p_id: it.id, p_thread: it.thread, p_body: it.body || '', p_photo: it.photoPath || null, p_job: it.job ? { id: it.job.id } : null });
+        MSG.q = MSG.q.filter(x => x.id !== it.id); await msgQSave(); sent++;
+        fnCall('msg-notify', { id: it.id }).catch(() => { });   // push / office email; never blocks the message
+      } catch (e) {
+        if (e.offline || !e.status || e.status >= 500 || e.status === 401) break;   // try again when the signal is back
+        it.err = e.message || 'Could not send'; await msgQSave();
+      }
+    }
+  } finally { MSG.busy = false; }
+  if (sent) { await msgLoad(true); msgRefreshOpen(); } else msgPaintOpen();
+}
+addEventListener('online', () => setTimeout(msgFlush, 1200)); setInterval(() => msgFlush(), 30000);
+{ const _sn = syncNow; syncNow = async function (reason) { const r = await _sn(reason); setTimeout(() => { msgFlush(); }, 300); return r; }; }
+
+/* ---------- loading ---------- */
+async function msgLoad(force) {
+  if (!msgOn()) return; if (!online()) { msgPaintBadges(); return; }
+  if (MSG.loading) return MSG.loading; if (!force && Date.now() - MSG.at < 4000) return;
+  MSG.loading = (async () => { try { MSG.inbox = await msgRpc('msg_inbox') || []; MSG.at = Date.now(); DB.setKV('msg.inbox.' + me(), MSG.inbox); } catch (e) { } finally { MSG.loading = null; } msgPaintBadges(); })();
+  return MSG.loading;
+}
+async function msgLoadThread(id) {
+  try { const rows = await sbFetch(`/rest/v1/msg_messages?thread=eq.${encodeURIComponent(id)}&select=id,thread,sender,sender_name,from_office,body,photo,job,created_at&order=created_at.desc&limit=300`) || [];
+    MSG.msgs[id] = rows.reverse(); DB.setKV('msg.t.' + id, MSG.msgs[id]); }
+  catch (e) { if (!MSG.msgs[id]) MSG.msgs[id] = (await DB.getKV('msg.t.' + id)) || []; }
+}
+async function msgMarkRead(id) {
+  const t = (MSG.inbox || []).find(x => x.id === id); const list = MSG.msgs[id] || []; const last = list[list.length - 1];
+  if (!online() || document.hidden || !last) return; if (t && !t.unread && last.sender === me()) return;
+  if (MSG._rd === id + last.id) return; MSG._rd = id + last.id;
+  try { await msgRpc('msg_read', { p_thread: id }); if (t) t.unread = 0; msgPaintBadges(); } catch (e) { MSG._rd = ''; }
+}
+const msgSignedUrl = async path => {
+  const c = MSG.urls[path]; if (c && c.exp > Date.now()) return c.url;
+  const r = await sbFetch('/storage/v1/object/sign/messages/' + path, { method: 'POST', body: { expiresIn: 3600 } });
+  const url = SB_URL + '/storage/v1' + (r.signedURL || r.signedUrl); MSG.urls[path] = { url, exp: Date.now() + 50 * 60000 }; return url;
+};
+function msgFillPhotos(root) { $$('img[data-msgph]', root || document).forEach(async img => { if (img.dataset.done) return; img.dataset.done = '1'; try { img.src = await msgSignedUrl(img.dataset.msgph); } catch (e) { img.alt = 'Photo (needs signal)'; img.dataset.done = ''; } }); }
+
+/* ---------- realtime (Supabase Realtime websocket; polling covers the gaps) ---------- */
+function msgWsStop() { try { MSG.ws && MSG.ws.close(); } catch (e) { } MSG.ws = null; MSG.wsOk = false; clearInterval(MSG.wsHb); }
+function msgWs() {
+  if (!msgOn() || !online() || MSG.ws || typeof WebSocket === 'undefined' || !Cloud.session) return;
+  let ws; try { ws = new WebSocket(SB_URL.replace(/^http/, 'ws') + '/realtime/v1/websocket?apikey=' + encodeURIComponent(SB_KEY) + '&vsn=1.0.0'); } catch (e) { return; }
+  MSG.ws = ws; const topic = 'realtime:ars-msg-' + me(); MSG.wsTok = Cloud.session.access_token; let ref = 1;
+  const send = o => { try { ws.readyState === 1 && ws.send(JSON.stringify(Object.assign({ ref: String(++ref) }, o))); } catch (e) { } };
+  ws.onopen = () => {
+    send({ topic, event: 'phx_join', payload: { config: { broadcast: { self: false }, presence: { key: '' }, postgres_changes: [{ event: 'INSERT', schema: 'public', table: 'msg_messages' }], private: false }, access_token: MSG.wsTok } });
+    MSG.wsHb = setInterval(() => { send({ topic: 'phoenix', event: 'heartbeat', payload: {} });
+      if (Cloud.session && Cloud.session.access_token !== MSG.wsTok) { MSG.wsTok = Cloud.session.access_token; send({ topic, event: 'access_token', payload: { access_token: MSG.wsTok } }); } }, 25000);
+  };
+  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+    if (m.event === 'system' && m.payload && m.payload.status === 'ok') { MSG.wsOk = true; MSG.wsTry = 0; }
+    if (m.event === 'phx_reply' && m.payload && m.payload.status === 'ok' && m.topic === topic) MSG.wsOk = true;
+    if (m.event === 'postgres_changes') { const rec = m.payload && m.payload.data && m.payload.data.record; msgOnNew(rec); } };
+  ws.onclose = () => { if (MSG.ws !== ws) return; MSG.ws = null; MSG.wsOk = false; clearInterval(MSG.wsHb); const d = Math.min(60000, 3000 * Math.pow(2, MSG.wsTry++)); setTimeout(msgWs, d); };
+  ws.onerror = () => { try { ws.close(); } catch (e) { } };
+}
+let msgNewT = null;
+function msgOnNew(rec) {
+  if (rec && rec.thread && MSG.msgs[rec.thread] && !MSG.msgs[rec.thread].some(x => x.id === rec.id)) { MSG.msgs[rec.thread].push(rec); if (MSG.cur === rec.thread) msgPaintOpen(true); }
+  clearTimeout(msgNewT); msgNewT = setTimeout(async () => { await msgLoad(true); if (rec && MSG.cur === rec.thread) { await msgLoadThread(rec.thread); msgPaintOpen(true); msgMarkRead(rec.thread); } else if (route()[0] === 'msg' && !route()[1]) msgPaintInbox(); }, 400);
+}
+setInterval(() => {   // polling fallback: ~15s on a messages screen without realtime, 60s otherwise; realtime connected = slow safety poll
+  if (!msgOn() || document.hidden) return; msgWs(); const onMsg = route()[0] === 'msg';
+  const every = MSG.wsOk ? (onMsg ? 60000 : 180000) : (onMsg ? 15000 : 60000); if (Date.now() - MSG.lastPoll < every) return; MSG.lastPoll = Date.now();
+  msgLoad(true).then(async () => { if (MSG.cur && route()[0] === 'msg') { await msgLoadThread(MSG.cur); msgPaintOpen(); msgMarkRead(MSG.cur); } else if (onMsg) msgPaintInbox(); });
+}, 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && msgOn()) { MSG.lastPoll = 0; if (MSG.cur && route()[0] === 'msg') msgMarkRead(MSG.cur); } });
+addEventListener('offline', () => msgWsStop());
+
+/* ---------- views ---------- */
+const msgInit = (n) => esc(String(n || '?').split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase());
+function msgInboxRows() {
+  const all = MSG.inbox || []; const list = all.filter(t => !!t.archived === MSG.arch);
+  if (MSG.inbox === null) return `<p class="msg-note">Loading…</p>`;
+  if (!list.length) return `<div class="empty"><p><b>${MSG.arch ? 'No archived conversations' : 'No messages yet'}</b><br>${MSG.arch ? '' : 'Tap <b>New message</b> to start one.'}</p></div>`;
+  return `<div class="card" style="padding:0">${list.map(t => `<a class="msg-row ${t.unread ? 'unread' : ''}" href="#/msg/t/${t.id}" data-tid="${t.id}"><div class="av ${t.kind === 'office' ? 'op' : ''}">${msgInit(t.title)}</div>
+    <div class="bd"><div class="t1"><span>${esc(t.title || 'Conversation')}${t.kind === 'office' ? ' <small>· Operative</small>' : ''}</span><small>${t.last_at ? esc(msgTime(t.last_at)) : ''}</small></div>
+    <div class="t2">${t.last_sender === me() ? 'You: ' : ''}${esc(t.last_preview || 'No messages yet')}</div></div>${t.unread ? `<span class="msg-badge">${t.unread}</span>` : ''}</a>`).join('')}</div>`;
+}
+function msgPaintInbox() { const el = $('#msg-inbox'); if (el) el.innerHTML = msgInboxRows(); }
+function viewMsgInbox() {
+  return { head: header({ title: 'Messages', sub: isAdm() ? 'Operatives and staff' : 'Staff', back: '#/' }),
+    body: `<button class="btn primary block msg-send" data-act="msg-new" style="margin:0 0 12px">✏️ New message</button>
+    ${isAdm() ? `<div class="filters"><button data-act="msg-arch" data-v="0" class="${MSG.arch ? '' : 'on'}">Inbox</button><button data-act="msg-arch" data-v="1" class="${MSG.arch ? 'on' : ''}">Archived</button></div>` : ''}
+    <div id="msg-inbox">${msgInboxRows()}</div>` };
+}
+function msgPeople() {
+  const ps = (Cloud.profiles || []).filter(p => p.id !== me() && p.active !== false);
+  const staff = ps.filter(p => isStaffRole(p.role)), ops = isAdm() ? ps.filter(p => p.role === 'operative') : [];
+  const row = p => `<button class="msg-row" style="width:100%;background:#fff;border:0;text-align:left;font:inherit" data-act="msg-start" data-to="${p.id}"><div class="av ${p.role === 'operative' ? 'op' : ''}">${msgInit(p.full_name || p.email)}</div><div class="bd"><div class="t1"><span>${esc(p.full_name || p.email)}</span></div><div class="t2">${esc(p.role === 'admin' ? 'Admin' : roleName(p.role))}</div></div>${I.chev}</button>`;
+  return `${staff.length ? `<h3 style="margin:8px 0">Staff</h3><div class="card" style="padding:0">${staff.map(row).join('')}</div>` : ''}${ops.length ? `<h3 style="margin:16px 0 8px">Operatives</h3><div class="card" style="padding:0">${ops.map(row).join('')}</div>` : ''}${!staff.length && !ops.length ? '<p class="msg-note">No one to message yet.</p>' : ''}`;
+}
+function msgBubble(m, t, isLastMine, otherRead) {
+  const mine = m.sender === me(); const q = m._q;
+  let who = '';
+  if (!mine) { if (isOp()) who = m.from_office ? 'The office' + (m.sender_name ? ' · ' + m.sender_name.split(' ')[0] : '') : ''; else who = m.sender_name || (m.from_office ? 'Office' : 'Removed user'); }
+  else if (!isOp() && t && t.kind === 'office') who = 'You (office)';
+  const job = m.job && m.job.id ? (isOp() ? `<a class="msg-job" href="#/today/${esc(m.job.id)}">📋 ${esc(m.job.ref || '')} ${esc(m.job.site || '')}</a>` : `<span class="msg-job">📋 ${esc(m.job.ref || '')} ${esc(m.job.site || '')}</span>`) : '';
+  const img = q && q.photo ? `<img src="${q.photo}" alt="Photo">` : m.photo ? `<img data-msgph="${esc(m.photo)}" alt="Photo" data-act="msg-photo">` : '';
+  const tm = q ? (q.err ? `Not sent: ${esc(q.err)}` : '⏳ Waiting for signal - will send automatically') : esc(msgTime(m.created_at));
+  return `<div class="msg-b ${mine ? 'me' : ''} ${q ? (q.err ? 'err' : 'q') : ''}" data-mid="${esc(m.id)}">${who ? `<div class="who">${esc(who)}</div>` : ''}${img}${m.body ? esc(m.body) : ''}${job ? `<div>${job}</div>` : ''}<div class="tm">${tm}</div>${q && q.err ? `<div class="btns" style="margin-top:6px"><button class="btn" data-act="msg-retry" data-id="${esc(m.id)}">Try again</button><button class="btn" data-act="msg-drop" data-id="${esc(m.id)}">Remove</button></div>` : ''}</div>${isLastMine && !q && otherRead && new Date(otherRead) >= new Date(m.created_at) ? '<div class="msg-seen">✓✓ Seen</div>' : ''}`;
+}
+function msgListHtml(id) {
+  const t = (MSG.inbox || []).find(x => x.id === id); const list = MSG.msgs[id || ''];
+  const queued = MSG.q.filter(x => x.thread === id || (!x.thread && isOp() && (!id || id === MSG.office))).map(x => ({ id: x.id, sender: me(), body: x.body, job: x.job, created_at: x.at, _q: x }));
+  if (!list && !queued.length) return '<p class="msg-note">Loading…</p>';
+  const all = (list || []).concat(queued);
+  if (!all.length) return `<p class="msg-note">${isOp() ? 'Send a message to the office - managers and admin will see it.' : 'No messages yet - say hello.'}</p>`;
+  let lastMine = -1; all.forEach((m, i) => { if (m.sender === me() && !m._q) lastMine = i; });
+  let day = '', out = '';
+  all.forEach((m, i) => { const d = new Date(m.created_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }); if (d !== day) { day = d; out += `<div class="msg-day">${esc(d)}</div>`; }
+    out += msgBubble(m, t, i === lastMine, t && t.other_read); });
+  return out;
+}
+function msgPaintOpen(scroll) {
+  const el = $('#msg-list'); if (!el || route()[0] !== 'msg') return; const nearEnd = window.innerHeight + window.scrollY >= document.body.scrollHeight - 160;
+  el.innerHTML = msgListHtml(MSG.cur); msgFillPhotos(el); if (scroll || nearEnd) msgScrollEnd();
+}
+const msgScrollEnd = () => requestAnimationFrame(() => window.scrollTo(0, document.body.scrollHeight));
+function msgRefreshOpen() { if (MSG.cur && route()[0] === 'msg') { msgLoadThread(MSG.cur).then(() => { msgPaintOpen(true); msgMarkRead(MSG.cur); }); } else msgPaintInbox(); }
+function msgAttHtml() { const d = MSG.draft; return `${d.photo ? `<img src="${d.photo}" alt="Photo to send"><button data-act="msg-unphoto">✕ Remove photo</button>` : ''}${d.job ? `<span class="msg-job">📋 ${esc(d.job.ref || '')} ${esc(d.job.site || '')}</span><button data-act="msg-unjob">✕</button>` : ''}`; }
+function msgBarHtml(t) { if (!t || isOp() || !isAdm()) return '';
+  return `${t.archived ? '<p class="msg-note">This conversation is archived. A new message brings it back to the inbox.</p>' : ''}<div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button class="btn" style="min-height:40px" data-act="msg-archive" data-on="${t.archived ? '0' : '1'}">${t.archived ? '📤 Move back to inbox' : '🗄️ Archive'}</button></div>`; }
+function viewMsgThread(id) {
+  const t = (MSG.inbox || []).find(x => x.id === id);
+  const title = isOp() ? 'Message the office' : (t ? t.title : 'Conversation');
+  const sub = isOp() ? 'Managers and admin see these messages' : t && t.kind === 'office' ? 'Operative · office conversation' : t ? 'Direct message' : '';
+  return { head: header({ title, sub, back: '#/' + (isOp() ? '' : 'msg') }),
+    body: `<div id="msg-bar">${msgBarHtml(t)}</div><div class="msg-list" id="msg-list">${msgListHtml(id)}</div>
+    <div class="msg-comp"><textarea id="msg-text" placeholder="${isOp() ? 'Type your message to the office…' : 'Type a message…'}" aria-label="Message" maxlength="4000"></textarea>
+    <p class="small dict-static" style="margin:4px 0 0">Tip: tap the 🎤 microphone on your phone's keyboard to speak instead of typing.</p>
+    <div class="msg-att" id="msg-att">${msgAttHtml()}</div>
+    <div class="msg-tools"><label class="btn">${I.camera} Photo<input type="file" accept="image/*" id="msg-photo" hidden></label><button class="btn" data-act="msg-job">📋 Job</button></div>
+    <button class="btn primary msg-send" data-act="msg-send">Send</button></div>` };
+}
+function viewSettingsMsg() {
+  const v = (S.settings && S.settings.msgCfg) || MSG.cfg || {};
+  return `<div class="card"><h3 style="margin-top:0">💬 Messages</h3><p class="small">When an operative sends a message, everyone in the office gets it in the app (and as a phone notification where notifications are switched on). You can also have it emailed.</p>
+    <label class="small"><b>Email the office about new operative messages</b></label>
+    <div class="seg" style="margin:6px 0 10px"><button data-act="msg-cfg-on" data-v="1" class="${v.emailOffice ? 'on' : ''}">On</button><button data-act="msg-cfg-on" data-v="0" class="${v.emailOffice ? '' : 'on'}">Off</button></div>
+    <label class="small" for="msg-cfg-to">Send the emails to (optional - leave blank for all managers and admin)</label>
+    <input id="msg-cfg-to" type="email" multiple placeholder="office@…" value="${esc(v.to || '')}" style="width:100%">
+    <button class="btn primary block" data-act="msg-cfg-save" style="margin-top:10px">Save message settings</button></div>`;
+}
+
+/* ---------- home buttons ---------- */
+{ const _vh = viewOpHome; viewOpHome = function () { const v = _vh(); if (!msgOn()) return v;
+  const b = `<a class="btn primary msg-opbtn" href="#/msg" id="msg-opbtn">💬 Message the office${msgBadge()}</a>`;
+  v.body = v.body.includes('</div>') && v.body.startsWith('<div class="qa-oprow">') ? v.body.replace(/^(<div class="qa-oprow">[\s\S]*?<\/div>)/, '$1' + b) : b + v.body; return v; }; }
+{ const _vl = viewList; viewList = function () { const v = _vl(); if (!msgOn() || isOp()) return v;
+  v.body = `<a class="card msg-home" href="#/msg" id="msg-homebtn"><span class="ic">💬</span><span class="bd"><span class="t1">Messages</span><br><span class="t2">${isAdm() ? 'Operatives and staff' : 'Message other staff'}</span></span>${msgBadge()}${I.chev}</a>` + v.body; return v; }; }
+
+/* ---------- routing ---------- */
+{ const _r = render; render = function (keep) {
+  const rt = route();
+  if (rt[0] === 'settings' && rt[1] === 'messages' && msgOn() && isMgr()) { document.body.classList.remove('hasnav'); $('#app').innerHTML = header({ title: 'Messages', back: '#/settings' }) + `<main>${viewSettingsMsg()}</main>`; lastHash = location.hash; msgCfgLoad(); return; }
+  if (rt[0] !== 'msg' || !msgOn()) { if (rt[0] !== 'msg') MSG.cur = null; const r = _r(keep); if (msgOn()) { msgLoad(); msgWs(); msgQLoad().then(() => { updateBadge(); msgFlush(); }); } return r; }
+  document.body.classList.remove('hasnav');
+  let id = rt[1] === 't' ? rt[2] : null;
+  if (rt[1] === 'new') { if (isOp()) { go('#/msg'); return; } MSG.cur = null; $('#app').innerHTML = header({ title: 'New message', sub: 'Who do you want to message?', back: '#/msg' }) + `<main>${msgPeople()}</main>`; lastHash = location.hash; return; }
+  if (isOp() && !id) id = MSG.office || '';
+  if (!id && !isOp()) { MSG.cur = null; const v = viewMsgInbox(); $('#app').innerHTML = v.head + `<main>${v.body}</main>`; lastHash = location.hash; msgLoad(true).then(msgPaintInbox); msgWs(); return; }
+  const changed = MSG.cur !== (id || null) || lastHash !== location.hash; if (!changed && keep && $('#msg-list')) { msgPaintOpen(); return; }
+  MSG.cur = id || null; const typed = $('#msg-text') ? $('#msg-text').value : '';
+  const v = viewMsgThread(id); $('#app').innerHTML = v.head + `<main>${v.body}</main>`; lastHash = location.hash; if (typed && !changed) $('#msg-text').value = typed;
+  msgFillPhotos(); msgScrollEnd(); msgWs();
+  (async () => {
+    await msgQLoad();
+    if (isOp() && !id) { id = MSG.office || await DB.getKV('msg.office.' + me()); if (!id && online()) { try { id = await msgRpc('msg_thread_for', { p_to: null }); } catch (e) { } } if (id) { MSG.office = id; DB.setKV('msg.office.' + me(), id); } MSG.cur = id || null; }
+    if (!id) { MSG.msgs[''] = []; msgPaintOpen(true); return; }
+    if (!MSG.msgs[id]) MSG.msgs[id] = (await DB.getKV('msg.t.' + id)) || null; msgPaintOpen(true);
+    await Promise.all([msgLoad(true), msgLoadThread(id)]);
+    if (route()[0] !== 'msg' || MSG.cur !== id) return;
+    const t = (MSG.inbox || []).find(x => x.id === id); const h = $('.hdr .ttl'); if (t && h && !isOp()) h.querySelector('h1').textContent = t.title || 'Conversation';
+    if (t && $('#msg-bar')) $('#msg-bar').innerHTML = msgBarHtml(t);
+    msgPaintOpen(true); msgMarkRead(id); msgFlush();
+  })();
+}; }
+function rerenderMsgHead() { const t = (MSG.inbox || []).find(x => x.id === MSG.cur); if ($('#msg-bar')) $('#msg-bar').innerHTML = msgBarHtml(t); }
+{ const _sn = afterLogin; afterLogin = async function (t) { msgWsStop(); MSG.inbox = null; MSG.msgs = {}; MSG.office = null; MSG.qKey = ''; MSG.q = []; MSG.urls = {}; return _sn(t); }; }
+
+/* ---------- actions ---------- */
+document.addEventListener('change', async e => {
+  if (e.target.id !== 'msg-photo') return; const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { const p = await compressImage(f, 1600, 0.75); MSG.draft.photo = p.data; const a = $('#msg-att'); if (a) a.innerHTML = msgAttHtml(); } catch (er) { toast(er.message || 'Could not read that photo'); }
+});
+Object.assign(ACTIONS, {
+  'msg-new': () => go('#/msg/new'),
+  'msg-arch': a => { MSG.arch = a.dataset.v === '1'; $$('[data-act="msg-arch"]').forEach(b => b.classList.toggle('on', b === a)); msgPaintInbox(); },
+  'msg-start': async a => {
+    if (!online()) { toast('Needs signal to start a new conversation', 3500); return; }
+    try { const id = await msgRpc('msg_thread_for', { p_to: a.dataset.to }); await msgLoad(true); go('#/msg/t/' + id); } catch (e) { toast(e.message || 'Could not start the conversation', 4000); }
+  },
+  'msg-unphoto': () => { MSG.draft.photo = null; const a = $('#msg-att'); if (a) a.innerHTML = msgAttHtml(); },
+  'msg-unjob': () => { MSG.draft.job = null; const a = $('#msg-att'); if (a) a.innerHTML = msgAttHtml(); },
+  'msg-job': async () => {
+    if (!isOp() && !(Ops.jobsTbl || []).length && online()) await loadJobsTbl();
+    const js = (isOp() ? Ops.jobs : Ops.jobsTbl) || [];
+    const list = js.filter(j => j && j.id).map(j => ({ id: j.id, ref: j.ref || '', site: j.site_name || j.site || j.name || '' }));
+    const r = await modal(`<h3>Link a job</h3>${list.length ? `<div style="max-height:55vh;overflow:auto">${list.map(j => `<button class="btn block" style="margin-bottom:6px;text-align:left;min-height:52px" data-r="${esc(j.id)}"><b>${esc(j.ref)}</b> ${esc(j.site)}</button>`).join('')}</div>` : '<p>No jobs to pick from.</p>'}<button class="btn" data-r="">Cancel</button>`);
+    if (!r) return; MSG.draft.job = list.find(j => j.id === r) || null; const a = $('#msg-att'); if (a) a.innerHTML = msgAttHtml();
+  },
+  'msg-send': async () => {
+    const ta = $('#msg-text'); const body = (ta ? ta.value : '').trim(); const d = MSG.draft;
+    if (!body && !d.photo) { toast('Type a message first'); ta && ta.focus(); return; }
+    if (body.length > 4000) { toast('That message is too long'); return; }
+    await msgQLoad();
+    const thread = MSG.cur || (isOp() ? MSG.office : null); if (!thread && !isOp()) { toast('Pick who to message first'); return; }
+    MSG.q.push({ id: msgUuid(), thread: thread || null, to: null, body, photo: d.photo || null, job: d.job || null, at: new Date().toISOString() });
+    MSG.draft = { photo: null, job: null }; if (ta) ta.value = ''; const a = $('#msg-att'); if (a) a.innerHTML = '';
+    await msgQSave(); msgPaintOpen(true);
+    if (!online()) toast('No signal - your message will send when the sync light is back', 4000);
+    msgFlush();
+  },
+  'msg-retry': async a => { await msgQLoad(); const it = MSG.q.find(x => x.id === a.dataset.id); if (it) { delete it.err; await msgQSave(); msgPaintOpen(); msgFlush(); } },
+  'msg-drop': async a => { await msgQLoad(); MSG.q = MSG.q.filter(x => x.id !== a.dataset.id); await msgQSave(); msgPaintOpen(); },
+  'msg-photo': async a => { if (!a.src || a.src.startsWith('data:image/gif')) return; await modal(`<img src="${esc(a.src)}" alt="Photo" style="width:100%;border-radius:10px"><button class="btn block" data-r="x">Close</button>`); },
+  'msg-archive': async a => {
+    const on = a.dataset.on === '1'; if (on && !(await confirmBox('Archive this conversation?', 'It moves to the Archived list. Messages are kept as company records, and a new message brings it back.', 'Archive', false))) return;
+    try { await msgRpc('msg_archive', { p_thread: MSG.cur, p_on: on }); toast(on ? 'Conversation archived' : 'Back in the inbox'); await msgLoad(true); if (on) go('#/msg'); else rerenderMsgHead(); } catch (e) { toast(e.message || 'Could not archive', 4000); }
+  },
+  'msg-cfg-on': a => { MSG.cfg = Object.assign({}, MSG.cfg || {}, { emailOffice: a.dataset.v === '1' }); $$('[data-act="msg-cfg-on"]').forEach(b => b.classList.toggle('on', b === a)); },
+  'msg-cfg-save': async () => {
+    const to = ($('#msg-cfg-to') ? $('#msg-cfg-to').value : '').trim(); const v = { emailOffice: !!(MSG.cfg && MSG.cfg.emailOffice) }; if (to) v.to = to;
+    if (to && !to.split(/[,;\s]+/).filter(Boolean).every(x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) { toast('Check the email address'); return; }
+    try { await sbFetch('/rest/v1/app_settings?on_conflict=key', { method: 'POST', body: [{ key: 'messages', value: v }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); MSG.cfg = v; toast(v.emailOffice ? 'Saved - office emails on' : 'Saved - office emails off', 3000); }
+    catch (e) { toast(e.offline ? 'Needs signal to save' : (e.message || 'Could not save'), 4000); }
+  },
+});
+async function msgCfgLoad() { try { const r = await sbFetch('/rest/v1/app_settings?key=eq.messages&select=value'); MSG.cfg = (r && r[0] && r[0].value) || { emailOffice: false }; } catch (e) { MSG.cfg = MSG.cfg || { emailOffice: false }; }
+  if (route()[0] === 'settings' && route()[1] === 'messages') { const m = $('main'); if (m) m.innerHTML = viewSettingsMsg(); } }
+{ const _vs = viewSettings; viewSettings = function () { const h = _vs(); if (!msgOn() || !isMgr()) return h;
+  const link = `<a class="item" href="#/settings/messages" id="msg-set-link"><div class="th" style="font-size:24px">💬</div><div class="bd"><div class="t1">Messages</div><div class="t2">Email the office when an operative sends a message</div></div>${I.chev}</a>`;
+  return h.includes('<a class="item" href="#/settings/library">') ? h.replace('<a class="item" href="#/settings/library">', link + '<a class="item" href="#/settings/library">') : h + `<div class="card list">${link}</div>`; }; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
