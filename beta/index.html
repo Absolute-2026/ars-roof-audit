@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.21">
+<meta name="app-version" content="1.11.22">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.21';
+const APP_VERSION = '1.11.22';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -15153,11 +15153,12 @@ Object.assign(ACTIONS, {
   'msg-unjob': () => { MSG.draft.job = null; const a = $('#msg-att'); if (a) a.innerHTML = msgAttHtml(); },
   'msg-job': async () => {   // v1.11.15: same type-ahead search box as the other job/project pickers (app51), free text allowed
     if (!isOp() && !(Ops.jobsTbl || []).length && online()) await loadJobsTbl();
-    const src = isOp() ? (Ops.jobs || []) : (typeof bsActiveJobs === 'function' ? bsActiveJobs() : (Ops.jobsTbl || []).filter(j => j.active !== false));
+    if (isOp() && typeof ljpLoad === 'function') await ljpLoad();   // v1.11.22: all live projects (id/ref/name only)
+    const src = isOp() ? (typeof opPickJobs === 'function' ? opPickJobs() : (Ops.jobs || [])) : (typeof bsActiveJobs === 'function' ? bsActiveJobs() : (Ops.jobsTbl || []).filter(j => j.active !== false));
     const list = src.filter(j => j && j.id).map(j => ({ id: j.id, ref: j.ref || '', site: j.site_name || j.site || '' }));
     const cur = MSG.draft.job; const curV = cur ? (cur.id || 'txt:' + cur.text) : '';
     const opts = `<option value="">— No job —</option>${list.map(j => `<option value="${esc(j.id)}" ${j.id === curV ? 'selected' : ''}>${esc(msgJobLabel(j))}</option>`).join('')}${cur && !cur.id ? `<option value="${esc(curV)}" selected>${esc(cur.text)}</option>` : ''}`;
-    const r = await modal(`<h3>Link a job</h3><p class="small" style="margin:0 0 6px">Type to search${list.length ? ' your jobs' : ''}, or type the job name if it isn't listed.</p>
+    const r = await modal(`<h3>Link a job</h3><p class="small" style="margin:0 0 6px">Type to search${list.length ? ' live projects by RP number or name' : ''}, or type the job name if it isn't listed.</p>
       <div class="f"><select id="msg-jobsel" data-pjc-ph="Type a job name or ref" data-pjc-aria="Job" data-pjc-note="Sent as text on this message - not linked to a project">${opts}</select></div><button class="btn" data-r="__cancel">Cancel</button>`,
       (bg, close) => { const sel = bg.querySelector('#msg-jobsel'); sel.addEventListener('change', () => close(sel.value || '__none'));
         setTimeout(() => { if (!sel.dataset.pjc && typeof pjEnhance === 'function') pjEnhance(sel); const i = bg.querySelector('.pjc-in'); if (i) { i.value = ''; i.focus(); } }, 60); });
@@ -15345,7 +15346,7 @@ setTimeout(() => { oaLoadMe(true); oaLoadAll(true); }, 1800);
 const TS_ON = BUILD.variant !== 'prod';
 // v1.11.20 (Matt, 29 Oct 2026: "Retention then CIS"): default order = retention off the gross first, then CIS on the amount after retention
 const TS_ORD = after => after ? 'CIS then retention' : 'Retention then CIS';
-const TS_DEF = { halfMax: 4, shortFlag: 3, stdHours: 8, otAfter: 8, sdAutofill: true, retentionPct: 5, retAfterCis: false, budgetDayRate: 660, accountsTo: '', accountsList: [] };
+const TS_DEF = { halfMax: 4, shortFlag: 3, stdHours: 8, otAfter: 8, sdAutofill: true, retentionPct: 5, retAfterCis: false, budgetDayRate: 660, defStart: '08:00', defFinish: '16:00', accountsTo: '', accountsList: [] };
 /* v1.11.19: payroll recipients = a list (accountsList). An older single/comma 'accountsTo' string is read as the list until it is next saved. */
 const TS_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 function tsRecips(c) { c = c || tsCfgV(); const seen = new Set(); return (Array.isArray(c.accountsList) && c.accountsList.length ? c.accountsList : String(c.accountsTo || '').split(/[,;\s]+/)).map(x => String(x || '').trim()).filter(x => { const k = x.toLowerCase(); if (!TS_EMAIL.test(x) || seen.has(k)) return false; seen.add(k); return true; }); }
@@ -15533,17 +15534,23 @@ async function tsAutoSd(w) {
 
 /* ---------- operative screens ---------- */
 const TS_BRK = [0, 15, 20, 30, 45, 60, 90];
-function tsJobLabel(e) { if (!e) return ''; if (e.job) { const j = (Ops.jobs || []).find(x => x.id === e.job); return j ? [j.ref, j.site_name].filter(Boolean).join(' · ') : (e.jl || 'Job'); } return e.jt ? e.jt + ' (other)' : ''; }
+function tsJobLabel(e) { if (!e) return ''; if (e.job) { const j = (Ops.jobs || []).find(x => x.id === e.job) || (typeof LJP !== 'undefined' && LJP.list || []).find(x => x.id === e.job); return j ? [j.ref, j.site_name].filter(Boolean).join(' · ') : (e.jl || 'Job'); } return e.jt ? e.jt + ' (other)' : ''; }
 function tsDaySummary(d) { if (!d) return ''; const ents = (d.e || []).filter(e => e.s || e.f);
   return ents.map(e => `${esc(e.s || '?')} – ${esc(e.f || '?')}${+e.b ? ' · ' + (+e.b) + ' min break' : ''}${tsJobLabel(e) ? ' · ' + esc(tsJobLabel(e)) : ''}`).join('<br>'); }
 function tsDayTags(d, ro) {
   const chip = (k, t, on, auto) => `<button type="button" class="ts-chip ${on ? (auto ? 'auto' : 'on') : ''}" ${ro ? 'disabled' : `data-act="ts-tag" data-k="${k}"`}>${t}</button>`;
   return `<div class="ts-chips">${chip('tr', 'Travel', d && d.tr && d.tr.on)}${chip('sd', 'Weather / stand-down', d && d.sd && d.sd.on, d && d.sd && d.sd.auto)}</div>`; }
+function tsDefT(cfg, k) { const v = k === 's' ? cfg.defStart : cfg.defFinish; return /^\d\d:\d\d$/.test(v || '') ? v : (k === 's' ? '08:00' : '16:00'); }
+function tsPreOn(w, date, d) { if (!d || (TS.noPre && TS.noPre[w.week + '|' + date])) return false; if (new Date(date + 'T12:00:00Z').getUTCDay() % 6 === 0) return false; /* Mon-Fri only */ const e = d.e || [];
+  return e.length === 1 && !e[0].s && !e[0].f && !e[0].job && !e[0].jt && !(d.tr && d.tr.on) && !(d.sd && d.sd.on) && !d.by; }
+function tsPreCommit(d, cfg) { const e = d.e[0] = d.e[0] || { b: 30 }; if (!e.s) e.s = tsDefT(cfg, 's'); if (!e.f) e.f = tsDefT(cfg, 'f'); if (e.b == null) e.b = 30; }
 function tsDayEdit(w, date) {
   const d = w.days[date] = w.days[date] || { e: [] }; if (!d.e.length) d.e.push({ s: '', f: '', b: 30 }); const cfg = tsCfgV();
+  // v1.11.22: empty day shows the default times (Settings > Timesheets) - NOT saved or counted until confirmed / a time or job is set
+  const pre = tsPreOn(w, date, d), dS = tsDefT(cfg, 's'), dF = tsDefT(cfg, 'f');
   const prev = TSC.addDays(date, -1), pd = w.days[prev], canSame = pd && (pd.e || []).some(e => e.s && e.f) && date !== w.week;
-  const ent = (e, i) => `<div class="ts-ent" data-i="${i}">${i ? `<div class="small" style="font-weight:800;color:#b45309;display:flex;align-items:center">Split · job ${i + 1}<button class="ts-linkb" style="margin-left:auto;padding:4px 0" data-act="ts-delent" data-i="${i}">✕ Remove</button></div>` : ''}
-    <div class="ts-g"><div class="f"><label>Start</label><input type="time" step="300" value="${esc(e.s || '')}" data-ts="s" data-i="${i}"></div><div class="f"><label>Finish</label><input type="time" step="300" value="${esc(e.f || '')}" data-ts="f" data-i="${i}"></div>
+  const ent = (e, i) => `<div class="ts-ent ${pre && !i ? 'ts-pre' : ''}" data-i="${i}">${pre && !i ? `<div class="ts-prebar" id="ts-prebar"><span>Pre-filled ${esc(dS)}–${esc(dF)} · <b>not counted until you confirm</b></span><button class="btn sm primary" data-act="ts-preok" id="ts-preok">✓ Confirm</button></div>` : ''}${i ? `<div class="small" style="font-weight:800;color:#b45309;display:flex;align-items:center">Split · job ${i + 1}<button class="ts-linkb" style="margin-left:auto;padding:4px 0" data-act="ts-delent" data-i="${i}">✕ Remove</button></div>` : ''}
+    <div class="ts-g"><div class="f"><label>Start</label><input type="time" step="900" value="${esc(pre && !i ? dS : e.s || '')}" data-ts="s" data-i="${i}" ${pre && !i ? 'data-pre="1"' : ''}></div><div class="f"><label>Finish</label><input type="time" step="900" value="${esc(pre && !i ? dF : e.f || '')}" data-ts="f" data-i="${i}" ${pre && !i ? 'data-pre="1"' : ''}></div>
     <div class="f"><label>Break</label><select data-ts="b" data-i="${i}">${TS_BRK.map(m => `<option value="${m}" ${+e.b === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></div></div>
     <button type="button" class="ts-job ${tsJobLabel(e) ? '' : 'none'}" data-act="ts-job" data-i="${i}">📋 ${esc(tsJobLabel(e) || 'Which job?')}<span class="x">Change</span></button></div>`;
   return `${canSame ? `<button class="btn block" style="min-height:46px;margin:0 0 10px" data-act="ts-same">↺ Same as yesterday</button>` : ''}
@@ -15551,7 +15558,7 @@ function tsDayEdit(w, date) {
     ${tsDayTags(d)}
     ${d.tr && d.tr.on ? `<div class="ts-sub"><div class="f"><label>Travel hours (between sites)</label><input type="number" inputmode="decimal" step="0.25" min="0" value="${esc(d.tr.h || '')}" data-ts="trh"></div></div>` : ''}
     ${d.sd && d.sd.on ? `<div class="ts-sub"><div class="f"><label>Stand-down hours</label><input type="number" inputmode="decimal" step="0.25" min="0" value="${esc(d.sd.h || '')}" data-ts="sdh"></div></div>${d.sd.auto && d.sd.txt ? `<div class="lg-msg warn" style="margin:8px 0 0">🌧 Auto-filled from the site sheet: ${esc(d.sd.txt)} · ${tsH(d.sd.h)} h</div>` : ''}` : ''}
-    <div class="small" style="margin-top:8px">Day total <b style="color:#1e3a5f">${tsH(TSC.worked(d) + TSC.travel(d))} h</b>${TSC.travel(d) ? ` (${tsH(TSC.worked(d))} worked + ${tsH(TSC.travel(d))} travel)` : ''}${TSC.sd(d) ? ` · stand-down ${tsH(TSC.sd(d))} h shown separately` : ''}</div>
+    <div class="small" style="margin-top:8px">${pre ? '<span class="tag amber" style="margin-right:6px">Not confirmed</span>' : ''}Day total <b style="color:#1e3a5f">${tsH(TSC.worked(d) + TSC.travel(d))} h</b>${TSC.travel(d) ? ` (${tsH(TSC.worked(d))} worked + ${tsH(TSC.travel(d))} travel)` : ''}${TSC.sd(d) ? ` · stand-down ${tsH(TSC.sd(d))} h shown separately` : ''}</div>
     <div class="f ts-note" style="margin-top:10px"><label>Notes for the office (optional)</label><textarea rows="2" maxlength="500" data-ts="note" placeholder="e.g. Sunday - half day, left early for the dentist, worked late to finish the ridge">${esc(d.note || '')}</textarea></div>
     <button class="ts-linkb" data-act="ts-clearday" style="color:#64748b">Not working this day</button>`;
 }
@@ -15581,10 +15588,11 @@ function tsSubmitTable(w) { const t = TSC.week(w, null, null, tsCfgV());
   return `<table class="ts-tbl"><thead><tr><th>Day</th><th>Job</th><th class="n">Hours</th></tr></thead><tbody>${t.days.map(x => { const ot = TSC.otH(x.auto.otl); return `<tr><td>${TSC.dayName(x.date)}</td><td>${esc([...new Set((x.d.e || []).filter(e => TSC.entH(e) > 0).map(e => (tsJobLabel(e) || '').split(' · ')[0]))].join(' / '))}${ot ? ` <span class="tag navy">OT ${tsH(ot)}</span>` : ''}${TSC.sd(x.d) ? ` <span class="tag amber">Stand-down ${tsH(TSC.sd(x.d))}</span>` : ''}${TSC.travel(x.d) ? ` <span class="tag">Travel ${tsH(TSC.travel(x.d))}</span>` : ''}</td><td class="n">${tsH(x.h + TSC.travel(x.d))}</td></tr>`; }).join('')}</tbody>
   <tfoot><tr><td colspan="2"><b>Week total</b> (basic ${tsH(t.basic)} · OT ${tsH(t.ot)} · travel ${tsH(t.travelH)})</td><td class="n"><b>${tsH(t.total)} h</b></td></tr></tfoot></table>`; }
 async function tsPickJob(cur) {
-  const list = (Ops.jobs || []).filter(j => j && j.id).map(j => ({ id: j.id, label: [j.ref, j.site_name].filter(Boolean).join(' · ') }));
+  if (typeof ljpLoad === 'function') await ljpLoad();   // v1.11.22: every live project (id/ref/name only), your own jobs first
+  const list = (typeof opPickJobs === 'function' ? opPickJobs() : (Ops.jobs || [])).filter(j => j && j.id).map(j => ({ id: j.id, label: [j.ref, j.site_name].filter(Boolean).join(' · ') }));
   const curV = cur ? (cur.job || (cur.jt ? 'txt:' + cur.jt : '')) : '';
   const opts = `<option value="">— Pick a job —</option>${list.map(j => `<option value="${esc(j.id)}" ${j.id === curV ? 'selected' : ''}>${esc(j.label)}</option>`).join('')}${cur && !cur.job && cur.jt ? `<option value="${esc(curV)}" selected>${esc(cur.jt)}</option>` : ''}`;
-  const r = await modal(`<h3>Which job?</h3><p class="small" style="margin:0 0 6px">Type to search your jobs, or type the job name if it isn't listed.</p>
+  const r = await modal(`<h3>Which job?</h3><p class="small" style="margin:0 0 6px">Type an RP number or site name to search all live projects, or type the job name if it isn't listed.</p>
     <div class="f"><select id="ts-jobsel" data-pjc-ph="Type a job name or ref" data-pjc-aria="Job" data-pjc-note="Typed in - the office links it to a project">${opts}</select></div><button class="btn" data-r="__cancel">Cancel</button>`,
     (bg, close) => { const sel = bg.querySelector('#ts-jobsel'); sel.addEventListener('change', () => close(sel.value || '__none'));
       setTimeout(() => { if (!sel.dataset.pjc && typeof pjEnhance === 'function') pjEnhance(sel); const i = bg.querySelector('.pjc-in'); if (i) { i.value = ''; i.focus(); } }, 60); });
@@ -15600,7 +15608,8 @@ function tsCur() { const w = TS.w[TS.cur]; return w && tsEditable(w) && TS.open 
 async function tsTouched(x, re) { await tsSaveLocal(x.w, x.date); tsKick(); if (re) rerender(); }
 function tsSetField(el, final) {
   const x = tsCur(); if (!x) return; const k = el.dataset.ts, i = +el.dataset.i || 0, d = x.d, v = el.value;
-  if (k === 's' || k === 'f') { d.e[i] = d.e[i] || {}; d.e[i][k] = v;
+  if (k === 's' || k === 'f') { const wasPre = !i && el.dataset.pre && tsPreOn(x.w, x.date, d); d.e[i] = d.e[i] || {}; d.e[i][k] = v;
+    if (wasPre) { tsPreCommit(d, tsCfgV()); final = true; }   // setting one time on a pre-filled day confirms the other default too
   }
   else if (k === 'b') { d.e[i] = d.e[i] || {}; d.e[i].b = +v || 0; }
   else if (k === 'note') { d.note = String(v).slice(0, 500); if (!d.note.trim()) delete d.note; }
@@ -15614,14 +15623,18 @@ Object.assign(ACTIONS, {
   'ts-open'(a) { const w = TS.w[TS.cur]; if (!w || !tsEditable(w)) return; if (a.dataset.d > todayISO()) return toast("That day hasn't happened yet"); TS.open = a.dataset.d; rerender(); setTimeout(() => { const el = $('#tsd-' + TS.open); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); },
   'ts-addent'() { const x = tsCur(); if (!x) return; const last = x.d.e[x.d.e.length - 1] || {}; x.d.e.push({ s: last.f || '', f: '', b: 0 }); tsTouched(x, true); },
   'ts-delent'(a) { const x = tsCur(); if (!x) return; x.d.e.splice(+a.dataset.i, 1); tsTouched(x, true); },
-  async 'ts-job'(a) { const x = tsCur(); if (!x) return; const i = +a.dataset.i || 0; const r = await tsPickJob(x.d.e[i]); if (!r) return; x.d.e[i] = Object.assign({}, x.d.e[i], r); if (!r.job) delete x.d.e[i].jl; tsTouched(x, true); },
+  async 'ts-job'(a) { let x = tsCur(); if (!x) return; const i = +a.dataset.i || 0; const wasPre = !i && tsPreOn(x.w, x.date, x.d); const r0 = await tsPickJob(x.d.e[i]); if (!r0) return; const r = r0; const y = tsCur(); if (y && y.date === x.date) x = y;   // v1.11.22: the week may have been re-synced while the picker was open
+    x.d.e[i] = Object.assign({}, x.d.e[i] || { s: '', f: '', b: 30 }, r); if (wasPre && (r.job || r.jt)) tsPreCommit(x.d, tsCfgV()); if (!r.job) delete x.d.e[i].jl; tsTouched(x, true); },
   'ts-same'() { const x = tsCur(); if (!x) return; const p = x.w.days[TSC.addDays(x.date, -1)]; if (!p) return; x.d.e = clone(p.e || []); x.d.tr = p.tr ? clone(p.tr) : undefined; delete x.d.otl; delete x.d.otOn; delete x.d.by; tsTouched(x, true); toast('Copied from ' + TSC.dayName(TSC.addDays(x.date, -1))); },
   'ts-tag'(a) { const x = tsCur(); if (!x) return; const k = a.dataset.k, d = x.d;
     if (k === 'tr') d.tr = { on: !(d.tr && d.tr.on), h: (d.tr && d.tr.h) || '' };
     if (k === 'sd') { const on = !(d.sd && d.sd.on); d.sd = Object.assign({}, d.sd, { on, manual: true, auto: false }); }
     tsTouched(x, true); },
-  async 'ts-clearday'() { const x = tsCur(); if (!x) return; if (!await confirmBox('Not working this day?', `${tsDay(x.date)} will be cleared.`, 'Clear day', false)) return; x.w.days[x.date] = null; delete x.w.days[x.date]; await tsSaveLocal(x.w, x.date); tsKick(); rerender(); },
+  async 'ts-clearday'() { const x = tsCur(); if (!x) return; if (!await confirmBox('Not working this day?', `${tsDay(x.date)} will be cleared.`, 'Clear day', false)) return; x.w.days[x.date] = null; delete x.w.days[x.date]; (TS.noPre = TS.noPre || {})[x.w.week + '|' + x.date] = 1; await tsSaveLocal(x.w, x.date); tsKick(); rerender(); },
+  async 'ts-preok'() { const x = tsCur(); if (!x || !tsPreOn(x.w, x.date, x.d)) return; tsPreCommit(x.d, tsCfgV()); tsTouched(x, true); toast('Confirmed ' + x.d.e[0].s + '–' + x.d.e[0].f); },
   async 'ts-submit'() {
+    { const w0 = TS.w[TS.cur], x = tsCur(); if (w0 && x && x.date <= todayISO() && tsPreOn(x.w, x.date, x.d)) { const c = tsCfgV();
+      if (await confirmBox(`Count ${TSC.dayName(x.date)}?`, `${tsDay(x.date)} shows the pre-filled ${tsDefT(c, 's')}–${tsDefT(c, 'f')} but you haven't confirmed it. Count it on this week?`, 'Yes, count it', false)) { tsPreCommit(x.d, c); await tsSaveLocal(x.w, x.date); tsKick(); } } }
     const w = TS.w[TS.cur]; if (!w || !tsEditable(w)) return; const t = TSC.week(w, null, null, tsCfgV());
     if (!t.days.length) return toast('Fill in your hours first');
     const miss = t.days.filter(x => (x.d.e || []).some(e => TSC.entH(e) > 0 && !e.job && !e.jt)); if (miss.length) return toast('Pick the job for ' + miss.map(x => TSC.dayName(x.date)).join(', '), 4000);
@@ -15656,7 +15669,7 @@ function tsGangView() {
   return `<div class="card"><h2>${esc([D.job.ref, D.job.site].filter(Boolean).join(' · '))}</h2><div class="seg" style="margin-top:8px">${dd.map(x => `<a class="btn ${x === g.date ? 'on' : ''}" style="text-decoration:none" href="#/tsgang/${esc(g.job)}/${x}">${TSC.dayName(x)} ${+x.slice(8)}</a>`).join('')}</div></div>
     <div class="card"><h2>Who's on site? <span class="small" style="margin-left:auto">${n}</span></h2>${ppl.map(row).join('') || '<p class="hint">No operatives on this job.</p>'}
       <p class="hint" style="margin-top:8px">Agency / visitors: note them on the weekly site sheet workforce section - they are not on the payroll.</p></div>
-    <div class="card"><h2>Times for everyone ticked</h2><div class="ts-g"><div class="f"><label>Start</label><input type="time" id="tsg-s" value="${esc(g.s || '07:30')}"></div><div class="f"><label>Finish</label><input type="time" id="tsg-f" value="${esc(g.f || '16:00')}"></div>
+    <div class="card"><h2>Times for everyone ticked</h2><div class="ts-g"><div class="f"><label>Start</label><input type="time" id="tsg-s" value="${esc(g.s || tsDefT(tsCfgV(), 's'))}"></div><div class="f"><label>Finish</label><input type="time" id="tsg-f" value="${esc(g.f || tsDefT(tsCfgV(), 'f'))}"></div>
       <div class="f"><label>Break</label><select id="tsg-b">${TS_BRK.map(m => `<option value="${m}" ${(g.b == null ? 30 : g.b) === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></div></div>
       <p class="hint">Anyone different (e.g. left early) - tap their name to change just theirs.</p>
       <label class="ckl"><input type="checkbox" id="tsg-tr"> Travel between sites (0.5 h)</label>
@@ -15965,6 +15978,8 @@ function tsSettingsView() { const c = tsCfgV(); const num = (id, lab, v, step, h
     <div class="row2">${num('tsc-std', 'Standard day (hours) for OT pay', c.stdHours, 0.25, 'OT £/h = day rate ÷ this × 1.5 or 2')}${num('tsc-ota', 'Suggest overtime after (hours)', c.otAfter, 0.25)}</div>
     <div class="row2">${num('tsc-ret', 'Retention % (company default)', c.retentionPct, 0.5, 'Taken off every operative / subcontractor unless their own % is set')}${num('tsc-bdr', 'Budget day rate £ (labour ÷ this = gang-days)', c.budgetDayRate, 1)}</div>
     <div class="f"><label>Deduction order (company default)</label><select id="tsc-rac"><option value="0" ${!c.retAfterCis ? 'selected' : ''}>Retention then CIS - retention on the gross, then CIS on what is left (default)</option><option value="1" ${c.retAfterCis ? 'selected' : ''}>CIS then retention - CIS on the gross, then retention on what is left</option></select><div class="small">Used for operatives and subcontractor gangs unless their own setting says otherwise.</div></div>
+    <div class="row2"><div class="f"><label for="tsc-ds">Default start (pre-filled on empty days)</label><input id="tsc-ds" type="time" step="900" value="${esc(tsDefT(c, 's'))}"></div><div class="f"><label for="tsc-df">Default finish</label><input id="tsc-df" type="time" step="900" value="${esc(tsDefT(c, 'f'))}"></div></div>
+    <p class="small" style="margin:-4px 0 8px">Shown on new empty days and gang bookings. A pre-filled day isn't counted until the operative confirms it, sets a time or picks the job.</p>
     <label class="ckl"><input type="checkbox" id="tsc-sd" ${c.sdAutofill !== false ? 'checked' : ''}> Auto-fill stand-downs from the site sheets (operatives can change it)</label>
     ${tsRcpHtml(c)}
     <button class="btn primary block" data-act="tsc-save">Save timesheet settings</button></div>`; }
@@ -15986,7 +16001,8 @@ Object.assign(ACTIONS, {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target && e.target.id === 'tsc-rcp-new') { e.preventDefault(); ACTIONS['tsc-rcp-add'](); } });
 ACTIONS['tsc-save'] = async () => { const g = id => $('#' + id).value, n = id => TSC.num(g(id));
-  const v = { halfMax: n('tsc-half'), shortFlag: n('tsc-short'), stdHours: n('tsc-std') || 8, otAfter: n('tsc-ota') || 8, retentionPct: Math.min(100, n('tsc-ret')), retAfterCis: !!($('#tsc-rac') && $('#tsc-rac').value === '1'), budgetDayRate: n('tsc-bdr') || 660, sdAutofill: $('#tsc-sd').checked };
+  const v = { halfMax: n('tsc-half'), shortFlag: n('tsc-short'), stdHours: n('tsc-std') || 8, otAfter: n('tsc-ota') || 8, retentionPct: Math.min(100, n('tsc-ret')), retAfterCis: !!($('#tsc-rac') && $('#tsc-rac').value === '1'), budgetDayRate: n('tsc-bdr') || 660, sdAutofill: $('#tsc-sd').checked, defStart: g('tsc-ds'), defFinish: g('tsc-df') };
+  if (!/^\d\d:\d\d$/.test(v.defStart) || !/^\d\d:\d\d$/.test(v.defFinish) || v.defFinish <= v.defStart) return toast('Default finish must be after the default start');
   if (!(v.halfMax > 0)) return toast('Half day hours must be more than 0');
   try { await tsCfgMerge(v); toast('Saved ✓'); }
   catch (e) { toast(e.offline ? 'Needs signal to save' : (e.message || 'Could not save'), 4000); } };
@@ -16151,13 +16167,13 @@ async function tssBookLoad(sid, date) { const ws = TSC.monday(date); TSS.book = 
 function tssBookView() { const B = TSS.book; if (!B || B.loading) return '<p class="hint">Loading…</p>'; if (B.err) return `<div class="lg-msg err">${esc(B.err)}</div>`;
   const sub = B.sub, men = tssMen(sub), jobs = tssJobs(), today = todayISO(), d = B.date, prev = TSC.addDays(d, -1), next = TSC.addDays(d, 1);
   const dayRows = B.rows.filter(r => r.day === d); const jsel = B.job != null ? B.job : (dayRows[0] ? (dayRows[0].job || 'txt:' + dayRows[0].jt) : (jobs[0] ? jobs[0].id : 'txt:'));
-  const cur = dayRows.find(r => (r.job || 'txt:' + r.jt) === jsel); const cm = cur ? cur.men : []; const f0 = cm[0] || { s: '07:30', f: '16:00', b: 30 };
+  const cur = dayRows.find(r => (r.job || 'txt:' + r.jt) === jsel); const cm = cur ? cur.men : []; const f0 = cm[0] || { s: tsDefT(tsCfgV(), 's'), f: tsDefT(tsCfgV(), 'f'), b: 30 };
   const g = tssGrid(sub, B.rows, B.ws, tsCfgV(), false);
   return `<div class="card"><div style="display:flex;align-items:center;gap:8px"><a class="btn sm" href="#/tssub/${esc(sub.id)}/${prev}" id="tss-prev">‹</a><b style="flex:1;text-align:center">${esc(tsDay(d))}</b>${next <= today ? `<a class="btn sm" href="#/tssub/${esc(sub.id)}/${next}" id="tss-next">›</a>` : '<span class="btn sm" style="visibility:hidden">›</span>'}</div>
     ${B.locked ? '<div class="lg-msg">This week has been approved by the office and is locked. Ask the office to change it.</div>' : ''}
     <div class="f"><label>Job</label><select id="tss-job">${jobs.map(j => `<option value="${esc(j.id)}" ${jsel === j.id ? 'selected' : ''}>${esc([j.ref, j.site_name].filter(Boolean).join(' - '))}</option>`).join('')}<option value="txt:" ${/^txt:/.test(jsel) ? 'selected' : ''}>Other job (type it)</option></select></div>
     <div class="f" id="tss-jtw" ${/^txt:/.test(jsel) ? '' : 'hidden'}><label>Job name</label><input id="tss-jt" value="${esc(/^txt:/.test(jsel) ? jsel.slice(4) : '')}" maxlength="80" placeholder="Site / job"></div>
-    <div class="row3"><div class="f"><label>Start</label><input id="tss-s" type="time" value="${esc(f0.s || '07:30')}"></div><div class="f"><label>Finish</label><input id="tss-f" type="time" value="${esc(f0.f || '16:00')}"></div><div class="f"><label>Break (min)</label><input id="tss-b" type="number" inputmode="numeric" min="0" step="5" value="${esc(f0.b ?? 30)}"></div></div>
+    <div class="row3"><div class="f"><label>Start</label><input id="tss-s" type="time" value="${esc(f0.s || tsDefT(tsCfgV(), 's'))}"></div><div class="f"><label>Finish</label><input id="tss-f" type="time" value="${esc(f0.f || tsDefT(tsCfgV(), 'f'))}"></div><div class="f"><label>Break (min)</label><input id="tss-b" type="number" inputmode="numeric" min="0" step="5" value="${esc(f0.b ?? 30)}"></div></div>
     <p class="small" style="margin:0 0 6px">Tick who worked on this job. Times above apply to everyone ticked - change a man's own times if different.</p>
     <div id="tss-men">${men.map(m => { const x = cm.find(y => y.mid === m.id); const own = x && (x.s !== f0.s || x.f !== f0.f || +x.b !== +f0.b); return `<div class="tss-man" data-mid="${esc(m.id)}"><label class="ckl" style="flex:1"><input type="checkbox" class="tss-pk" ${x || !cur ? 'checked' : ''}> ${esc(m.name)}</label>
       <details ${own ? 'open' : ''}><summary class="small">Own times</summary><input type="time" class="tss-ms" value="${esc(own ? x.s : '')}"> – <input type="time" class="tss-mf" value="${esc(own ? x.f : '')}"> <input type="number" class="tss-mb" min="0" step="5" style="width:64px" value="${esc(own ? x.b : '')}" placeholder="brk"></details></div>`; }).join('') || '<p class="hint">No men set up - ask the office.</p>'}</div>
@@ -16344,6 +16360,76 @@ if (typeof tssJobs === 'function') tssJobs = function () { return isOp() ? (Ops.
   if (k === 'projects') { paint('Projects', 'Live and completed', '#/', pjlView()); } else { const p = (Ops.jobsTbl || []).find(x => x.id === rt[1]); paint(p ? p.ref || 'Project' : 'Project', p ? (pjlDone(p) ? 'Completed' : 'Live') : '', '#/projects', pjlProjectView(rt[1])); }
   Promise.all([pjlStLoad(), (Ops.jobsTbl || []).length ? null : loadJobsTbl(), typeof tsJcLoad === 'function' ? tsJcLoad() : null]).then(fresh); }; }
 document.head.insertAdjacentHTML('beforeend', '<style>.pjl-tabs b{margin-left:6px;font-weight:800}.pjl-home{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}.pjl-home .ic{font-size:26px}.pjl-home .t1{font-weight:800}.pjl-home .bd{flex:1}#pjl-status .btn{margin:6px 0}</style>');
+
+/* v1.11.22 (Matt 29 Oct, iPhone feedback):
+   A) every LIVE project in the operative / foreman / gang lead job pickers - from rpc live_jobs_pick (id, ref, site name ONLY; no money / surveyor / commercial).
+   B) time wheel: tap a time -> our own 15-minute wheel; nothing changes until Done (Cancel leaves it). Replaces iOS's native wheel that committed as it scrolled. */
+const LJP = { list: null, at: 0, busy: null };
+async function ljpLoad(force) {
+  if (!isOp()) return LJP.list || [];
+  if (!force && LJP.list && Date.now() - LJP.at < 300000) return LJP.list;
+  if (LJP.busy) return LJP.busy;
+  LJP.busy = (async () => { const k = 'ops.livejobs.' + me();
+    try { if (!online()) throw new Error('offline'); const r = await sbFetch('/rest/v1/rpc/live_jobs_pick', { method: 'POST', body: {} });
+      LJP.list = (r || []).map(j => ({ id: j.id, ref: j.ref || '', site_name: j.site_name || '' })); LJP.at = Date.now(); DB.setKV(k, LJP.list); }
+    catch (e) { if (!LJP.list) LJP.list = (await DB.getKV(k)) || []; }
+    LJP.busy = null; return LJP.list; })();
+  return LJP.busy;
+}
+function opPickJobs() { const mine = (Ops.jobs || []).filter(j => j && j.id), ids = new Set(mine.map(j => j.id));
+  const rest = (LJP.list || []).filter(j => !ids.has(j.id)).sort((a, b) => String(a.ref || a.site_name).localeCompare(String(b.ref || b.site_name), 'en', { numeric: true }));
+  return mine.concat(rest); }
+{ const _tj = tssJobs; tssJobs = function () { return isOp() ? opPickJobs() : _tj(); }; }
+if (typeof PJ_SEL !== 'undefined') PJ_SEL['tss-job'] = 'none';
+{ const _m = pjMode; pjMode = function (sel) { return sel && sel.id === 'tss-job' ? 'none' : _m(sel); }; }
+{ const _r = render; render = async function () { const out = await _r.apply(this, arguments);
+    if (typeof isOp === 'function' && isOp() && !LJP.list && !LJP.busy && me()) ljpLoad().then(() => { if (route()[0] === 'tssub') rerender(); });
+    return out; }; }
+
+/* ---------- B) 15-minute time wheel ---------- */
+const TW_SEL = 'input[type="time"][data-ts], #tsg-s, #tsg-f, #tp-s, #tp-f, #tss-s, #tss-f, .tss-ms, .tss-mf, #tsc-ds, #tsc-df';
+const TW_OPT = '[data-ts], .tss-ms, .tss-mf';   // can be left empty
+function twWire(root) { (root.querySelectorAll ? root : document).querySelectorAll(TW_SEL).forEach(el => { if (el.dataset.tw || el.type !== 'time') return;
+  el.dataset.tw = '1'; el.type = 'text'; el.readOnly = true; el.inputMode = 'none'; el.classList.add('tw-in'); el.setAttribute('autocomplete', 'off'); if (!el.placeholder) el.placeholder = '--:--'; }); }
+new MutationObserver(() => twWire(document)).observe(document.documentElement, { childList: true, subtree: true });
+function twOpen(el) {
+  if (document.querySelector('.tw-bg')) return;
+  const cur = /^\d\d:\d\d$/.test(el.value) ? el.value : (el.id === 'tsc-df' || el.dataset.ts === 'f' || /-f$|mf/.test(el.id + el.className) ? '16:00' : '08:00');
+  const H = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')), M = ['00', '15', '30', '45'];
+  const cm = cur.slice(3); if (!M.includes(cm)) { M.push(cm); M.sort(); }   // keep an odd old minute rather than silently change it
+  const lab = ((el.closest('.f') || {}).querySelector ? (el.closest('.f').querySelector('label') || {}).textContent : '') || (/s$|ms/.test(el.id + el.className) ? 'Start' : 'Time');
+  const col = (k, L) => `<div class="tw-col" data-c="${k}">${L.map(v => `<div class="tw-it" data-v="${v}">${v}</div>`).join('')}</div>`;
+  const bg = document.createElement('div'); bg.className = 'tw-bg';
+  bg.innerHTML = `<div class="tw-sheet" role="dialog" aria-label="${esc(lab)}"><div class="tw-hd"><button type="button" class="tw-cancel" id="tw-cancel">Cancel</button><b>${esc(lab)}</b><button type="button" class="tw-done" id="tw-done">Done</button></div>
+    <div class="tw-wheels"><div class="tw-band"></div>${col('h', H)}<div class="tw-sep">:</div>${col('m', M)}</div>
+    <p class="tw-hint">Scroll, then tap <b>Done</b>. 15-minute steps.</p>${el.matches(TW_OPT) && el.value && !el.dataset.pre ? '<button type="button" class="tw-clear" id="tw-clear">Clear this time</button>' : ''}</div>`;
+  document.body.appendChild(bg); const IH = 44;
+  const set = (k, v) => { const c = bg.querySelector(`.tw-col[data-c="${k}"]`), L = k === 'h' ? H : M; c.scrollTop = Math.max(0, L.indexOf(v)) * IH; };
+  const get = k => { const c = bg.querySelector(`.tw-col[data-c="${k}"]`), L = k === 'h' ? H : M; return L[Math.min(L.length - 1, Math.max(0, Math.round(c.scrollTop / IH)))]; };
+  requestAnimationFrame(() => { set('h', cur.slice(0, 2)); set('m', cm); });
+  bg.querySelectorAll('.tw-it').forEach(it => it.addEventListener('click', () => { const c = it.parentNode; c.scrollTo({ top: [...c.children].indexOf(it) * IH, behavior: 'smooth' }); }));
+  const close = () => { bg.remove(); el.blur(); };
+  const commit = v => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+  bg.querySelector('#tw-cancel').addEventListener('click', close);
+  bg.addEventListener('click', e => { if (e.target === bg) close(); });
+  bg.querySelector('#tw-done').addEventListener('click', () => { const v = get('h') + ':' + get('m'); close(); commit(v); });
+  const cl = bg.querySelector('#tw-clear'); if (cl) cl.addEventListener('click', () => { close(); commit(''); });
+}
+document.addEventListener('click', e => { const el = e.target && e.target.closest && e.target.closest('input.tw-in'); if (!el || el.disabled) return; e.preventDefault(); e.stopPropagation(); twOpen(el); }, true);
+(() => { const st = document.createElement('style'); st.textContent = `
+input.tw-in{cursor:pointer;caret-color:transparent;font-variant-numeric:tabular-nums;background:#fff}
+.ts-pre input.tw-in{color:#94a3b8;font-style:italic;border-style:dashed}
+.ts-prebar{display:flex;align-items:center;gap:8px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:8px 10px;margin:0 0 8px;font-size:14px;color:#9a3412}.ts-prebar span{flex:1}
+.tw-bg{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:10050;display:flex;align-items:flex-end;justify-content:center}
+.tw-sheet{background:#fff;width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:0 0 calc(14px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.25)}
+.tw-hd{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-bottom:1px solid #e2e8f0}.tw-hd b{font-size:17px;color:var(--navy)}
+.tw-hd button{border:0;background:none;font-size:17px;padding:12px 14px;min-height:46px}.tw-cancel{color:#64748b}.tw-done{color:var(--orange);font-weight:800}
+.tw-wheels{position:relative;display:flex;justify-content:center;align-items:center;height:220px;margin:8px 0}
+.tw-col{height:220px;width:90px;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;padding:88px 0;box-sizing:border-box;scrollbar-width:none;position:relative;z-index:1}
+.tw-col::-webkit-scrollbar{display:none}.tw-it{height:44px;line-height:44px;text-align:center;font-size:26px;font-variant-numeric:tabular-nums;scroll-snap-align:center;color:#0f172a}
+.tw-sep{font-size:26px;font-weight:800;padding:0 6px;z-index:1}.tw-band{position:absolute;left:12%;right:12%;top:88px;height:44px;background:#fff1e0;border-radius:10px;border:1.5px solid #fdba74}
+.tw-hint{text-align:center;margin:0 0 6px;font-size:13px;color:#64748b}.tw-clear{display:block;margin:0 auto;border:0;background:none;color:#b91c1c;font-size:15px;padding:10px}
+.pjl-home svg,.ts-homebtn svg,.ts-officebtn svg{width:20px;height:20px;flex:none}`; document.head.appendChild(st); })();
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
