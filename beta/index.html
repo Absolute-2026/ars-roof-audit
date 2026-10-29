@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.15">
+<meta name="app-version" content="1.11.16">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.15';
+const APP_VERSION = '1.11.16';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -4727,9 +4727,10 @@ Object.assign(ACTIONS, {
 async function opManage(id) {
   const o = operatives().find(x => x.id === id); if (!o) return;
   const r = await modal(`<h3>${esc(o.full_name)}</h3><p>${esc(prettyPhone(o.phone))} · ${o.active === false ? 'Deactivated' : 'Active'}</p>
-    <button class="btn primary" data-r="assign">Assign jobs</button><button class="btn" data-r="pin">Reset PIN${o.locked_until && Date.parse(o.locked_until) > Date.now() ? ' (unlocks)' : ''}</button><button class="btn" data-r="rename">Rename</button>
+    <button class="btn primary" data-r="assign">Assign jobs</button>${typeof OA_ON !== 'undefined' && OA_ON && isAdm() ? `<button class="btn" data-r="access">${oaLevelBtnTxt(id)}</button>` : ''}<button class="btn" data-r="pin">Reset PIN${o.locked_until && Date.parse(o.locked_until) > Date.now() ? ' (unlocks)' : ''}</button><button class="btn" data-r="rename">Rename</button>
     <button class="btn" data-r="active">${o.active === false ? 'Reactivate' : 'Deactivate (blocks sign-in)'}</button><button class="btn danger" data-r="remove">Remove operative</button><button class="btn" data-r="">Close</button>`);
   if (r === 'assign') return opAssign(id);
+  if (r === 'access') return oaEdit(id);
   if (r === 'pin') { const pin = await pinPrompt('Reset PIN', `Set a new PIN for ${o.full_name}. Tell them the new PIN in person.`); if (pin) opAdmin({ action: 'reset_pin', id, pin }, 'PIN reset'); }
   if (r === 'rename') { const n = await modal(`<h3>Rename</h3><div class="f"><input type="text" id="rn" value="${esc(o.full_name)}"></div><button class="btn primary" id="rnok">Save</button><button class="btn" data-r="">Cancel</button>`, (bg, close) => bg.querySelector('#rnok').addEventListener('click', () => close(bg.querySelector('#rn').value.trim()))); if (n) opAdmin({ action: 'rename', id, name: n }, 'Renamed'); }
   if (r === 'active') { const on = o.active === false; if (on || await confirmBox('Deactivate operative?', `${o.full_name} will be signed out and can't sign in until reactivated. Their daily checks are kept.`, 'Deactivate')) opAdmin({ action: 'set_active', id, active: on }, on ? 'Reactivated' : 'Deactivated'); }
@@ -5396,6 +5397,8 @@ ${tot ? `<div style="background:#fdecec;border-left:6px solid #b91c1c;padding:12
 void sdStatus;
 
 const isWk = c => !!(c && c.kind === 'weekly');
+// v1.11.16: operative access (app62) - safe before app62 has loaded and on the main app (everything on)
+const opHasF = k => typeof opHas !== 'function' || opHas(k), opSecOkF = key => typeof opSecOk !== 'function' || opSecOk(key);
 const isWkRow = r => !!(r && (r.kind === 'weekly' || (r.data && r.data.kind === 'weekly')));
 function wkTpl() { return dailyTpl().map(s => ({ key: s.key || '', title: s.title, items: (s.items || []).map(t => typeof t === 'string' ? t : t.text) })); }
 const wkPlantRef = p => ({ id: uid(), type: p.type, typeName: p.typeName, custom: !!p.custom, name: p.name || '', meter: !!p.meter, ident: p.ident || '', hire: p.hire || '' });
@@ -5406,12 +5409,12 @@ function newWeekly(job, ws, prev) {
   prev = prev === undefined ? wkPrev(job.id, ws) : prev; const wf0 = { count: '', names: '', toolbox: '', topic: '' };
   return { v: 3, kind: 'weekly', id: 'wk-' + uid(), jobId: job.id, jobRef: job.ref || '', site: job.site_name || '', address: [job.site_address, job.postcode].filter(Boolean).join(', '), cm: job.contracts_manager_name || '',
     owner: me(), by: myName(), week: ws, date: ws, created: Date.now(), updated: Date.now(), status: 'open', tpl: wkTpl(),
-    plant: prev ? (prev.plant || []).map(wkPlantRef) : [], workforce: prev ? Object.assign(wf0, clone(prev.workforce || {})) : wf0, carried: prev ? prev.week : '',
+    plant: prev && opHasF('plant') ? (prev.plant || []).map(wkPlantRef) : [], workforce: prev && opHasF('site') ? Object.assign(wf0, clone(prev.workforce || {})) : wf0, carried: prev ? prev.week : '',
     days: {}, signoff: { name: myName(), sig: '', at: 0 }, alertQ: [], dirty: true };
 }
 function wkNewDay(sheet, date) {
   return { date, done: false, off: false, savedAt: 0, firstSavedAt: 0, late: false,
-    sections: (sheet.tpl || wkTpl()).map(s => ({ id: uid(), key: s.key, title: s.title, status: '', items: (s.items || []).map(t => ({ id: uid(), text: t, answer: '', comment: '', photos: [] })) })),
+    sections: (sheet.tpl || wkTpl()).filter(s => opSecOkF(s.key)).map(s => ({ id: uid(), key: s.key, title: s.title, status: '', items: (s.items || []).map(t => ({ id: uid(), text: t, answer: '', comment: '', photos: [] })) })),
     plant: {}, weather: { conditions: [], windAM: '', windPM: '', tempAM: '', tempPM: '', lostAny: '', lost: [] }, sd: [], incident: { any: '', detail: '' }, progress: { note: '', photos: [] }, extra: {} };
 }
 function wkDay(sheet, date, create) {
@@ -5467,6 +5470,7 @@ function wkStatusTag(c) {
   return '<span class="tag navy">Open - uploaded</span>';
 }
 viewOpHome = function () {
+  if (typeof opSheet === 'function' && isOp() && !opSheet()) return oaBasicHome();   // v1.11.16: no site-sheet features -> simple home
   const jobs = Ops.jobs || []; const today = todayISO(), ws = wkStartOf(today);
   const cards = jobs.map(j => { const sh = wkSheetFor(j.id, ws); const d = sh && sh.days[today]; const miss = sh ? wkMissing(sh, today) : wkDates(ws).filter((x, i) => i < 5 && x < today);
     return `<div class="card wkjob"><h2>${esc(j.ref)} · ${esc(j.site_name || '')}</h2><p class="hint">${esc([[j.site_address, j.postcode].filter(Boolean).join(', '), j.contracts_manager_name ? 'CM: ' + j.contracts_manager_name : ''].filter(Boolean).join(' · '))}</p>
@@ -5526,11 +5530,11 @@ function wkDayHTML(sheet, d) {
   return `<div class="card wkdayhd"><h2>${wkDayName(date)} ${fmtDate(date)}${date === todayISO() ? ' <span class="tag amber">Today</span>' : ''}</h2>
     ${d.done ? `<div class="lg-msg ok" style="margin:0 0 8px">Ticked off at ${esc(wkClock(d.savedAt))}${d.late ? ' (filled in late)' : ''}${sheet.dirty ? ' - waiting for signal to upload' : ' - uploaded'}.${d.edited ? ' <b>You have changed it since - tap Save changes.</b>' : ''}</div>` : date < todayISO() ? '<div class="lg-msg warn" style="margin:0 0 8px">This day was not ticked off on the day. Filling it in now marks it as <b>filled in late</b>.</div>' : ''}
     <p class="hint">Tap <b>All OK</b> for each section. Only tap <b>Issue</b> if something is wrong. Then tick each machine.</p></div>
-  ${d.sections.map(s => wkSecHTML(d, s)).join('')}
-  <div class="card" id="plantcard"><h2>${I.wrench.replace('<svg', '<svg width="22" height="22"')} Plant pre-use - today</h2>
+  ${d.sections.filter(s => opSecOkF(s.key)).map(s => wkSecHTML(d, s)).join('')}
+  ${!opHasF('plant') ? '' : `<div class="card" id="plantcard"><h2>${I.wrench.replace('<svg', '<svg width="22" height="22"')} Plant pre-use - today</h2>
     ${(sheet.plant || []).length ? (sheet.plant || []).map(p => wkPlantRowHTML(d, p)).join('') : '<p class="hint">No plant on this week\'s list. Add each machine or tool you use - it stays on the list for the week (and next week).</p>'}
-    <div class="btns" style="margin-top:8px"><button class="btn" data-act="wk-addplant">${I.plus} Add plant / equipment</button>${(sheet.plant || []).length ? '<button class="btn" data-act="wk-plantok">✓ All plant OK</button><button class="btn" data-act="wk-plantlist">Edit list</button>' : ''}</div></div>
-  <div class="card"><h2>Anything else today?</h2><p class="hint" style="margin-bottom:8px">Only if there was any.</p><div class="btns wkx">${xb('wx', 'Weather / time lost')}${xb('sd', 'Stood down')}${xb('inc', 'Incident / near miss')}${xb('prog', 'Progress note / photos')}</div></div>
+    <div class="btns" style="margin-top:8px"><button class="btn" data-act="wk-addplant">${I.plus} Add plant / equipment</button>${(sheet.plant || []).length ? '<button class="btn" data-act="wk-plantok">✓ All plant OK</button><button class="btn" data-act="wk-plantlist">Edit list</button>' : ''}</div></div>`}
+  <div class="card"><h2>Anything else today?</h2><p class="hint" style="margin-bottom:8px">Only if there was any.</p><div class="btns wkx">${opHasF('weather') ? xb('wx', 'Weather / time lost') : ''}${opHasF('standdown') ? xb('sd', 'Stood down') : ''}${xb('inc', 'Incident / near miss')}${xb('prog', 'Progress note / photos')}</div></div>
   ${has.wx ? weatherCardHTML(d) : ''}
   ${has.sd ? `<div class="card" id="sdcard"><h2>Stood down</h2><p class="hint" style="margin-bottom:8px">Who stood you down, why and for how long. Ask them to sign on your phone.</p>${(d.sd || []).map(e => wkSdRowHTML(d, e)).join('')}<button class="btn block" data-act="wk-addsd">${I.plus} Add stand-down</button><div class="losttot">Stood down today: <b id="sdtot">${fmtH(wkSdHours(d))} h</b></div></div>` : ''}
   ${has.inc ? `<div class="card"><h2>Incidents / near misses</h2>${f.seg('Any incident or near miss today?', 'incident.any', [['yes', 'Yes', 'bad'], ['no', 'No', 'ok']], { cls: 'yn' })}<div data-when="incident.any=yes" ${d.incident.any === 'yes' ? '' : 'hidden'}>${f.area('What happened? (required)', 'incident.detail', { rows: 3 })}</div></div>` : ''}
@@ -5544,9 +5548,9 @@ function wkWeekTableHTML(sheet, rows, miss) {
 }
 function wkSheetCardsHTML(sheet, d) {
   const f = mk(d); const rows = wkRows(sheet); const miss = wkMissing(sheet, todayISO());
-  return `<div class="card"><h2>Workforce & toolbox talk <span class="small" style="margin-left:auto">for the week</span></h2>
+  return `${!opHasF('site') ? '' : `<div class="card"><h2>Workforce & toolbox talk <span class="small" style="margin-left:auto">for the week</span></h2>
     ${f.text('Number on site (incl. you)', '_sheet.workforce.count', { type: 'number' })}${f.area('Names (optional)', '_sheet.workforce.names', { rows: 2 })}
-    ${f.seg('Toolbox talk given this week?', '_sheet.workforce.toolbox', [['yes', 'Yes', 'ok'], ['no', 'No', '']], { cls: 'yn' })}${f.text('Toolbox talk topic', '_sheet.workforce.topic', { ph: 'e.g. Fragile roofs, manual handling' })}</div>
+    ${f.seg('Toolbox talk given this week?', '_sheet.workforce.toolbox', [['yes', 'Yes', 'ok'], ['no', 'No', '']], { cls: 'yn' })}${f.text('Toolbox talk topic', '_sheet.workforce.topic', { ph: 'e.g. Fragile roofs, manual handling' })}</div>`}
   <div class="card"><h2>This week</h2>${wkWeekTableHTML(sheet, rows, miss)}</div>
   <div class="card" id="wksign"><h2>End of week sign-off</h2><p class="hint" style="margin-bottom:8px">On your last day: sign once to send the whole week to ${esc(sheet.cm || 'your contracts manager')} as one PDF.</p>
     ${f.text('Your name', '_sheet.signoff.name')}${sheet.signoff.sig ? `<img class="dcsig" src="${sheet.signoff.sig}" alt="Signature">` : ''}
@@ -5554,11 +5558,11 @@ function wkSheetCardsHTML(sheet, d) {
 }
 function wkDayProblems(sheet, d) {
   const p = []; if (d.off) return p;
-  d.sections.forEach(s => {
+  d.sections.filter(s => opSecOkF(s.key)).forEach(s => {
     if (!s.status) p.push(`${s.title}: tap All OK, Issue or N/A`);
     else if (s.status === 'issue') { const un = s.items.filter(i => !i.answer).length; if (un) p.push(`${s.title}: ${un} item${un > 1 ? 's' : ''} not answered (tap Rest OK)`); if (!s.items.some(i => i.answer === 'issue')) p.push(`${s.title}: mark which item is the issue`); const nc = s.items.filter(i => i.answer === 'issue' && !String(i.comment || '').trim()).length; if (nc) p.push(`${s.title}: ${nc} issue${nc > 1 ? 's' : ''} without a comment`); }
   });
-  (sheet.plant || []).forEach(x => { const t = (d.plant || {})[x.id] || {}; const l = plantLabel(x);
+  (opHasF('plant') ? sheet.plant || [] : []).forEach(x => { const t = (d.plant || {})[x.id] || {}; const l = plantLabel(x);
     if (!t.ans) p.push(`${l}: tap OK, Defect or Out of use`);
     if (t.ans !== 'out') { const un = (Array.isArray(t.items) ? t.items : [null]).filter(i => !i || !i.answer).length; if (un) p.push(`${l}: ${un} pre-use check${un > 1 ? 's' : ''} not answered (tap ✓ All checks OK)`); }
     if ((t.ans === 'defect' || t.ans === 'out') && !String(t.note || '').trim()) p.push(`${l}: say what is wrong`);
@@ -10139,8 +10143,8 @@ function coverBanner() { const m = coverMine(), o = coverOfMe(), soon = coversAl
 const isFmAnywhere = () => isForemanUid(me()) || Object.values(S.settings.brief || {}).some(e => e && e.fm && e.uid === me() && !fmData().jobs[e.jobId]) || vans().some(v => v.data.foreman === me());
 let coverT = 0;
 { const _vh = viewOpHome; viewOpHome = function () { const v = _vh(); if (Date.now() - coverT > 60000 && signedIn() && online()) { coverT = Date.now(); const before = JSON.stringify(recAll('cover').map(c => c.id + c.status)); coverLoad().then(() => { if (JSON.stringify(recAll('cover').map(c => c.id + c.status)) !== before && !route()[0]) rerender(); }); }
-  const own = isFmAnywhere() && !coverOfMe() && !coversAll().some(c => c.data.fm === me() && coverOpen(c)) ? `<button class="btn block" data-act="cv-new">👷 Cover while I'm away</button>` : '';
-  const hol = isFmAnywhere() && !holMine() ? `<button class="btn block" data-act="hol-new" style="margin-top:6px">🏖 I'm on holiday</button>` : '';
+  const lead = typeof opHas !== 'function' || opHas('lead'); const own = lead && isFmAnywhere() && !coverOfMe() && !coversAll().some(c => c.data.fm === me() && coverOpen(c)) ? `<button class="btn block" data-act="cv-new">👷 Cover while I'm away</button>` : '';
+  const hol = lead && isFmAnywhere() && !holMine() ? `<button class="btn block" data-act="hol-new" style="margin-top:6px">🏖 I'm on holiday</button>` : '';
   const tools = own || hol ? `<div class="card">${own}${hol}</div>` : '';
   v.body = holBanner() + coverBanner() + v.body + tools; return v; }; }
 // manager / admin: Admin > Operatives shows covers, and a foreman's profile has "Holiday cover"
@@ -10182,7 +10186,7 @@ Object.assign(ACTIONS, {
   'fm-job'(a) { const uid = a.dataset.id, jid = a.dataset.job, p = (Cloud.profiles || []).find(x => x.id === uid) || {}; fmSave(d => { if (d.jobs[jid] === uid) delete d.jobs[jid]; else { d.jobs[jid] = uid; d.flags[uid] = true; d.names[uid] = p.full_name || ''; } }); rerender(); },
 });
 // profile (admin): Foreman toggle + jobs he runs + van
-{ const _vp = viewPerson; viewPerson = function (uid) { const h = _vp(uid); if (!isAdm() || !uid || uid === me()) return h; const on = !!fmData().flags[uid] || fmJobsOf(uid).length > 0, van = vans().find(v => v.data.foreman === uid && v.data.status !== 'sold');
+{ const _vp = viewPerson; viewPerson = function (uid) { const h = _vp(uid); if (!isAdm() || !uid || uid === me()) return h; const on = !!fmData().flags[uid] || fmJobsOf(uid).length > 0 || (typeof oaIsFm === 'function' && oaIsFm(uid)), van = vans().find(v => v.data.foreman === uid && v.data.status !== 'sold');
   const jobs = bsActiveJobs(); return `<div class="card" id="fm-card"><h2>Foreman <button class="btn sm ${on ? 'primary' : ''}" data-act="fm-flag" data-id="${esc(uid)}" style="margin-left:auto">${on ? '✓ Foreman' : 'Make foreman'}</button></h2>
     ${on ? `<p class="hint">Jobs he is foreman on (group sign-off, briefed-by, cover):</p>${jobs.map(j => { const cur = fmData().jobs[j.id]; const other = cur && cur !== uid ? fmData().names[cur] || 'someone else' : ''; return `<label class="ckl"><input type="checkbox" data-act="fm-job" data-id="${esc(uid)}" data-job="${esc(j.id)}" ${cur === uid ? 'checked' : ''}> ${esc(j.ref || '')} ${esc(j.site_name || '')}${other ? ` <span class="small">(now ${esc(other)})</span>` : ''}</label>`; }).join('') || '<p class="hint">No active jobs.</p>'}<p class="hint">Van: ${van ? esc(van.data.reg) : 'none'} (set in Fleet)</p>` : '<p class="hint">Foremen run group sign-offs, can hand over cover and set holidays, and drive a van.</p>'}</div>` + h; }; }
 // Admin > Operatives: Foremen list
@@ -10202,7 +10206,7 @@ const ROLES = [['director', 'Director / Manager', 'manager'], ['cm', 'Contracts 
 const roleLabel = k => (ROLES.find(r => r[0] === k) || [k, k])[1];
 const pplRec = () => Rec.items.people && !Rec.items.people.deleted ? Rec.items.people : null;
 const pplData = () => Object.assign({ title: {}, reportsTo: {} }, (pplRec() || {}).data || {});
-function titleOf(p) { if (!p) return ''; const base = p.role; if (base === 'operative') return isForemanUid(p.id) ? 'foreman' : 'operative'; const t = pplData().title[p.id]; const r = ROLES.find(x => x[0] === t); return r && r[2] === base ? t : base === 'manager' ? 'director' : base; }
+function titleOf(p) { if (!p) return ''; const base = p.role; if (base === 'operative') return isForemanUid(p.id) || (typeof oaIsFm === 'function' && oaIsFm(p.id)) ? 'foreman' : 'operative'; const t = pplData().title[p.id]; const r = ROLES.find(x => x[0] === t); return r && r[2] === base ? t : base === 'manager' ? 'director' : base; }
 function pplSave(mut) { let r = pplRec(); if (!r) r = { id: 'people', kind: 'people', subject: null, owner: me(), status: null, data: { title: {}, reportsTo: {} }, deleted: false }; r.data = Object.assign({ title: {}, reportsTo: {} }, r.data); mut(r.data); recPut(r); }
 const peopleAll = () => (Cloud.profiles || []).filter(p => p.active !== false);
 const pName = p => p.full_name || p.email || '?';
@@ -10216,6 +10220,7 @@ async function roleEdit(uid) { const p = (Cloud.profiles || []).find(x => x.id =
   if (!r || typeof r !== 'object') return; const role = (ROLES.find(x => x[0] === r.t) || [])[2];
   if (staff && role !== p.role) { if (!isMgr()) return toast('Only a manager can change office permissions (Admin / Manager / Surveyor)'); try { await sbFetch('/rest/v1/rpc/set_role', { method: 'POST', body: { user_email: p.email, new_role: role } }); p.role = role; } catch (e) { return toast(e.message || String(e), 4000); } }
   if (!staff) { const isF = isForemanUid(uid); if ((r.t === 'foreman') !== isF) fmSave(d => { if (r.t === 'foreman') { d.flags[uid] = true; d.names[uid] = pName(p); } else { delete d.flags[uid]; Object.keys(d.jobs).forEach(j => { if (d.jobs[j] === uid) delete d.jobs[j]; }); } }); }
+  if (!staff && typeof oaSetLevel === 'function') await oaSetLevel(uid, r.t === 'foreman' ? 'foreman' : 'operative');
   pplSave(d => { d.title[uid] = r.t; if (r.r) d.reportsTo[uid] = r.r; else delete d.reportsTo[uid]; }); toast('Saved'); rerender(); }
 ACTIONS['ro-edit'] = a => roleEdit(a.dataset.id);
 function peopleHTML() { const P = peopleAll(), rt = pplData().reportsTo, byId = Object.fromEntries(P.map(p => [p.id, p]));
@@ -15198,6 +15203,132 @@ async function msgCfgLoad() { try { const r = await sbFetch('/rest/v1/app_settin
 // v1.11.15: the Messages job box (#msg-jobsel) uses the shared search box; everyone (operatives too) may keep a typed job as text on the message
 PJ_SEL['msg-jobsel'] = 'text';
 { const _m = pjMode; pjMode = function (sel) { return sel && sel.id === 'msg-jobsel' ? 'text' : _m(sel); }; }
+
+/* ===== v1.11.16 (BETA): operative access levels - Foreman / Operative + per-person overrides (Matt approved 29 Oct 2026, t374u).
+   - public.op_access {uid, level, features[]}: managers / admin set it (Team > Manage > "Foreman & checks", the person page, or Role).
+     features null = the level default (Foreman = everything, Operative = none of the toggled features); else exactly those.
+     No row = everything (operatives that existed before v1.11.16 were all set to Foreman; ones added on the main app stay unrestricted).
+   - Always on for every operative: induction, Messages, signing their own toolbox talks / RAMS, My profile (certificates, licence, expenses).
+   - The weekly site sheet is the SITE record (site / welfare checks, permits, plant ticks, weather, stand-downs, workforce), so it follows
+     the features: no sheet feature = simple home; plant only = a sheet with just the plant pre-use ticks, etc.
+   - Server: trigger ars_op_access_guard on daily_checks + restrictive policy records_op_access (migration 2026-10-29_v1.11.16_op_access.sql).
+   ===== */
+const OA_ON = BUILD.variant !== 'prod';
+const OA_FEATS = [
+  ['site', 'Daily site & welfare checks', 'Site checklist on the weekly sheet, workforce, toolbox talk given'],
+  ['permits', 'Permits & hazards', 'The permits section of the daily ticks'],
+  ['plant', 'Plant pre-use checks', 'A daily tick per machine with its pre-use checklist'],
+  ['weather', 'Weather & time lost', 'Weather and time lost on the daily ticks'],
+  ['standdown', 'Stand-down / delay log', 'Who stood the gang down, why and how long (signed)'],
+  ['materials', 'Materials & plant requests', 'Order materials or plant for the job'],
+  ['van', 'Van checks', 'Weekly / handover van checks and damage reports (if he drives a company van)'],
+  ['lead', 'Foreman tools', 'Group sign-off of toolbox talks / RAMS, cover while away, holiday'],
+];
+const OA_KEYS = OA_FEATS.map(f => f[0]), OA_SHEET = ['site', 'permits', 'plant', 'weather', 'standdown'];
+const OA_ALWAYS = 'Induction, Messages, signing his own toolbox talks / RAMS and My profile (certificates, licence, expenses)';
+const OA = { me: null, t: 0, all: {}, allOk: false, allT: 0, newFm: false };
+try { const c = JSON.parse(localStorage.getItem('ars.oa.me') || 'null'); if (c && c.uid) OA.me = c; } catch (e) { }
+const oaDefault = lvl => lvl === 'foreman' ? OA_KEYS.slice() : [];
+const oaFeatsOf = row => !row ? OA_KEYS.slice() : Array.isArray(row.features) ? OA_KEYS.filter(k => row.features.includes(k)) : oaDefault(row.level);
+function opHas(k) { if (!OA_ON || !isOp()) return true; const m = OA.me && OA.me.uid === me() ? OA.me.row : null; return oaFeatsOf(m).includes(k); }
+const opSheet = () => OA_SHEET.some(opHas);
+const opSecOk = key => key === 'permits' ? opHas('permits') : opHas('site');
+async function oaLoadMe(force) {
+  if (!OA_ON || !isOp() || !signedIn() || !online() || (!force && Date.now() - OA.t < 60000)) return; OA.t = Date.now();
+  try { const r = await sbFetch(`/rest/v1/op_access?uid=eq.${encodeURIComponent(me())}&select=uid,level,features`); const before = JSON.stringify(OA.me);
+    OA.me = { uid: me(), row: (r || [])[0] || null }; localStorage.setItem('ars.oa.me', JSON.stringify(OA.me)); if (JSON.stringify(OA.me) !== before && !route()[0]) rerender(); } catch (e) { }
+}
+async function oaLoadAll(force) {
+  if (!OA_ON || !signedIn() || !isAdm() || !online() || (!force && Date.now() - OA.allT < 30000)) return; OA.allT = Date.now();
+  try { const r = await sbFetch('/rest/v1/op_access?select=uid,level,features,updated_at') || []; const before = JSON.stringify(OA.all); OA.all = Object.fromEntries(r.map(x => [x.uid, x])); OA.allOk = true;
+    if (JSON.stringify(OA.all) !== before && /^(team|person|admin)$/.test(route()[0] || '')) rerender(); } catch (e) { }
+}
+const oaRow = uid => OA.all[uid] || null;
+const opLevelOf = uid => { const r = oaRow(uid); return r ? r.level : null; };   // null = not set (everything)
+const oaIsFm = uid => OA_ON && OA.allOk && opLevelOf(uid) === 'foreman';
+const oaCustom = r => !!(r && Array.isArray(r.features));
+const oaLevelBtnTxt = uid => { const l = opLevelOf(uid); return `Foreman & checks (${l === 'operative' ? 'Operative' : l === 'foreman' ? 'Foreman' : 'not set'}${oaCustom(oaRow(uid)) ? ', custom' : ''})`; };
+async function oaPut(uid, level, feats) {
+  const features = feats && !(feats.length === oaDefault(level).length && oaDefault(level).every(k => feats.includes(k))) ? OA_KEYS.filter(k => feats.includes(k)) : null;
+  const row = { uid, level, features, updated_by: me(), updated_at: new Date().toISOString() };
+  await sbFetch('/rest/v1/op_access?on_conflict=uid', { method: 'POST', body: row, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } });
+  OA.all[uid] = row; return row;
+}
+// keep the v1.10.6 foreman flag (group sign-off, cover, holiday, van picker) in step when a manager changes the level here
+function oaFlag(uid, on) { if (typeof fmSave !== 'function') return; const p = (Cloud.profiles || []).find(x => x.id === uid) || {}; const d0 = fmData();
+  if (on && !d0.flags[uid]) fmSave(d => { d.flags[uid] = true; d.names[uid] = p.full_name || ''; });
+  if (!on && (d0.flags[uid] || Object.values(d0.jobs).includes(uid))) fmSave(d => { delete d.flags[uid]; Object.keys(d.jobs).forEach(j => { if (d.jobs[j] === uid) delete d.jobs[j]; }); }); }
+async function oaSetLevel(uid, level) { if (!OA_ON) return; if (opLevelOf(uid) === level && !oaCustom(oaRow(uid))) return; try { await oaPut(uid, level, null); } catch (e) { toast(e.message || String(e), 4000); } }
+async function oaEdit(uid) {
+  if (!isAdm()) return toast('Only a manager or admin can change this'); await oaLoadAll(true);
+  const o = (Cloud.profiles || []).find(x => x.id === uid) || { full_name: 'Operative' }; const row = oaRow(uid);
+  const start = { lvl: row ? row.level : 'foreman', f: oaFeatsOf(row) };
+  const lvlBtn = (v, l) => `<button type="button" data-v="${v}" class="${start.lvl === v ? 'on' : ''}" aria-pressed="${start.lvl === v}">${l}</button>`;
+  const r = await modal(`<h3>${esc(o.full_name || '')}</h3>
+    <p class="small" style="margin:0 0 4px"><b>Level</b></p><div class="seg oa-lvl" role="group" aria-label="Level">${lvlBtn('foreman', 'Foreman')}${lvlBtn('operative', 'Operative')}</div>
+    <p class="hint oa-lvlhint" style="margin:6px 0 10px"></p>
+    <p class="small" style="margin:0 0 4px"><b>What he sees</b> <span class="tag amber oa-cust" hidden>Custom</span></p>
+    ${OA_FEATS.map(([k, l, d]) => `<label class="ckl oa-row"><input type="checkbox" class="oa-f" value="${k}" ${start.f.includes(k) ? 'checked' : ''}> <span><b>${esc(l)}</b><br><span class="small">${esc(d)}</span></span></label>`).join('')}
+    <p class="hint" style="margin:8px 0">Always on: ${esc(OA_ALWAYS)}.</p>
+    ${row ? '' : '<p class="lg-msg warn" style="margin:0 0 8px">Not set yet - he currently has everything (added on the main app).</p>'}
+    <button class="btn" type="button" id="oa-reset">Reset to level default</button><button class="btn primary" id="oa-ok">Save</button><button class="btn" data-r="">Cancel</button>`,
+  (bg, close) => { let lvl = start.lvl; const cbs = [...bg.querySelectorAll('.oa-f')];
+    const upd = () => { const f = cbs.filter(c => c.checked).map(c => c.value), def = oaDefault(lvl); bg.querySelector('.oa-cust').hidden = f.length === def.length && def.every(k => f.includes(k));
+      bg.querySelectorAll('.oa-lvl button').forEach(b => { b.classList.toggle('on', b.dataset.v === lvl); b.setAttribute('aria-pressed', b.dataset.v === lvl); });
+      bg.querySelector('.oa-lvlhint').textContent = lvl === 'foreman' ? 'Foreman: every site check and foreman tool, ticked below.' : 'Operative: a simple home - induction, messages, his toolbox talks / RAMS and profile. Tick any extras he needs.'; };
+    const reset = () => { const def = oaDefault(lvl); cbs.forEach(c => { c.checked = def.includes(c.value); }); upd(); };
+    bg.querySelectorAll('.oa-lvl button').forEach(b => b.addEventListener('click', () => { lvl = b.dataset.v; reset(); }));
+    bg.querySelector('#oa-reset').addEventListener('click', reset); cbs.forEach(c => c.addEventListener('change', upd)); upd();
+    bg.querySelector('#oa-ok').addEventListener('click', () => close({ lvl, f: cbs.filter(c => c.checked).map(c => c.value) })); });
+  if (!r || typeof r !== 'object') return;
+  try { const was = row ? row.level : null; await oaPut(uid, r.lvl, r.f); if (was !== r.lvl) oaFlag(uid, r.lvl === 'foreman');
+    toast(`${o.full_name}: ${r.lvl === 'foreman' ? 'Foreman' : 'Operative'}${oaCustom(oaRow(uid)) ? ' (custom)' : ''} - saved`); rerender(); }
+  catch (e) { toast(e.message || String(e), 4500); }
+}
+ACTIONS['oa-edit'] = a => oaEdit(a.dataset.id);
+ACTIONS['oa-filt'] = a => { sessionStorage.setItem('ars.oa.filt', a.dataset.v); rerender(); };
+// person page "Foreman" button (v1.10.6) = the level too
+{ const _ff = ACTIONS['fm-flag']; ACTIONS['fm-flag'] = async function (a) { if (!OA_ON) return _ff.call(this, a); const uid = a.dataset.id, p = (Cloud.profiles || []).find(x => x.id === uid) || {};
+  const on = !!fmData().flags[uid] || fmJobsOf(uid).length > 0 || oaIsFm(uid);
+  try { await oaPut(uid, on ? 'operative' : 'foreman', null); } catch (e) { return toast(e.message || String(e), 4000); }
+  oaFlag(uid, !on); toast(on ? `${p.full_name} is now an Operative` : `${p.full_name} is a Foreman`); rerender(); }; }
+// new operative: Foreman tick on the Add form (default Operative)
+{ const _add = ACTIONS['op-add']; ACTIONS['op-add'] = function (a) { OA.newFm = !!($('#op-fm') || {}).checked; return _add.call(this, a); }; }
+{ const _oa = opAdmin; opAdmin = async function (body, okMsg) { const r = await _oa(body, okMsg);
+  if (OA_ON && r && body && body.action === 'create' && r.profile && r.profile.id) { try { await oaPut(r.profile.id, OA.newFm ? 'foreman' : 'operative', null); if (OA.newFm) oaFlag(r.profile.id, true); } catch (e) { toast('Operative added, but the level was not saved: ' + (e.message || e), 5000); } rerender(); }
+  return r; }; }
+// Team page: Foreman / Operative badge, Custom tag, filter, Foreman tick on the Add form
+{ const _ot = opsTeamCard; opsTeamCard = function () { const h = _ot(); if (!OA_ON || !isAdm()) return h; oaLoadAll();
+  const T = document.createElement('template'); T.innerHTML = h; const card = T.content.querySelector('#opscard'); if (!card) return h;
+  const its = [...card.querySelectorAll('.item')].filter(x => x.querySelector('[data-act="op-manage"]')); const F = sessionStorage.getItem('ars.oa.filt') || 'all'; const n = { all: 0, foreman: 0, operative: 0 };
+  its.forEach(it => { const uid = it.querySelector('[data-act="op-manage"]').dataset.id, row = oaRow(uid), lvl = row ? row.level : 'foreman'; n.all++; n[lvl]++; it.dataset.oalvl = lvl;
+    const t1 = it.querySelector('.t1'); if (t1) { t1.querySelectorAll('.tag').forEach(x => { if (/^Foreman$/.test(x.textContent.trim())) x.remove(); });
+      t1.insertAdjacentHTML('beforeend', ` ${lvl === 'foreman' ? '<span class="tag green oa-badge">Foreman</span>' : '<span class="tag oa-badge">Operative</span>'}${oaCustom(row) ? ' <span class="tag amber">Custom</span>' : ''}${OA.allOk && !row ? ' <span class="tag amber">Not set</span>' : ''}`); }
+    if (F !== 'all' && lvl !== F) it.hidden = true; });
+  const hint = card.querySelector(':scope > p.hint'); const fb = (v, l) => `<button type="button" data-act="oa-filt" data-v="${v}" class="${F === v ? 'on' : ''}" aria-pressed="${F === v}">${l} (${n[v]})</button>`;
+  if (hint) hint.insertAdjacentHTML('afterend', `<div class="seg oa-filt" role="group" aria-label="Show" style="margin:0 0 10px">${fb('all', 'All')}${fb('foreman', 'Foremen')}${fb('operative', 'Operatives')}</div>`);
+  const add = card.querySelector('[data-act="op-add"]'); if (add) add.insertAdjacentHTML('beforebegin', `<label class="ckl"><input type="checkbox" id="op-fm"> <span><b>Foreman</b> - all site checks and foreman tools. Leave unticked for an operative (simple home: induction, messages, toolbox talks, profile). You can tick extras later under Manage.</span></label>`);
+  const out = document.createElement('div'); out.appendChild(T.content); return out.innerHTML; }; }
+// person page: access summary
+{ const _vp = viewPerson; viewPerson = function (uid) { const h = _vp(uid); if (!OA_ON || !isAdm() || !uid) return h; const p = (Cloud.profiles || []).find(x => x.id === uid); if (!p || p.role !== 'operative') return h; oaLoadAll();
+  const row = oaRow(uid), f = oaFeatsOf(row); return `<div class="card" id="oa-card"><h2>Checks & access <button class="btn sm" data-act="oa-edit" data-id="${esc(uid)}" style="margin-left:auto">Change</button></h2>
+    <p><span class="tag ${!row || row.level === 'foreman' ? 'green' : ''}">${!row ? 'Not set - everything' : row.level === 'foreman' ? 'Foreman' : 'Operative'}</span>${oaCustom(row) ? ' <span class="tag amber">Custom</span>' : ''}</p>
+    <p class="hint">${f.length ? OA_FEATS.filter(x => f.includes(x[0])).map(x => esc(x[1])).join(' · ') : 'No site checks - simple home'}. Always: induction, messages, toolbox talks / RAMS, profile.</p></div>` + h; }; }
+// operatives: simple home when no site-sheet feature; gate the other tiles
+function oaBasicHome() { const jobs = Ops.jobs || [];
+  return { head: header({ title: 'Home', sub: (Cloud.profile && Cloud.profile.full_name) || '' }),
+    body: `${!online() ? '<div class="lg-msg warn" style="margin:0 0 12px">No signal - messages and forms send automatically when you are back online.</div>' : ''}
+    <div class="card oa-jobs"><h2>My jobs</h2>${jobs.map(j => `<div class="item"><div class="th">${I.roof.replace('<svg', '<svg width="26" height="26"')}</div><div class="bd"><div class="t1">${esc(j.ref || '')} · ${esc(j.site_name || '')}</div><div class="t2">${esc([[j.site_address, j.postcode].filter(Boolean).join(', '), j.contracts_manager_name ? 'CM: ' + j.contracts_manager_name : ''].filter(Boolean).join(' · '))}</div></div></div>`).join('') || `<p class="hint">You have no jobs assigned yet.${Ops.err ? ' (' + esc(Ops.err) + ')' : ''}</p>`}</div>
+    <p class="small" style="text-align:center">Site Audit v${APP_VERSION}${BUILD.beta ? ' BETA' : ''} · <button class="linkbtn" data-act="syncinfo">Account & sign out</button></p>` }; }
+{ const _m = mrHomeCard; mrHomeCard = function () { return opHas('materials') ? _m() : ''; }; }
+{ const _v = vanHomeCard; vanHomeCard = function () { return opHas('van') ? _v() : ''; }; }
+{ const _b = bsIsForeman; bsIsForeman = it => _b(it) && (!isOp() || opHas('lead')); }
+{ const _q = qaItems; qaItems = function () { const L = _q(); return isOp() && !opSheet() ? L.filter(x => !String(x[0]).startsWith('wk:')) : L; }; }
+{ const _r = rpCardOp; rpCardOp = function () { return isOp() && !opSheet() ? '' : _r(); }; }
+{ const _vh = viewOpHome; viewOpHome = function () { oaLoadMe(); return _vh(); }; }
+// friendlier message if the server refuses a check that is switched off
+{ const _t = toast; toast = function (m, ms) { return _t(/ARS_FEATURE_OFF/.test(String(m)) ? 'That check is not switched on for you - ask your manager.' : m, ms); }; }
+setTimeout(() => { oaLoadMe(true); oaLoadAll(true); }, 1800);
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
