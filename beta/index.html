@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.12">
+<meta name="app-version" content="1.11.13">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.12';
+const APP_VERSION = '1.11.13';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -11605,7 +11605,7 @@ VN.st = vnDetect(); { const go_ = () => { vnDecorate(); new MutationObserver(vnD
      table induction_health (admin role only). Never stored in the record, never emailed, never in the record PDF.
    - Contacts / placeholders: app_settings 'induction_contacts' (Settings > Induction contacts), blank = "To be confirmed". */
 const IND_CH = [{"id": "01", "t": "Welcome and your responsibilities", "v": "ARS-Induction-SHORT-01-your-responsibilities.mp4", "c": "ARS-Induction-SHORT-01-your-responsibilities.vtt", "d": 100.33, "q": [{"q": "Which tasks should you carry out?", "o": ["Any task you're asked to do", "Only tasks you're trained, competent and authorised for", "Whatever gets the job finished fastest"], "a": 1, "s": "Staff Responsibility Statement"}, {"q": "Conditions on the roof become unsafe. What should you do?", "o": ["Carry on carefully", "Stop work immediately", "Finish the job, then report it"], "a": 1, "s": "Work at Height & Roofing Specific Responsibilities"}]}, {"id": "02", "t": "Health & Safety Policy", "v": "ARS-Induction-SHORT-02-health-safety.mp4", "c": "ARS-Induction-SHORT-02-health-safety.vtt", "d": 68.58, "q": [{"q": "What happens if a safe system of work can't be followed?", "o": ["Carry on, but take extra care", "Work stops until suitable controls are in place", "The quickest person finishes the job"], "a": 1, "s": "Health & Safety Policy Statement"}]}, {"id": "03", "t": "Personal Protective Equipment (PPE)", "v": "ARS-Induction-SHORT-03-ppe.mp4", "c": "ARS-Induction-SHORT-03-ppe.vtt", "d": 65.08, "q": [{"q": "Who must wear high-visibility clothing?", "o": ["Only supervisors", "Everyone working on behalf of the company", "Only on busy sites"], "a": 1, "s": "PPE Issue Form: mandated clothing"}]}, {"id": "04", "t": "Stop Work Policy", "v": "ARS-Induction-SHORT-04-stop-work.mp4", "c": "ARS-Induction-SHORT-04-stop-work.vtt", "d": 92.97, "q": [{"q": "You believe a task will put you or others in danger. What is the first step?", "o": ["Finish the task, then tell someone", "Stop work and report it immediately to the person in charge on site", "Wait for the next toolbox talk"], "a": 1, "s": "Stop Work Policy: work process"}, {"q": "Will you be disciplined for refusing to work on health and safety grounds?", "o": ["Yes, always", "No, you will not be disciplined or disadvantaged", "Only if it delays the job"], "a": 1, "s": "Stop Work Policy Statement"}]}, {"id": "05", "t": "Drug & Alcohol Policy", "v": "ARS-Induction-SHORT-05-drug-alcohol.mp4", "c": "ARS-Induction-SHORT-05-drug-alcohol.vtt", "d": 87.02, "q": [{"q": "You're taking medication that might affect your work. Who do you tell?", "o": ["Nobody, it's private", "Your line manager", "A workmate"], "a": 1, "s": "Drug & Alcohol Policy Statement"}]}, {"id": "06", "t": "Mental Health & Well-being", "v": "ARS-Induction-SHORT-06-mental-health.mp4", "c": "ARS-Induction-SHORT-06-mental-health.vtt", "d": 48.51, "q": [{"q": "According to the policy, mental health is…", "o": ["Less important than physical health", "Just as important as physical health", "Not the company's concern"], "a": 1, "s": "Mental Health & Well-being Policy Statement"}]}, {"id": "07", "t": "Company policies: working fairly", "v": "ARS-Induction-SHORT-07-working-fairly.mp4", "c": "ARS-Induction-SHORT-07-working-fairly.vtt", "d": 87.04, "q": [{"q": "Who do you report bribery red flags to?", "o": ["The client", "The Managing Director", "Nobody"], "a": 1, "s": "Anti-Bribery Policy Statement"}]}, {"id": "08", "t": "Company policies: money and data", "v": "ARS-Induction-SHORT-08-money-and-data.mp4", "c": "ARS-Induction-SHORT-08-money-and-data.vtt", "d": 93.94, "q": [{"q": "How do you ask to see the personal data held about you?", "o": ["Ask a workmate", "In writing to your line manager", "You can't"], "a": 1, "s": "Data Protection Policy: subject access requests"}, {"q": "Who do you report a suspicion of money laundering to?", "o": ["The customer", "The Money Laundering Reporting Officer (MLRO)", "Your bank"], "a": 1, "s": "Anti-Money Laundering Policy: responsibilities"}]}];
-const IND_BUCKET = 'induction', IND_POLICIES = 'policies/ARS-Induction-Pack.pdf', IND_PACK = 'pack/ARS-New-Starter-Induction.pdf';
+const IND_BUCKET = 'induction', IND_POLICIES = 'policies/ARS-Induction-Pack.pdf', IND_PACK = 'pack/ARS-New-Starter-Induction-20pp.pdf';   // v1.11.13: 20-page pack (adds 'Company policies acknowledged', p19); the 19-page original stays at pack/ARS-New-Starter-Induction.pdf for root <= 1.11.12
 const IND = { urls: {}, contacts: null, cT: 0, hd: null, fT: 0, saveT: 0, sending: false };
 const indId = pid => 'ind-' + pid;
 // v1.11.12: IND.as = the attendee whose steps are on screen in a group session (the leader's device); otherwise the signed-in person
@@ -11662,7 +11662,7 @@ const IND_STEPS = [{ id: 'intro', t: 'Welcome', g: 'Start', done: d => !!d.start
     { id: 'nok', t: 'Next of kin / emergency contact', g: 'Forms', done: d => !!(d.forms.nok && d.forms.nok.at) },
     { id: 'wto', t: 'Working time: 48-hour week opt-out (your choice)', g: 'Forms', done: d => !!(d.forms.wto && d.forms.wto.at) },
     { id: 'da', t: 'Drug and alcohol policy: acceptance', g: 'Forms', done: d => !!(d.forms.da && d.forms.da.at) },
-    { id: 'policies', t: 'Read the full company policies', g: 'Finish', done: d => !!d.policiesOpenedAt },
+    { id: 'polack', t: 'Company policies acknowledged', g: 'Finish', done: d => !!(d.polAck && d.polAck.at) },   // v1.11.13 (replaces 'Read the full company policies'; opening the PDF is now optional and logged)
     { id: 'declare', t: 'Final declaration and signature', g: 'Finish', done: d => !!(d.decl && d.decl.at) }]);
 const indStep = id => IND_STEPS.find(s => s.id === id);
 // v1.11.12: in a live group session (attendee on their own phone) the forms can be done while the group watches the videos;
@@ -11741,7 +11741,7 @@ function indOverviewHTML(r) { const d = indD(r), nx = indFirstOpen(r), [n, t] = 
 
 function indStepHTML(r, id) { const d = indD(r), s = indStep(id); if (!s) return indOverviewHTML(r);
   const nav = `<p class="hint ind-crumb">${esc(s.g)}</p>`;
-  if (id === 'intro') return `<div class="card">${nav}<h2>Welcome to Absolute Roofing Solutions</h2><p>This is your safety induction. It takes about 15 minutes:</p><ol class="ind-ol"><li>Watch ${IND_CH.length} short videos (captions are on). You can't skip ahead in a video until you've watched it.</li><li>Answer 1 or 2 questions after each video.</li><li>Fill in your forms: details, PPE, health (confidential), next of kin, working time, drug &amp; alcohol.</li><li>Open the full company policies and sign the declaration on your phone.</li></ol><p class="hint">Your manager then countersigns. Use headphones or turn the sound up; captions are on as well.</p><button class="btn primary block" data-act="ind-start">Start the induction</button></div>` + indContactsHTML();
+  if (id === 'intro') return `<div class="card">${nav}<h2>Welcome to Absolute Roofing Solutions</h2><p>This is your safety induction. It takes about 15 minutes:</p><ol class="ind-ol"><li>Watch ${IND_CH.length} short videos (captions are on). You can't skip ahead in a video until you've watched it.</li><li>Answer 1 or 2 questions after each video.</li><li>Fill in your forms: details, PPE, health (confidential), next of kin, working time, drug &amp; alcohol.</li><li>Tick the company policies you have received, confirm the statement, then sign the declaration on your phone.</li></ol><p class="hint">Your manager then countersigns. Use headphones or turn the sound up; captions are on as well.</p><button class="btn primary block" data-act="ind-start">Start the induction</button></div>` + indContactsHTML();
   if (s.kind === 'video') { const c = s.ch, st = d.ch[c.id] || {}, pct = st.watchedAt ? 100 : Math.min(99, Math.round(100 * (st.maxT || 0) / (st.dur || c.d)));
     return `<div class="card">${nav}<h2>${esc(c.t)}</h2><div class="ind-vwrap"><video id="ind-vid" data-ch="${c.id}" playsinline controls preload="metadata" controlslist="nodownload noplaybackrate" disablepictureinpicture disableremoteplayback oncontextmenu="return false"></video><div class="ind-vmsg" id="ind-vmsg" hidden></div></div>
       <div class="ind-prog"><div class="ind-bar"><span id="ind-pbar" style="width:${pct}%"></span></div><span id="ind-pct">${st.watchedAt ? 'Watched' : pct + '%'}</span></div>
@@ -11782,8 +11782,7 @@ function indStepHTML(r, id) { const d = indD(r), s = indStep(id); if (!s) return
     return `<div class="card" id="ind-form">${nav}<h2>Drug &amp; alcohol policy: employee acceptance</h2><p class="small">Absolute Roofing Solutions Ltd operates a strict Drug and Alcohol Policy. All personnel may be subject to drug and alcohol screening: pre-employment (relevant safety-critical or high-risk roles), post-incident / post-accident, for-cause (reasonable suspicion), and random testing on a proportionate and risk-based basis${indC().daPct && String(indC().daPct).trim() ? ` (${esc(indC().daPct)})` : ''}. All testing follows company procedures (${tbcH(indC().daRef)}) and the law.</p>
       ${IND_DA.map((t, i) => `<label class="ind-chk"><input type="checkbox" data-da="${i}" ${x.at ? 'checked' : ''} ${dis}><span>${esc(t)}</span></label>`).join('')}
       ${x.sig ? `<p class="hint">Signed ${esc(indUK(x.at))}</p><img class="ind-sig" src="${x.sig}" alt="signature">` : ''}${save('Sign and continue')}</div>`; }
-  if (id === 'policies') return `<div class="card">${nav}<h2>The full company policies</h2><p>The videos covered the main points. The full company policies are the reference: open them and keep them handy. The New Starter Induction pack has the same forms you have just filled in. You can open it again from your induction page at any time.</p>
-      <button class="btn primary block" data-act="ind-policies" id="ind-pol">Open the full policies (PDF)</button><button class="btn block" data-act="ind-policies" data-f="pack" id="ind-pack">Open the New Starter Induction pack (PDF)</button>${d.policiesOpenedAt ? `<p class="hint">Opened ${esc(indUK(d.policiesOpenedAt))}.</p><button class="btn block" data-act="ind-next" data-step="policies">Next: final declaration</button>` : ''}</div>` + indContactsHTML();
+  if (id === 'polack') return indPolAckHTML(r, nav) + indContactsHTML();
   if (id === 'declare') { const miss = IND_STEPS.filter(x => x.id !== 'declare' && !x.done(d));
     return `<div class="card">${nav}<h2>Final declaration</h2><p class="ind-decl">“${esc(IND_DECL)}”</p>${miss.length ? `<div class="lg-msg">Still to do: ${miss.map(x => esc(x.kind === 'quiz' ? x.g + ' questions' : x.t)).join('; ')}.${miss.some(x => x.id === 'health') && IND.hq ? ' Your health forms will send when you have signal.' : ''}</div>` : ''}
       ${d.decl && d.decl.at ? `<p class="hint">Signed ${esc(indUK(d.decl.at))}</p><img class="ind-sig" src="${d.decl.sig}" alt="signature">` : `<div class="f"><label for="if-dname">Your name (print)</label><input id="if-dname" value="${esc((d.forms.details || {}).name || indMyName())}"></div><button class="btn primary block" data-act="ind-declare" ${miss.length ? 'disabled' : ''}>Sign and submit</button>`}</div>`; }
@@ -11903,8 +11902,8 @@ Object.assign(ACTIONS, {
     indSave(r); const ok = await indHealthSend(); if (!ok && IND.hq) toast(IND.as ? 'Not sent yet - it needs signal. Nothing is stored on this device: tap “Try sending now” when there is signal.' : 'Saved on this phone - it will send confidentially when you have signal', 4000); rerender(); },
   async 'ind-hsend'() { await indHealthSend(); rerender(); },
   async 'ind-policies'(a) { const r = indRec(), pack = a && a.dataset && a.dataset.f === 'pack'; const w = window.open('', '_blank');
-    try { const [u] = await indSigned([pack ? IND_PACK : IND_POLICIES]); if (!u) throw new Error('no link'); if (w) w.location.href = u; else location.href = u;
-      if (!pack && r && !indD(r).policiesOpenedAt && r.status !== 'submitted' && r.status !== 'complete') { indD(r).policiesOpenedAt = indNow(); indSave(r); rerender(); } }
+    try { const [u] = await indSigned([pack ? IND_PACK : IND_POLICIES]); if (!u) throw new Error('no link'); const pg = !pack && +((a && a.dataset && a.dataset.page) || 0), url = u + (pg ? '#page=' + pg : ''); if (w) w.location.href = url; else location.href = url;
+      if (!pack && r && r.status !== 'submitted' && r.status !== 'complete') { const d = indD(r), t = indNow(); if (!d.policiesOpenedAt) d.policiesOpenedAt = t; d.polOpens = (d.polOpens || []).concat([{ at: t, n: +((a && a.dataset && a.dataset.pol) || 0) || null }]).slice(-40); indSave(r); if (!$('#ind-pa')) rerender(); } }
     catch (e) { if (w) w.close(); toast(e.offline || !online() ? 'You need signal to open the policies' : 'Could not open the policies: ' + (e.message || e), 4000); } },
   async 'ind-declare'() { const r = indRec(); if (!r) return; const d = indD(r); const miss = IND_STEPS.filter(x => x.id !== 'declare' && !x.done(d)); if (miss.length) return toast('Finish the other steps first');
     const name = ($('#if-dname').value || '').trim(); if (!name) return toast('Print your name'); const sig = await signaturePad({ name }); if (!sig) return;
@@ -11938,7 +11937,7 @@ function indPDF(r, person, o = {}) { const { jsPDF } = window.jspdf; const doc =
   H('6. Next of kin / emergency contact (Appendix E)'); const nk = d.forms.nok || {}; KV('Name', nk.name); KV('Relationship', nk.rel); KV('Address', nk.address); KV('Contact number', nk.phone); KV('Secondary number', nk.phone2); KV('Email', nk.email);
   H('7. Working Time Regulations 48-hour opt-out (Appendix F)'); const wt = d.forms.wto || {}; KV('Choice', wt.at ? (wt.choice === 'a' ? '(a) Opted out' : wt.choice === 'b' ? '(b) Did not opt out' : 'No choice made (optional)') : '-'); if (wt.choice) { P(wt.text, { s: 8.5 }); SIG('Signed', wt); }
   H('8. Drug and alcohol policy acceptance (Appendix G)'); const da = d.forms.da || {}; if (da.at) { IND_DA.forEach(t => P('[x] ' + t, { s: 8.5 })); SIG('Signed', da); } else KV('Accepted', 'No');
-  H('9. Full company policies'); KV('Opened', d.policiesOpenedAt ? indUK(d.policiesOpenedAt) : 'Not opened');
+  H('9. Company policies acknowledged'); const pa = d.polAck || {}; if (pa.at) { IND_POLS.forEach(([t], i) => KV(`${i + 1}. ${t}`, (pa.items || {})[i + 1] ? 'Received - ticked ' + indUK(pa.items[i + 1]) : '-')); P(`"${IND_PA_STMT}"`, { b: 1, s: 9 }); KV('Statement confirmed', `${indUK(pa.stmtAt)}; confirmed (tap) ${indUK(pa.at)}`); } else KV('Acknowledged', 'Not done'); KV('Full company policies PDF opened', d.policiesOpenedAt ? indUK(d.policiesOpenedAt) : 'Not opened');
   H('10. Final declaration'); P(`"${IND_DECL}"`, { b: 1 }); SIG('Inductee', d.decl); SIG('Person carrying out the induction', ir.at ? ir : null);
   if (ir.note) KV('Inductor notes', ir.note);
   const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setFontSize(7.5); doc.setTextColor(110); doc.text(`ARS induction record · ${det.name || (person && person.full_name) || ''} · generated ${indUK(Date.now())} · page ${i} of ${n} · contains personal data - keep secure`, M, 291); doc.setTextColor(0); }
@@ -11978,7 +11977,7 @@ function indReviewHTML(pid) { const r = indRec(pid), p = indPerson(pid); if (!r)
     <div class="card"><h2>Forms</h2>${kv('Employment status', (IND_EMP.find(x => x[0] === pp.emp) || [])[1] || '-')}${kv('PPE', IND_PPE.map(([x, t]) => `${t.split(' (')[0]}: ${indPpeTxt(pp, x)}`).join('; '))}${kv('Other PPE', pp.other)}
       ${kv('Next of kin', [nk.name, nk.rel, nk.phone, nk.phone2, nk.email, nk.address].filter(Boolean).join(', '))}${kv('Working time', wt.at ? (wt.choice === 'a' ? '(a) Opted out of the 48-hour week' : wt.choice === 'b' ? '(b) Did not opt out' : 'No choice made (optional)') : '')}
       ${kv('Drug & alcohol', d.forms.da && d.forms.da.at ? 'Accepted and signed ' + indUK(d.forms.da.at) : '')}${kv('Health forms', d.healthSubmittedAt ? 'Submitted confidentially ' + indUK(d.healthSubmittedAt) + (isAdminRole() ? '' : ' (Admin role only)') : 'Not submitted')}
-      ${kv('Policies opened', indUK(d.policiesOpenedAt))}${kv('Inductee declaration', d.decl ? `${d.decl.name} · ${indUK(d.decl.at)}` : '')}${d.decl && d.decl.sig ? `<img class="ind-sig" src="${d.decl.sig}" alt="signature">` : ''}
+      ${kv('Company policies acknowledged', d.polAck && d.polAck.at ? `All ${IND_POLS.length} ticked as received; statement confirmed ${indUK(d.polAck.at)}` : r.status === 'submitted' || r.status === 'complete' ? 'Not done (signed before this step was added)' : 'Not done yet')}${kv('Full policies PDF opened', indUK(d.policiesOpenedAt))}${kv('Inductee declaration', d.decl ? `${d.decl.name} · ${indUK(d.decl.at)}` : '')}${d.decl && d.decl.sig ? `<img class="ind-sig" src="${d.decl.sig}" alt="signature">` : ''}
       ${isAdminRole() && d.healthSubmittedAt ? `<button class="btn block" data-act="ind-health" data-pid="${esc(pid)}">🔒 View health forms</button><button class="btn block" data-act="ind-hpdf" data-pid="${esc(pid)}">🔒 Download health forms PDF</button>` : ''}</div>
     ${k === 'wait' ? `<div class="card" id="ind-sign"><h2>Countersign as the person carrying out the induction</h2>
       <label class="ind-chk"><input type="checkbox" id="ir-rtw"><span>Right to work in the UK checked: original documents seen, copied and dated, or Home Office online check completed</span></label>${indOwnPpe(pp).length ? `<label class="ind-chk"><input type="checkbox" id="ir-ownppe"><span>Own PPE checked as suitable: ${esc(indOwnPpe(pp).join(', '))}</span></label>` : ''}
@@ -12108,7 +12107,9 @@ document.addEventListener('click', e => { const x = e.target.closest && e.target
    (A, B, E, F, G) and the Final declaration; Appendices C and D (health) are blanked and marked "Confidential: held by Admin";
    an audit trail page is added at the end. Coordinates are PDF points from the top of the page, measured from
    ARS-New-Starter-Induction.pdf v1.0 (22 Oct 2026, 19 pages) - see build/indpackmap.md if the pack layout changes. */
-const IND_PK = { pages: 19, A: 10, B: 11, C: [12, 13, 14], E: 15, F: 16, G: 17, FD: 19,
+// v1.11.13: pack v1.0 re-issued with 20 pages (p9 ICO sentence; new p19 'Company policies acknowledged'); pages 1-18 unchanged, Final declaration now p20
+const IND_PK = { pages: 20, A: 10, B: 11, C: [12, 13, 14], E: 15, F: 16, G: 17, PA: 19, FD: 20,
+  paRow0: 147.4, paRowH: 20.5, paTick: 496.2, paName: [512.9, 539.4], paSig: [539.4, 565.9], paDate: [565.9, 592.4], paVal: 175,
   aRows: { date: [98, 119], lm: [120, 141], ind: [142, 163], name: [164, 185], dob: [186, 207], ni: [208, 229], addr: [230, 251], num: [252, 273], email: [274, 295] }, aVal: 245,
   aRtw: [324, 361], aId: [362, 376], aNok: [376, 390], aYes: 372, aIni: 458, aShare: [62, 345], aSig: [150, 500, 172, 25], aDate: [392, 500, 526],
   bCols: { owned: [189, 260], issued: [263, 322], date: [325, 376], name: [379, 450], sig: [453, 537] },
@@ -12135,8 +12136,8 @@ function indDevice() { const ua = navigator.userAgent || '', ipad = /iPad/.test(
 const indPackName = (r, p) => `Induction - ${indWA(((indD(r).forms || {}).details || {}).name || (p && p.full_name) || 'record').replace(/[\\/:*?"<>|]+/g, '-').trim()} - ${(indD(r).completedAt || indD(r).submittedAt || indNow()).slice(0, 10)}.pdf`;
 
 async function indPackBytes() {   // the current pack from the private bucket; the last copy is kept on the device for offline countersigning
-  if (online()) { try { const [u] = await indSigned([IND_PACK]); const res = u && await fetch(u); if (res && res.ok) { const b = new Uint8Array(await res.arrayBuffer()); if (b.length > 1000 && String.fromCharCode(...b.slice(0, 5)) === '%PDF-') { let s = ''; for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode.apply(null, b.subarray(i, i + 32768)); DB.setKV('ind.packpdf', btoa(s)); return b; } } } catch (e) { } }
-  const c = await DB.getKV('ind.packpdf'); if (!c) return null; const s = atob(c), b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; }
+  if (online()) { try { const [u] = await indSigned([IND_PACK]); const res = u && await fetch(u); if (res && res.ok) { const b = new Uint8Array(await res.arrayBuffer()); if (b.length > 1000 && String.fromCharCode(...b.slice(0, 5)) === '%PDF-') { let s = ''; for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode.apply(null, b.subarray(i, i + 32768)); DB.setKV('ind.packpdf20', btoa(s)); return b; } } } catch (e) { } }
+  const c = await DB.getKV('ind.packpdf20'); if (!c) return null; const s = atob(c), b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; }
 
 // v1.11.12: group induction session line (pack pages, audit trail and the record PDF)
 const indGrpTxt = d => { const g = d && d.group; return g && g.id ? `Group induction session ${g.id}: ${indUKt(g.at)}, led by ${g.leader || '-'}, ${g.n || '?'} attendee${g.n === 1 ? '' : 's'}` : ''; };
@@ -12213,6 +12214,17 @@ async function indSignedPack(r, person, o = {}) {
   const G = IND_PK.G, da = d.forms.da || {}; if (da.at) { put(G, da.name || name, IND_PK.gVal, IND_PK.gName, 360); await drawSig(G, da, IND_PK.gVal, IND_PK.gVal + 120, IND_PK.gSig); put(G, indUKt(da.at), IND_PK.gVal, IND_PK.gDate, 360);
     [234, 247, 260, 273].forEach(t => pg(G).drawText('x', { x: 58.5, y: Y(t + 8.5), size: 9, font: FB, color: INK })); esign(G, [['employee', da]]); }
 
+  // v1.11.13: Company policies acknowledged (p19) - ticks, name, the declaration signature and the confirm date
+  const PA = IND_PK.PA, pa = d.polAck || {};
+  if (pa.at) { IND_POLS.forEach((x, i) => { if (!(pa.items || {})[i + 1]) return; const m = IND_PK.paRow0 + IND_PK.paRowH * i + IND_PK.paRowH / 2, cx = IND_PK.paTick;
+      pg(PA).drawLine({ start: { x: cx - 3.2, y: Y(m + 0.3) }, end: { x: cx - 0.9, y: Y(m + 2.9) }, thickness: 1.5, color: INK }); pg(PA).drawLine({ start: { x: cx - 0.9, y: Y(m + 2.9) }, end: { x: cx + 4.2, y: Y(m - 4.2) }, thickness: 1.5, color: INK }); });
+    const nm = (d.decl && d.decl.name) || name; put(PA, nm, IND_PK.paVal, IND_PK.paName, 360); if (d.decl) await drawSig(PA, d.decl, IND_PK.paVal, IND_PK.paVal + 110, IND_PK.paSig); put(PA, indUKt(pa.at), IND_PK.paVal, IND_PK.paDate, 360);
+    const note = `Each policy ticked "Received" and the statement confirmed by ${nm} in the ARS app (confirm tap ${indUKt(pa.at)}${pa.device ? ', ' + pa.device : ''}). The signature is the one drawn on the Final declaration${d.decl ? ' (' + indUKt(d.decl.at) + ')' : ''}. Tick times: audit trail.`;
+    let ny = 606; const words = indWA(note).split(' '); let l = ''; words.forEach(w => { const t = l ? l + ' ' + w : w; if (F.widthOfTextAtSize(t, 7.5) > 480) { pg(PA).drawText(l, { x: 57, y: Y(ny), size: 7.5, font: F, color: GREY }); ny += 10; l = w; } else l = t; }); pg(PA).drawText(l, { x: 57, y: Y(ny), size: 7.5, font: F, color: GREY });
+    esign(PA, [['inductee', d.decl ? Object.assign({}, d.decl, { at: pa.at }) : null]]); }
+  else pg(PA).drawText(indWA('Not completed: this induction was signed before the "Company policies acknowledged" step was added to the app.'), { x: 57, y: Y(606), size: 8, font: FB, color: GREY });
+  gline(PA);
+
   // Final declaration
   const FD = IND_PK.FD; if (d.decl) { put(FD, d.decl.name, IND_PK.dVal, IND_PK.dIn.name, 360); await drawSig(FD, d.decl, IND_PK.dVal, IND_PK.dVal + 110, IND_PK.dIn.sig); put(FD, indUKt(d.decl.at), IND_PK.dVal, IND_PK.dIn.date, 360); }
   if (ir.at) { put(FD, ir.name, IND_PK.dVal, IND_PK.dBy.name, 360); await drawSig(FD, ir, IND_PK.dVal, IND_PK.dVal + 110, IND_PK.dBy.sig); put(FD, indUKt(ir.at), IND_PK.dVal, IND_PK.dBy.date, 360); }
@@ -12237,7 +12249,12 @@ async function indSignedPack(r, person, o = {}) {
   head('Forms'); kv('Personal details / GDPR notice', det.at ? `${indUKt(det.at)}${det.notice ? ' - notice read and confirmed' : ''}` : '-'); kv('PPE and sizes', pp.at ? `${indUKt(pp.at)} - ${(IND_EMP.find(x => x[0] === pp.emp) || [])[1] || ''}` : '-'); kv('Own PPE checked as suitable', own.length ? (ir.ownPpeChecked ? `${ir.name}, ${indUKt(ir.at)} (${own.join(', ')})` : 'Not yet') : 'No own PPE');
   kv('Medical and occupational health', d.healthSubmittedAt ? `Submitted confidentially ${indUKt(d.healthSubmittedAt)} (answers held by Admin, not in this pack)` : '-'); kv('Next of kin', nk.at ? indUKt(nk.at) : '-');
   kv('Working time (48-hour opt-out)', wt.at ? `${wt.choice === 'a' ? '(a) opted out' : wt.choice === 'b' ? '(b) did not opt out' : 'no choice made'} - ${indUKt(wt.at)}` : '-'); kv('Drug & alcohol acceptance', da.at ? `Signed ${indUKt(da.at)}` : '-');
-  kv('Full company policies opened', d.policiesOpenedAt ? indUKt(d.policiesOpenedAt) : 'Not opened');
+  head('Company policies acknowledged (page 19)');
+  if (pa.at) { IND_POLS.forEach(([t], i) => line(`${i + 1}. ${t}: ${(pa.items || {})[i + 1] ? 'received - ticked ' + indUKt(pa.items[i + 1]) : '-'}`, { s: 8.5 }));
+    kv('Statement', `Ticked ${indUKt(pa.stmtAt)}; confirmed (tap) ${indUKt(pa.at)}${pa.device ? ' on ' + pa.device : ''}${pa.app ? ' - ARS app v' + pa.app : ''}`); line('"' + IND_PA_STMT + '"', { s: 8.5, ind: 165, c: GREY }); }
+  else kv('Acknowledged', 'Not completed (signed before this step was added)');
+  const opens = (d.polOpens || []).map(o => `${indUKt(o.at)}${o.n ? ' (' + o.n + '. ' + IND_POLS[o.n - 1][0] + ')' : ' (whole PDF)'}`);
+  kv('Full Company Policies PDF opened', d.policiesOpenedAt ? (opens.length ? opens.join('; ') : indUKt(d.policiesOpenedAt)) : 'Not opened');
   head('Signatures'); kv('Inductee declaration', d.decl ? `${d.decl.name}, ${indUKt(d.decl.at)}` : 'Not signed'); kv('Device / app', d.decl ? `${d.decl.device || 'not recorded'} - ARS app v${d.decl.app || '-'}` : '-');
   kv('Countersigned by', ir.at ? `${ir.name}, ${indUKt(ir.at)}${ir.bulk ? ' (group countersign: each person listed and confirmed, separate record)' : ''}` : 'Not countersigned'); kv('Device / app', ir.at ? `${ir.device || 'not recorded'} - ARS app v${ir.app || '-'}` : '-');
   kv('Right to work', ir.at ? `${ir.rtwChecked ? 'Checked' : 'Not checked'}${ir.rtwMethod ? ' - ' + ir.rtwMethod : ''}; ID seen: ${ir.idSeen || '-'}; share code: ${det.shareCode || '-'}` : '-'); kv('Line manager', ir.lineManager); if (ir.note) kv('Inductor notes', ir.note);
@@ -14654,7 +14671,7 @@ function indgCodeHTML() { const g = INDG.g, live = g.code && Date.parse(g.exp) >
 function indgRosterHTML() { const g = INDG.g, mem = INDG.mem; const fs = IND_STEPS.filter(s => s.g === 'Forms');
   const rows = mem.map(m => { const pid = m.person, r = indRec(pid), d = r ? indD(r) : null, [k, l] = indStatus(r), dev = m.mode === 'device';
     const vids = d ? IND_CH.filter(c => (d.ch[c.id] || {}).watchedAt).length : 0, qz = d ? indChDone(d) : 0, fm = d ? fs.filter(s => s.done(d)).length : 0;
-    const st = !r ? 'Loading…' : k === 'done' ? `Countersigned ${indgTime((d.inductor || {}).at)}` : k === 'wait' ? `Signed ${indgTime(d.submittedAt)} · ready to countersign` : `Videos ${vids}/${IND_CH.length} · questions ${qz}/${IND_CH.length} · forms ${fm}/${fs.length}${d.healthSubmittedAt ? ' · health sent' : ''}`;
+    const st = !r ? 'Loading…' : k === 'done' ? `Countersigned ${indgTime((d.inductor || {}).at)}` : k === 'wait' ? `Signed ${indgTime(d.submittedAt)} · ready to countersign` : `Videos ${vids}/${IND_CH.length} · questions ${qz}/${IND_CH.length} · forms ${fm}/${fs.length}${d.healthSubmittedAt ? ' · health sent' : ''}${d.polAck && d.polAck.at ? ' · policies acknowledged' : ''}`;
     return `<div class="item indg-att" data-pid="${esc(pid)}" data-st="${esc(k)}"><div class="bd"><div class="t1">${esc(indgName(pid))} <span class="tag">${dev ? 'This device' : 'Own phone'}</span> <span class="tag ind-${k}">${esc(k === 'wait' ? 'Signed' : l)}</span></div><div class="t2">Joined ${esc(indgTime(m.joined_at))} · ${st}</div>
       <div class="btns" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">${dev && indgOpen(r) ? `<button class="btn sm primary" data-act="indg-hand" data-pid="${esc(pid)}">Hand the device to ${esc(indgName(pid))}</button>` : ''}${k === 'wait' ? `<a class="btn sm" href="#/inductions/${esc(pid)}">Countersign on their own</a>` : ''}</div></div></div>`; }).join('');
   const w = mem.filter(m => (indRec(m.person) || {}).status === 'submitted').length, sg = mem.filter(m => ['submitted', 'complete'].includes((indRec(m.person) || {}).status)).length;
@@ -14814,6 +14831,57 @@ Object.assign(ACTIONS, {
   if (person) $$('#app input, #app textarea').forEach(i => { if (i.type !== 'hidden') i.setAttribute('autocomplete', 'off'); });
   window.scrollTo(0, keep ? y : 0); lastHash = location.hash; if (rt[1] === 'v') indMountVideo(); }; }
 { const st = document.createElement('style'); st.textContent = '.indg-who{border-left:6px solid #0e7490}.indg-banner{border-left:6px solid #0e7490;background:#ecfeff}.indg-att .btns .btn{min-height:40px}.indg-cs h3{font-size:17px}.indg-join{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.indg-qr{width:200px;max-width:60vw;flex:none}.indg-qr svg{width:100%;height:auto;display:block}.indg-code{font:700 44px/1.1 ui-monospace,Menlo,monospace;letter-spacing:6px;margin:6px 0;color:#0f172a}'; document.head.appendChild(st); }
+
+/* ===== v1.11.13 (BETA): 'Company policies acknowledged' (pack page 19) before the final declaration =====
+   13 policies, each ticked "Received" (timestamped) with a link to that policy in the full Company Policies PDF, the confirmation
+   statement (ticked, then an explicit "Confirm" tap, timestamped) - stored in the induction record as d.polAck. The declaration can't
+   be signed until it is done. Works the same in individual, group own-phone and group pass-the-device flows (it is an IND_STEPS step). */
+const IND_POLS = [['Staff Responsibility Statement – Health, Safety & Welfare', 7], ['Health & Safety Policy Statement', 13], ['Quality Policy Statement', 14],
+  ['Environmental & Sustainability Policy Statement', 15], ['Drug & Alcohol Policy Statement', 16], ['Anti-Bribery Policy Statement', 17], ['Equal Opportunities & Dignity Policy Statement', 18],
+  ['Modern Slavery Policy Statement', 19], ['Preventing the Facilitation of Tax Evasion Policy Statement', 20], ['Anti-Money Laundering Policy Statement', 23],
+  ['Data Protection (GDPR) Policy Statement', 25], ['Mental Health & Well-being Policy Statement', 29], ['Stop Work Policy Statement', 30]];   // [title, page in the full policies PDF]
+const IND_PA_TITLE = 'Company policies acknowledged';
+const IND_PA_INTRO = 'You have been given the full Absolute Roofing Solutions Ltd Company Policies. Tick each policy you have received.';
+const IND_PA_STMT = 'I confirm that I have received, or been given access to, the full Absolute Roofing Solutions Ltd Company Policies (version 1.0, dated 22 October 2026). I have read them, or I know where to find them, and I agree to follow them.';
+const IND_PA_LOC = 'The Company Policies are kept in the Induction section of the ARS site audit app. A copy is available from the office on request.';
+const indPaAll = pa => !!pa && IND_POLS.every((x, i) => (pa.items || {})[i + 1]);
+
+function indPolAckHTML(r, nav) { const d = indD(r), pa = d.polAck || {}, it = pa.items || {}, ro = r.status === 'submitted' || r.status === 'complete', dis = ro ? 'disabled' : '';
+  const n = IND_POLS.filter((x, i) => it[i + 1]).length;
+  return `<div class="card" id="ind-pa">${nav}<h2>${IND_PA_TITLE}</h2><p>${esc(IND_PA_INTRO)}</p>
+    <div class="ind-pa-tbl" role="group" aria-label="Policies received"><div class="ind-pa-h"><span>Policy</span><span>Received</span></div>
+    ${IND_POLS.map(([t, pg], i) => `<div class="ind-pa-row${it[i + 1] ? ' on' : ''}" data-pol="${i + 1}"><div class="ind-pa-t"><span>${i + 1}. ${esc(t)}</span><button type="button" class="lnkbtn ind-pa-open" data-act="ind-policies" data-page="${pg}" data-pol="${i + 1}" aria-label="Open the ${esc(t)} (full Company Policies PDF, page ${pg})">Open in the full policies (PDF)</button></div>
+      <label class="ind-pa-ck"><input type="checkbox" data-act="ind-pa-tick" data-pol="${i + 1}" ${it[i + 1] ? 'checked' : ''} ${dis} aria-label="Received: ${esc(t)}"><span class="sr">Received</span></label></div>`).join('')}</div>
+    <p class="hint" id="ind-pa-n">${n} of ${IND_POLS.length} ticked${d.policiesOpenedAt ? ` · full policies PDF opened ${esc(indUK(d.policiesOpenedAt))}` : ''}</p>
+    <label class="ind-chk ind-pa-stmt"><input type="checkbox" id="ind-pa-stmt" data-act="ind-pa-stmt" ${pa.stmtAt ? 'checked' : ''} ${dis}><span><b>${esc(IND_PA_STMT)}</b></span></label>
+    <p class="small">${esc(IND_PA_LOC)}</p>
+    <button type="button" class="btn block" data-act="ind-policies" id="ind-pol">Open the full Company Policies (PDF)</button>
+    ${pa.at ? `<div class="lg-msg ok" style="margin:10px 0">Confirmed ${esc(indUK(pa.at))}. Your name, your declaration signature and this date go on the “${IND_PA_TITLE}” page of your signed pack.</div>${ro ? '' : `<button class="btn primary block" data-act="ind-next" data-step="polack" id="ind-pa-next">Next: final declaration</button>`}`
+      : ro ? '<div class="lg-msg">Not done: this induction was signed before this step was added.</div>' : `<button class="btn primary block" data-act="ind-pa-confirm" id="ind-pa-confirm" ${indPaAll(pa) && pa.stmtAt ? '' : 'disabled'}>Confirm</button><p class="hint">Tick all ${IND_POLS.length} policies and the statement, then tap Confirm. You sign once, on the final declaration.</p>`}</div>`; }
+
+Object.assign(ACTIONS, {
+  'ind-pa-tick'(a) { const r = indRec(); if (!r || r.status === 'submitted' || r.status === 'complete') return; const d = indD(r), n = +a.dataset.pol;
+    const pa = d.polAck = Object.assign({ items: {} }, d.polAck || {}); pa.items = Object.assign({}, pa.items);
+    if (a.checked) pa.items[n] = indNow(); else { delete pa.items[n]; if (pa.at) { pa.at = null; pa.undoneAt = indNow(); } }
+    pa.ver = '1.0 (22 October 2026)'; indSave(r); indPaRefresh(r); },
+  'ind-pa-stmt'(a) { const r = indRec(); if (!r || r.status === 'submitted' || r.status === 'complete') return; const d = indD(r); const pa = d.polAck = Object.assign({ items: {} }, d.polAck || {});
+    if (a.checked) pa.stmtAt = indNow(); else { pa.stmtAt = null; if (pa.at) { pa.at = null; pa.undoneAt = indNow(); } } indSave(r); indPaRefresh(r); },
+  'ind-pa-confirm'() { const r = indRec(); if (!r || r.status === 'submitted' || r.status === 'complete') return; const d = indD(r), pa = d.polAck || {};
+    if (!indPaAll(pa)) return toast(`Tick all ${IND_POLS.length} policies first`); if (!pa.stmtAt) return toast('Tick the statement first');
+    Object.assign(pa, { at: indNow(), stmt: IND_PA_STMT, ver: '1.0 (22 October 2026)', device: indDevice(), app: APP_VERSION }); d.polAck = pa; indSave(r); toast('Confirmed'); rerender(); },
+});
+// re-render keeps the scroll position; a full rerender only when the "confirmed" state changes
+function indPaRefresh(r) { const pa = indD(r).polAck || {}, b = $('#ind-pa-confirm');
+  if (!b || pa.at) { const y = window.scrollY; rerender(); window.scrollTo(0, y); return; }
+  b.disabled = !(indPaAll(pa) && pa.stmtAt); $$('#ind-pa .ind-pa-row').forEach(x => x.classList.toggle('on', !!(pa.items || {})[x.dataset.pol]));
+  const n = $('#ind-pa-n'); if (n) n.textContent = n.textContent.replace(/^\d+ of/, IND_POLS.filter((x, i) => (pa.items || {})[i + 1]).length + ' of'); }
+
+{ const st = document.createElement('style'); st.textContent = `
+.ind-pa-tbl{border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;margin:8px 0}.ind-pa-h{display:flex;justify-content:space-between;background:#0f2542;color:#fff;font-weight:700;padding:8px 10px;font-size:14px}
+.ind-pa-row{display:flex;align-items:center;gap:8px;border-top:1px solid #e2e8f0;padding:6px 6px 6px 10px}.ind-pa-row:nth-child(odd){background:#f1f5f9}.ind-pa-row.on{background:#f0fdf4}
+.ind-pa-t{flex:1;min-width:0;font-size:15px}.ind-pa-t>span{display:block}.ind-pa-open{font-size:13px;padding:2px 0;min-height:32px;background:none;border:0;color:#0e7490;text-decoration:underline;cursor:pointer}
+.ind-pa-ck{flex:none;display:flex;align-items:center;justify-content:center;min-width:56px;min-height:44px;border-left:1px solid #e2e8f0}.ind-pa-ck input{width:26px;height:26px}
+.ind-pa-ck .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.ind-pa-stmt{background:#fff7ed;border-left:4px solid #f18902;padding:10px;border-radius:6px;margin-top:10px}`; document.head.appendChild(st); }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
