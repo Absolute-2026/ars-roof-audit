@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.19">
+<meta name="app-version" content="1.11.20">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.19';
+const APP_VERSION = '1.11.20';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -15343,6 +15343,8 @@ setTimeout(() => { oaLoadMe(true); oaLoadAll(true); }, 1800);
    Timesheet rows hold hours only. Operatives / foremen write only through security-definer RPCs (ts_save_days / ts_submit / ts_gang_book /
    ts_sign_for). Off in the 'prod' build (root keeps working unchanged). */
 const TS_ON = BUILD.variant !== 'prod';
+// v1.11.20 (Matt, 29 Oct 2026: "Retention then CIS"): default order = retention off the gross first, then CIS on the amount after retention
+const TS_ORD = after => after ? 'CIS then retention' : 'Retention then CIS';
 const TS_DEF = { halfMax: 4, shortFlag: 3, stdHours: 8, otAfter: 8, sdAutofill: true, retentionPct: 5, retAfterCis: false, budgetDayRate: 660, accountsTo: '', accountsList: [] };
 /* v1.11.19: payroll recipients = a list (accountsList). An older single/comma 'accountsTo' string is read as the list until it is next saved. */
 const TS_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -15851,7 +15853,8 @@ function tsPdf(w, list) { const { t, rate } = tsWeekCalc(w, list); const cfg = t
   if (t.days.length) { doc.addPage(); k.y = k.TOP; k.h2('Pay detail (office)');
     k.kv([['Pay type', rate ? rate.pay_type : 'No pay rate set'], ['Day rate', rate ? fmtGBP(rate.day_rate) : ''], ['Status', tsStTag(w.status)[1]], ['Approved', w.approved_name ? `${w.approved_name} ${w.approved_at ? fmtDate(w.approved_at.slice(0, 10)) : ''}` : '']]);
     k.table({ head: [['Day', 'Break', 'Worked h', 'Day value', 'Overtime', 'Travel', 'Pay']], body: t.days.map(x => [tsDay(x.date), (x.d.e || []).map(e => (+e.b || 0) + ' min').join('\n'), tsH(x.h), TSC.dvTxt(x.v.dv) + (x.adj ? ' *' : ''), x.v.otl.map(o => `${tsH(o.h)}h x${o.x}`).join(', '), TSC.travel(x.d) ? tsH(TSC.travel(x.d)) + ' h' : '', x.pay ? fmtGBP(x.pay.gross) : '']).map(r => r.map(tx)) });
-    k.kv([['Days', `${tsH(t.dayEq)} (${t.full} full, ${t.half} half)`], ['Overtime', `${tsH(t.ot15)} h x1.5, ${tsH(t.ot2)} h x2`], ['Travel', `${tsH(t.travelH)} h (${t.travelDays} days)`], ['Total (gross)', rate ? fmtGBP(t.gross) : ''], ['Retention', rate ? `${tsH(t.retPct)}% = ${fmtGBP(t.retention)}` : ''], ['Net after retention', rate ? fmtGBP(t.net) : '']]);
+    k.kv([['Days', `${tsH(t.dayEq)} (${t.full} full, ${t.half} half)`], ['Overtime', `${tsH(t.ot15)} h x1.5, ${tsH(t.ot2)} h x2`], ['Travel', `${tsH(t.travelH)} h (${t.travelDays} days)`], ['Total (gross)', rate ? fmtGBP(t.gross) : ''], ['Retention', rate ? `${tsH(t.retPct)}% = ${fmtGBP(t.retention)}${rate.pay_type === 'CIS' && t.after ? ' (on gross less CIS)' : ' (on the gross)'}` : ''], ['Net after retention', rate ? fmtGBP(t.net) : ''],
+      ...(rate && rate.pay_type === 'CIS' ? [['Deduction order', TS_ORD(t.after)], ['CIS', `${tsH(t.cisPct)}% = ${fmtGBP(t.cis)}${t.after ? ' (on the gross)' : ' (on gross less retention)'}`], ['Net payable', fmtGBP(t.payable)]] : [])]);
     if ((list || []).length) { k.h2('Changes by the office (* above)'); k.table({ head: [['Day', 'Before', 'After', 'Reason', 'By']], body: list.map(a => [tsDay(a.day), TSC.dvTxt((a.before || {}).dv), `${TSC.dvTxt(a.after.dv)}${TSC.otH(TSC.otl(a.after)) ? ' + OT ' + tsH(TSC.otH(TSC.otl(a.after))) + 'h' : ''}`, a.reason, `${a.by_name || ''} ${fmtDate(String(a.at).slice(0, 10))}`].map(tx)) }); } }
   return k.finish(`Timesheet - ${nm} - ${tsWcLong(w.week)}`); }
 // people with no time for a finished week (from Friday): office flag + a £0.00 timesheet in the accounts pack, like the existing system
@@ -15860,10 +15863,10 @@ const tsNoTime = (r, ws) => todayISO() >= TSC.addDays(ws, 4) && (!r.w.id || (!r.
 /* ---------- send to accounts (#/tssend/<week>): xlsx (PAYE + CIS tabs) + csv + signed PDFs; locks the weeks ---------- */
 async function tsBatchesLoad(ws) { try { TS.batches = { ws, list: await sbFetch(`/rest/v1/ts_batches?week=eq.${ws}&select=*&order=sent_at.desc`) || [] }; } catch (e) { TS.batches = { ws, list: [] }; } if (route()[0] === 'tssend') rerender(); }
 function tsPayRows(ws) { return tsOffRows().filter(r => r.w.status === 'approved' && !r.w.locked && r.rate); }
-function tsPayLine(r) { const t = r.t, q = r.rate; return { name: r.p.full_name || r.w.name, type: q.pay_type, full: t.full, half: t.half, dayEq: t.dayEq, dayRate: TSC.num(q.day_rate), basic: TSC.r2(t.base), ot15: t.ot15, ot2: t.ot2, otPay: TSC.r2(t.otPay), travDays: t.travelDays, travPay: TSC.r2(t.trPay), gross: TSC.r2(t.gross), retPct: t.retPct, ret: t.retention, net: t.net, utr: q.cis_utr || '', cis: q.pay_type === 'CIS' ? (q.cis_rate == null ? 20 : TSC.num(q.cis_rate)) : '', ...(() => { const d = TSC.deduct(t.gross, t.retPct, q.pay_type === 'CIS' ? (q.cis_rate == null ? 20 : TSC.num(q.cis_rate)) : 0, TSC.retAfter(q, tsCfgV())); return { ret: d.ret, cisAmt: q.pay_type === 'CIS' ? d.cis : '', payable: d.net, net: TSC.r2(t.gross - d.ret) }; })(), adj: (TS.off.adjList || []).filter(a => a.week_id === r.w.id).length }; }
-const TS_COLS = [['Name', 'name'], ['Pay type', 'type'], ['Full days', 'full'], ['Half days', 'half'], ['Day equivalent', 'dayEq'], ['Day rate £', 'dayRate'], ['Basic £', 'basic'], ['OT 1.5x hours', 'ot15'], ['OT 2x hours', 'ot2'], ['OT £', 'otPay'], ['Travel days', 'travDays'], ['Travel £', 'travPay'], ['Gross £', 'gross'], ['Retention %', 'retPct'], ['Retention £', 'ret'], ['Net after retention £', 'net'], ['CIS UTR', 'utr'], ['CIS rate %', 'cis'], ['CIS deduction £', 'cisAmt'], ['Net payable £ (after retention + CIS; PAYE before tax/NI)', 'payable'], ['Office changes', 'adj']];
+function tsPayLine(r) { const t = r.t, q = r.rate; return { name: r.p.full_name || r.w.name, type: q.pay_type, full: t.full, half: t.half, dayEq: t.dayEq, dayRate: TSC.num(q.day_rate), basic: TSC.r2(t.base), ot15: t.ot15, ot2: t.ot2, otPay: TSC.r2(t.otPay), travDays: t.travelDays, travPay: TSC.r2(t.trPay), gross: TSC.r2(t.gross), retPct: t.retPct, ret: t.retention, net: t.net, utr: q.cis_utr || '', cis: q.pay_type === 'CIS' ? (q.cis_rate == null ? 20 : TSC.num(q.cis_rate)) : '', ...(() => { const d = TSC.deduct(t.gross, t.retPct, q.pay_type === 'CIS' ? (q.cis_rate == null ? 20 : TSC.num(q.cis_rate)) : 0, TSC.retAfter(q, tsCfgV())); return { ret: d.ret, cisAmt: q.pay_type === 'CIS' ? d.cis : '', payable: d.net, net: TSC.r2(t.gross - d.ret), ord: q.pay_type === 'CIS' ? TS_ORD(TSC.retAfter(q, tsCfgV())) : '' }; })(), adj: (TS.off.adjList || []).filter(a => a.week_id === r.w.id).length }; }
+const TS_COLS = [['Name', 'name'], ['Pay type', 'type'], ['Full days', 'full'], ['Half days', 'half'], ['Day equivalent', 'dayEq'], ['Day rate £', 'dayRate'], ['Basic £', 'basic'], ['OT 1.5x hours', 'ot15'], ['OT 2x hours', 'ot2'], ['OT £', 'otPay'], ['Travel days', 'travDays'], ['Travel £', 'travPay'], ['Gross £', 'gross'], ['Retention %', 'retPct'], ['Retention £', 'ret'], ['Net after retention £', 'net'], ['CIS UTR', 'utr'], ['CIS rate %', 'cis'], ['CIS deduction £', 'cisAmt'], ['Net payable £ (after retention + CIS; PAYE before tax/NI)', 'payable'], ['Office changes', 'adj'], ['Deduction order', 'ord']];
 function tsFiles(ws, rows) { const L = rows.map(tsPayLine); const tab = typ => { const xs = L.filter(l => l.type === typ); const tot = k => TSC.r2(xs.reduce((n, l) => n + (+l[k] || 0), 0));
-    return [TS_COLS.map(c => c[0]), ...xs.map(l => TS_COLS.map(c => l[c[1]])), ['TOTAL', '', tot('full'), tot('half'), tot('dayEq'), '', tot('basic'), tot('ot15'), tot('ot2'), tot('otPay'), tot('travDays'), tot('travPay'), tot('gross'), '', tot('ret'), tot('net'), '', '', tot('cisAmt'), tot('payable'), '']]; };
+    return [TS_COLS.map(c => c[0]), ...xs.map(l => TS_COLS.map(c => l[c[1]])), ['TOTAL', '', tot('full'), tot('half'), tot('dayEq'), '', tot('basic'), tot('ot15'), tot('ot2'), tot('otPay'), tot('travDays'), tot('travPay'), tot('gross'), '', tot('ret'), tot('net'), '', '', tot('cisAmt'), tot('payable'), '', '']]; };
   const xlsx = xlsxBlob([{ name: 'PAYE', rows: tab('PAYE') }, { name: 'CIS', rows: tab('CIS') }, { name: 'Notes', rows: [['ARS payroll - ' + tsWc(ws)], ['Half day = more than 0 and up to ' + tsCfgV().halfMax + ' h worked; full day = more than that.'], ['OT £ = hours x (day rate / ' + tsCfgV().stdHours + ' h) x 1.5 or 2, unless the person has their own OT rate.'], ['Retention: company default ' + tsCfgV().retentionPct + '%, per-person overrides applied.'], ['Gross is before PAYE tax / NI and before the CIS deduction.']] }]);
   const csvq = v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
   const csv = [TS_COLS.map(c => c[0]).join(','), ...L.map(l => TS_COLS.map(c => csvq(l[c[1]])).join(','))].join('\r\n');
@@ -15917,7 +15920,7 @@ function tsPayFields(q, cfg) { q = q || {}; const typ = q.pay_type || 'CIS';
     <div class="f"><label>Own OT rate £/hour (optional)</label><input id="tsp-ot" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(q.ot_rate ?? '')}" placeholder="blank = day rate ÷ ${esc(cfg.stdHours)} h × 1.5 / 2"></div></div>
     <div class="row2"><div class="f"><label>Retention % (blank = company ${esc(cfg.retentionPct)}%)</label><input id="tsp-ret" type="number" inputmode="decimal" step="0.5" min="0" max="100" value="${esc(q.retention_pct ?? '')}" placeholder="${esc(cfg.retentionPct)}"></div>
     <div class="f"><label>Effective from</label><input id="tsp-from" type="date" value="${esc(q.effective_from || todayISO())}"></div></div>
-    <div class="f"><label>Retention after CIS?</label><select id="tsp-rac"><option value="" ${q.ret_after_cis == null ? 'selected' : ''}>Company default (${cfg.retAfterCis ? 'after CIS' : 'on the gross'})</option><option value="1" ${q.ret_after_cis === true ? 'selected' : ''}>Yes - retention after CIS</option><option value="0" ${q.ret_after_cis === false ? 'selected' : ''}>No - retention on the gross</option></select></div>
+    <div class="f"><label>Deduction order</label><select id="tsp-rac"><option value="" ${q.ret_after_cis == null ? 'selected' : ''}>Company default (${TS_ORD(cfg.retAfterCis)})</option><option value="0" ${q.ret_after_cis === false ? 'selected' : ''}>Retention then CIS - retention on the gross, CIS on what's left</option><option value="1" ${q.ret_after_cis === true ? 'selected' : ''}>CIS then retention - CIS on the gross, retention on what's left</option></select></div>
     <div class="row2 tsp-cis"><div class="f"><label>CIS UTR</label><input id="tsp-utr" value="${esc(q.cis_utr || '')}" inputmode="numeric" maxlength="10"></div><div class="f"><label>CIS deduction %</label><select id="tsp-cisr">${[20, 30, 0].map(v => `<option value="${v}" ${(q.cis_rate == null ? 20 : +q.cis_rate) === v ? 'selected' : ''}>${v}%${v === 0 ? ' (gross status)' : v === 30 ? ' (unverified)' : ''}</option>`).join('')}</select></div></div>`; }
 function tsPayRead(bg, uid) { const v = id => (bg.querySelector('#' + id) || {}).value; const day = v('tsp-day'); if (day === '' || day == null) return null;
   const n = (x, nul) => x === '' || x == null ? (nul ? null : 0) : TSC.r2(TSC.num(x)); const typ = v('tsp-type') === 'PAYE' ? 'PAYE' : 'CIS';
@@ -15961,7 +15964,7 @@ function tsSettingsView() { const c = tsCfgV(); const num = (id, lab, v, step, h
     <div class="row2">${num('tsc-half', 'Half day = worked up to (hours)', c.halfMax, 0.25, 'More than this is a full day')}${num('tsc-short', 'Flag short days under (hours)', c.shortFlag, 0.25)}</div>
     <div class="row2">${num('tsc-std', 'Standard day (hours) for OT pay', c.stdHours, 0.25, 'OT £/h = day rate ÷ this × 1.5 or 2')}${num('tsc-ota', 'Suggest overtime after (hours)', c.otAfter, 0.25)}</div>
     <div class="row2">${num('tsc-ret', 'Retention % (company default)', c.retentionPct, 0.5, 'Taken off every operative / subcontractor unless their own % is set')}${num('tsc-bdr', 'Budget day rate £ (labour ÷ this = gang-days)', c.budgetDayRate, 1)}</div>
-    <label class="ckl"><input type="checkbox" id="tsc-rac" ${c.retAfterCis ? 'checked' : ''}> Retention after CIS (company default) - CIS is worked out on the gross first, then retention on what is left. Off = retention on the gross, then CIS on the balance.</label>
+    <div class="f"><label>Deduction order (company default)</label><select id="tsc-rac"><option value="0" ${!c.retAfterCis ? 'selected' : ''}>Retention then CIS - retention on the gross, then CIS on what is left (default)</option><option value="1" ${c.retAfterCis ? 'selected' : ''}>CIS then retention - CIS on the gross, then retention on what is left</option></select><div class="small">Used for operatives and subcontractor gangs unless their own setting says otherwise.</div></div>
     <label class="ckl"><input type="checkbox" id="tsc-sd" ${c.sdAutofill !== false ? 'checked' : ''}> Auto-fill stand-downs from the site sheets (operatives can change it)</label>
     ${tsRcpHtml(c)}
     <button class="btn primary block" data-act="tsc-save">Save timesheet settings</button></div>`; }
@@ -15983,7 +15986,7 @@ Object.assign(ACTIONS, {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target && e.target.id === 'tsc-rcp-new') { e.preventDefault(); ACTIONS['tsc-rcp-add'](); } });
 ACTIONS['tsc-save'] = async () => { const g = id => $('#' + id).value, n = id => TSC.num(g(id));
-  const v = { halfMax: n('tsc-half'), shortFlag: n('tsc-short'), stdHours: n('tsc-std') || 8, otAfter: n('tsc-ota') || 8, retentionPct: Math.min(100, n('tsc-ret')), retAfterCis: !!($('#tsc-rac') && $('#tsc-rac').checked), budgetDayRate: n('tsc-bdr') || 660, sdAutofill: $('#tsc-sd').checked };
+  const v = { halfMax: n('tsc-half'), shortFlag: n('tsc-short'), stdHours: n('tsc-std') || 8, otAfter: n('tsc-ota') || 8, retentionPct: Math.min(100, n('tsc-ret')), retAfterCis: !!($('#tsc-rac') && $('#tsc-rac').value === '1'), budgetDayRate: n('tsc-bdr') || 660, sdAutofill: $('#tsc-sd').checked };
   if (!(v.halfMax > 0)) return toast('Half day hours must be more than 0');
   try { await tsCfgMerge(v); toast('Saved ✓'); }
   catch (e) { toast(e.offline ? 'Needs signal to save' : (e.message || 'Could not save'), 4000); } };
@@ -16051,7 +16054,7 @@ function tsBudgetView() { const B = TS.bud; if (!B) { tsBudLoad(); return '<p cl
 addEventListener('hashchange', () => { const k = route()[0]; if (k === 'tsbudget') TS.bud = null; if (k === 'tsoffice') { const ws = route()[1]; if (TS.off.week === ws) tsOffLoad(ws, true); } });
 
 /* ===== v1.11.18 (BETA ONLY - TS_ON): Subcontractor gangs =====
-   Set up subcontractors (per-man day rate OR gang rate by men count, CIS 20/30/0, retention override, retention after CIS), name-only men (no login),
+   Set up subcontractors (per-man day rate OR gang rate by men count, CIS 20/30/0, retention override, deduction order - default retention then CIS), name-only men (no login),
    the gang lead books his men's times, the office checks each gang's week (gross / retention / CIS / net) against the invoice total, export grouped by
    subcontractor. No fuel or expenses. Rates and £ are admin/manager only (RLS); the lead's screens never show money. */
 const TSS = { list: null, men: null, mine: null, mineAt: 0, off: {}, book: null };
@@ -16063,7 +16066,7 @@ function tssMen(sub) { if (sub.men) return sub.men.filter(m => m.active !== fals
 function tssR(s, cfg) { const rates = {}; (TSS.men || []).filter(m => m.sub_id === s.id).forEach(m => { const g = TSC.manRate(s, m, cfg || tsCfgV()); if (g != null) rates[m.id] = g; }); return Object.assign({}, s, { rates }); }
 function tssRates(s, cfg) { const ret = TSC.retPct(s, cfg), after = TSC.retAfter(s, cfg);
   const r = s.rate_mode === 'gang' ? 'Gang rate: ' + ['1', '2', '3'].filter(k => s.gang && s.gang[k] != null && s.gang[k] !== '').map(k => `${k} man ${fmtGBP(s.gang[k])}`).join(' · ') + (s.gang && s.gang.extra ? ` · +${fmtGBP(s.gang.extra)} each extra man` : '') : `${fmtGBP(s.day_rate)} per man per day`;
-  return `${r} · CIS ${TSC.num(s.cis_pct)}% · retention ${ret}%${after ? ' after CIS' : ' on the gross'}`; }
+  return `${r} · CIS ${TSC.num(s.cis_pct)}% · retention ${ret}% · ${TS_ORD(after)}`; }
 function tssJobs() { const L = isOp() ? (Ops.jobs || []) : (Ops.jobsTbl || []).filter(j => !j.status || !/complete|closed|cancel|archiv/i.test(j.status)); return L; }
 function tssJobTxt(r) { if (r.job) { const j = (Ops.jobsTbl || []).find(x => x.id === r.job) || (Ops.jobs || []).find(x => x.id === r.job); return j ? [j.ref, j.site_name].filter(Boolean).join(' - ') : (r.jl || 'Job'); } return (r.jt || 'Other') + ' (typed)'; }
 const TSS_DV = { full: 'F', half: '½' };
@@ -16092,7 +16095,7 @@ async function tssEdit(id) { await Promise.all([tssLoad(), tsCfgLoad()]); const 
     <div class="tsx-gang"><div class="row2">${n('tsx-g1', '1 man £/day', g[1], 'e.g. 200')}${n('tsx-g2', '2 men £/day', g[2], 'e.g. 380')}</div><div class="row2">${n('tsx-g3', '3 men £/day', g[3], '')}${n('tsx-gx', 'Each extra man over 3 £/day', g.extra, '')}</div><p class="small" style="margin-top:0">A half day for one man = half his share of that day's gang rate.</p></div>
     <div class="row2"><div class="f"><label>CIS deduction</label><select id="tsx-cis">${[20, 30, 0].map(v => `<option value="${v}" ${TSC.num(s.cis_pct == null ? 20 : s.cis_pct) === v ? 'selected' : ''}>${v}%${v === 0 ? ' (gross status)' : v === 30 ? ' (unverified)' : ''}</option>`).join('')}</select></div>
     ${n('tsx-ret', `Retention % (blank = company ${cfg.retentionPct}%)`, s.retention_pct, String(cfg.retentionPct))}</div>
-    <div class="f"><label>Retention after CIS?</label><select id="tsx-rac"><option value="" ${s.ret_after_cis == null ? 'selected' : ''}>Company default (${cfg.retAfterCis ? 'after CIS' : 'on the gross'})</option><option value="1" ${s.ret_after_cis === true ? 'selected' : ''}>Yes - CIS on the gross, retention on what's left</option><option value="0" ${s.ret_after_cis === false ? 'selected' : ''}>No - retention on the gross, CIS on what's left</option></select></div>
+    <div class="f"><label>Deduction order</label><select id="tsx-rac"><option value="" ${s.ret_after_cis == null ? 'selected' : ''}>Company default (${TS_ORD(cfg.retAfterCis)})</option><option value="0" ${s.ret_after_cis === false ? 'selected' : ''}>Retention then CIS - retention on the gross, CIS on what's left</option><option value="1" ${s.ret_after_cis === true ? 'selected' : ''}>CIS then retention - CIS on the gross, retention on what's left</option></select></div>
     <div class="f"><label>Gang lead (books the times on his phone)</label><select id="tsx-lead"><option value="">None - the office books</option>${ops.map(o => `<option value="${esc(o.id)}" ${o.id === s.lead_uid ? 'selected' : ''}>${esc(o.full_name || o.email || '')}</option>`).join('')}</select></div>
     <div class="f"><label>Men (names only, one per line)</label><textarea id="tsx-men" rows="5" placeholder="One name per line">${esc(men.map(m => m.name).join('\n'))}</textarea><p class="small" style="margin:2px 0 0">Removing a name stops him being booked; his past days are kept.</p></div>
     <div class="f"><label>Note (optional)</label><input id="tsx-note" value="${esc(s.note || '')}" maxlength="200"></div>
@@ -16163,7 +16166,7 @@ function tssOfficeView(ws) { const O = TSS.off; if (O.ws !== ws || !O.data) { if
     <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#/tssetup" style="text-decoration:none" id="tss-setup">⚙ Set up gangs</a><button class="btn primary" data-act="tss-export" data-ws="${ws}" id="tss-export">⬇ Export</button></span></div>
     <p class="small">Days come from the gang lead's bookings (or the office). Check the net against the subcontractor's invoice before approving. Managers and admin only.</p>
     ${L.length ? `<div class="ts-wrap"><table class="ts-tbl"><tbody><tr><td>Gross</td><td class="n">${fmtGBP(sum('gross'))}</td><td>Retention</td><td class="n">${fmtGBP(sum('retention'))}</td><td>CIS</td><td class="n">${fmtGBP(sum('cis'))}</td><td><b>Net</b></td><td class="n"><b>${fmtGBP(sum('net'))}</b></td></tr></tbody></table></div>` : ''}</div>
-    ${L.map(x => { const g = tssGrid(x.s, x.rows, ws, cfg, true), t = x.t, lk = !!x.wk.locked; const ret = `<tr><td>Retention ${t.retPct}%${t.after ? ' (after CIS)' : ''}</td><td class="n">− ${fmtGBP(t.retention)}</td></tr>`, cis = `<tr><td>CIS ${t.cisPct}%${t.after ? '' : ' (on gross less retention)'}</td><td class="n">− ${fmtGBP(t.cis)}</td></tr>`;
+    ${L.map(x => { const g = tssGrid(x.s, x.rows, ws, cfg, true), t = x.t, lk = !!x.wk.locked; const ret = `<tr><td>Retention ${t.retPct}%${t.after ? ' (on gross less CIS)' : ' (on the gross)'}</td><td class="n">− ${fmtGBP(t.retention)}</td></tr>`, cis = `<tr><td>CIS ${t.cisPct}%${t.after ? '' : ' (on gross less retention)'}</td><td class="n">− ${fmtGBP(t.cis)}</td></tr>`;
       return `<div class="card tss-off" data-sub="${esc(x.s.id)}"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:17px">${esc(x.s.name)}</b>${lk ? '<span class="chip ok">Approved · locked</span>' : ''}${flag(x)}</div>
         <p class="small" style="margin:4px 0 8px">${esc(tssRates(x.s, cfg))}</p>${g.html}${tssLinesHtml(x, cfg)}
         <table class="ts-tbl tss-fig" style="margin-top:8px"><tbody><tr><td>Man-days</td><td class="n">${TSC.r2(t.manDays)} (${t.full} full, ${t.half} half)</td></tr><tr><td>Gross</td><td class="n">${fmtGBP(t.gross)}</td></tr>${t.after ? cis + ret : ret + cis}
@@ -16178,14 +16181,14 @@ ACTIONS['tss-lock'] = async a => { const x = tssCalc(TSS.off.ws).find(y => y.s.i
   if (on && x.inv == null && !await confirmBox('No invoice entered', 'Approve without checking an invoice total?', 'Approve', false)) return;
   try { await tssWeekSave(x.s.id, { locked: on, status: on ? 'approved' : 'open' }); await tssOffLoad(TSS.off.ws, true); toast(on ? 'Approved ✓' : 'Unlocked'); } catch (e) { toast(tsErr(e)); } };
 ACTIONS['tss-export'] = a => { const ws = a.dataset.ws, L = tssCalc(ws), cfg = tsCfgV(), dts = TSC.dates(ws); const rows = [['ARS subcontractor gangs - week commencing ' + tsWcLong(ws)], []];
-  const sum = [['Subcontractor', 'Rate', 'Man-days', 'Gross £', 'Retention %', 'Retention £', 'CIS %', 'CIS £', 'Net payable £', 'Invoice total £', 'Invoice ref', 'Difference £ (invoice - app)', 'Status']];
+  const sum = [['Subcontractor', 'Rate', 'Man-days', 'Gross £', 'Retention %', 'Retention £', 'CIS %', 'CIS £', 'Net payable £', 'Invoice total £', 'Invoice ref', 'Difference £ (invoice - app)', 'Status', 'Deduction order']];
   L.forEach(x => { const t = x.t; rows.push([x.s.name, tssRates(x.s, cfg)]); rows.push(['', 'Man', ...dts.map(d => TSC.dayName(d).slice(0, 3) + ' ' + d.slice(8)), 'Days', 'Gross £', 'Day rate (gross)', 'Retention £', 'CIS £', 'Net £']); const LL = tssLines(x, cfg);
     Object.entries(t.men).forEach(([mid, m]) => { const l = LL.find(y => y.mid === mid) || {}; rows.push(['', m.name, ...dts.map(d => m.days[d] === 'full' ? 'F' : m.days[d] === 'half' ? 'H' : ''), TSC.r2(m.dayEq), m.gbp, l.rt || '', m.ret, m.cis, m.net]); });
     Object.entries(t.jobs).forEach(([j, q]) => rows.push(['', 'Job: ' + (/^txt:/.test(j) ? j.slice(4) + ' (typed)' : tssJobTxt({ job: j })), ...dts.map(() => ''), TSC.r2(q.days), TSC.r2(q.gbp)]));
-    const z = (l, v) => rows.push(['', l, ...dts.map(() => ''), '', v]); z('Gross', t.gross); if (t.after) { z(`CIS ${t.cisPct}%`, -t.cis); z(`Retention ${t.retPct}% (after CIS)`, -t.retention); } else { z(`Retention ${t.retPct}%`, -t.retention); z(`CIS ${t.cisPct}%`, -t.cis); }
+    const z = (l, v) => rows.push(['', l, ...dts.map(() => ''), '', v]); z('Gross', t.gross); if (t.after) { z(`CIS ${t.cisPct}%`, -t.cis); z(`Retention ${t.retPct}% (on gross less CIS)`, -t.retention); } else { z(`Retention ${t.retPct}% (on the gross)`, -t.retention); z(`CIS ${t.cisPct}%`, -t.cis); }
     z('Net payable', t.net); z('Invoice total', x.inv == null ? '' : x.inv); z('Difference (invoice - app)', x.diff == null ? '' : x.diff); rows.push([]);
-    sum.push([x.s.name, x.s.rate_mode === 'gang' ? 'Gang' : 'Per man ' + x.s.day_rate, TSC.r2(t.manDays), t.gross, t.retPct, t.retention, t.cisPct, t.cis, t.net, x.inv == null ? '' : x.inv, x.wk.invoice_ref || '', x.diff == null ? '' : x.diff, x.wk.locked ? 'Approved' : 'Open']); });
-  const tot = i => TSC.r2(sum.slice(1).reduce((a, r) => a + (+r[i] || 0), 0)); sum.push(['Total', '', tot(2), tot(3), '', tot(5), '', tot(7), tot(8), tot(9), '', '', '']);
+    sum.push([x.s.name, x.s.rate_mode === 'gang' ? 'Gang' : 'Per man ' + x.s.day_rate, TSC.r2(t.manDays), t.gross, t.retPct, t.retention, t.cisPct, t.cis, t.net, x.inv == null ? '' : x.inv, x.wk.invoice_ref || '', x.diff == null ? '' : x.diff, x.wk.locked ? 'Approved' : 'Open', TS_ORD(t.after)]); });
+  const tot = i => TSC.r2(sum.slice(1).reduce((a, r) => a + (+r[i] || 0), 0)); sum.push(['Total', '', tot(2), tot(3), '', tot(5), '', tot(7), tot(8), tot(9), '', '', '', '']);
   const name = 'ARS-subcontractors-' + ws; download(xlsxBlob([{ name: 'By subcontractor', rows }, { name: 'Summary', rows: sum }]), name + '.xlsx');
   const csv = rows.concat([[], ...sum]).map(r => r.map(v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
   setTimeout(() => download(new Blob([csv], { type: 'text/csv' }), name + '.csv'), 400); toast('Exported ✓'); };
@@ -16224,7 +16227,7 @@ function tssPdf(x, ws) { const cfg = tsCfgV(), t = x.t, k = dcPdfKit('Subcontrac
   k.font(9, 'normal', [20, 20, 20]); doc.text(tx(x.s.name), M, 37); doc.text(tsWcLong(ws), W - M, 37, { align: 'right' }); doc.text(tx(tssRates(x.s, cfg)), M, 43); k.y = 49;
   k.table({ head: [['Worker', ...dts.map(d => TSC.dayName(d).slice(0, 3) + ' ' + d.slice(8)), 'Days']], body: Object.values(t.men).map(o => [o.name, ...dts.map(d => o.days[d] === 'full' ? 'F' : o.days[d] === 'half' ? 'H' : ''), String(TSC.r2(o.dayEq))].map(tx)) });
   k.h2('Pay per worker'); k.table({ head: [['Worker', 'Day rate (gross)', 'Days', 'Gross', 'Retention', 'CIS', 'Net']], body: Ls.map(l => [l.name, l.rt, String(l.days), fmtGBP(l.gross), fmtGBP(l.ret), fmtGBP(l.cis), fmtGBP(l.net)].map(tx)).concat([['Gang total', '', String(TSC.r2(t.manDays)), fmtGBP(t.gross), fmtGBP(t.retention), fmtGBP(t.cis), fmtGBP(t.net)].map(tx)]) });
-  k.kv([['Retention', `${t.retPct}%${t.after ? ' (after CIS)' : ' (on the gross)'}`], ['CIS', `${t.cisPct}%${t.after ? ' (on the gross)' : ' (on gross less retention)'}`], ['Net payable (app)', fmtGBP(t.net)], ['Invoice total', x.inv == null ? 'not entered' : fmtGBP(x.inv)], ['Difference (invoice - app)', x.diff == null ? '' : fmtGBP(x.diff)], ['Status', x.wk.locked ? 'Approved' : 'Open']]);
+  k.kv([['Deduction order', TS_ORD(t.after)], ['Retention', `${t.retPct}%${t.after ? ' (on gross less CIS)' : ' (on the gross)'}`], ['CIS', `${t.cisPct}%${t.after ? ' (on the gross)' : ' (on gross less retention)'}`], ['Net payable (app)', fmtGBP(t.net)], ['Invoice total', x.inv == null ? 'not entered' : fmtGBP(x.inv)], ['Difference (invoice - app)', x.diff == null ? '' : fmtGBP(x.diff)], ['Status', x.wk.locked ? 'Approved' : 'Open']]);
   return k.finish(`Subcontractor timesheet - ${x.s.name} - ${tsWcLong(ws)}`); }
 ACTIONS['tss-pdf'] = a => { const x = tssCalc(TSS.off.ws).find(y => y.s.id === a.dataset.sub); if (!x) return; qOut(tssPdf(x, TSS.off.ws).output('blob'), `Subcontractor-${safeName(x.s.name)}-${TSS.off.ws}.pdf`); };
 
