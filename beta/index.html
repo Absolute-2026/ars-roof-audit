@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.24">
+<meta name="app-version" content="1.11.25">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.24';
+const APP_VERSION = '1.11.25';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -15332,7 +15332,7 @@ function oaBasicHome() { const jobs = Ops.jobs || [];
 setTimeout(() => { oaLoadMe(true); oaLoadAll(true); }, 1800);
 
 /* ===== v1.11.17 (BETA): Timesheets =====
-   Operative weekly timesheet (start / finish / break, job type-ahead incl. "+ Other", split day, same as yesterday, Overtime / Travel /
+   Operative weekly timesheet (start / finish - no break or travel since v1.11.25, job type-ahead incl. "+ Other", split day, same as yesterday, Overtime /
    Stand-down tags with stand-downs auto-filled from the site sheets, Friday finger-signature submit), foreman gang screen (bulk times,
    no-phone operatives sign on the foreman's phone), office list (filters, statuses, approve / query via Messages, flags), manager adjust
    (reason required, original kept, history, optional note to the operative without £), Pay per person (admin + managers only), Settings,
@@ -15357,9 +15357,9 @@ const TSC = {
   r2: n => Math.round((+n || 0) * 100) / 100,
   q4: n => Math.round((+n || 0) * 4) / 4,
   hm: t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; },
-  entH(e) { const a = TSC.hm(e && e.s), b = TSC.hm(e && e.f); if (a == null || b == null || b <= a) return 0; return Math.max(0, TSC.q4((b - a - TSC.num(e.b)) / 60)); },
+  entH(e) { const a = TSC.hm(e && e.s), b = TSC.hm(e && e.f); if (a == null || b == null || b <= a) return 0; return Math.max(0, TSC.q4((b - a) / 60)); },   // v1.11.25 (Matt): no break deduction - hours = finish - start (any stored 'b' is ignored)
   worked: d => !d ? 0 : TSC.r2((d.e || []).reduce((n, e) => n + TSC.entH(e), 0)),
-  travel: d => d && d.tr && d.tr.on ? TSC.num(d.tr.h) : 0,
+  travel: d => 0,   // v1.11.25 (Matt): travel removed from timesheets - any stored 'tr' tag is kept in the DB but no longer counted or paid
   sd: d => d && d.sd && d.sd.on ? TSC.num(d.sd.h) : 0,
   otl: d => (d && Array.isArray(d.otl) ? d.otl : []).filter(o => TSC.num(o.h) > 0).map(o => ({ h: TSC.num(o.h), x: +o.x === 2 ? 2 : 1.5 })),
   otH: list => TSC.r2((list || []).reduce((n, o) => n + TSC.num(o.h), 0)),
@@ -15374,23 +15374,26 @@ const TSC = {
   eff(d, adj, cfg) { return adj ? { dv: adj.dv, otl: TSC.otl(adj), adj: true } : TSC.auto(d, cfg); },
   otRateH(rate, x, cfg) { const own = rate && rate.ot_rate != null && rate.ot_rate !== '' && TSC.num(rate.ot_rate) > 0; return own ? TSC.num(rate.ot_rate) : TSC.num(rate && rate.day_rate) / (TSC.num((cfg || TS_DEF).stdHours) || 8) * x; },
   dayPay(v, d, rate, cfg) { const base = TSC.r2(TSC.num(rate && rate.day_rate) * TSC.dvN(v.dv)); const ot = TSC.r2(v.otl.reduce((n, o) => n + o.h * TSC.otRateH(rate, o.x, cfg), 0));
-    const tr = d && d.tr && d.tr.on ? TSC.num(rate && rate.travel_allow) : 0; return { base, ot, tr, gross: TSC.r2(base + ot + tr) }; },
+    const tr = 0; return { base, ot, tr, gross: TSC.r2(base + ot) }; },   // v1.11.25: no travel allowance
   retPct: (rate, cfg) => rate && rate.retention_pct != null && rate.retention_pct !== '' ? TSC.num(rate.retention_pct) : TSC.num((cfg || TS_DEF).retentionPct),
   // whole week: { days:[...], worked, ot, ot15, ot2, travelH, travelDays, sdH, dayEq, full, half, base, otPay, trPay, gross, retention, net }
-  week(w, adjBy, rate, cfg) {
-    const out = { days: [], worked: 0, ot: 0, ot15: 0, ot2: 0, travelH: 0, travelDays: 0, sdH: 0, dayEq: 0, full: 0, half: 0, base: 0, otPay: 0, trPay: 0, gross: 0, autoGross: 0, short: [] };
+  // v1.11.25 ex = custom £ lines [{kind:'inc'|'ded', amount}] (managers): increases are part of the gross (retention then CIS apply); deductions come off the final net payable
+  week(w, adjBy, rate, cfg, ex) {
+    const out = { inc: 0, ded: 0, days: [], worked: 0, ot: 0, ot15: 0, ot2: 0, travelH: 0, travelDays: 0, sdH: 0, dayEq: 0, full: 0, half: 0, base: 0, otPay: 0, trPay: 0, gross: 0, autoGross: 0, short: [] };
     const D = TSC.dates(w.week);
     D.forEach(date => { const d = (w.days || {})[date]; if (!d) return; const h = TSC.worked(d); const a = TSC.auto(d, cfg); const adj = adjBy && adjBy[date]; const v = TSC.eff(d, adj, cfg);
       if (!(h > 0) && !adj && !TSC.travel(d) && !TSC.sd(d)) return;
       const p = rate ? TSC.dayPay(v, d, rate, cfg) : null, pa = rate ? TSC.dayPay(a, d, rate, cfg) : null;
       out.days.push({ date, d, h, auto: a, v, pay: p, autoPay: pa, adj: adj || null });
-      out.worked += h; out.ot += TSC.otH(v.otl); v.otl.forEach(o => { if (o.x === 2) out.ot2 += o.h; else out.ot15 += o.h; }); out.travelH += TSC.travel(d); if (d.tr && d.tr.on) out.travelDays++; out.sdH += TSC.sd(d);
+      out.worked += h; out.ot += TSC.otH(v.otl); v.otl.forEach(o => { if (o.x === 2) out.ot2 += o.h; else out.ot15 += o.h; }); out.sdH += TSC.sd(d);
       out.dayEq += TSC.dvN(v.dv); if (v.dv === 'full') out.full++; if (v.dv === 'half') out.half++; if (TSC.short(h, cfg)) out.short.push(date);
       if (p) { out.base += p.base; out.otPay += p.ot; out.trPay += p.tr; out.gross += p.gross; out.autoGross += pa.gross; } });
     ['worked', 'ot', 'ot15', 'ot2', 'travelH', 'sdH', 'dayEq', 'base', 'otPay', 'trPay', 'gross', 'autoGross'].forEach(k => out[k] = TSC.r2(out[k]));
     out.basic = TSC.r2(Math.max(0, out.worked - out.ot)); out.total = TSC.r2(out.worked + out.travelH);
+    (ex || []).forEach(x => { const a = TSC.r2(Math.abs(TSC.num(x && x.amount))); if (x && x.kind === 'inc') out.inc += a; else if (x && x.kind === 'ded') out.ded += a; }); out.inc = TSC.r2(out.inc); out.ded = TSC.r2(out.ded);
+    out.dayGross = out.gross; out.gross = TSC.r2(out.gross + out.inc);
     if (rate) { out.retPct = TSC.retPct(rate, cfg); out.cisPct = rate.pay_type === 'CIS' ? (rate.cis_rate == null || rate.cis_rate === '' ? 20 : TSC.num(rate.cis_rate)) : 0; out.after = TSC.retAfter(rate, cfg);
-      const dd = TSC.deduct(out.gross, out.retPct, out.cisPct, out.after); out.retention = dd.ret; out.cis = dd.cis; out.payable = dd.net; out.net = TSC.r2(out.gross - out.retention); }
+      const dd = TSC.deduct(out.gross, out.retPct, out.cisPct, out.after); out.retention = dd.ret; out.cis = dd.cis; out.netBefore = dd.net; out.payable = TSC.r2(dd.net - out.ded); out.net = TSC.r2(out.gross - out.retention); }
     return out;
   },
   // which pay rate applied in a week: the current one unless it starts after the week; then the newest earlier one from the history
@@ -15441,7 +15444,7 @@ const TSC = {
     out.gross = TSC.r2(G); out.retention = TSC.r2(R); out.cis = TSC.r2(C); out.net = TSC.r2(G - R - C); return out; },
 };
 /* TSC-END */
-const TS = { cfg: null, cfgAt: 0, w: {}, sds: {}, busy: false, open: null, gang: null, off: { week: null, rows: null, f: { st: 'all', p: '', j: '' } }, rates: null, rlog: null, people: null, adj: {}, jc: null };
+const TS = { ext: {}, cfg: null, cfgAt: 0, w: {}, sds: {}, busy: false, open: null, gang: null, off: { week: null, rows: null, f: { st: 'all', p: '', j: '' } }, rates: null, rlog: null, people: null, adj: {}, jc: null };
 const tsOn = () => TS_ON && signedIn() && !!Cloud.profile;
 const tsOpOn = () => tsOn() && isOp();
 const tsAdm = () => tsOn() && !isOp() && isAdm();
@@ -15457,7 +15460,7 @@ const tsTag = st => { const [c, t] = tsStTag(st); return `<span class="tag ${c}"
 .ts-day{border:1px solid #e2e8f0;border-radius:14px;padding:10px 12px;margin:0 0 10px;background:#fff}.ts-day.today{border:2px solid #f59e0b}
 .ts-dh{display:flex;align-items:center;gap:8px;cursor:pointer}.ts-dh b{font-size:17px}.ts-dh .tot{margin-left:auto;font-weight:800;color:#1e3a5f}
 .ts-sum{font-size:14px;color:#475569;margin-top:2px}
-.ts-g{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.ts-g .f{margin:0}.ts-g input,.ts-g select{min-height:48px;font-size:18px;width:100%}
+.ts-g{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ts-g .f{margin:0}.ts-g input,.ts-g select{min-height:48px;font-size:18px;width:100%}
 .ts-ent{border-top:1px dashed #cbd5e1;padding-top:8px;margin-top:8px}.ts-ent:first-of-type{border-top:0;margin-top:0;padding-top:0}
 .ts-job{display:flex;align-items:center;gap:8px;width:100%;min-height:52px;border:2px solid #cbd5e1;border-radius:12px;background:#fff;padding:6px 12px;text-align:left;font:inherit;font-size:16px;margin-top:8px}
 .ts-job.none{color:#94a3b8;border-style:dashed}.ts-job .x{margin-left:auto;font-size:13px;color:#64748b}
@@ -15533,44 +15536,42 @@ async function tsAutoSd(w) {
 }
 
 /* ---------- operative screens ---------- */
-const TS_BRK = [0, 15, 20, 30, 45, 60, 90];
+// v1.11.25: break picker removed (Matt: "take the travel and the break time out of the timesheets")
 function tsJobLabel(e) { if (!e) return ''; if (e.job) { const j = (Ops.jobs || []).find(x => x.id === e.job) || (Ops.jobsTbl || []).find(x => x.id === e.job) || (typeof LJP !== 'undefined' && LJP.list || []).find(x => x.id === e.job); return j ? [j.ref, j.site_name].filter(Boolean).join(' · ') : (e.jl || 'Job'); } return e.jt ? e.jt + ' (other)' : ''; }
 function tsDaySummary(d) { if (!d) return ''; const ents = (d.e || []).filter(e => e.s || e.f);
-  return ents.map(e => `${esc(e.s || '?')} – ${esc(e.f || '?')}${+e.b ? ' · ' + (+e.b) + ' min break' : ''}${tsJobLabel(e) ? ' · ' + esc(tsJobLabel(e)) : ''}`).join('<br>'); }
+  return ents.map(e => `${esc(e.s || '?')} – ${esc(e.f || '?')}${tsJobLabel(e) ? ' · ' + esc(tsJobLabel(e)) : ''}`).join('<br>'); }
 function tsDayTags(d, ro) {
   const chip = (k, t, on, auto) => `<button type="button" class="ts-chip ${on ? (auto ? 'auto' : 'on') : ''}" ${ro ? 'disabled' : `data-act="ts-tag" data-k="${k}"`}>${t}</button>`;
-  return `<div class="ts-chips">${chip('tr', 'Travel', d && d.tr && d.tr.on)}${chip('sd', 'Weather / stand-down', d && d.sd && d.sd.on, d && d.sd && d.sd.auto)}</div>`; }
+  return `<div class="ts-chips">${chip('sd', 'Weather / stand-down', d && d.sd && d.sd.on, d && d.sd && d.sd.auto)}</div>`; }
 function tsDefT(cfg, k) { const v = k === 's' ? cfg.defStart : cfg.defFinish; return /^\d\d:\d\d$/.test(v || '') ? v : (k === 's' ? '08:00' : '16:00'); }
 function tsPreOn(w, date, d) { if (!d || (TS.noPre && TS.noPre[w.week + '|' + date])) return false; if (new Date(date + 'T12:00:00Z').getUTCDay() % 6 === 0) return false; /* Mon-Fri only */ const e = d.e || [];
-  return e.length === 1 && !e[0].s && !e[0].f && !e[0].job && !e[0].jt && !(d.tr && d.tr.on) && !(d.sd && d.sd.on) && !d.by; }
-function tsPreCommit(d, cfg) { const e = d.e[0] = d.e[0] || { b: 30 }; if (!e.s) e.s = tsDefT(cfg, 's'); if (!e.f) e.f = tsDefT(cfg, 'f'); if (e.b == null) e.b = 30; }
+  return e.length === 1 && !e[0].s && !e[0].f && !e[0].job && !e[0].jt && !(d.sd && d.sd.on) && !d.by; }
+function tsPreCommit(d, cfg) { const e = d.e[0] = d.e[0] || {}; if (!e.s) e.s = tsDefT(cfg, 's'); if (!e.f) e.f = tsDefT(cfg, 'f'); }
 function tsDayEdit(w, date) {
-  const d = w.days[date] = w.days[date] || { e: [] }; if (!d.e.length) d.e.push({ s: '', f: '', b: 30 }); const cfg = tsCfgV();
+  const d = w.days[date] = w.days[date] || { e: [] }; if (!d.e.length) d.e.push({ s: '', f: '' }); const cfg = tsCfgV();
   // v1.11.22: empty day shows the default times (Settings > Timesheets) - NOT saved or counted until confirmed / a time or job is set
   const pre = tsPreOn(w, date, d), dS = tsDefT(cfg, 's'), dF = tsDefT(cfg, 'f');
   const prev = TSC.addDays(date, -1), pd = w.days[prev], canSame = pd && (pd.e || []).some(e => e.s && e.f) && date !== w.week;
   const ent = (e, i) => `<div class="ts-ent ${pre && !i ? 'ts-pre' : ''}" data-i="${i}">${pre && !i ? `<div class="ts-prebar" id="ts-prebar"><span>Pre-filled ${esc(dS)}–${esc(dF)} · <b>not counted until you confirm</b></span><button class="btn sm primary" data-act="ts-preok" id="ts-preok">✓ Confirm</button></div>` : ''}${i ? `<div class="small" style="font-weight:800;color:#b45309;display:flex;align-items:center">Split · job ${i + 1}<button class="ts-linkb" style="margin-left:auto;padding:4px 0" data-act="ts-delent" data-i="${i}">✕ Remove</button></div>` : ''}
-    <div class="ts-g"><div class="f"><label>Start</label><input type="time" step="900" value="${esc(pre && !i ? dS : e.s || '')}" data-ts="s" data-i="${i}" ${pre && !i ? 'data-pre="1"' : ''}></div><div class="f"><label>Finish</label><input type="time" step="900" value="${esc(pre && !i ? dF : e.f || '')}" data-ts="f" data-i="${i}" ${pre && !i ? 'data-pre="1"' : ''}></div>
-    <div class="f"><label>Break</label><select data-ts="b" data-i="${i}">${TS_BRK.map(m => `<option value="${m}" ${+e.b === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></div></div>
+    <div class="ts-g"><div class="f"><label>Start</label><input type="time" step="900" value="${esc(pre && !i ? dS : e.s || '')}" data-ts="s" data-i="${i}" ${pre && !i ? 'data-pre="1"' : ''}></div><div class="f"><label>Finish</label><input type="time" step="900" value="${esc(pre && !i ? dF : e.f || '')}" data-ts="f" data-i="${i}" ${pre && !i ? 'data-pre="1"' : ''}></div></div>
     <button type="button" class="ts-job ${tsJobLabel(e) ? '' : 'none'}" data-act="ts-job" data-i="${i}">📋 ${esc(tsJobLabel(e) || 'Which job?')}<span class="x">Change</span></button></div>`;
   return `${canSame ? `<button class="btn block" style="min-height:46px;margin:0 0 10px" data-act="ts-same">↺ Same as yesterday</button>` : ''}
     ${d.e.map(ent).join('')}<button class="ts-linkb" data-act="ts-addent">+ Split the day across another job</button>
     ${tsDayTags(d)}
-    ${d.tr && d.tr.on ? `<div class="ts-sub"><div class="f"><label>Travel hours (between sites)</label><input type="number" inputmode="decimal" step="0.25" min="0" value="${esc(d.tr.h || '')}" data-ts="trh"></div></div>` : ''}
     ${d.sd && d.sd.on ? `<div class="ts-sub"><div class="f"><label>Stand-down hours</label><input type="number" inputmode="decimal" step="0.25" min="0" value="${esc(d.sd.h || '')}" data-ts="sdh"></div></div>${d.sd.auto && d.sd.txt ? `<div class="lg-msg warn" style="margin:8px 0 0">🌧 Auto-filled from the site sheet: ${esc(d.sd.txt)} · ${tsH(d.sd.h)} h</div>` : ''}` : ''}
-    <div class="small" style="margin-top:8px">${pre ? '<span class="tag amber" style="margin-right:6px">Not confirmed</span>' : ''}Day total <b style="color:#1e3a5f">${tsH(TSC.worked(d) + TSC.travel(d))} h</b>${TSC.travel(d) ? ` (${tsH(TSC.worked(d))} worked + ${tsH(TSC.travel(d))} travel)` : ''}${TSC.sd(d) ? ` · stand-down ${tsH(TSC.sd(d))} h shown separately` : ''}</div>
+    <div class="small" style="margin-top:8px">${pre ? '<span class="tag amber" style="margin-right:6px">Not confirmed</span>' : ''}Day total <b style="color:#1e3a5f">${tsH(TSC.worked(d))} h</b>${TSC.sd(d) ? ` · stand-down ${tsH(TSC.sd(d))} h shown separately` : ''}</div>
     <div class="f ts-note" style="margin-top:10px"><label>Notes for the office (optional)</label><textarea rows="2" maxlength="500" data-ts="note" placeholder="e.g. Sunday - half day, left early for the dentist, worked late to finish the ridge">${esc(d.note || '')}</textarea></div>
     <button class="ts-linkb" data-act="ts-clearday" style="color:#64748b">Not working this day</button>`;
 }
-function tsTotalsHTML(w) { const t = TSC.week(w, null, null, tsCfgV()); return `<div class="ts-tot"><div><b>${tsH(t.basic)}</b><span>Basic</span></div><div><b>${tsH(t.ot)}</b><span>Overtime</span></div><div><b>${tsH(t.travelH)}</b><span>Travel</span></div><div class="big"><b>${tsH(t.total)} h</b><span>${w.status === 'submitted' || w.status === 'approved' || w.status === 'sent' ? 'Week' : 'So far'}</span></div></div>${t.sdH ? `<p class="hint" style="margin:6px 0 0">Stand-down ${tsH(t.sdH)} h shown separately</p>` : ''}`; }
+function tsTotalsHTML(w) { const t = TSC.week(w, null, null, tsCfgV()); return `<div class="ts-tot"><div><b>${tsH(t.basic)}</b><span>Basic</span></div><div><b>${tsH(t.ot)}</b><span>Overtime</span></div><div class="big"><b>${tsH(t.total)} h</b><span>${w.status === 'submitted' || w.status === 'approved' || w.status === 'sent' ? 'Week' : 'So far'}</span></div></div>${t.sdH ? `<p class="hint" style="margin:6px 0 0">Stand-down ${tsH(t.sdH)} h shown separately</p>` : ''}`; }
 function tsViewOp(w) {
   const today = todayISO(), D = TSC.dates(w.week), ed = tsEditable(w), adjs = w.adjs || [];
   if (!TS.open || !D.includes(TS.open)) TS.open = D.includes(today) ? today : D.filter(x => x <= today).pop() || D[0];
   const sheet = typeof wkMine === 'function' ? wkMine().find(c => c.week === w.week && !(typeof wkSigned === 'function' && wkSigned(c))) || wkMine().find(c => c.week === w.week) : null;
   const seg = sheet && typeof opSheet === 'function' && opSheet() ? `<div class="seg" style="margin:0 0 14px"><a class="btn" href="#/week/${esc(sheet.id)}" style="text-decoration:none">Site checks</a><button class="on">Timesheet</button></div>` : '';
-  const days = D.map(date => { const d = w.days[date]; const h = TSC.worked(d), done = h > 0 || TSC.travel(d) || TSC.sd(d); const isOpen = ed && TS.open === date; const fut = date > today;
+  const days = D.map(date => { const d = w.days[date]; const h = TSC.worked(d), done = h > 0 || TSC.sd(d); const isOpen = ed && TS.open === date; const fut = date > today;
     const a = adjs.filter(x => x.day === date).pop();
-    return `<div class="ts-day ${date === today ? 'today' : ''}" id="tsd-${date}"><div class="ts-dh" data-act="ts-open" data-d="${date}"><b>${tsDay(date)}${date === today ? ' · today' : ''}</b>${done ? '<span class="tag green">Done</span>' : fut ? '<span class="tag grey">Not yet</span>' : ed ? '<span class="tag amber">To fill in</span>' : ''}${d && d.by && d.by.uid !== me() ? `<span class="tag navy">Booked by ${esc((d.by.name || 'foreman').split(' ')[0])}</span>` : ''}<span class="tot">${done ? tsH(h + TSC.travel(d)) + ' h' : ''}</span></div>
+    return `<div class="ts-day ${date === today ? 'today' : ''}" id="tsd-${date}"><div class="ts-dh" data-act="ts-open" data-d="${date}"><b>${tsDay(date)}${date === today ? ' · today' : ''}</b>${done ? '<span class="tag green">Done</span>' : fut ? '<span class="tag grey">Not yet</span>' : ed ? '<span class="tag amber">To fill in</span>' : ''}${d && d.by && d.by.uid !== me() ? `<span class="tag navy">Booked by ${esc((d.by.name || 'foreman').split(' ')[0])}</span>` : ''}<span class="tot">${done ? tsH(h) + ' h' : ''}</span></div>
       ${isOpen ? tsDayEdit(w, date) : `${done ? `<div class="ts-sum">${tsDaySummary(d)}</div>${tsDayTags(d, true)}` : ''}`}
       ${a ? `<div class="lg-msg" style="background:#eef1f5;margin:8px 0 0">The office changed this day: <b>${esc(TSC.dvTxt(a.after.dv))}${TSC.otH(TSC.otl(a.after)) ? ' + ' + tsH(TSC.otH(TSC.otl(a.after))) + ' h overtime' : ''}</b> · "${esc(a.reason)}"</div>` : ''}</div>`; }).join('');
   const fri = TSC.addDays(w.week, 4), canSubmit = ed && today >= fri;
@@ -15585,8 +15586,8 @@ function tsViewOp(w) {
     ${tsOpOn() && typeof opHas === 'function' && opHas('lead') && (Ops.jobs || []).length ? `<div class="card"><h2>👷 Gang timesheet (foreman)</h2><p class="hint" style="margin-bottom:8px">Book times for everyone on site in one go.</p>${(Ops.jobs || []).map(j => `<a class="btn block" style="margin-bottom:8px;text-decoration:none" href="#/tsgang/${esc(j.id)}/${today}">${esc([j.ref, j.site_name].filter(Boolean).join(' · '))}</a>`).join('')}</div>` : ''}`;
 }
 function tsSubmitTable(w) { const t = TSC.week(w, null, null, tsCfgV());
-  return `<table class="ts-tbl"><thead><tr><th>Day</th><th>Job</th><th class="n">Hours</th></tr></thead><tbody>${t.days.map(x => { const ot = TSC.otH(x.auto.otl); return `<tr><td>${TSC.dayName(x.date)}</td><td>${esc([...new Set((x.d.e || []).filter(e => TSC.entH(e) > 0).map(e => (tsJobLabel(e) || '').split(' · ')[0]))].join(' / '))}${ot ? ` <span class="tag navy">OT ${tsH(ot)}</span>` : ''}${TSC.sd(x.d) ? ` <span class="tag amber">Stand-down ${tsH(TSC.sd(x.d))}</span>` : ''}${TSC.travel(x.d) ? ` <span class="tag">Travel ${tsH(TSC.travel(x.d))}</span>` : ''}</td><td class="n">${tsH(x.h + TSC.travel(x.d))}</td></tr>`; }).join('')}</tbody>
-  <tfoot><tr><td colspan="2"><b>Week total</b> (basic ${tsH(t.basic)} · OT ${tsH(t.ot)} · travel ${tsH(t.travelH)})</td><td class="n"><b>${tsH(t.total)} h</b></td></tr></tfoot></table>`; }
+  return `<table class="ts-tbl"><thead><tr><th>Day</th><th>Job</th><th class="n">Hours</th></tr></thead><tbody>${t.days.map(x => { const ot = TSC.otH(x.auto.otl); return `<tr><td>${TSC.dayName(x.date)}</td><td>${esc([...new Set((x.d.e || []).filter(e => TSC.entH(e) > 0).map(e => (tsJobLabel(e) || '').split(' · ')[0]))].join(' / '))}${ot ? ` <span class="tag navy">OT ${tsH(ot)}</span>` : ''}${TSC.sd(x.d) ? ` <span class="tag amber">Stand-down ${tsH(TSC.sd(x.d))}</span>` : ''}</td><td class="n">${tsH(x.h)}</td></tr>`; }).join('')}</tbody>
+  <tfoot><tr><td colspan="2"><b>Week total</b> (basic ${tsH(t.basic)} · OT ${tsH(t.ot)})</td><td class="n"><b>${tsH(t.total)} h</b></td></tr></tfoot></table>`; }
 async function tsPickJob(cur) {
   if (typeof ljpLoad === 'function') await ljpLoad();   // v1.11.22: every live project (id/ref/name only), your own jobs first
   const list = (typeof opPickJobs === 'function' ? opPickJobs() : (Ops.jobs || [])).filter(j => j && j.id).map(j => ({ id: j.id, label: [j.ref, j.site_name].filter(Boolean).join(' · ') }));
@@ -15611,9 +15612,7 @@ function tsSetField(el, final) {
   if (k === 's' || k === 'f') { const wasPre = !i && el.dataset.pre && tsPreOn(x.w, x.date, d); d.e[i] = d.e[i] || {}; d.e[i][k] = v;
     if (wasPre) { tsPreCommit(d, tsCfgV()); final = true; }   // setting one time on a pre-filled day confirms the other default too
   }
-  else if (k === 'b') { d.e[i] = d.e[i] || {}; d.e[i].b = +v || 0; }
   else if (k === 'note') { d.note = String(v).slice(0, 500); if (!d.note.trim()) delete d.note; }
-  else if (k === 'trh') { d.tr = Object.assign({ on: true }, d.tr, { h: TSC.num(v) }); }
   else if (k === 'sdh') { d.sd = Object.assign({ on: true }, d.sd, { h: TSC.num(v), manual: true, auto: false }); }
   tsTouched(x, final);
 }
@@ -15621,13 +15620,12 @@ document.addEventListener('input', e => { if (e.target && e.target.dataset && e.
 document.addEventListener('change', e => { if (e.target && e.target.dataset && e.target.dataset.ts && route()[0] === 'ts') tsSetField(e.target, true); });
 Object.assign(ACTIONS, {
   'ts-open'(a) { const w = TS.w[TS.cur]; if (!w || !tsEditable(w)) return; if (a.dataset.d > todayISO()) return toast("That day hasn't happened yet"); TS.open = a.dataset.d; rerender(); setTimeout(() => { const el = $('#tsd-' + TS.open); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); },
-  'ts-addent'() { const x = tsCur(); if (!x) return; const last = x.d.e[x.d.e.length - 1] || {}; x.d.e.push({ s: last.f || '', f: '', b: 0 }); tsTouched(x, true); },
+  'ts-addent'() { const x = tsCur(); if (!x) return; const last = x.d.e[x.d.e.length - 1] || {}; x.d.e.push({ s: last.f || '', f: '' }); tsTouched(x, true); },
   'ts-delent'(a) { const x = tsCur(); if (!x) return; x.d.e.splice(+a.dataset.i, 1); tsTouched(x, true); },
   async 'ts-job'(a) { let x = tsCur(); if (!x) return; const i = +a.dataset.i || 0; const wasPre = !i && tsPreOn(x.w, x.date, x.d); const r0 = await tsPickJob(x.d.e[i]); if (!r0) return; const r = r0; const y = tsCur(); if (y && y.date === x.date) x = y;   // v1.11.22: the week may have been re-synced while the picker was open
-    x.d.e[i] = Object.assign({}, x.d.e[i] || { s: '', f: '', b: 30 }, r); if (wasPre && (r.job || r.jt)) tsPreCommit(x.d, tsCfgV()); if (!r.job) delete x.d.e[i].jl; tsTouched(x, true); },
-  'ts-same'() { const x = tsCur(); if (!x) return; const p = x.w.days[TSC.addDays(x.date, -1)]; if (!p) return; x.d.e = clone(p.e || []); x.d.tr = p.tr ? clone(p.tr) : undefined; delete x.d.otl; delete x.d.otOn; delete x.d.by; tsTouched(x, true); toast('Copied from ' + TSC.dayName(TSC.addDays(x.date, -1))); },
+    x.d.e[i] = Object.assign({}, x.d.e[i] || { s: '', f: '' }, r); if (wasPre && (r.job || r.jt)) tsPreCommit(x.d, tsCfgV()); if (!r.job) delete x.d.e[i].jl; tsTouched(x, true); },
+  'ts-same'() { const x = tsCur(); if (!x) return; const p = x.w.days[TSC.addDays(x.date, -1)]; if (!p) return; x.d.e = clone(p.e || []).map(e => { const c = Object.assign({}, e); delete c.b; return c; }); delete x.d.otl; delete x.d.otOn; delete x.d.by; tsTouched(x, true); toast('Copied from ' + TSC.dayName(TSC.addDays(x.date, -1))); },
   'ts-tag'(a) { const x = tsCur(); if (!x) return; const k = a.dataset.k, d = x.d;
-    if (k === 'tr') d.tr = { on: !(d.tr && d.tr.on), h: (d.tr && d.tr.h) || '' };
     if (k === 'sd') { const on = !(d.sd && d.sd.on); d.sd = Object.assign({}, d.sd, { on, manual: true, auto: false }); }
     tsTouched(x, true); },
   async 'ts-clearday'() { const x = tsCur(); if (!x) return; if (!await confirmBox('Not working this day?', `${tsDay(x.date)} will be cleared.`, 'Clear day', false)) return; x.w.days[x.date] = null; delete x.w.days[x.date]; (TS.noPre = TS.noPre || {})[x.w.week + '|' + x.date] = 1; await tsSaveLocal(x.w, x.date); tsKick(); rerender(); },
@@ -15663,30 +15661,28 @@ function tsGangView() {
   const dd = [-2, -1, 0].map(k => TSC.addDays(today, k));
   const row = p => { const d = p.day, e = d && (d.e || []).find(x => x.job === g.job), per = g.per[p.uid]; const ro = p.locked || !['none', 'draft', 'queried'].includes(p.status);
     return `<div class="ts-gi"><input type="checkbox" ${g.pick[p.uid] ? 'checked' : ''} ${ro ? 'disabled' : ''} data-act="tsg-pick" data-u="${esc(p.uid)}" aria-label="${esc(p.name)}">
-      <div class="nm" data-act="tsg-per" data-u="${esc(p.uid)}" style="cursor:pointer"><b>${esc(p.name)}${p.me ? ' (you)' : ''}</b><span>${p.no_phone ? '<span class="tag navy">No phone</span> foreman books' : 'App · submits own'} · ${tsTag(p.status)}</span>${per ? `<div class="small"><b>Own times:</b> ${per.off ? 'Not on site' : esc(per.s + '–' + per.f + ' · ' + per.b + ' min')}</div>` : ''}</div>
+      <div class="nm" data-act="tsg-per" data-u="${esc(p.uid)}" style="cursor:pointer"><b>${esc(p.name)}${p.me ? ' (you)' : ''}</b><span>${p.no_phone ? '<span class="tag navy">No phone</span> foreman books' : 'App · submits own'} · ${tsTag(p.status)}</span>${per ? `<div class="small"><b>Own times:</b> ${per.off ? 'Not on site' : esc(per.s + '–' + per.f)}</div>` : ''}</div>
       <div class="hrs">${e ? esc(e.s + '–' + e.f) + '<br>' + tsH(TSC.entH(e)) + ' h' : ''}</div></div>`; };
   const ns = ppl.filter(p => p.no_phone && ['draft', 'queried'].includes(p.status) && !p.locked);
   return `<div class="card"><h2>${esc([D.job.ref, D.job.site].filter(Boolean).join(' · '))}</h2><div class="seg" style="margin-top:8px">${dd.map(x => `<a class="btn ${x === g.date ? 'on' : ''}" style="text-decoration:none" href="#/tsgang/${esc(g.job)}/${x}">${TSC.dayName(x)} ${+x.slice(8)}</a>`).join('')}</div></div>
     <div class="card"><h2>Who's on site? <span class="small" style="margin-left:auto">${n}</span></h2>${ppl.map(row).join('') || '<p class="hint">No operatives on this job.</p>'}
       <p class="hint" style="margin-top:8px">Agency / visitors: note them on the weekly site sheet workforce section - they are not on the payroll.</p></div>
-    <div class="card"><h2>Times for everyone ticked</h2><div class="ts-g"><div class="f"><label>Start</label><input type="time" id="tsg-s" value="${esc(g.s || tsDefT(tsCfgV(), 's'))}"></div><div class="f"><label>Finish</label><input type="time" id="tsg-f" value="${esc(g.f || tsDefT(tsCfgV(), 'f'))}"></div>
-      <div class="f"><label>Break</label><select id="tsg-b">${TS_BRK.map(m => `<option value="${m}" ${(g.b == null ? 30 : g.b) === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></div></div>
+    <div class="card"><h2>Times for everyone ticked</h2><div class="ts-g"><div class="f"><label>Start</label><input type="time" id="tsg-s" value="${esc(g.s || tsDefT(tsCfgV(), 's'))}"></div><div class="f"><label>Finish</label><input type="time" id="tsg-f" value="${esc(g.f || tsDefT(tsCfgV(), 'f'))}"></div></div>
       <p class="hint">Anyone different (e.g. left early) - tap their name to change just theirs.</p>
-      <label class="ckl"><input type="checkbox" id="tsg-tr"> Travel between sites (0.5 h)</label>
       <button class="btn primary block" style="margin-top:12px;min-height:56px" data-act="tsg-book">✓ Confirm times for ${n} ${n === 1 ? 'person' : 'people'}</button>
       <p class="small" style="margin-top:8px">Operatives with the app see it on their own timesheet to agree. People with no phone are booked by you and sign on your phone on Friday.</p></div>
     ${ns.length && today >= TSC.addDays(TSC.monday(g.date), 4) ? `<div class="card"><h2>✍ Sign for no-phone operatives</h2>${ns.map(p => `<button class="btn block" style="margin-bottom:8px" data-act="tsg-signfor" data-u="${esc(p.uid)}">Hand your phone to ${esc(p.name)} to sign</button>`).join('')}</div>` : ''}`;
 }
 Object.assign(ACTIONS, {
   'tsg-pick'(a) { TS.gang.pick[a.dataset.u] = a.checked; const b = $('[data-act="tsg-book"]'); const n = Object.values(TS.gang.pick).filter(Boolean).length; if (b) b.textContent = `✓ Confirm times for ${n} ${n === 1 ? 'person' : 'people'}`; },
-  async 'tsg-per'(a) { const g = TS.gang, u = a.dataset.u, p = (g.data.people || []).find(x => x.uid === u); if (!p) return; const cur = g.per[u] || { s: $('#tsg-s').value, f: $('#tsg-f').value, b: +$('#tsg-b').value };
-    const r = await modal(`<h3>${esc(p.name)}</h3><div class="ts-g"><div class="f"><label>Start</label><input type="time" id="tp-s" value="${esc(cur.s)}"></div><div class="f"><label>Finish</label><input type="time" id="tp-f" value="${esc(cur.f)}"></div><div class="f"><label>Break</label><select id="tp-b">${TS_BRK.map(m => `<option value="${m}" ${+cur.b === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></div></div>
+  async 'tsg-per'(a) { const g = TS.gang, u = a.dataset.u, p = (g.data.people || []).find(x => x.uid === u); if (!p) return; const cur = g.per[u] || { s: $('#tsg-s').value, f: $('#tsg-f').value };
+    const r = await modal(`<h3>${esc(p.name)}</h3><div class="ts-g"><div class="f"><label>Start</label><input type="time" id="tp-s" value="${esc(cur.s)}"></div><div class="f"><label>Finish</label><input type="time" id="tp-f" value="${esc(cur.f)}"></div></div>
       <button class="btn primary block" id="tp-ok" style="margin-top:10px">Use these times</button><button class="btn block" data-r="off">Not on site today</button><button class="btn block" data-r="same">Same as everyone</button><button class="btn block" data-r="">Cancel</button>`,
-      (bg, close) => bg.querySelector('#tp-ok').addEventListener('click', () => close({ s: bg.querySelector('#tp-s').value, f: bg.querySelector('#tp-f').value, b: +bg.querySelector('#tp-b').value })));
-    if (!r) return; if (r === 'same') delete g.per[u]; else if (r === 'off') g.per[u] = { off: true }; else g.per[u] = r; g.pick[u] = true; g.s = $('#tsg-s').value; g.f = $('#tsg-f').value; g.b = +$('#tsg-b').value; rerender(); },
-  async 'tsg-book'() { const g = TS.gang; const s = $('#tsg-s').value, f = $('#tsg-f').value, b = +$('#tsg-b').value, tr = $('#tsg-tr').checked; g.s = s; g.f = f; g.b = b;
+      (bg, close) => bg.querySelector('#tp-ok').addEventListener('click', () => close({ s: bg.querySelector('#tp-s').value, f: bg.querySelector('#tp-f').value })));
+    if (!r) return; if (r === 'same') delete g.per[u]; else if (r === 'off') g.per[u] = { off: true }; else g.per[u] = r; g.pick[u] = true; g.s = $('#tsg-s').value; g.f = $('#tsg-f').value; rerender(); },
+  async 'tsg-book'() { const g = TS.gang; const s = $('#tsg-s').value, f = $('#tsg-f').value, b = 0; g.s = s; g.f = f;
     if (!s || !f || TSC.hm(f) <= TSC.hm(s)) return toast('Check the start and finish times');
-    const items = (g.data.people || []).filter(p => g.pick[p.uid]).map(p => { const per = g.per[p.uid]; const it = Object.assign({ uid: p.uid, s, f, b }, per && !per.off ? per : {}, per && per.off ? { off: true } : {}); if (tr) it.tr = { on: true, h: 0.5 };
+    const items = (g.data.people || []).filter(p => g.pick[p.uid]).map(p => { const per = g.per[p.uid]; const it = Object.assign({ uid: p.uid, s, f, b }, per && !per.off ? Object.assign({}, per, { b: 0 }) : {}, per && per.off ? { off: true } : {});
       return it; });
     if (!items.length) return toast('Tick who was on site'); if (!online()) return toast('Booking the gang needs signal');
     try { const r = await tsRpc('ts_gang_book', { p_job: g.job, p_date: g.date, p_items: items }); toast(`Booked ${r.booked} ${r.booked === 1 ? 'person' : 'people'}${r.skipped.length ? ` · ${r.skipped.length} skipped (already submitted)` : ''}`, 4000); g.per = {}; delete TS.w[TSC.monday(g.date)]; tsGangLoad(g.job, g.date); }
@@ -15702,6 +15698,10 @@ async function tsRatesLoad(force) { if (!tsAdm() || (!force && TS.rates)) return
   try { const [r, l, p] = await Promise.all([sbFetch('/rest/v1/pay_rates?select=*'), sbFetch('/rest/v1/pay_rates_log?select=*&order=at.desc&limit=500'), sbFetch('/rest/v1/ts_people?select=*')]);
     TS.rates = {}; (r || []).forEach(x => { TS.rates[x.uid] = x; }); TS.rlog = l || []; TS.people = {}; (p || []).forEach(x => { TS.people[x.uid] = x; }); }
   catch (e) { TS.rates = TS.rates || {}; TS.rlog = TS.rlog || []; TS.people = TS.people || {}; } }
+// v1.11.25 custom £ adjustments (ts_extra - managers / admin only; RLS hides the table from everyone else)
+async function tsExtLoad(ids) { ids = (ids || []).filter(Boolean); if (!ids.length) return; try { const l = await sbFetch(`/rest/v1/ts_extra?week_id=in.(${ids.join(',')})&select=*&order=at.asc`) || []; ids.forEach(i => { TS.ext[i] = []; }); l.forEach(x => (TS.ext[x.week_id] = TS.ext[x.week_id] || []).push(x)); } catch (e) { } }
+const tsExt = id => (id && TS.ext[id]) || [];
+const tsExtTxt = x => `${x.kind === 'inc' ? '+' : '−'}${fmtGBP(x.amount)}`;
 const tsRate = (uid, week) => TSC.rateFor(TS.rates && TS.rates[uid], TS.rlog, week);
 const tsName = uid => { const p = (Cloud.profiles || []).find(x => x.id === uid); return p ? p.full_name || p.email : 'Unknown'; };
 function tsAdjMap(list) { const by = {}; (list || []).slice().sort((a, b) => String(a.at).localeCompare(String(b.at))).forEach(a => { (by[a.week_id] = by[a.week_id] || {})[a.day] = a.after; }); return by; }
@@ -15709,7 +15709,7 @@ async function tsOffLoad(ws, force) {
   const O = TS.off; if (!force && O.week === ws && O.rows) return; O.week = ws; O.rows = null; O.err = null;
   try { const end = TSC.addDays(ws, 6);
     const [rows, adj, chk, sds] = await Promise.all([sbFetch(`/rest/v1/ts_weeks?week=eq.${ws}&select=*&order=name.asc`), sbFetch(`/rest/v1/ts_adjust?day=gte.${ws}&day=lte.${end}&select=*&order=at.asc`), tsRpc('ts_check_days', { p_week: ws }), tsRpc('ts_standdowns', { p_week: ws }), tsRatesLoad(), tsCfgLoad(), Ops.jobsTbl && Ops.jobsTbl.length ? null : loadJobsTbl()]);
-    O.rows = rows || []; O.adjList = adj || []; O.adj = tsAdjMap(adj); O.chk = new Set((chk || []).map(x => x.job + '|' + x.day)); O.sds = sds || [];
+    O.rows = rows || []; await tsExtLoad(O.rows.map(w => w.id)); O.adjList = adj || []; O.adj = tsAdjMap(adj); O.chk = new Set((chk || []).map(x => x.job + '|' + x.day)); O.sds = sds || [];
     try { if (typeof indLoadAll === 'function') indLoadAll(true); } catch (e) { } }
   catch (e) { O.err = tsErr(e); O.rows = []; }
   if (/^ts(office|week|send|budget)$/.test(route()[0])) rerender();
@@ -15728,7 +15728,7 @@ const tsJobName = id => { const j = (Ops.jobsTbl || []).find(x => x.id === id); 
 function tsOffRows() { const O = TS.off, ws = O.week, cfg = tsCfgV(); const by = {}; (O.rows || []).forEach(w => { by[w.uid] = w; });
   const ppl = operatives().filter(p => p.active !== false && !/^E2E Temp/.test(p.full_name || '') || by[p.id]);
   Object.keys(by).forEach(uid => { if (!ppl.find(p => p.id === uid)) ppl.push({ id: uid, full_name: by[uid].name }); });
-  return ppl.map(p => { const w = by[p.id] || { uid: p.id, week: ws, days: {}, status: 'none', name: p.full_name }; const rate = tsRate(p.id, ws); const t = TSC.week(w, O.adj && O.adj[w.id], rate, cfg); return { p, w, t, rate, fl: w.id ? tsFlags(w, t) : [], jobs: [...new Set(t.days.flatMap(x => (x.d.e || []).map(e => e.job).filter(Boolean)))] }; })
+  return ppl.map(p => { const w = by[p.id] || { uid: p.id, week: ws, days: {}, status: 'none', name: p.full_name }; const rate = tsRate(p.id, ws); const t = TSC.week(w, O.adj && O.adj[w.id], rate, cfg, tsExt(w.id)); return { p, w, t, rate, fl: w.id ? tsFlags(w, t) : [], jobs: [...new Set(t.days.flatMap(x => (x.d.e || []).map(e => e.job).filter(Boolean)))] }; })
     .map(r => { if (tsNoTime(r, ws)) r.fl.unshift({ k: 'notime', r: 1, t: 'No time submitted' }); const nn = r.w ? Object.values(r.w.days || {}).filter(d => d && d.note && String(d.note).trim()).length : 0; if (nn) r.fl.push({ k: 'note', r: 0, t: `📝 ${nn} note${nn > 1 ? 's' : ''}` }); return r; })
     .sort((a, b) => (a.p.full_name || '').localeCompare(b.p.full_name || '')); }
 function tsOfficeView(ws) {
@@ -15744,7 +15744,7 @@ function tsOfficeView(ws) {
       <div class="f"><label>Job</label><select data-act="tso-sel" data-k="j"><option value="">All jobs</option>${jobs.map(j => `<option value="${esc(j)}" ${F.j === j ? 'selected' : ''}>${esc(tsJobName(j))}</option>`).join('')}</select></div></div></div>
   <div class="card"><div class="ts-wrap"><table class="ts-tbl"><thead><tr><th>Operative</th><th>Status</th><th class="n">Days</th><th class="n">Hours</th><th class="n">OT</th><th class="n">Gross £</th><th></th></tr></thead><tbody>
   ${rows.map(r => `<tr class="${r.fl.length ? 'flag' : ''}"><td><b>${esc(r.p.full_name || '')}</b>${r.rate ? `<span class="small"> · ${esc(r.rate.pay_type)}</span>` : ''}${r.fl.map(f => `<span class="ts-fl ${f.r ? 'r' : ''}">⚑ ${esc(f.t)}</span>`).join('')}</td><td>${tsTag(r.w.status)}${r.w.locked ? ' 🔒' : ''}</td>
-    <td class="n">${r.t.dayEq ? `${tsH(r.t.dayEq)}<span class="small"> (${r.t.full}F ${r.t.half}H)</span>` : ''}</td><td class="n">${r.t.total ? tsH(r.t.total) : ''}</td><td class="n">${r.t.ot ? tsH(r.t.ot) : ''}</td><td class="n">${r.rate && r.t.gross ? fmtGBP(r.t.gross) : ''}</td>
+    <td class="n">${r.t.dayEq ? `${tsH(r.t.dayEq)}<span class="small"> (${r.t.full}F ${r.t.half}H)</span>` : ''}</td><td class="n">${r.t.total ? tsH(r.t.total) : ''}</td><td class="n">${r.t.ot ? tsH(r.t.ot) : ''}</td><td class="n">${r.rate && r.t.gross ? fmtGBP(r.t.gross) : ''}${tsExtNote(r.t)}</td>
     <td class="ts-acts">${r.w.id ? `<a class="btn" href="#/tsweek/${esc(r.w.id)}" style="text-decoration:none">Open</a>` : ''}${r.w.status === 'submitted' && !r.w.locked ? `<button class="btn primary" data-act="tso-approve" data-id="${esc(r.w.id)}">Approve</button>` : ''}${r.w.id && ['submitted', 'approved', 'draft'].includes(r.w.status) && !r.w.locked ? `<button class="btn" data-act="tso-query" data-id="${esc(r.w.id)}">Query</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="hint">No timesheets match.</td></tr>'}
   </tbody><tfoot><tr><td colspan="2"><b>${rows.length} shown</b></td><td class="n"><b>${tsH(tot.d)}</b></td><td class="n"><b>${tsH(tot.h)}</b></td><td></td><td class="n"><b>${tot.g ? fmtGBP(tot.g) : ''}</b></td><td></td></tr></tfoot></table></div>
   ${appr.length ? `<button class="btn primary block" style="margin-top:10px" data-act="tso-apprall">✓ Approve ${appr.length} submitted without red flags</button>` : ''}
@@ -15771,33 +15771,62 @@ document.addEventListener('change', e => { const s = e.target; if (s && s.datase
 /* ---------- manager adjust (#/tsweek/<id>): auto vs adjusted, reason mandatory, both kept, history ---------- */
 async function tsAdjLoad(id, force) { const A = TS.adj; if (!force && A.id === id && A.w) return; TS.adj = { id };
   try { const [w, adj, log] = await Promise.all([sbFetch(`/rest/v1/ts_weeks?id=eq.${id}&select=*`), sbFetch(`/rest/v1/ts_adjust?week_id=eq.${id}&select=*&order=at.asc`), sbFetch(`/rest/v1/ts_log?week_id=eq.${id}&select=*&order=at.asc`), tsRatesLoad(), tsCfgLoad(), Ops.jobsTbl && Ops.jobsTbl.length ? null : loadJobsTbl()]);
-    TS.adj = { id, w: w && w[0], list: adj || [], log: log || [] }; if (!TS.adj.w) TS.adj.err = 'Timesheet not found';
+    await tsExtLoad([id]); TS.adj = { id, w: w && w[0], list: adj || [], log: log || [] }; if (!TS.adj.w) TS.adj.err = 'Timesheet not found';
     if (TS.adj.w && (TS.off.week !== TS.adj.w.week || !TS.off.rows)) tsOffLoad(TS.adj.w.week); }
   catch (e) { TS.adj = { id, err: tsErr(e) }; }
   if (route()[0] === 'tsweek') rerender(); }
-function tsWeekCalc(w, list) { const by = {}; (list || []).forEach(a => { by[a.day] = a.after; }); const rate = tsRate(w.uid, w.week); return { t: TSC.week(w, by, rate, tsCfgV()), rate, by }; }
+function tsWeekCalc(w, list) { const by = {}; (list || []).forEach(a => { by[a.day] = a.after; }); const rate = tsRate(w.uid, w.week); return { t: TSC.week(w, by, rate, tsCfgV(), tsExt(w.id)), rate, by }; }
 function tsAdjView() {
   const A = TS.adj; if (!A.w) return A.err ? `<div class="lg-msg err">${esc(A.err)}</div>` : '<p class="hint">Loading…</p>';
   const w = A.w, { t, rate } = tsWeekCalc(w, A.list), cfg = tsCfgV(), ro = w.locked || w.status === 'sent'; const fl = TS.off.rows && TS.off.week === w.week ? tsFlags(w, t) : [];
   const otTxt = l => l.length ? l.map(o => `${tsH(o.h)} h × ${o.x}`).join(' + ') : '-';
   return `<div class="card"><h2>${esc(w.name || tsName(w.uid))} · ${esc(tsWc(w.week))} ${tsTag(w.status)}${w.locked ? ' 🔒' : ''}</h2>
-    <p class="small">${rate ? `${esc(rate.pay_type)} · ${fmtGBP(rate.day_rate)}/day${rate.ot_rate ? ` · OT ${fmtGBP(rate.ot_rate)}/h` : ` · OT = day rate ÷ ${tsH(cfg.stdHours)} h × 1.5 / 2`}${+rate.travel_allow ? ` · travel ${fmtGBP(rate.travel_allow)}/day` : ''} · retention ${tsH(TSC.retPct(rate, cfg))}%` : '<b style="color:#b91c1c">No pay rate set</b> - add one on the person\'s page'}
+    <p class="small">${rate ? `${esc(rate.pay_type)} · ${fmtGBP(rate.day_rate)}/day${rate.ot_rate ? ` · OT ${fmtGBP(rate.ot_rate)}/h` : ` · OT = day rate ÷ ${tsH(cfg.stdHours)} h × 1.5 / 2`} · retention ${tsH(TSC.retPct(rate, cfg))}%` : '<b style="color:#b91c1c">No pay rate set</b> - add one on the person\'s page'}
     ${w.sign && w.sign.at ? ` · signed ${esc(fmtDate(w.sign.at.slice(0, 10)))}${w.sign.on_device_name ? ' on ' + esc(w.sign.on_device_name) + "'s phone" : ''}` : ''}${w.approved_name ? ` · approved by ${esc(w.approved_name)}` : ''}</p>
     ${w.query && w.status === 'queried' ? `<div class="lg-msg warn">Queried by ${esc(w.query.name || '')}: "${esc(w.query.note)}"</div>` : ''}
     ${fl.map(f => `<span class="ts-fl ${f.r ? 'r' : ''}">⚑ ${esc(f.t)}</span>`).join('')}
     <div class="ts-wrap" style="margin-top:8px"><table class="ts-tbl"><thead><tr><th>Day</th><th>Times · job</th><th class="n">Worked</th><th>Day value</th><th>Overtime</th><th class="n">£</th>${ro ? '' : '<th></th>'}</tr></thead><tbody>
     ${t.days.map(x => { const ch = !!x.adj; return `<tr class="${TSC.short(x.h, cfg) ? 'flag' : ''}"><td><b>${tsDay(x.date)}</b>${x.d.by && x.d.by.uid !== w.uid ? `<span class="small"><br>by ${esc(x.d.by.name || '')}</span>` : ''}</td>
-      <td>${tsDaySummary(x.d) || '-'}${TSC.travel(x.d) ? `<br><span class="tag">Travel ${tsH(TSC.travel(x.d))} h</span>` : ''}${TSC.sd(x.d) ? ` <span class="tag amber">Stand-down ${tsH(TSC.sd(x.d))} h${x.d.sd.auto ? ' (site sheet)' : ''}</span>` : ''}${x.d.note ? `<div class="ts-dnote">📝 ${esc(x.d.note)}</div>` : ''}${x.h > cfg.otAfter && !x.v.otl.length ? `<br><span class="tag">Over ${tsH(cfg.otAfter)} h - overtime? Use Change</span>` : ''}</td>
+      <td>${tsDaySummary(x.d) || '-'}${TSC.sd(x.d) ? ` <span class="tag amber">Stand-down ${tsH(TSC.sd(x.d))} h${x.d.sd.auto ? ' (site sheet)' : ''}</span>` : ''}${x.d.note ? `<div class="ts-dnote">📝 ${esc(x.d.note)}</div>` : ''}${x.h > cfg.otAfter && !x.v.otl.length ? `<br><span class="tag">Over ${tsH(cfg.otAfter)} h - overtime? Use Change</span>` : ''}</td>
       <td class="n">${tsH(x.h)}${TSC.short(x.h, cfg) ? '<span class="ts-fl">short</span>' : ''}</td>
       <td>${ch ? `<s class="small">${TSC.dvTxt(x.auto.dv)}</s> <b>${TSC.dvTxt(x.v.dv)}</b>` : TSC.dvTxt(x.v.dv)}</td><td>${ch && otTxt(x.auto.otl) !== otTxt(x.v.otl) ? `<s class="small">${otTxt(x.auto.otl)}</s> <b>${otTxt(x.v.otl)}</b>` : otTxt(x.v.otl)}</td>
       <td class="n">${x.pay ? (ch && x.autoPay.gross !== x.pay.gross ? `<s class="small">${fmtGBP(x.autoPay.gross)}</s><br><b>${fmtGBP(x.pay.gross)}</b>` : fmtGBP(x.pay.gross)) : ''}</td>${ro ? '' : `<td><button class="btn" data-act="tsa-chg" data-d="${x.date}">Change</button></td>`}</tr>`; }).join('') || '<tr><td colspan="7" class="hint">No hours this week.</td></tr>'}
-    </tbody><tfoot><tr><td colspan="2"><b>Week</b> · ${t.full} full · ${t.half} half · OT ${tsH(t.ot15)} h ×1.5 + ${tsH(t.ot2)} h ×2</td><td class="n"><b>${tsH(t.worked)}</b></td><td><b>${tsH(t.dayEq)} days</b></td><td></td><td class="n">${rate ? `<b>${fmtGBP(t.gross)}</b>${t.autoGross !== t.gross ? `<br><span class="small">was ${fmtGBP(t.autoGross)}</span>` : ''}` : ''}</td>${ro ? '' : '<td></td>'}</tr>
-    ${rate ? `<tr><td colspan="5" class="n">Retention ${tsH(t.retPct)}%</td><td class="n">−${fmtGBP(t.retention)}</td>${ro ? '' : '<td></td>'}</tr><tr><td colspan="5" class="n"><b>Net</b></td><td class="n"><b>${fmtGBP(t.net)}</b></td>${ro ? '' : '<td></td>'}</tr>` : ''}</tfoot></table></div>
+    </tbody><tfoot><tr><td colspan="2"><b>Week</b> · ${t.full} full · ${t.half} half · OT ${tsH(t.ot15)} h ×1.5 + ${tsH(t.ot2)} h ×2</td><td class="n"><b>${tsH(t.worked)}</b></td><td><b>${tsH(t.dayEq)} days</b></td><td></td><td class="n">${rate ? `<b>${fmtGBP(t.dayGross)}</b>${t.autoGross !== t.dayGross ? `<br><span class="small">was ${fmtGBP(t.autoGross)}</span>` : ''}` : ''}</td>${ro ? '' : '<td></td>'}</tr>
+    ${tsExtFoot(w, t, rate, ro)}</tfoot></table></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${w.status === 'submitted' && !w.locked ? `<button class="btn primary" data-act="tsa-approve">✓ Approve</button>` : ''}${['submitted', 'approved', 'draft'].includes(w.status) && !w.locked ? `<button class="btn" data-act="tso-query" data-id="${esc(w.id)}">Query</button>` : ''}
       ${w.locked ? `<button class="btn" data-act="tsa-unlock">🔓 Unlock (reason needed)</button>` : ''}<button class="btn" data-act="tsa-pdf">PDF</button><a class="btn" href="#/tsoffice/${esc(w.week)}" style="text-decoration:none">Back to list</a></div></div>
+  ${tsExtCard(w, ro)}
   <div class="card"><h2>History</h2>${A.list.length ? A.list.slice().reverse().map(a => `<div class="ts-hist"><b>${esc(tsDay(a.day))}</b>: ${esc(TSC.dvTxt((a.before || {}).dv))}${(a.before || {}).otl ? ' / OT ' + esc(otTxt(TSC.otl(a.before))) : ''} → <b>${esc(TSC.dvTxt(a.after.dv))} / OT ${esc(otTxt(TSC.otl(a.after)))}</b> · "${esc(a.reason)}" · ${esc(a.by_name || '')} ${esc(new Date(a.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}${a.notify ? ' · operative notified' : ''}</div>`).join('') : '<p class="hint">No changes - pay follows the hours.</p>'}
     ${(A.log || []).filter(l => l.action !== 'adjusted').map(l => `<div class="ts-hist">${esc(new Date(l.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))} · ${esc(String(l.action).replace(/_/g, ' '))}${l.by_name ? ' · ' + esc(l.by_name) : ''}${l.detail && l.detail.note ? ' · "' + esc(l.detail.note) + '"' : ''}</div>`).join('')}</div>`;
 }
+// v1.11.25 custom £ lines on the adjust screen (manager / admin only)
+function tsExtNote(t) { return t && (t.inc || t.ded) ? `<div class="small ts-extn">${t.inc ? `incl. +${fmtGBP(t.inc)}` : ''}${t.inc && t.ded ? ' · ' : ''}${t.ded ? `−${fmtGBP(t.ded)} off net` : ''}</div>` : ''; }
+function tsExtFoot(w, t, rate, ro) { const L = tsExt(w.id), td = ro ? '' : '<td></td>', row = (a, b, cls) => `<tr class="${cls || ''}"><td colspan="5" class="n">${a}</td><td class="n">${b}</td>${td}</tr>`;
+  if (!L.length) return rate ? row(`Retention ${tsH(t.retPct)}%`, `−${fmtGBP(t.retention)}`) + row('<b>Net</b>', `<b>${fmtGBP(t.net)}</b>`) : '';
+  const inc = L.filter(x => x.kind === 'inc'), ded = L.filter(x => x.kind === 'ded');
+  return inc.map(x => row(`<span class="tag green">Increase</span> ${esc(x.reason)}`, `+${fmtGBP(x.amount)}`, 'ts-ext')).join('')
+    + (inc.length ? row('<b>Gross</b> (incl. increases)', `<b>${fmtGBP(t.gross)}</b>`) : '')
+    + (rate ? row(`Retention ${tsH(t.retPct)}%`, `−${fmtGBP(t.retention)}`) + (t.cisPct ? row(`CIS ${tsH(t.cisPct)}%`, `−${fmtGBP(t.cis)}`) : '') + row(ded.length ? 'Net before deductions' : '<b>Net payable</b>', ded.length ? fmtGBP(t.netBefore) : `<b>${fmtGBP(t.payable)}</b>`) : '')
+    + ded.map(x => row(`<span class="tag red">Deduction</span> ${esc(x.reason)}`, `−${fmtGBP(x.amount)}`, 'ts-ext')).join('')
+    + (ded.length && rate ? row('<b>Final net payable</b>', `<b>${fmtGBP(t.payable)}</b>`) : ''); }
+function tsExtCard(w, ro) { const L = tsExt(w.id);
+  return `<div class="card" id="ts-extcard"><h2 style="display:flex;align-items:center;gap:8px">± Own increase / deduction${ro ? '' : `<button class="btn sm" data-act="tsx-add" style="margin-left:auto">+ Add</button>`}</h2>
+    <p class="small" style="margin:0 0 6px">Managers / admin only. Any £ amount with a reason. Increases are added to the gross (retention and CIS then apply); deductions come off the final net. The operative never sees these.</p>
+    ${L.map(x => `<div class="ts-hist ts-extl" data-id="${esc(x.id)}"><b style="color:${x.kind === 'inc' ? '#15803d' : '#b91c1c'}">${x.kind === 'inc' ? 'Increase' : 'Deduction'} ${tsExtTxt(x)}</b> · "${esc(x.reason)}" · ${esc(x.by_name || '')} ${esc(new Date(x.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}${ro ? '' : ` <button class="ts-linkb" data-act="tsx-del" data-id="${esc(x.id)}" style="color:#b91c1c">Remove</button>`}</div>`).join('') || '<p class="hint">None.</p>'}</div>`; }
+async function tsExtAdd(w) { let kind = 'inc';
+  const r = await modal(`<h3>Own increase or deduction</h3><p class="small">${esc(w.name || tsName(w.uid))} · ${esc(tsWc(w.week))}</p>
+    <div class="f"><label>Type</label><div class="seg" id="tsx-k"><button type="button" data-v="inc" class="on">+ Increase</button><button type="button" data-v="ded">− Deduction</button></div></div>
+    <div class="f"><label>Amount £</label><input id="tsx-a" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="e.g. 50.00"></div>
+    <div class="f"><label>Reason (required)</label><input id="tsx-r" maxlength="200" placeholder="e.g. Bonus for finishing the ridge / Van damage excess"></div>
+    <p class="small" id="tsx-h">Added to the gross - retention and CIS then apply.</p>
+    <button class="btn primary" id="tsx-ok">Save</button><button class="btn" data-r="">Cancel</button>`,
+    (bg, close) => { bg.querySelectorAll('#tsx-k button').forEach(b => b.addEventListener('click', () => { kind = b.dataset.v; bg.querySelectorAll('#tsx-k button').forEach(x => x.classList.toggle('on', x === b)); bg.querySelector('#tsx-h').textContent = kind === 'inc' ? 'Added to the gross - retention and CIS then apply.' : 'Taken off the final net (after retention and CIS).'; }));
+      bg.querySelector('#tsx-ok').addEventListener('click', () => { const a = TSC.r2(TSC.num(bg.querySelector('#tsx-a').value)), rs = bg.querySelector('#tsx-r').value.trim(); if (!(a > 0)) return toast('Enter the amount'); if (rs.length < 3) return toast('Write the reason'); close({ kind, a, rs }); }); });
+  if (!r) return false; try { await tsRpc('ts_extra_add', { p_week: w.id, p_kind: r.kind, p_amount: r.a, p_reason: r.rs }); toast(`${r.kind === 'inc' ? 'Increase' : 'Deduction'} ${fmtGBP(r.a)} saved ✓`); await tsExtLoad([w.id]); return true; } catch (e) { toast(tsErr(e), 4500); return false; } }
+Object.assign(ACTIONS, {
+  async 'tsx-add'(a) { const w = (TS.adj.w && (!a.dataset.id || TS.adj.w.id === a.dataset.id)) ? TS.adj.w : (TS.off.rows || []).find(x => x.id === a.dataset.id); if (!w) return; if (await tsExtAdd(w)) { if (route()[0] === 'tsweek') tsAdjLoad(TS.adj.id, true); else rerender(true); } },
+  async 'tsx-del'(a) { if (!await confirmBox('Remove this line?', 'It is taken out of the pay. The removal is kept in the history.', 'Remove', true)) return; try { await tsRpc('ts_extra_del', { p_id: a.dataset.id }); toast('Removed'); for (const k of Object.keys(TS.ext)) TS.ext[k] = TS.ext[k].filter(x => x.id !== a.dataset.id); if (route()[0] === 'tsweek') tsAdjLoad(TS.adj.id, true); else rerender(true); } catch (e) { toast(tsErr(e), 4500); } },
+});
 Object.assign(ACTIONS, {
   async 'tsa-chg'(a) { const A = TS.adj, w = A.w, date = a.dataset.d; const { t } = tsWeekCalc(w, A.list); const x = t.days.find(y => y.date === date); if (!x) return; let dv = x.v.dv; let otl = x.v.otl.map(o => Object.assign({}, o)); if (!otl.length) otl = [];
     const r = await modal(`<h3>Change ${esc(tsDay(date))}</h3><p class="small">Worked ${tsH(x.h)} h → automatically <b>${TSC.dvTxt(x.auto.dv)}</b>. The original stays on record.</p>
@@ -15837,47 +15866,69 @@ function tsPdfNotes(w, t, rate, list) { const N = [], by = {}; (list || []).forE
     if (x.v.dv === 'half') N.push(`${dn} - half day`); else if (x.v.dv === 'none' && x.h > 0) N.push(`${dn} - not paid`);
     if (x.d.note && String(x.d.note).trim()) N.push(`${dn} - ${String(x.d.note).trim()}`);
     x.v.otl.filter(o => o.h > 0).forEach(o => N.push(`${dn} - overtime ${tsH(o.h)} h at ${o.x === 2 ? 'double time' : 'time and a half'}`));
-    if (TSC.travel(x.d)) N.push(`${dn} - travel ${tsH(TSC.travel(x.d))} h`);
     if (TSC.sd(x.d)) N.push(`${dn} - stand-down ${tsH(TSC.sd(x.d))} h`);
     if ((x.d.e || []).some(e => TSC.entH(e) > 0 && !e.job && e.jt)) N.push(`${dn} - job typed in by the operative`);
     if (by[x.date]) N.push(`${dn} - changed by the office: ${by[x.date].reason || ''}`); });
   return N; }
-function tsPdf(w, list) { const { t, rate } = tsWeekCalc(w, list); const cfg = tsCfgV(); const k = dcPdfKit('Timesheet'); const { doc, tx, M, W, st } = k; const nm = w.name || tsName(w.uid);
-  // page 1 - the existing ARS layout
-  k.font(22, 'bold', [20, 20, 20]); doc.text('Timesheet', M, 20);
-  if (st.logo && st.logoW) { const lw = Math.min(58, st.logoW * 25.4 / 150), lh = lw * st.logoH / st.logoW; try { doc.addImage(st.logo, k.fmtImg(st.logo), W - M - lw, 9, lw, lh, 'logo', 'FAST'); } catch (e) { } }
-  else { k.font(13, 'bold', k.NAVY); doc.text(tx(st.company || 'Absolute Roofing Solutions'), W - M, 18, { align: 'right' }); }
-  k.font(9, 'bold', [20, 20, 20]); doc.text("Employee's Name", M, 38); doc.text('Week Commencing', W - M, 38, { align: 'right' });
-  k.font(9, 'normal', [20, 20, 20]); doc.text(tx(nm), M, 43); doc.text(tsWcLong(w.week), W - M, 43, { align: 'right' });
-  const by = {}; t.days.forEach(x => { by[x.date] = x; });
-  const body = TSC.dates(w.week).map((date, i) => { const x = by[date], es = x ? (x.d.e || []).filter(e => e.s || e.f || TSC.entH(e) > 0) : [];
-    return [`${TS_DN[i]}\n${tsDmy(date)}`, es.map(tsPdfJob).join('\n'), es.map(e => e.s || '').join('\n'), es.map(e => e.f || '').join('\n')].map(tx); });
+// v1.11.25 (Matt: "less going on ... fitting this onto one page of the PDF maybe adding notes to the day"): ONE A4 page per person, laid out like
+// the Absolute system sheet (Employee's Name, Week Commencing, Date / Project / Start / End rows, Total) with each day's notes on that day's row
+// (weather stand-down, half day, overtime, office changes, the operative's note). Small pay box at the bottom (manager / admin screens only).
+// Long text is cut short and the page is redrawn smaller until it fits one page - it never spills onto page 2.
+const tsCut = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1).trimEnd() + '...' : s; };
+function tsPdfDayNotes(x, d, adj) { const N = [];
+  if (x) { if (x.v.dv === 'half') N.push('Half day'); else if (x.v.dv === 'none' && x.h > 0) N.push('Not paid');
+    x.v.otl.filter(o => o.h > 0).forEach(o => N.push(`OT ${tsH(o.h)} h x${o.x}`));
+    if (TSC.sd(x.d)) N.push(`Weather stand-down ${tsH(TSC.sd(x.d))} h${x.d.sd && x.d.sd.auto ? ' (site sheet)' : ''}`);
+    if ((x.d.e || []).some(e => TSC.entH(e) > 0 && !e.job && e.jt)) N.push('Job typed in'); }
+  if (adj) N.push(`Office: ${TSC.dvTxt((adj.before || {}).dv)} to ${TSC.dvTxt(adj.after.dv)}${adj.reason ? ' - ' + adj.reason : ''}`);
+  const own = d && d.note && String(d.note).trim(); return { tags: N.join(' · '), note: own || '' }; }
+function tsPdfDraw(w, list, L) { const { t, rate } = tsWeekCalc(w, list); const k = dcPdfKit('Timesheet'); const { doc, tx, M, W, st } = k; const nm = w.name || tsName(w.uid), BLK = [20, 20, 20];
+  k.font(18, 'bold', BLK); doc.text('Timesheet', M, 17); k.font(9, 'normal', k.GREY); doc.text(tx(st.company || 'Absolute Roofing Solutions'), W - M, 16, { align: 'right' });
+  k.font(8.5, 'bold', BLK); doc.text("Employee's Name", M, 26); doc.text('Week Commencing', W - M, 26, { align: 'right' });
+  k.font(10, 'normal', BLK); doc.text(tx(nm), M, 31); doc.text(tsWcLong(w.week), W - M, 31, { align: 'right' });
+  const by = {}, ab = {}; t.days.forEach(x => { by[x.date] = x; }); (list || []).forEach(a => { ab[a.day] = a; });
+  const body = TSC.dates(w.week).map((date, i) => { const x = by[date], d = (w.days || {})[date], es = x ? (x.d.e || []).filter(e => e.s || e.f || TSC.entH(e) > 0) : [];
+    const sh = es.slice(0, L.ent), more = es.length - sh.length, n = tsPdfDayNotes(x, d, ab[date]);
+    const notes = [n.tags, n.note ? '"' + n.note + '"' : ''].filter(Boolean).join(' - ');
+    return [`${TS_DN[i].slice(0, 3)} ${tsDmy(date).slice(0, 5)}`, sh.map(e => tsCut(tsPdfJob(e), L.job)).join('\n') + (more ? `\n+${more} more` : ''), sh.map(e => e.s || '').join('\n'), sh.map(e => e.f || '').join('\n'),
+      x ? TSC.dvTxt(x.v.dv) + (x.h > 0 ? `\n${tsH(x.h)} h` : '') : '', tsCut(notes, L.note)].map(tx); });
   const total = rate ? fmtGBP(t.gross) : (t.days.length ? tsH(t.total) + ' h (no pay rate set)' : fmtGBP(0));
-  doc.autoTable({ startY: 52, margin: { left: M, right: M }, theme: 'grid', head: [['Date', 'Project', 'Start Time', 'End Time']], body, foot: [['', '', 'Total', tx(total)]],
-    styles: { font: 'helvetica', fontSize: 9, cellPadding: { top: 4.2, bottom: 4.2, left: 3, right: 3 }, textColor: [30, 30, 30], lineColor: [221, 221, 221], lineWidth: 0.25, valign: 'middle', minCellHeight: 17 },
-    headStyles: { fillColor: [255, 255, 255], textColor: [20, 20, 20], fontStyle: 'bold', minCellHeight: 9 }, footStyles: { fillColor: [255, 255, 255], textColor: [20, 20, 20], fontStyle: 'bold', minCellHeight: 9 },
-    alternateRowStyles: { fillColor: [242, 242, 242] }, bodyStyles: { fillColor: [255, 255, 255] },
-    columnStyles: { 0: { cellWidth: 30, halign: 'center' }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 30 }, 3: { cellWidth: 30 } } });
-  k.y = doc.lastAutoTable.finalY + 9; const notes = tsPdfNotes(w, t, rate, list);
-  if (notes.length) { k.need(14); k.font(10, 'bold', [20, 20, 20]); doc.text('Notes', M, k.y); k.y += 5.5; notes.forEach(n => { k.need(6); k.font(9, 'normal', [30, 30, 30]); doc.text(tx(n), M, k.y); k.y += 4.6; }); k.y += 3; }
-  if (w.sign && w.sign.sig) { k.need(34); k.font(8.5, 'bold', [20, 20, 20]); doc.text(tx('Signed by the operative: these hours are correct'), M, k.y); k.y += 2; try { doc.addImage(w.sign.sig, 'PNG', M, k.y, 54, 19); } catch (e) { } k.y += 22; k.font(8, 'normal', k.GREY); doc.text(tx(`${w.sign.name || ''} - ${w.sign.at ? new Date(w.sign.at).toLocaleString('en-GB') : ''}${w.sign.on_device_name ? ' (signed on ' + w.sign.on_device_name + "'s phone)" : ''}`), M, k.y); k.y += 5; }
-  else if (!t.days.length) { k.font(9, 'bold', k.RED); doc.text('No time submitted for this week', M, k.y); k.y += 6; }
-  // page 2 - office pay detail (this PDF is only made on manager / admin screens)
-  if (t.days.length) { doc.addPage(); k.y = k.TOP; k.h2('Pay detail (office)');
-    k.kv([['Pay type', rate ? rate.pay_type : 'No pay rate set'], ['Day rate', rate ? fmtGBP(rate.day_rate) : ''], ['Status', tsStTag(w.status)[1]], ['Approved', w.approved_name ? `${w.approved_name} ${w.approved_at ? fmtDate(w.approved_at.slice(0, 10)) : ''}` : '']]);
-    k.table({ head: [['Day', 'Break', 'Worked h', 'Day value', 'Overtime', 'Travel', 'Pay']], body: t.days.map(x => [tsDay(x.date), (x.d.e || []).map(e => (+e.b || 0) + ' min').join('\n'), tsH(x.h), TSC.dvTxt(x.v.dv) + (x.adj ? ' *' : ''), x.v.otl.map(o => `${tsH(o.h)}h x${o.x}`).join(', '), TSC.travel(x.d) ? tsH(TSC.travel(x.d)) + ' h' : '', x.pay ? fmtGBP(x.pay.gross) : '']).map(r => r.map(tx)) });
-    k.kv([['Days', `${tsH(t.dayEq)} (${t.full} full, ${t.half} half)`], ['Overtime', `${tsH(t.ot15)} h x1.5, ${tsH(t.ot2)} h x2`], ['Travel', `${tsH(t.travelH)} h (${t.travelDays} days)`], ['Total (gross)', rate ? fmtGBP(t.gross) : ''], ['Retention', rate ? `${tsH(t.retPct)}% = ${fmtGBP(t.retention)}${rate.pay_type === 'CIS' && t.after ? ' (on gross less CIS)' : ' (on the gross)'}` : ''], ['Net after retention', rate ? fmtGBP(t.net) : ''],
-      ...(rate && rate.pay_type === 'CIS' ? [['Deduction order', TS_ORD(t.after)], ['CIS', `${tsH(t.cisPct)}% = ${fmtGBP(t.cis)}${t.after ? ' (on the gross)' : ' (on gross less retention)'}`], ['Net payable', fmtGBP(t.payable)]] : [])]);
-    if ((list || []).length) { k.h2('Changes by the office (* above)'); k.table({ head: [['Day', 'Before', 'After', 'Reason', 'By']], body: list.map(a => [tsDay(a.day), TSC.dvTxt((a.before || {}).dv), `${TSC.dvTxt(a.after.dv)}${TSC.otH(TSC.otl(a.after)) ? ' + OT ' + tsH(TSC.otH(TSC.otl(a.after))) + 'h' : ''}`, a.reason, `${a.by_name || ''} ${fmtDate(String(a.at).slice(0, 10))}`].map(tx)) }); } }
-  return k.finish(`Timesheet - ${nm} - ${tsWcLong(w.week)}`); }
+  doc.autoTable({ startY: 36, margin: { left: M, right: M, bottom: 14 }, theme: 'grid', head: [['Date', 'Project', 'Start', 'End', 'Day', 'Notes']], body,
+    foot: [['', `${tsH(t.dayEq)} days (${t.full} full, ${t.half} half) · ${tsH(t.worked)} h${t.ot ? ` · OT ${tsH(t.ot)} h` : ''}${t.sdH ? ` · stand-down ${tsH(t.sdH)} h` : ''}`, '', 'Total', tx(total), '']],
+    styles: { font: 'helvetica', fontSize: L.fs, cellPadding: { top: L.pad, bottom: L.pad, left: 2, right: 2 }, textColor: [30, 30, 30], lineColor: [210, 210, 210], lineWidth: 0.25, valign: 'middle', minCellHeight: L.minH, overflow: 'linebreak' },
+    headStyles: { fillColor: [255, 255, 255], textColor: BLK, fontStyle: 'bold', minCellHeight: 7 }, footStyles: { fillColor: [255, 255, 255], textColor: BLK, fontStyle: 'bold', minCellHeight: 7, fontSize: L.fs - 0.5 },
+    alternateRowStyles: { fillColor: [244, 244, 244] }, bodyStyles: { fillColor: [255, 255, 255] },
+    columnStyles: { 0: { cellWidth: 19, fontStyle: 'bold' }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 13, halign: 'center' }, 3: { cellWidth: 13, halign: 'center' }, 4: { cellWidth: 17, halign: 'center' }, 5: { cellWidth: L.nw, fontSize: L.fs - 1.2, textColor: [55, 55, 55] } } });
+  let y = doc.lastAutoTable.finalY + 5;
+  // compact pay box (left) + sign-off (right)
+  const ex = tsExt(w.id), rows = [];
+  if (!t.days.length) rows.push(['No time submitted', fmtGBP(0)]);
+  else if (!rate) rows.push(['Pay rate', 'not set']);
+  else { if (ex.some(x => x.kind === 'inc')) { rows.push(['Day pay' + (t.otPay ? ' incl. OT' : ''), fmtGBP(t.dayGross)]); ex.filter(x => x.kind === 'inc').forEach(x => rows.push(['+ ' + tsCut(x.reason, 38), '+' + fmtGBP(x.amount)])); }
+    rows.push([`Gross (${rate.pay_type}, ${fmtGBP(rate.day_rate)}/day)`, fmtGBP(t.gross)], [`Retention ${tsH(t.retPct)}%`, '-' + fmtGBP(t.retention)]);
+    if (rate.pay_type === 'CIS') rows.push([`CIS ${tsH(t.cisPct)}%`, '-' + fmtGBP(t.cis)]);
+    ex.filter(x => x.kind === 'ded').forEach(x => rows.push(['- ' + tsCut(x.reason, 38), '-' + fmtGBP(x.amount)]));
+    rows.push([`Net payable${rate.pay_type === 'PAYE' ? ' (before tax / NI)' : ''}`, fmtGBP(t.payable)]); }
+  doc.autoTable({ startY: y, margin: { left: M, right: W / 2 + 2, bottom: 14 }, theme: 'grid', body: rows.map(r => r.map(tx)), styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.3, lineColor: [210, 210, 210], lineWidth: 0.2, textColor: [30, 30, 30] },
+    columnStyles: { 1: { halign: 'right', cellWidth: 26 } }, didParseCell: c => { if (c.row.index === rows.length - 1 || /^Gross/.test(rows[c.row.index][0])) c.cell.styles.fontStyle = 'bold'; } });
+  const yL = doc.lastAutoTable.finalY; let yr = y + 3; const xr = W / 2 + 6;
+  k.font(8, 'bold', BLK); doc.text('Approved', xr, yr); k.font(8, 'normal', BLK); doc.text(tx(w.approved_name ? `${w.approved_name}${w.approved_at ? ' - ' + fmtDate(w.approved_at.slice(0, 10)) : ''}` : 'Not approved yet'), xr + 22, yr); yr += 5;
+  if (w.sign && (w.sign.sig || w.sign.at)) { k.font(8, 'bold', BLK); doc.text('Signed', xr, yr); k.font(8, 'normal', BLK);
+    doc.text(tx(tsCut(`${w.sign.name || ''}${w.sign.at ? ' - ' + new Date(w.sign.at).toLocaleDateString('en-GB') : ''}${w.sign.on_device_name ? ' (on ' + w.sign.on_device_name + "'s phone)" : ''}`, 52)), xr + 22, yr);
+    if (w.sign.sig) { try { doc.addImage(w.sign.sig, 'PNG', xr + 22, yr + 1.5, 36, 12); } catch (e) { } } }
+  return { k, nm, bottom: Math.max(yL, yr + 14) }; }
+function tsPdf(w, list) { const LV = [{ fs: 9, pad: 2.6, minH: 13, ent: 4, job: 60, note: 260, nw: 62 }, { fs: 8, pad: 1.6, minH: 10, ent: 3, job: 48, note: 170, nw: 60 }, { fs: 7, pad: 1, minH: 7, ent: 2, job: 38, note: 95, nw: 58 }];
+  let r; for (const L of LV) { r = tsPdfDraw(w, list, L); if (r.k.doc.getNumberOfPages() === 1 && r.bottom <= r.k.H - 13) break; }
+  while (r.k.doc.getNumberOfPages() > 1) r.k.doc.deletePage(r.k.doc.getNumberOfPages());   // never a page 2
+  r.k._links = []; return r.k.finish(`Timesheet - ${r.nm} - ${tsWcLong(w.week)}`); }
 // people with no time for a finished week (from Friday): office flag + a £0.00 timesheet in the accounts pack, like the existing system
 const tsNoTime = (r, ws) => todayISO() >= TSC.addDays(ws, 4) && (!r.w.id || (!r.t.days.length && ['draft', 'none'].includes(r.w.status)));
 
 /* ---------- send to accounts (#/tssend/<week>): xlsx (PAYE + CIS tabs) + csv + signed PDFs; locks the weeks ---------- */
 async function tsBatchesLoad(ws) { try { TS.batches = { ws, list: await sbFetch(`/rest/v1/ts_batches?week=eq.${ws}&select=*&order=sent_at.desc`) || [] }; } catch (e) { TS.batches = { ws, list: [] }; } if (route()[0] === 'tssend') rerender(); }
 function tsPayRows(ws) { return tsOffRows().filter(r => r.w.status === 'approved' && !r.w.locked && r.rate); }
-function tsPayLine(r) { const t = r.t, q = r.rate; return { name: r.p.full_name || r.w.name, type: q.pay_type, full: t.full, half: t.half, dayEq: t.dayEq, dayRate: TSC.num(q.day_rate), basic: TSC.r2(t.base), ot15: t.ot15, ot2: t.ot2, otPay: TSC.r2(t.otPay), travDays: t.travelDays, travPay: TSC.r2(t.trPay), gross: TSC.r2(t.gross), retPct: t.retPct, ret: t.retention, net: t.net, utr: q.cis_utr || '', cis: q.pay_type === 'CIS' ? (q.cis_rate == null ? 20 : TSC.num(q.cis_rate)) : '', ...(() => { const d = TSC.deduct(t.gross, t.retPct, q.pay_type === 'CIS' ? (q.cis_rate == null ? 20 : TSC.num(q.cis_rate)) : 0, TSC.retAfter(q, tsCfgV())); return { ret: d.ret, cisAmt: q.pay_type === 'CIS' ? d.cis : '', payable: d.net, net: TSC.r2(t.gross - d.ret), ord: q.pay_type === 'CIS' ? TS_ORD(TSC.retAfter(q, tsCfgV())) : '' }; })(), adj: (TS.off.adjList || []).filter(a => a.week_id === r.w.id).length }; }
-const TS_COLS = [['Name', 'name'], ['Pay type', 'type'], ['Full days', 'full'], ['Half days', 'half'], ['Day equivalent', 'dayEq'], ['Day rate £', 'dayRate'], ['Basic £', 'basic'], ['OT 1.5x hours', 'ot15'], ['OT 2x hours', 'ot2'], ['OT £', 'otPay'], ['Travel days', 'travDays'], ['Travel £', 'travPay'], ['Gross £', 'gross'], ['Retention %', 'retPct'], ['Retention £', 'ret'], ['Net after retention £', 'net'], ['CIS UTR', 'utr'], ['CIS rate %', 'cis'], ['CIS deduction £', 'cisAmt'], ['Net payable £ (after retention + CIS; PAYE before tax/NI)', 'payable'], ['Office changes', 'adj'], ['Deduction order', 'ord']];
+function tsPayLine(r) { const t = r.t, q = r.rate; return { name: r.p.full_name || r.w.name, type: q.pay_type, full: t.full, half: t.half, dayEq: t.dayEq, dayRate: TSC.num(q.day_rate), basic: TSC.r2(t.base), ot15: t.ot15, ot2: t.ot2, otPay: TSC.r2(t.otPay), inc: t.inc || 0, ded: t.ded || 0, gross: TSC.r2(t.gross), retPct: t.retPct, ret: t.retention, net: t.net, utr: q.cis_utr || '', cis: q.pay_type === 'CIS' ? (q.cis_rate == null ? 20 : TSC.num(q.cis_rate)) : '', ...(() => { const d = TSC.deduct(t.gross, t.retPct, q.pay_type === 'CIS' ? (q.cis_rate == null ? 20 : TSC.num(q.cis_rate)) : 0, TSC.retAfter(q, tsCfgV())); return { ret: d.ret, cisAmt: q.pay_type === 'CIS' ? d.cis : '', payable: TSC.r2(d.net - (t.ded || 0)), net: TSC.r2(t.gross - d.ret), ord: q.pay_type === 'CIS' ? TS_ORD(TSC.retAfter(q, tsCfgV())) : '' }; })(), adj: (TS.off.adjList || []).filter(a => a.week_id === r.w.id).length }; }
+const TS_COLS = [['Name', 'name'], ['Pay type', 'type'], ['Full days', 'full'], ['Half days', 'half'], ['Day equivalent', 'dayEq'], ['Day rate £', 'dayRate'], ['Basic £', 'basic'], ['OT 1.5x hours', 'ot15'], ['OT 2x hours', 'ot2'], ['OT £', 'otPay'], ['Increases £', 'inc'], ['Gross £', 'gross'], ['Retention %', 'retPct'], ['Retention £', 'ret'], ['Net after retention £', 'net'], ['CIS UTR', 'utr'], ['CIS rate %', 'cis'], ['CIS deduction £', 'cisAmt'], ['Deductions £ (off the final net)', 'ded'], ['Net payable £ (after retention + CIS and deductions; PAYE before tax/NI)', 'payable'], ['Office changes', 'adj'], ['Deduction order', 'ord']];
 function tsFiles(ws, rows) { const L = rows.map(tsPayLine); const tab = typ => { const xs = L.filter(l => l.type === typ); const tot = k => TSC.r2(xs.reduce((n, l) => n + (+l[k] || 0), 0));
     return [TS_COLS.map(c => c[0]), ...xs.map(l => TS_COLS.map(c => l[c[1]])), ['TOTAL', '', tot('full'), tot('half'), tot('dayEq'), '', tot('basic'), tot('ot15'), tot('ot2'), tot('otPay'), tot('travDays'), tot('travPay'), tot('gross'), '', tot('ret'), tot('net'), '', '', tot('cisAmt'), tot('payable'), '', '']]; };
   const xlsx = xlsxBlob([{ name: 'PAYE', rows: tab('PAYE') }, { name: 'CIS', rows: tab('CIS') }, { name: 'Notes', rows: [['ARS payroll - ' + tsWc(ws)], ['Half day = more than 0 and up to ' + tsCfgV().halfMax + ' h worked; full day = more than that.'], ['OT £ = hours x (day rate / ' + tsCfgV().stdHours + ' h) x 1.5 or 2, unless the person has their own OT rate.'], ['Retention: company default ' + tsCfgV().retentionPct + '%, per-person overrides applied.'], ['Gross is before PAYE tax / NI and before the CIS deduction.']] }]);
@@ -15929,15 +15980,14 @@ Object.assign(ACTIONS, {
 function tsPayFields(q, cfg) { q = q || {}; const typ = q.pay_type || 'CIS';
   return `<div class="row2"><div class="f"><label>Pay type</label><select id="tsp-type"><option value="CIS" ${typ === 'CIS' ? 'selected' : ''}>CIS (subcontractor)</option><option value="PAYE" ${typ === 'PAYE' ? 'selected' : ''}>PAYE (employed)</option></select></div>
     <div class="f"><label>Day rate £</label><input id="tsp-day" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(q.day_rate ?? '')}" placeholder="e.g. 180"></div></div>
-    <div class="row2"><div class="f"><label>Travel allowance £/day (when tagged)</label><input id="tsp-tr" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(q.travel_allow ?? '')}" placeholder="0"></div>
-    <div class="f"><label>Own OT rate £/hour (optional)</label><input id="tsp-ot" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(q.ot_rate ?? '')}" placeholder="blank = day rate ÷ ${esc(cfg.stdHours)} h × 1.5 / 2"></div></div>
+    <div class="row2"><div class="f"><label>Own OT rate £/hour (optional)</label><input id="tsp-ot" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(q.ot_rate ?? '')}" placeholder="blank = day rate ÷ ${esc(cfg.stdHours)} h × 1.5 / 2"></div></div>
     <div class="row2"><div class="f"><label>Retention % (blank = company ${esc(cfg.retentionPct)}%)</label><input id="tsp-ret" type="number" inputmode="decimal" step="0.5" min="0" max="100" value="${esc(q.retention_pct ?? '')}" placeholder="${esc(cfg.retentionPct)}"></div>
     <div class="f"><label>Effective from</label><input id="tsp-from" type="date" value="${esc(q.effective_from || todayISO())}"></div></div>
     <div class="f"><label>Deduction order</label><select id="tsp-rac"><option value="" ${q.ret_after_cis == null ? 'selected' : ''}>Company default (${TS_ORD(cfg.retAfterCis)})</option><option value="0" ${q.ret_after_cis === false ? 'selected' : ''}>Retention then CIS - retention on the gross, CIS on what's left</option><option value="1" ${q.ret_after_cis === true ? 'selected' : ''}>CIS then retention - CIS on the gross, retention on what's left</option></select></div>
     <div class="row2 tsp-cis"><div class="f"><label>CIS UTR</label><input id="tsp-utr" value="${esc(q.cis_utr || '')}" inputmode="numeric" maxlength="10"></div><div class="f"><label>CIS deduction %</label><select id="tsp-cisr">${[20, 30, 0].map(v => `<option value="${v}" ${(q.cis_rate == null ? 20 : +q.cis_rate) === v ? 'selected' : ''}>${v}%${v === 0 ? ' (gross status)' : v === 30 ? ' (unverified)' : ''}</option>`).join('')}</select></div></div>`; }
 function tsPayRead(bg, uid) { const v = id => (bg.querySelector('#' + id) || {}).value; const day = v('tsp-day'); if (day === '' || day == null) return null;
   const n = (x, nul) => x === '' || x == null ? (nul ? null : 0) : TSC.r2(TSC.num(x)); const typ = v('tsp-type') === 'PAYE' ? 'PAYE' : 'CIS';
-  return { uid, pay_type: typ, day_rate: n(day), travel_allow: n(v('tsp-tr')), ot_rate: n(v('tsp-ot'), true), retention_pct: n(v('tsp-ret'), true), effective_from: v('tsp-from') || todayISO(), cis_utr: typ === 'CIS' ? (v('tsp-utr') || '').replace(/\D/g, '').slice(0, 10) || null : null, cis_rate: typ === 'CIS' ? n(v('tsp-cisr')) : null, ret_after_cis: v('tsp-rac') === '1' ? true : v('tsp-rac') === '0' ? false : null }; }
+  return { uid, pay_type: typ, day_rate: n(day), travel_allow: TSC.num(((TS.rates || {})[uid] || {}).travel_allow),   /* v1.11.25: no longer shown or used; any stored value is kept */ ot_rate: n(v('tsp-ot'), true), retention_pct: n(v('tsp-ret'), true), effective_from: v('tsp-from') || todayISO(), cis_utr: typ === 'CIS' ? (v('tsp-utr') || '').replace(/\D/g, '').slice(0, 10) || null : null, cis_rate: typ === 'CIS' ? n(v('tsp-cisr')) : null, ret_after_cis: v('tsp-rac') === '1' ? true : v('tsp-rac') === '0' ? false : null }; }
 async function tsPaySave(row, note, noPhone) { if (row) { if (!(row.day_rate > 0)) throw new Error('Enter the day rate'); if (row.retention_pct != null && (row.retention_pct < 0 || row.retention_pct > 100)) throw new Error('Retention must be 0-100%');
     await sbFetch('/rest/v1/pay_rates?on_conflict=uid', { method: 'POST', body: [Object.assign({}, row, { note: note || null })], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }); }
   if (noPhone != null) await sbFetch('/rest/v1/ts_people?on_conflict=uid', { method: 'POST', body: [{ uid: (row && row.uid) || noPhone.uid, no_phone: !!noPhone.on }], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } });
@@ -15953,7 +16003,7 @@ async function tsPayModal(uid) { await Promise.all([tsRatesLoad(true), tsCfgLoad
 // edit operative: "💷 Pay" on the Manage modal
 { const _om = opManage; opManage = async function (id) { if (!tsAdm()) return _om(id); TS.omFor = id; try { return await _om(id); } finally { TS.omFor = null; } }; }
 { const _md = modal; modal = function (html, setup) { if (TS.omFor && /data-r="assign"/.test(html) && /data-r="remove"/.test(html)) { const id = TS.omFor; TS.omFor = null;
-    const h2 = html.replace('<button class="btn" data-r="">Close</button>', '<button class="btn" data-r="tspay" id="ts-paybtn">💷 Pay (rate, PAYE / CIS, OT, travel, retention)</button><button class="btn" data-r="">Close</button>');
+    const h2 = html.replace('<button class="btn" data-r="">Close</button>', '<button class="btn" data-r="tspay" id="ts-paybtn">💷 Pay (rate, PAYE / CIS, OT, retention)</button><button class="btn" data-r="">Close</button>');
     return _md(h2, setup).then(r => { if (r === 'tspay') { tsPayModal(id); return null; } return r; }); } return _md(html, setup); }; }
 // add operative: Pay fields on the Add form, saved straight after the account is created
 { const _ot = opsTeamCard; opsTeamCard = function () { const h = _ot(); if (!tsAdm()) return h; tsCfgLoad(); const i = h.indexOf('data-act="op-add"'); if (i < 0) return h; const j = h.lastIndexOf('<button', i);
@@ -15967,7 +16017,7 @@ async function tsPayModal(uid) { await Promise.all([tsRatesLoad(true), tsCfgLoad
   if (!TS.rates) { tsRatesLoad().then(() => { if (route()[0] === 'person' || /person|team/.test(location.hash)) rerender(); }); }
   const q = TS.rates && TS.rates[uid], cfg = tsCfgV(), np = TS.people && TS.people[uid] && TS.people[uid].no_phone; const log = (TS.rlog || []).filter(l => l.uid === uid).slice(0, 5);
   return `<div class="card ts-pay" id="ts-paycard"><h2>💷 Pay <span class="small">(managers / admin only)</span><button class="btn sm" data-act="ts-pay" data-id="${esc(uid)}" style="margin-left:auto">${q ? 'Change' : 'Set pay'}</button></h2>
-    ${q ? `<p><b>${esc(q.pay_type)}</b> · ${fmtGBP(q.day_rate)}/day · OT ${q.ot_rate != null ? fmtGBP(q.ot_rate) + '/h' : 'day rate ÷ ' + tsH(cfg.stdHours) + ' h × 1.5 / 2'}${+q.travel_allow ? ' · travel ' + fmtGBP(q.travel_allow) + '/day' : ''} · retention ${tsH(TSC.retPct(q, cfg))}%${q.retention_pct != null ? ' (own)' : ' (company)'}${q.pay_type === 'CIS' ? ` · CIS ${q.cis_rate == null ? 20 : +q.cis_rate}%${q.cis_utr ? ' · UTR ' + esc(q.cis_utr) : ''}` : ''} · from ${esc(fmtDate(q.effective_from))}${np ? ' · <span class="tag navy">No phone</span>' : ''}</p>` : '<p class="hint">No pay rate yet - timesheets can be approved but not sent to accounts.</p>'}
+    ${q ? `<p><b>${esc(q.pay_type)}</b> · ${fmtGBP(q.day_rate)}/day · OT ${q.ot_rate != null ? fmtGBP(q.ot_rate) + '/h' : 'day rate ÷ ' + tsH(cfg.stdHours) + ' h × 1.5 / 2'} · retention ${tsH(TSC.retPct(q, cfg))}%${q.retention_pct != null ? ' (own)' : ' (company)'}${q.pay_type === 'CIS' ? ` · CIS ${q.cis_rate == null ? 20 : +q.cis_rate}%${q.cis_utr ? ' · UTR ' + esc(q.cis_utr) : ''}` : ''} · from ${esc(fmtDate(q.effective_from))}${np ? ' · <span class="tag navy">No phone</span>' : ''}</p>` : '<p class="hint">No pay rate yet - timesheets can be approved but not sent to accounts.</p>'}
     ${log.map(l => `<div class="ts-hist">${esc(new Date(l.at).toLocaleDateString('en-GB'))} · ${esc(l.by_name)}: ${l.before ? `${fmtGBP(l.before.day_rate)} → ` : ''}${fmtGBP(l.after.day_rate)}/day ${esc(l.after.pay_type)}${l.reason ? ' · "' + esc(l.reason) + '"' : ''}</div>`).join('')}</div>` + h; }; }
 ACTIONS['ts-pay'] = a => tsPayModal(a.dataset.id);
 
@@ -16069,7 +16119,7 @@ function tsBudgetView() { const B = TS.bud; if (!B) { tsBudLoad(); return '<p cl
 /* ---------- staff home card ---------- */
 { const _vl = viewList; viewList = function () { const v = _vl(); if (!tsAdm()) return v; const ws = TSC.monday(todayISO()), lw = TSC.addDays(ws, -7);
   const n = TS.off.rows && (TS.off.week === lw || TS.off.week === ws) ? TS.off.rows.filter(w => w.status === 'submitted').length : 0;
-  v.body = `<a class="card ts-home" href="#/tsoffice/${todayISO() < TSC.addDays(ws, 4) ? lw : ws}" id="ts-officebtn"><span class="ic">⏱</span><span class="bd"><span class="t1">Timesheets</span><br><span class="t2">${n ? `<b>${n}</b> waiting for approval · ` : ''}approve, adjust, send to accounts</span></span>${I.chev}</a>` + v.body; return v; }; }
+  v.body = `<a class="card ts-home" href="#/tsoffice/${todayISO() < TSC.addDays(ws, 4) ? lw : ws}${n ? '/review' : ''}" id="ts-officebtn"><span class="ic">⏱</span><span class="bd"><span class="t1">Timesheets</span><br><span class="t2">${n ? `<b>${n}</b> waiting for approval · ` : ''}approve, adjust, send to accounts</span></span>${I.chev}</a>` + v.body; return v; }; }
 
 /* ---------- routing ---------- */
 { const _r = render; render = function (keep) { const rt = route(), k = rt[0];
@@ -16167,24 +16217,24 @@ async function tssBookLoad(sid, date) { const ws = TSC.monday(date); TSS.book = 
 function tssBookView() { const B = TSS.book; if (!B || B.loading) return '<p class="hint">Loading…</p>'; if (B.err) return `<div class="lg-msg err">${esc(B.err)}</div>`;
   const sub = B.sub, men = tssMen(sub), jobs = tssJobs(), today = todayISO(), d = B.date, prev = TSC.addDays(d, -1), next = TSC.addDays(d, 1);
   const dayRows = B.rows.filter(r => r.day === d); const jsel = B.job != null ? B.job : (dayRows[0] ? (dayRows[0].job || 'txt:' + dayRows[0].jt) : (jobs[0] ? jobs[0].id : 'txt:'));
-  const cur = dayRows.find(r => (r.job || 'txt:' + r.jt) === jsel); const cm = cur ? cur.men : []; const f0 = cm[0] || { s: tsDefT(tsCfgV(), 's'), f: tsDefT(tsCfgV(), 'f'), b: 30 };
+  const cur = dayRows.find(r => (r.job || 'txt:' + r.jt) === jsel); const cm = cur ? cur.men : []; const f0 = cm[0] || { s: tsDefT(tsCfgV(), 's'), f: tsDefT(tsCfgV(), 'f') };
   const g = tssGrid(sub, B.rows, B.ws, tsCfgV(), false);
   return `<div class="card"><div style="display:flex;align-items:center;gap:8px"><a class="btn sm" href="#/tssub/${esc(sub.id)}/${prev}" id="tss-prev">‹</a><b style="flex:1;text-align:center">${esc(tsDay(d))}</b>${next <= today ? `<a class="btn sm" href="#/tssub/${esc(sub.id)}/${next}" id="tss-next">›</a>` : '<span class="btn sm" style="visibility:hidden">›</span>'}</div>
     ${B.locked ? '<div class="lg-msg">This week has been approved by the office and is locked. Ask the office to change it.</div>' : ''}
     <div class="f"><label>Job</label><select id="tss-job">${jobs.map(j => `<option value="${esc(j.id)}" ${jsel === j.id ? 'selected' : ''}>${esc([j.ref, j.site_name].filter(Boolean).join(' - '))}</option>`).join('')}<option value="txt:" ${/^txt:/.test(jsel) ? 'selected' : ''}>Other job (type it)</option></select></div>
     <div class="f" id="tss-jtw" ${/^txt:/.test(jsel) ? '' : 'hidden'}><label>Job name</label><input id="tss-jt" value="${esc(/^txt:/.test(jsel) ? jsel.slice(4) : '')}" maxlength="80" placeholder="Site / job"></div>
-    <div class="row3"><div class="f"><label>Start</label><input id="tss-s" type="time" value="${esc(f0.s || tsDefT(tsCfgV(), 's'))}"></div><div class="f"><label>Finish</label><input id="tss-f" type="time" value="${esc(f0.f || tsDefT(tsCfgV(), 'f'))}"></div><div class="f"><label>Break (min)</label><input id="tss-b" type="number" inputmode="numeric" min="0" step="5" value="${esc(f0.b ?? 30)}"></div></div>
+    <div class="row2"><div class="f"><label>Start</label><input id="tss-s" type="time" value="${esc(f0.s || tsDefT(tsCfgV(), 's'))}"></div><div class="f"><label>Finish</label><input id="tss-f" type="time" value="${esc(f0.f || tsDefT(tsCfgV(), 'f'))}"></div></div>
     <p class="small" style="margin:0 0 6px">Tick who worked on this job. Times above apply to everyone ticked - change a man's own times if different.</p>
-    <div id="tss-men">${men.map(m => { const x = cm.find(y => y.mid === m.id); const own = x && (x.s !== f0.s || x.f !== f0.f || +x.b !== +f0.b); return `<div class="tss-man" data-mid="${esc(m.id)}"><label class="ckl" style="flex:1"><input type="checkbox" class="tss-pk" ${x || !cur ? 'checked' : ''}> ${esc(m.name)}</label>
-      <details ${own ? 'open' : ''}><summary class="small">Own times</summary><input type="time" class="tss-ms" value="${esc(own ? x.s : '')}"> – <input type="time" class="tss-mf" value="${esc(own ? x.f : '')}"> <input type="number" class="tss-mb" min="0" step="5" style="width:64px" value="${esc(own ? x.b : '')}" placeholder="brk"></details></div>`; }).join('') || '<p class="hint">No men set up - ask the office.</p>'}</div>
+    <div id="tss-men">${men.map(m => { const x = cm.find(y => y.mid === m.id); const own = x && (x.s !== f0.s || x.f !== f0.f); return `<div class="tss-man" data-mid="${esc(m.id)}"><label class="ckl" style="flex:1"><input type="checkbox" class="tss-pk" ${x || !cur ? 'checked' : ''}> ${esc(m.name)}</label>
+      <details ${own ? 'open' : ''}><summary class="small">Own times</summary><input type="time" class="tss-ms" value="${esc(own ? x.s : '')}"> – <input type="time" class="tss-mf" value="${esc(own ? x.f : '')}"></details></div>`; }).join('') || '<p class="hint">No men set up - ask the office.</p>'}</div>
     <button class="btn primary block" data-act="tss-book" id="tss-book" ${B.locked ? 'disabled' : ''}>✓ Save ${esc(TSC.dayName(d))}</button>
     ${dayRows.length ? `<p class="small" style="margin-top:10px"><b>Booked this day:</b> ${dayRows.map(r => `${esc(tssJobTxt(r))}: ${r.men.length} men`).join(' · ')}</p>` : ''}</div>
     <div class="card"><h2>This week</h2><p class="small">F = full day, ½ = half day (worked up to ${esc(tsCfgV().halfMax)} h).</p>${g.html}</div>`; }
 ACTIONS['tss-book'] = async () => { const B = TSS.book; if (!B || B.locked) return; const jv = $('#tss-job').value, jt = ($('#tss-jt') || {}).value || ''; const job = /^txt:/.test(jv) ? null : jv;
-  if (!job && !jt.trim()) return toast('Type the job name'); const s = $('#tss-s').value, f = $('#tss-f').value, b = TSC.num($('#tss-b').value);
+  if (!job && !jt.trim()) return toast('Type the job name'); const s = $('#tss-s').value, f = $('#tss-f').value, b = 0;   // v1.11.25: no break
   if (!/^\d\d:\d\d$/.test(s) || !/^\d\d:\d\d$/.test(f) || f <= s) return toast('Check the start and finish times');
-  const men = [...document.querySelectorAll('.tss-man')].filter(x => x.querySelector('.tss-pk').checked).map(x => { const m = tssMen(B.sub).find(y => y.id === x.dataset.mid) || {}; const ms = x.querySelector('.tss-ms').value, mf = x.querySelector('.tss-mf').value, mb = x.querySelector('.tss-mb').value;
-    return ms && mf ? { mid: m.id, name: m.name, s: ms, f: mf, b: mb === '' ? b : TSC.num(mb) } : { mid: m.id, name: m.name, s, f, b }; });
+  const men = [...document.querySelectorAll('.tss-man')].filter(x => x.querySelector('.tss-pk').checked).map(x => { const m = tssMen(B.sub).find(y => y.id === x.dataset.mid) || {}; const ms = x.querySelector('.tss-ms').value, mf = x.querySelector('.tss-mf').value;
+    return ms && mf ? { mid: m.id, name: m.name, s: ms, f: mf, b } : { mid: m.id, name: m.name, s, f, b }; });
   if (men.some(m => m.f <= m.s)) return toast('Check the men\'s own times');
   if (!men.length && !await confirmBox('Nobody ticked', 'This clears the booking for this job on this day.', 'Clear', true)) return;
   try { await tsRpc('ts_sub_book', { p_sub: B.sid, p_day: B.date, p_job: job, p_jt: job ? null : jt.trim(), p_men: men }); toast(men.length ? `Saved ✓ ${men.length} men` : 'Cleared'); B.job = job || 'txt:' + jt.trim(); await tssBookLoad(B.sid, B.date); }
@@ -16261,13 +16311,19 @@ function tssLinesHtml(x, cfg) { const t = x.t, Ls = tssLines(x, cfg); if (!Ls.le
   return `<div class="ts-wrap"><table class="ts-tbl tss-lines" style="margin-top:8px"><thead><tr><th>Worker</th><th class="n">Day rate (gross)</th><th class="n">Days</th><th class="n">Gross</th><th class="n">Retention</th><th class="n">CIS</th><th class="n">Net</th></tr></thead><tbody>
     ${Ls.map(l => `<tr><td>${esc(l.name)}</td><td class="n">${esc(l.rt)}</td><td class="n">${l.days}</td><td class="n">${fmtGBP(l.gross)}</td><td class="n">${fmtGBP(l.ret)}</td><td class="n">${fmtGBP(l.cis)}</td><td class="n">${fmtGBP(l.net)}</td></tr>`).join('')}
     <tr class="tot"><td>Gang total</td><td></td><td class="n">${TSC.r2(t.manDays)}</td><td class="n">${fmtGBP(t.gross)}</td><td class="n">${fmtGBP(t.retention)}</td><td class="n">${fmtGBP(t.cis)}</td><td class="n">${fmtGBP(t.net)}</td></tr></tbody></table></div>`; }
-function tssPdf(x, ws) { const cfg = tsCfgV(), t = x.t, k = dcPdfKit('Subcontractor timesheet'), { doc, tx, M, W } = k, dts = TSC.dates(ws), Ls = tssLines(x, cfg);
-  k.font(18, 'bold', [20, 20, 20]); doc.text('Subcontractor timesheet', M, 20); k.font(9, 'bold', [20, 20, 20]); doc.text('Subcontractor', M, 32); doc.text('Week Commencing', W - M, 32, { align: 'right' });
-  k.font(9, 'normal', [20, 20, 20]); doc.text(tx(x.s.name), M, 37); doc.text(tsWcLong(ws), W - M, 37, { align: 'right' }); doc.text(tx(tssRates(x.s, cfg)), M, 43); k.y = 49;
-  k.table({ head: [['Worker', ...dts.map(d => TSC.dayName(d).slice(0, 3) + ' ' + d.slice(8)), 'Days']], body: Object.values(t.men).map(o => [o.name, ...dts.map(d => o.days[d] === 'full' ? 'F' : o.days[d] === 'half' ? 'H' : ''), String(TSC.r2(o.dayEq))].map(tx)) });
-  k.h2('Pay per worker'); k.table({ head: [['Worker', 'Day rate (gross)', 'Days', 'Gross', 'Retention', 'CIS', 'Net']], body: Ls.map(l => [l.name, l.rt, String(l.days), fmtGBP(l.gross), fmtGBP(l.ret), fmtGBP(l.cis), fmtGBP(l.net)].map(tx)).concat([['Gang total', '', String(TSC.r2(t.manDays)), fmtGBP(t.gross), fmtGBP(t.retention), fmtGBP(t.cis), fmtGBP(t.net)].map(tx)]) });
-  k.kv([['Deduction order', TS_ORD(t.after)], ['Retention', `${t.retPct}%${t.after ? ' (on gross less CIS)' : ' (on the gross)'}`], ['CIS', `${t.cisPct}%${t.after ? ' (on the gross)' : ' (on gross less retention)'}`], ['Net payable (app)', fmtGBP(t.net)], ['Invoice total', x.inv == null ? 'not entered' : fmtGBP(x.inv)], ['Difference (invoice - app)', x.diff == null ? '' : fmtGBP(x.diff)], ['Status', x.wk.locked ? 'Approved' : 'Open']]);
-  return k.finish(`Subcontractor timesheet - ${x.s.name} - ${tsWcLong(ws)}`); }
+// v1.11.25: one A4 page per subcontractor gang (compact, redrawn smaller until it fits; never a page 2)
+function tssPdfDraw(x, ws, fs) { const cfg = tsCfgV(), t = x.t, k = dcPdfKit('Subcontractor timesheet'), { doc, tx, M, W } = k, dts = TSC.dates(ws), Ls = tssLines(x, cfg), BLK = [20, 20, 20];
+  const st = { styles: { fontSize: fs, cellPadding: fs > 8 ? 1.6 : 0.9 }, margin: { left: M, right: M, bottom: 14 } };
+  k.font(18, 'bold', BLK); doc.text('Subcontractor timesheet', M, 17); k.font(9, 'normal', k.GREY); doc.text(tx(k.st.company || 'Absolute Roofing Solutions'), W - M, 16, { align: 'right' });
+  k.font(8.5, 'bold', BLK); doc.text('Subcontractor', M, 26); doc.text('Week Commencing', W - M, 26, { align: 'right' });
+  k.font(10, 'normal', BLK); doc.text(tx(x.s.name), M, 31); doc.text(tsWcLong(ws), W - M, 31, { align: 'right' }); k.font(8, 'normal', k.GREY); doc.text(tx(tssRates(x.s, cfg)), M, 36); k.y = 40;
+  k.table(Object.assign({ head: [['Worker', ...dts.map(d => TSC.dayName(d).slice(0, 3) + ' ' + d.slice(8)), 'Days']], body: Object.values(t.men).map(o => [o.name, ...dts.map(d => o.days[d] === 'full' ? 'F' : o.days[d] === 'half' ? 'H' : ''), String(TSC.r2(o.dayEq))].map(tx)) }, st));
+  k.y -= 2; k.table(Object.assign({ head: [['Worker', 'Day rate (gross)', 'Days', 'Gross', 'Retention', 'CIS', 'Net']], body: Ls.map(l => [l.name, l.rt, String(l.days), fmtGBP(l.gross), fmtGBP(l.ret), fmtGBP(l.cis), fmtGBP(l.net)].map(tx)).concat([['Gang total', '', String(TSC.r2(t.manDays)), fmtGBP(t.gross), fmtGBP(t.retention), fmtGBP(t.cis), fmtGBP(t.net)].map(tx)]) }, st));
+  k.y -= 2; const kv = [[`Retention ${t.retPct}% · CIS ${t.cisPct}% (${TS_ORD(t.after)})`, ''], ['Net payable (app)', fmtGBP(t.net)], ['Invoice total', x.inv == null ? 'not entered' : fmtGBP(x.inv)], ...(x.diff == null ? [] : [['Difference (invoice - app)', fmtGBP(x.diff)]]), ['Status', x.wk.locked ? 'Approved' : 'Open']];
+  k.table({ body: kv.map(r => r.map(tx)), margin: { left: M, right: W / 2 + 2, bottom: 14 }, styles: { fontSize: 8, cellPadding: 1.2 }, columnStyles: { 1: { halign: 'right', cellWidth: 28 } } });
+  return k; }
+function tssPdf(x, ws) { let k; for (const fs of [9, 8, 7, 6]) { k = tssPdfDraw(x, ws, fs); if (k.doc.getNumberOfPages() === 1) break; }
+  while (k.doc.getNumberOfPages() > 1) k.doc.deletePage(k.doc.getNumberOfPages()); return k.finish(`Subcontractor timesheet - ${x.s.name} - ${tsWcLong(ws)}`); }
 ACTIONS['tss-pdf'] = a => { const x = tssCalc(TSS.off.ws).find(y => y.s.id === a.dataset.sub); if (!x) return; qOut(tssPdf(x, TSS.off.ws).output('blob'), `Subcontractor-${safeName(x.s.name)}-${TSS.off.ws}.pdf`); };
 
 /* ---------- labour vs budget: add approved subcontractor weeks ---------- */
@@ -16611,7 +16667,7 @@ function tsmOffice(ws) { const O = TS.off, F = O.f, all = tsOffRows();
     return `<div class="tsm-sw${can ? ' can' : ''}"><div class="tsm-bgA" aria-hidden="true">✓ Approve</div><div class="tsm-bgQ" aria-hidden="true">Query ?</div>
       <div class="tsm-card${r.fl.length ? ' flag' : ''}" data-uid="${esc(r.p.id)}" ${id ? `data-id="${esc(id)}"` : ''} ${can ? 'data-sw="1"' : ''}>
       <div class="tsm-top">${id ? `<a class="tsm-nm" href="#/tsweek/${esc(id)}">${esc(r.p.full_name || '')}</a>` : `<b class="tsm-nm">${esc(r.p.full_name || '')}</b>`}<span style="flex:1"></span>${r.rate ? `<span class="small">${esc(r.rate.pay_type)}</span> ` : ''}${tsTag(w.status)}${w.locked ? ' 🔒' : ''}</div>
-      ${id ? `<div class="tsm-stat"><div><b>${tsH(r.t.dayEq || 0)}</b>days${r.t.dayEq ? ` <span class="small">${r.t.full}F ${r.t.half}H</span>` : ''}</div><div><b>${tsH(r.t.total || 0)}</b>hours</div><div><b>${tsH(r.t.ot || 0)}</b>OT h</div><div><b>${r.rate && r.t.gross ? fmtGBP(r.t.gross).replace(/\.00$/, '') : '-'}</b>gross</div></div>` : ''}
+      ${id ? `<div class="tsm-stat"><div><b>${tsH(r.t.dayEq || 0)}</b>days${r.t.dayEq ? ` <span class="small">${r.t.full}F ${r.t.half}H</span>` : ''}</div><div><b>${tsH(r.t.total || 0)}</b>hours</div><div><b>${tsH(r.t.ot || 0)}</b>OT h</div><div><b>${r.rate && r.t.gross ? fmtGBP(r.t.gross).replace(/\.00$/, '') : '-'}</b>gross</div></div>${tsExtNote(r.t)}` : ''}
       ${r.fl.length ? `<button type="button" class="tsm-flb${red ? ' r' : ''}" data-act="tsm-fl" data-uid="${esc(r.p.id)}" aria-expanded="${!!op}">⚑ ${r.fl.length} flag${r.fl.length > 1 ? 's' : ''}${red ? ` (${red} red)` : ''} ${op ? '▴' : '▾'}</button>${op ? `<div class="tsm-fls">${r.fl.map(f => `<span class="ts-fl ${f.r ? 'r' : ''}">⚑ ${esc(f.t)}</span>`).join('')}</div>` : ''}` : (id ? '<span class="tag green">No flags</span>' : '')}
       ${id ? `<div class="tsm-acts">${can ? `<button class="btn primary" data-act="tso-approve" data-id="${esc(id)}">✓ Approve</button>` : ''}${['submitted', 'approved', 'draft'].includes(w.status) && !w.locked ? `<button class="btn" data-act="tso-query" data-id="${esc(id)}">Query</button>` : ''}<a class="btn" href="#/tsweek/${esc(id)}" style="text-decoration:none">Open</a></div>` : ''}
       </div></div>`; };
@@ -16792,6 +16848,87 @@ async function exmOpen(id) { await recInit(); let e = Rec.items[id];
     const id = rt[1] || '', back = isAdm() ? '#/admin/exp' : '#/me'; if (isAdm() && S.adm) { S.adm.tab = 'exp'; S.adm.est = 'all'; }
     history.replaceState(null, '', back); _r(keep); setTimeout(() => exmOpen(id), 250); }; }
 { const st = document.createElement('style'); st.textContent = `.msg-exlink{display:inline-flex;align-items:center;gap:6px;margin-top:8px;min-height:44px;padding:8px 14px;border-radius:12px;background:#fff4e3;border:1px solid #f6d7a8;color:#9a4d00;font-weight:800;text-decoration:none;white-space:nowrap}.msg-b.me .msg-exlink{background:#fff;color:#1e3a5f;border-color:#fff}`; document.head.appendChild(st); }
+
+/* ===== v1.11.25 (BETA): timesheet APPROVAL REVIEW (Matt, 30 Oct 2026: "the approval for me looks a bit long winded, would it just
+   automatically go to the next timesheet to approve with them open so i can scroll through?")
+   Admin Timesheets > To approve opens one scrollable page of every week waiting for approval (the week shown), each card fully open:
+   days with job ref / site, start-finish, notes, weather / stand-down, flags, gross and deductions (manager / admin only, as before),
+   plus own increases / deductions. ✓ Approve collapses the card to a slim "Approved ✓ Undo" line (5 s to undo, then it is saved) and
+   scrolls to the next card. "Approve N with no red flags" stays. Approving NEVER sends anything to accounts - that stays in Accounts.
+   "List view" goes back to the v1.11.23 cards / table. ===== */
+const TSR = { on: true, pend: {}, done: {}, UNDO: 5000 };
+function tsrDayRow(x, cfg) { const ents = (x.d.e || []).filter(e => e.s || e.f || TSC.entH(e) > 0); const ot = x.v.otl;
+  return `<div class="tsr-day${TSC.short(x.h, cfg) ? ' short' : ''}"><div class="tsr-dh"><b>${esc(tsDay(x.date))}</b><span class="tsr-h">${tsH(x.h)} h</span><span class="tsr-dv">${x.adj ? `<s class="small">${TSC.dvTxt(x.auto.dv)}</s> ` : ''}${TSC.dvTxt(x.v.dv)}${ot.length ? ` + OT ${ot.map(o => `${tsH(o.h)} h ×${o.x}`).join(' + ')}` : ''}</span><span class="tsr-gbp">${x.pay ? fmtGBP(x.pay.gross) : ''}</span></div>
+    ${ents.map(e => `<div class="tsr-ent">${esc(e.s || '?')}–${esc(e.f || '?')} · ${esc(e.job ? tsJobName(e.job) : e.jt ? e.jt + ' (typed)' : 'No job')}</div>`).join('')}
+    ${TSC.sd(x.d) ? `<span class="tag amber">🌧 Weather / stand-down ${tsH(TSC.sd(x.d))} h${x.d.sd.auto ? ' (site sheet)' : ''}</span>` : ''}${x.d.by && x.d.by.uid !== x.uid ? ` <span class="small">booked by ${esc(x.d.by.name || '')}</span>` : ''}
+    ${x.d.note ? `<div class="ts-dnote">📝 ${esc(x.d.note)}</div>` : ''}</div>`; }
+// "No daily check Mon · RP1 / Tue · RP1 / ..." -> one line "No daily check Mon, Tue, Wed · RP1" (less to read)
+function tsrFlags(fl) { const out = [], g = {}; fl.forEach(f => { const m = f.k === 'chk' && /^No daily check (\w+) · (.*)$/.exec(f.t); if (!m) return out.push(f); if (!g[m[2]]) { g[m[2]] = { k: 'chk', r: f.r, d: [] }; out.push(g[m[2]]); } g[m[2]].d.push(m[1]); });
+  Object.keys(g).forEach(j => { g[j].t = `No daily check ${g[j].d.join(', ')} · ${j}`; }); return out; }
+function tsrMoney(r) { const t = r.t, q = r.rate, L = tsExt(r.w.id); if (!q) return '<div class="lg-msg err" style="margin:8px 0 0">No pay rate set - add one on the person\'s page</div>';
+  const ln = (a, b, c) => `<div class="tsr-m${c ? ' ' + c : ''}"><span>${a}</span><b>${b}</b></div>`;
+  return `<div class="tsr-money">${ln(`${t.full} full · ${t.half} half = ${tsH(t.dayEq)} days`, fmtGBP(t.dayGross))}
+    ${L.filter(x => x.kind === 'inc').map(x => ln(`+ Increase · ${esc(x.reason)}`, '+' + fmtGBP(x.amount), 'inc')).join('')}
+    ${ln('Gross', fmtGBP(t.gross), 'tot')}${ln(`Retention ${tsH(t.retPct)}%`, '−' + fmtGBP(t.retention))}${t.cisPct ? ln(`CIS ${tsH(t.cisPct)}% · ${esc(TS_ORD(t.after))}`, '−' + fmtGBP(t.cis)) : ''}
+    ${L.filter(x => x.kind === 'ded').map(x => ln(`− Deduction · ${esc(x.reason)}`, '−' + fmtGBP(x.amount), 'ded')).join('')}
+    ${ln(`Net payable${q.pay_type === 'PAYE' ? ' (before tax / NI)' : ''}`, fmtGBP(t.payable), 'tot')}</div>`; }
+function tsrCard(r) { const w = r.w, id = w.id, cfg = tsCfgV();
+  if (TSR.done[id]) { const p = TSR.pend[id]; return `<div class="tsr-done" id="tsr-${esc(id)}" data-id="${esc(id)}">✓ <b>${esc(r.p.full_name || w.name || '')}</b> · ${p ? 'Approved' : TSR.done[id] === 'err' ? 'Not approved - try again' : 'Approved ✓'}${p ? ` <button class="btn sm" data-act="tsr-undo" data-id="${esc(id)}">Undo</button>` : ''}</div>`; }
+  const red = r.fl.filter(f => f.r).length;
+  return `<div class="card tsr-card${r.fl.length ? ' flag' : ''}" id="tsr-${esc(id)}" data-id="${esc(id)}" data-uid="${esc(r.p.id)}">
+    <div class="tsr-top"><b class="tsr-nm">${esc(r.p.full_name || w.name || '')}</b>${r.rate ? `<span class="small">${esc(r.rate.pay_type)} · ${fmtGBP(r.rate.day_rate)}/day</span>` : ''}<span style="flex:1"></span>${tsTag(w.status)}</div>
+    <div class="small">${w.sign && w.sign.at ? `Signed ${esc(new Date(w.sign.at).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' }))}${w.sign.on_device_name ? ' on ' + esc(w.sign.on_device_name) + "'s phone" : ''} · ` : ''}${tsH(r.t.worked)} h worked${r.t.ot ? ` · OT ${tsH(r.t.ot)} h` : ''}${r.t.sdH ? ` · stand-down ${tsH(r.t.sdH)} h` : ''}</div>
+    ${r.fl.length ? `<div class="tsr-fl">${tsrFlags(r.fl).map(f => `<span class="ts-fl ${f.r ? 'r' : ''}">⚑ ${esc(f.t)}</span>`).join('')}</div>` : '<span class="tag green">No flags</span>'}
+    <div class="tsr-days">${r.t.days.map(x => tsrDayRow(Object.assign({ uid: w.uid }, x), cfg)).join('') || '<p class="hint">No hours this week.</p>'}</div>
+    ${tsrMoney(r)}
+    <div class="tsr-acts"><button class="btn primary" data-act="tsr-ok" data-id="${esc(id)}">✓ Approve${red ? ' anyway' : ''}</button><button class="btn" data-act="tso-query" data-id="${esc(id)}">Query</button><button class="btn" data-act="tsx-add" data-id="${esc(id)}">± £</button><a class="btn" href="#/tsweek/${esc(id)}" style="text-decoration:none">Change days</a></div></div>`; }
+function tsrView(ws) { const O = TS.off, F = O.f, all = tsOffRows();
+  const rows = all.filter(r => r.w.id && ((r.w.status === 'submitted' && !r.w.locked) || TSR.done[r.w.id]) && (!F.p || r.p.id === F.p) && (!F.j || r.jobs.includes(F.j)));
+  const left = rows.filter(r => !TSR.done[r.w.id]), appr = left.filter(r => !r.fl.some(f => f.r));
+  return `<div class="card tsr-head"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><a class="btn" href="#/tsoffice/${TSC.addDays(ws, -7)}/review" aria-label="Previous week" style="text-decoration:none">‹</a><b style="font-size:18px">${esc(tsWc(ws))}</b><a class="btn" href="#/tsoffice/${TSC.addDays(ws, 7)}/review" aria-label="Next week" style="text-decoration:none">›</a>
+      <span style="margin-left:auto"><button class="btn" data-act="tsr-list" id="tsr-list">☰ List view</button></span></div>
+    <p style="margin:10px 0 0" id="tsr-sum"><b class="big">${left.length}</b> to approve${rows.length - left.length ? ` · ${rows.length - left.length} approved just now` : ''}</p>
+    ${appr.length ? `<button class="btn primary block" data-act="tso-apprall" id="tsr-all" style="margin-top:10px">✓ Approve ${appr.length} with no red flags</button>` : ''}
+    <p class="small" style="margin-top:8px">Scroll through - ✓ Approve moves you to the next one (5 s to undo). Approving does not send anything to accounts; that stays a separate step in Accounts.</p></div>
+  <div id="tsr-list-cards">${rows.map(tsrCard).join('') || `<div class="card"><p class="hint">Nothing waiting for approval this week. ${all.some(r => r.w.status === 'approved') ? `<a href="#/tssend/${ws}">Accounts ›</a>` : ''}</p></div>`}</div>
+  ${left.length ? '' : rows.length ? `<div class="card tsr-end"><b>All done ✓</b><p class="small">When you are ready, send the approved weeks from <a href="#/tssend/${ws}">Accounts</a>.</p></div>` : ''}`; }
+{ const _ov = tsOfficeView; tsOfficeView = function (ws) { const O = TS.off; if (TSR.on && O.f.st === 'submitted' && O.week === ws && O.rows && !O.err) { try { return tsrView(ws); } catch (e) { console.warn('tsr', e); } } return _ov(ws); }; }
+function tsrNext(id) { const ids = [...document.querySelectorAll('.tsr-card')].map(c => c.dataset.id); const all = [...document.querySelectorAll('.tsr-card, .tsr-done')].map(c => c.dataset.id);
+  const i = all.indexOf(id), nx = all.slice(i + 1).find(x => ids.includes(x)) || ids[0]; const el = nx ? document.getElementById('tsr-' + nx) : document.querySelector('.tsr-end, .tsr-head');
+  if (el) { const top = el.getBoundingClientRect().top + window.scrollY - (document.querySelector('header, .topbar') ? 64 : 12); window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }); } }
+async function tsrCommit(id) { delete TSR.pend[id]; const row = (TS.off.rows || []).find(x => x.id === id);
+  try { await tsRpc('ts_review', { p_id: id, p_action: 'approve' }); TSR.done[id] = 'ok'; if (row) row.status = 'approved'; }
+  catch (e) { if (/BAD_STATUS/.test(e.message || '') && row && row.status === 'approved') TSR.done[id] = 'ok'; else { delete TSR.done[id]; toast(tsErr(e), 4500); } }
+  tsrPaint(id); }
+function tsrPaint(id) { const el = document.getElementById('tsr-' + id), r = tsOffRows().find(x => x.w.id === id); if (el && r && route()[0] === 'tsoffice') { el.outerHTML = tsrCard(r); const s = document.getElementById('tsr-sum'); if (s) { const n = document.querySelectorAll('.tsr-card').length; s.innerHTML = `<b class="big">${n}</b> to approve`; } } else if (route()[0] === 'tsoffice') rerender(); }
+Object.assign(ACTIONS, {
+  'tsr-ok'(a) { const id = a.dataset.id; if (!id || TSR.pend[id]) return; TSR.done[id] = 'pend'; TSR.pend[id] = setTimeout(() => tsrCommit(id), TSR.UNDO); tsrPaint(id); setTimeout(() => tsrNext(id), 60); },
+  'tsr-undo'(a) { const id = a.dataset.id, p = TSR.pend[id]; if (!p) return; clearTimeout(p); delete TSR.pend[id]; delete TSR.done[id]; toast('Not approved'); tsrPaint(id);
+    const el = document.getElementById('tsr-' + id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
+  'tsr-list'() { TSR.on = false; rerender(); },
+});
+// "To approve" / "Submitted" chip (phone + desktop) opens the review; any other chip shows the list
+{ const _f = ACTIONS['tso-f']; ACTIONS['tso-f'] = function (a) { if (a.dataset.k === 'st') TSR.on = a.dataset.v === 'submitted'; return _f.call(this, a); }; }
+// approving in bulk: pending single approvals are saved first so nothing is approved twice
+{ const _all = ACTIONS['tso-apprall']; ACTIONS['tso-apprall'] = async function (a) { for (const id of Object.keys(TSR.pend)) { clearTimeout(TSR.pend[id]); await tsrCommit(id); } return _all.call(this, a); }; }
+// #/tsoffice/<week>/review (home card when weeks are waiting) opens the review
+function tsrRoute() { const rt = route(); if (rt[0] === 'tsoffice' && rt[2] === 'review') { TS.off.f.st = 'submitted'; TSR.on = true; } }
+addEventListener('hashchange', tsrRoute); tsrRoute();
+{ const st = document.createElement('style'); st.textContent = `
+.tsr-card{border-left:5px solid #15803d;scroll-margin-top:70px}.tsr-card.flag{border-left-color:#d97706}
+.tsr-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 4px}.tsr-nm{font-size:19px}
+.tsr-fl{margin:6px 0}.tsr-days{margin:10px 0 0;border-top:1px solid var(--line2)}
+.tsr-day{padding:8px 0;border-bottom:1px solid var(--line2)}.tsr-day.short{background:#fff7ed}
+.tsr-dh{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.tsr-dh b{min-width:92px}.tsr-h{font-weight:800;color:#1e3a5f}.tsr-dv{flex:1;color:var(--muted);font-size:14px}.tsr-gbp{font-weight:700}
+.tsr-ent{font-size:14px;margin:2px 0 0 2px;color:var(--text)}
+.tsr-money{margin:10px 0 0;background:#f3f6fa;border-radius:10px;padding:8px 12px}.tsr-m{display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:14px}
+.tsr-m.tot{border-top:1px solid var(--line2);font-size:15px}.tsr-m.inc b{color:#15803d}.tsr-m.ded b{color:#b91c1c}
+.tsr-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.tsr-acts .btn{min-height:48px}.tsr-acts .btn.primary{flex:1 1 160px;font-size:17px}
+.tsr-done{display:flex;align-items:center;gap:8px;background:#eaf7ef;color:#15803d;border:1px solid #bfe5cc;border-radius:12px;padding:8px 12px;margin:0 0 10px;min-height:48px;scroll-margin-top:70px}
+.tsr-done .btn{margin-left:auto;min-height:40px}
+.ts-tbl .tag{white-space:normal !important;display:inline-block;max-width:100%;overflow-wrap:anywhere}
+@media (max-width:699px){.tsr-dh b{min-width:0;width:100%}.tsr-acts .btn:not(.primary){flex:1 1 30%}}
+`; document.head.appendChild(st); }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
