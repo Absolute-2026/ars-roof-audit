@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.23">
+<meta name="app-version" content="1.11.24">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.23';
+const APP_VERSION = '1.11.24';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -16727,6 +16727,71 @@ body.tsm-on .ts-wrap:has(.tsm-grid),.tsm-gwrap{overflow-x:auto;-webkit-overflow-
 body.tsm-on .tsm-stick{position:sticky;bottom:0;z-index:20;background:#fff;margin:10px -16px -16px!important;padding:10px 16px calc(10px + var(--safe-b));border-top:1px solid var(--line);border-radius:0 0 var(--radius) var(--radius)}
 body.tsm-on .tsm-stick .btn{min-height:48px;flex:1}
 `; document.head.appendChild(st); }
+
+/* ===== v1.11.24 (BETA): expenses (incl. accommodation / lodge requests) also go into Messages.
+   - An operative or foreman submits an expense -> an automatic message in their office thread (seen by admins + managers) with a link that opens it.
+   - Admin/manager approves or declines it -> the outcome is posted back to the same thread.
+   Client-side only (no schema change): uses the existing msg_thread_for / msg_send RPCs. Message ids are derived from the expense + event,
+   so a retry, a second tap or a second device never posts twice. Queued on the phone while offline. Existing expense screens/emails unchanged. */
+const EXM = { k: () => 'ars.expmsg.q.' + (me() || ''), busy: false };
+const exmQ = () => { try { return JSON.parse(localStorage.getItem(EXM.k()) || '[]'); } catch (e) { return []; } };
+const exmSave = q => { try { localStorage.setItem(EXM.k(), JSON.stringify(q.slice(-50))); } catch (e) { } };
+async function exmId(s) { let h = ''; try { const b = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('ars-expmsg:' + s))); h = [...b].map(x => x.toString(16).padStart(2, '0')).join(''); } catch (e) { let a = 0; for (const c of s) a = (a * 31 + c.charCodeAt(0)) >>> 0; h = (a.toString(16) + '0'.repeat(32)).repeat(2); }
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${'89ab'[parseInt(h[16], 16) & 3]}${h.slice(17, 20)}-${h.slice(20, 32)}`; }
+const exmLodge = e => /accommodation|lodg/i.test((e.data || {}).type || '');
+const exmWhat = e => { const d = e.data || {}; return `${fmtGBP(+d.amount || 0)} · ${d.type || 'Expense'}${d.date ? ' · ' + fmtDate(d.date) : ''}${d.jobRef ? ' · ' + d.jobRef : ''}`; };
+const exmLink = e => `▸ Open: #/exp/${e.id}`;
+function exmAdd(it) { const q = exmQ(); if (!q.some(x => x.id === it.id)) { q.push(it); exmSave(q); } setTimeout(exmFlush, 50); }
+async function exmFlush() { if (EXM.busy || !signedIn() || !online()) return; EXM.busy = true; let sent = 0;
+  try { let q = exmQ(); for (const it of q.slice()) {
+      if (it.wait) { const r = Rec.items[it.exp]; if (r && r._q) continue; }   // the expense itself must reach the server first
+      try { const th = await msgRpc('msg_thread_for', { p_to: it.to || null }); let job = it.job ? { id: it.job } : null;
+        try { await msgRpc('msg_send', { p_id: it.id, p_thread: th, p_body: it.body, p_photo: null, p_job: job }); }
+        catch (e) { if (!job || !/job/i.test(e.message || '')) throw e; await msgRpc('msg_send', { p_id: it.id, p_thread: th, p_body: it.body, p_photo: null, p_job: null }); }
+        fnCall('msg-notify', { id: it.id }).catch(() => { }); q = q.filter(x => x.id !== it.id); sent++; }
+      catch (e) { if (e.offline || !online()) break; it.n = (it.n || 0) + 1; if (it.n >= 4) { q = q.filter(x => x.id !== it.id); console.warn('expense message dropped', e.message); } }
+      exmSave(q); }
+    if (sent && typeof msgLoad === 'function') msgLoad(true).then(() => { try { msgRefreshOpen(); } catch (e) { } }).catch(() => { });
+  } finally { EXM.busy = false; } }
+addEventListener('online', () => setTimeout(exmFlush, 2000)); setInterval(exmFlush, 45000); setTimeout(exmFlush, 8000);
+{ const _of = recOnFlush; recOnFlush = function () { try { if (_of) _of(); } catch (e) { } setTimeout(exmFlush, 300); }; }
+// 1. submitted by an operative / foreman -> message to the office
+{ const _rp = recPut; recPut = function (r) {
+    const go1 = r && r.kind === 'expense' && !r.updated_at && (r.status || 'submitted') === 'submitted' && !r.deleted && !(r.data || {}).msgAt && r.owner === me() && r.subject === me() && isOp();
+    if (go1) r.data.msgAt = Date.now(); const x = _rp(r);
+    if (go1) exmId(r.id + ':submitted').then(id => { const d = r.data || {};
+      exmAdd({ id, exp: r.id, wait: true, job: d.jobId || '', body: `${exmLodge(r) ? '🛏 New accommodation (lodge) request' : '🧾 New expense'} for approval: ${exmWhat(r)}${d.note ? '\n“' + d.note + '”' : ''}${(d.receipt || (r._files || {}).receipt) ? '' : '\nNo receipt photo'}\n${exmLink(r)}` }); });
+    return x; }; }
+// 2. approved / declined by admin or a manager -> message back to the operative, same thread
+{ const _as = admExpSet; admExpSet = async function (e, st) { const before = e && e.status; const res = await _as(e, st);
+    try { if (e && e.status === st && st !== before && (st === 'approved' || st === 'rejected') && isAdm()) { const p = (Cloud.profiles || []).find(x => x.id === e.subject);
+      if (p && p.role === 'operative') { const n = (e.data.history || []).length, d = e.data, by = myName();
+        const id = await exmId(`${e.id}:${st}:${n}`), what = exmLodge(e) ? 'accommodation (lodge) request' : 'expense';
+        exmAdd({ id, exp: e.id, to: e.subject, wait: true, job: '', body: st === 'approved' ? `✅ Your ${what} was approved: ${exmWhat(e)}${by ? ' - by ' + by : ''}\n${exmLink(e)}` : `❌ Your ${what} was declined: ${exmWhat(e)}${d.reason ? '\nReason: ' + d.reason : ''}\n${exmLink(e)}` }); } } } catch (er) { console.warn('expense outcome message', er); }
+    return res; }; }
+// 2b. fix (pre-existing): a manager/admin approving someone else's expense was saved with an upsert, which the records
+//     INSERT policy (owner = auth.uid()) refuses -> 403, change stuck on the device. Send an UPDATE instead (the UPDATE policy
+//     allows is_admin()). Client-only, no migration. Falls back to the normal push if the row isn't on the server yet.
+{ const _pu = recPush; recPush = async function (r) {
+    if (!(r && r.kind === 'expense' && isAdm() && r.owner && r.owner !== me() && !Object.keys(r._files || {}).length)) return _pu(r);
+    const ver = r.updated_at, row = { status: r.status || null, data: JSON.parse(JSON.stringify(r.data)), deleted: !!r.deleted };
+    const res = await sbFetch(`/rest/v1/records?id=eq.${encodeURIComponent(r.id)}`, { method: 'PATCH', body: row, headers: { Prefer: 'return=representation' } });
+    if (Array.isArray(res) && !res.length) return _pu(r);
+    if (r.updated_at === ver) { delete r._q; delete r._err; } else Rec.again = true; }; }
+// 3. the link in the message: "▸ Open: #/exp/<id>" becomes a button
+{ const _mb = msgBubble; msgBubble = function (m, ...a) { const h = _mb(m, ...a); if (!m || !/#\/exp\//.test(m.body || '')) return h;
+    return h.replace(/▸ Open: #\/exp\/([A-Za-z0-9_-]{3,80})/, (s, id) => `<a class="msg-exlink" href="#/exp/${id}">${/lodge/.test(m.body) ? '🛏' : '🧾'} Open ${/lodge/.test(m.body) ? 'request' : 'expense'} ›</a>`); }; }
+// 4. #/exp/<id>: open the expense (admin: approve/decline; operative: their own only)
+async function exmOpen(id) { await recInit(); let e = Rec.items[id];
+  if ((!e || e.kind !== 'expense') && online()) { try { await recFetch(`id=eq.${encodeURIComponent(id)}&kind=eq.expense`); } catch (er) { } e = Rec.items[id]; }
+  if (!e || e.kind !== 'expense' || e.deleted) { toast(online() ? 'That expense was not found (deleted, or not yours)' : 'Not available offline yet', 4000); return; }
+  if (!isAdm() && e.subject !== me() && e.owner !== me()) { toast('That expense is not yours', 4000); return; }
+  if (isAdm()) { if ((e.status || 'submitted') === 'submitted' && typeof ovExpense === 'function') return ovExpense(e); return expEdit(e.subject, e); }
+  return expEdit(e.subject, e); }
+{ const _r = render; render = function (keep) { const rt = route(); if (rt[0] !== 'exp' || !signedIn()) return _r(keep);
+    const id = rt[1] || '', back = isAdm() ? '#/admin/exp' : '#/me'; if (isAdm() && S.adm) { S.adm.tab = 'exp'; S.adm.est = 'all'; }
+    history.replaceState(null, '', back); _r(keep); setTimeout(() => exmOpen(id), 250); }; }
+{ const st = document.createElement('style'); st.textContent = `.msg-exlink{display:inline-flex;align-items:center;gap:6px;margin-top:8px;min-height:44px;padding:8px 14px;border-radius:12px;background:#fff4e3;border:1px solid #f6d7a8;color:#9a4d00;font-weight:800;text-decoration:none;white-space:nowrap}.msg-b.me .msg-exlink{background:#fff;color:#1e3a5f;border-color:#fff}`; document.head.appendChild(st); }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
