@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.22">
+<meta name="app-version" content="1.11.23">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.22';
+const APP_VERSION = '1.11.23';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -16486,6 +16486,247 @@ input.tw-in{cursor:pointer;caret-color:transparent;font-variant-numeric:tabular-
 .tw-sep{font-size:26px;font-weight:800;padding:0 6px;z-index:1}.tw-band{position:absolute;left:12%;right:12%;top:88px;height:44px;background:#fff1e0;border-radius:10px;border:1.5px solid #fdba74}
 .tw-hint{text-align:center;margin:0 0 6px;font-size:13px;color:#64748b}.tw-clear{display:block;margin:0 auto;border:0;background:none;color:#b91c1c;font-size:15px;padding:10px}
 .pjl-home svg,.ts-home svg,#ts-homebtn svg,#ts-officebtn svg,[id^=tss-lead] svg{width:20px;height:20px;flex:none}`; document.head.appendChild(st); })();
+
+/* ---------- v1.11.23 (beta): tidy home per role + admin timesheets on a phone ----------
+   Home: the existing home items are RE-HOMED (moved/restyled), nothing is removed. Staff: induction banner, "Needs attention" strip,
+   a tile grid (Projects, Timesheets, Messages, RAMS, Admin, Tools) and the audits section. Operatives/foremen/gang leads: a Today card,
+   Timesheet + Messages tiles, and a "More" section for everything else. No pay/labour figures are ever shown on an operative home.
+   Timesheets (managers/admin, phone width < 700px): office list as one card per person (tap Approve, or swipe right to approve with
+   undo / left to query), summary at the top; the other office tables become stacked cards; bottom tabs People/Subs/Budget/Accounts.
+   Desktop keeps the existing tables. */
+const HM = { more: false, aud: null, tools: null };
+try { HM.aud = localStorage.getItem('ars.hm.aud'); HM.more = sessionStorage.getItem('ars.hm.more') === '1'; } catch (e) { }
+const hmKids = html => { const t = document.createElement('template'); t.innerHTML = html; return [...t.content.children]; };
+const hmTxt = e => e ? (e.textContent || '').replace(/\s+/g, ' ').trim() : '';
+function hmPull(kids, test) { const out = []; for (let i = kids.length - 1; i >= 0; i--) if (test(kids[i])) out.unshift(kids.splice(i, 1)[0]); return out; }
+const hmIs = sel => e => e.matches(sel);
+function hmTile(o) { const tag = o.href ? 'a' : 'button';
+  return `<${tag} class="hm-tile${o.wide ? ' wide' : ''}${o.cls ? ' ' + o.cls : ''}" ${o.href ? `href="${esc(o.href)}"` : 'type="button"'}${o.id ? ` id="${esc(o.id)}"` : ''}${o.act ? ` data-act="${o.act}"` : ''}>${o.badge || ''}<span class="hm-ti" aria-hidden="true">${o.ic}</span><span class="hm-tn">${o.t}</span><span class="hm-ts">${o.s || ''}</span></${tag}>`; }
+const hmBdg = n => n ? `<span class="hm-bdg">${n > 99 ? '99+' : n}</span>` : '';
+function hmInd(e) { if (!e) return ''; const wait = e.classList.contains('wait'), todo = !!e.querySelector('.tag.red'), sub = hmTxt(e.querySelector('.t2'));
+  const t = wait ? 'Induction submitted' : todo ? 'Induction to do' : 'Induction in progress', s = wait ? 'waiting for sign-off' : todo ? 'about 15 min' : sub.replace(/\s*Tap to carry on\.?/, '');
+  return `<a class="hm-banner${wait ? ' wait' : ''}" href="#/induction" id="ind-home"><span aria-hidden="true">🎓</span><span class="hm-bt"><b>${esc(t)}</b> · ${esc(s)}</span><span class="hm-bgo">${wait ? 'View' : todo ? 'Start' : 'Carry on'} ›</span></a>`; }
+const hmToday = () => new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+const hmFirst = () => { const n = String((Cloud.profile && Cloud.profile.full_name) || '').trim().split(/\s+/)[0]; return n && !/@/.test(n) ? n : ''; };
+const hmHi = () => { const h = new Date().getHours(); return (h < 12 ? 'Morning' : h < 18 ? 'Afternoon' : 'Evening') + (hmFirst() ? ', ' + hmFirst() : ''); };
+const hmTitle = (head, t) => String(head || '').replace(/<h1>[\s\S]*?<\/h1>/, m => `<h1>${esc(t)}${/BETA|beta-tag/.test(m) && typeof BETA_TAG !== 'undefined' ? BETA_TAG : ''}</h1>`);
+function hmTools(fl) { HM.tools = fl.map(e => { const a = e.querySelector('a[href]'); return a ? [a.getAttribute('href'), hmTxt(a), hmTxt(e.querySelector('.hint'))] : null; }).filter(Boolean); }
+ACTIONS['hm-tools'] = async function () { const L = HM.tools && HM.tools.length ? HM.tools : [['#/flash', '✎ Flashings RFQ (standalone)', ''], ['#/sheets', '▤ Roof sheet schedule (standalone)', '']];
+  const r = await modal(`<h3>Tools</h3><div class="qa-menu">${L.map(([h, t, s]) => `<button class="btn" data-r="${esc(h)}"><span>${esc(t)}<small>${esc(s)}</small></span></button>`).join('')}</div><button class="btn" data-r="">Close</button>`); if (r) go(r); };
+ACTIONS['hm-aud'] = function () { HM.aud = HM.aud === 'open' ? 'closed' : 'open'; try { localStorage.setItem('ars.hm.aud', HM.aud); } catch (e) { } rerender(true); };
+ACTIONS['hm-more'] = function () { HM.more = !HM.more; try { sessionStorage.setItem('ars.hm.more', HM.more ? '1' : ''); } catch (e) { } rerender(true); };
+ACTIONS['hm-today'] = function () { go('#/ts'); let n = 0; const t = setInterval(() => { const d = document.querySelector(`[data-act="ts-open"][data-d="${todayISO()}"]`); if (d || ++n > 30) { clearInterval(t); if (d && !document.querySelector('.ts-day.open, #ts-prebar, [data-act="ts-preok"]')) d.click(); } }, 200); };
+
+/* staff home */
+{ const _vl = viewList; viewList = function () { const v = _vl(); if (!signedIn() || isOp() || !Cloud.profile) return v;
+  try { const kids = hmKids(v.body), adm = typeof isAdm === 'function' && isAdm();
+    const one = sel => hmPull(kids, hmIs(sel))[0];
+    const ind = one('#ind-home'), ov = one('#ov-card'), pj = one('#pjl-homebtn'), ts = one('#ts-officebtn'), msg = one('#msg-homebtn'), admT = one('a.adm-tile'), bs = one('a.bs-tile');
+    const fl = hmPull(kids, hmIs('.fl-home')); hmTools(fl);
+    const fab = hmPull(kids, e => e.matches('button.fab, button.qa-fab'));
+    const aud = hmPull(kids, e => e.matches('.filters, .search, #joblist, .empty') || (e.matches('div.f') && !!e.querySelector('select')));
+    const nWait = ts ? +((ts.querySelector('.t2 b') || {}).textContent || 0) : 0;
+    // needs attention: the overdue tiles + timesheets waiting
+    const at = []; if (ts && nWait) at.push(`<a class="hm-at" href="${esc(ts.getAttribute('href'))}"><b>${nWait}</b><span>timesheet${nWait === 1 ? '' : 's'} to approve</span></a>`);
+    if (ov) ov.querySelectorAll('.ov-tile').forEach(b => at.push(`<button type="button" class="hm-at" data-act="ov-open" data-k="${esc(b.dataset.k)}"><b>${esc(hmTxt(b.querySelector('.ov-n')))}</b><span>${esc(hmTxt(b.querySelector('span:not(.ov-n)')))}</span></button>`));
+    const attn = adm ? `<div class="hm-h">Needs attention</div>${at.length ? `<div class="hm-attn" id="ov-card">${at.join('')}</div>` : '<div class="hm-ok">✓ Nothing needs you right now</div>'}` : '';
+    const sub2 = e => hmTxt(e && e.querySelector('.t2'));
+    const tiles = [];
+    if (pj) tiles.push(hmTile({ href: pj.getAttribute('href'), id: 'pjl-homebtn', ic: '📁', t: 'Projects', s: esc(sub2(pj).replace(/ · 0 completed$/, '')) }));
+    if (ts) tiles.push(hmTile({ href: ts.getAttribute('href'), id: 'ts-officebtn', ic: '⏱', t: 'Timesheets', s: nWait ? `${nWait} to approve` : 'approve · adjust · send', badge: hmBdg(nWait) }));
+    if (msg) tiles.push(hmTile({ href: msg.getAttribute('href'), id: 'msg-homebtn', ic: '💬', t: 'Messages', s: esc(sub2(msg)), badge: msgBadge('hm-bdg') }));
+    if (bs) tiles.push(hmTile({ href: bs.getAttribute('href'), cls: 'bs-tile', ic: '🦺', t: 'RAMS &amp; toolbox', s: esc(hmTxt(bs).replace(/^RAMS & Toolbox talks/i, '').replace(/›$/, '').trim()) }));
+    if (admT) tiles.push(hmTile({ href: admT.getAttribute('href'), cls: 'adm-tile', ic: '👷', t: 'Admin', s: esc(hmTxt(admT).replace(/^Admin/, '').replace(/›$/, '').trim()) }));
+    tiles.push(hmTile({ act: 'hm-tools', id: 'hm-tools', ic: '🧰', t: 'Tools', s: 'Flashings RFQ · sheet schedule' }));
+    const grid = `<div class="hm-grid${tiles.length % 2 ? ' odd' : ''}">${tiles.join('')}</div>`;
+    const extra = kids.map(e => e.outerHTML).join('');   // anything else (recent projects, etc.) stays, unchanged
+    const LJ = typeof listJobs === 'function' ? listJobs() : [], nd = LJ.filter(j => j.status === 'Draft').length;
+    const open = !adm || HM.aud === 'open' || !!(S.q && S.q.trim());
+    const scope = aud.filter(e => e.matches('.filters') && e.querySelector('[data-act="scope"], [data-act="lc-scope"]') || (e.matches('.filters') && /My audits|All audits/.test(hmTxt(e))));
+    const chips = aud.filter(e => e.matches('.filters') && !scope.includes(e)), rest = aud.filter(e => !scope.includes(e) && !chips.includes(e) && !e.matches('#joblist, .empty'));
+    const list = aud.filter(e => e.matches('#joblist, .empty'));
+    const newBtn = `<button type="button" class="btn primary hm-new" data-act="qa-open" aria-label="Start something new">${I.plus} New</button>`;
+    const audBody = `${scope.map(e => e.outerHTML).join('')}${rest.filter(e => !e.matches('.search')).map(e => e.outerHTML).join('')}${rest.filter(e => e.matches('.search')).map(e => e.outerHTML).join('')}<div class="hm-fscroll">${chips.map(e => e.outerHTML).join('')}</div>${list.map(e => e.outerHTML).join('')}`;
+    let body;
+    if (adm) body = `${hmInd(ind)}${attn}${grid}${extra}
+      <div class="hm-sec"><div class="hm-h" style="margin:0">Audits</div><span style="flex:1"></span>${newBtn}</div>
+      <button type="button" class="hm-row" data-act="hm-aud" aria-expanded="${open}"><span aria-hidden="true">📋</span><span class="hm-bt"><b>${open ? 'Hide audits' : 'Audits'}</b>${open ? '' : ` · ${nd} draft${nd === 1 ? '' : 's'} · ${LJ.length} in view`}</span><span class="hm-bgo">${open ? '▴' : 'Show ›'}</span></button>
+      ${open ? audBody : ''}`;
+    else body = `${hmInd(ind)}<button type="button" class="btn primary block hm-newbig" data-act="qa-open" aria-label="Start something new">${I.plus} New audit</button>${audBody}${extra}<div class="hm-h">More</div>${grid}`;
+    v.body = body + (fab.length ? '' : ''); v.head = hmTitle(v.head, 'Home'); document.body.classList.add('hm-on');
+  } catch (e) { console.warn('home tidy', e); }
+  return v; }; }
+
+/* operative / foreman / gang lead home */
+function hmTsSub(fallback) { try { const ws = TSC.monday(todayISO()), w = TS.w && TS.w[ws]; if (!w) return fallback;
+  if (w.status === 'submitted' || w.status === 'approved' || w.status === 'sent') return 'This week submitted ✓';
+  if (w.status === 'queried') return 'Queried - please check';
+  const n = Object.keys(w.days || {}).filter(d => (w.days[d].e || []).some(e => (e.s && e.f) || e.job)).length; return `${n} of 5 days · submit Fri`; } catch (e) { return fallback; } }
+function hmDir(j) { const q = [j.site_address, j.postcode].filter(Boolean).join(', '); return q ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}` : ''; }
+{ const _vh = viewOpHome; viewOpHome = function () { const v = _vh(); if (!signedIn() || !isOp()) return v;
+  try { const kids = hmKids(v.body); const one = sel => hmPull(kids, hmIs(sel))[0];
+    const warn = hmPull(kids, e => e.matches('.lg-msg.warn')), ind = one('#ind-home'), mb = one('#msg-opbtn'), tsb = one('#ts-homebtn');
+    const gang = hmPull(kids, e => /^tss-lead-/.test(e.id || '')), qa = one('.qa-oprow');
+    const rpP = hmPull(kids, e => e.matches('p.small') && /Recent jobs/.test(hmTxt(e))), rpC = hmPull(kids, hmIs('.rp-chips'));
+    const foot = hmPull(kids, e => e.matches('p.small') && !!e.querySelector('[data-act="syncinfo"]'));
+    const wk = hmPull(kids, hmIs('.card.wkjob')), oaj = one('.card.oa-jobs'), pf = one('a.pf-tile'), rm = one('.card.rmcard'), mr = one('#mrcard');
+    const sheets = hmPull(kids, e => e.matches('.card') && /^(My weekly sheets|Earlier single daily checks)/.test(hmTxt(e.querySelector('h2'))));
+    const noJobs = hmPull(kids, e => e.matches('.card') && /^My jobs/.test(hmTxt(e.querySelector('h2'))) && !e.querySelector('.wkjob'));
+    const jobs = Ops.jobs || [], lbl = `<div class="hm-h">Today · ${esc(hmToday())}</div>`;
+    let today;
+    if (wk.length) today = lbl + wk.map(e => { e.classList.add('hm-today'); return e.outerHTML; }).join('');
+    else if (jobs.length) { const j = jobs[0], dir = hmDir(j);
+      today = `${lbl}<div class="card hm-today" id="hm-today"><div class="hm-jt">${esc(j.ref || '')}${j.site_name ? ' · ' + esc(j.site_name) : ''}</div><div class="hint">${esc([j.site_address, j.postcode].filter(Boolean).join(', '))}${dir ? ` · <a href="${dir}" target="_blank" rel="noopener">Directions</a>` : ''}</div>
+        ${jobs.length > 1 ? `<div class="small" style="margin-top:6px">Also on: ${jobs.slice(1).map(x => esc(x.ref || x.site_name || '')).join(', ')}</div>` : ''}
+        ${tsb ? `<button type="button" class="btn primary block hm-big" data-act="hm-today">⏱ Log today's hours</button>` : ''}</div>`; }
+    else today = lbl + `<div class="card hm-today"><p class="hint" style="margin:0">No job assigned yet. Ask your manager or contracts manager to add you to a job.</p></div>`;
+    const tiles = [];
+    if (tsb) tiles.push(hmTile({ href: tsb.getAttribute('href'), id: 'ts-homebtn', ic: '⏱', t: 'Timesheet', s: esc(hmTsSub(hmTxt(tsb.querySelector('.t2')).replace(/^Hours for /, ''))) }));
+    if (mb) tiles.push(hmTile({ href: mb.getAttribute('href') || '#/msg', id: 'msg-opbtn', ic: '💬', t: 'Messages', s: 'Message the office', badge: msgBadge('hm-bdg') }));
+    gang.forEach(g => tiles.push(hmTile({ href: g.getAttribute('href'), id: g.id, wide: true, ic: '👷', t: esc(hmTxt(g.querySelector('.t1')).replace(/^Gang timesheet · /, 'Gang times · ')), s: esc(hmTxt(g.querySelector('.t2'))) })));
+    const grid = `<div class="hm-grid hm-opg${tiles.filter(t => !/ wide/.test(t)).length % 2 ? ' odd' : ''}">${tiles.join('')}</div>`;
+    const extra = kids.map(e => e.outerHTML).join('');   // anything else (RAMS to sign, van checks, cover...) stays visible
+    const moreL = [pf && 'certificates · expenses', qa && 'new expense', mr && 'materials', (sheets.length || rpC.length) && 'weekly sheets', oaj && 'my jobs', rm && 'reminders'].filter(Boolean);
+    const qaB = qa ? qa.outerHTML.replace(/<span>New<\/span>/, `<span>New ${wk.length ? 'daily check / expense' : 'expense'}</span>`) : '';
+    const more = `<button type="button" class="hm-row" data-act="hm-more" aria-expanded="${HM.more}" id="hm-more"><span aria-hidden="true">☰</span><span class="hm-bt"><b>More</b><br><span class="small">${esc(moreL.join(' · ') || 'profile')}</span></span><span class="hm-bgo">${HM.more ? '▴' : '›'}</span></button>
+      ${`<div class="hm-morebox"${HM.more ? '' : ' hidden'}>${[pf && pf.outerHTML, qaB, ...rpP.map(e => e.outerHTML), ...rpC.map(e => e.outerHTML), mr && mr.outerHTML, ...sheets.map(e => e.outerHTML), oaj && oaj.outerHTML, ...noJobs.map(e => e.outerHTML), rm && rm.outerHTML].filter(Boolean).join('')}</div>`}`;
+    v.body = warn.map(e => e.outerHTML).join('') + hmInd(ind) + today + grid + extra + more + foot.map(e => e.outerHTML).join('');
+    v.head = hmTitle(v.head, hmHi()); document.body.classList.add('hm-on');
+  } catch (e) { console.warn('op home tidy', e); }
+  return v; }; }
+
+/* ---------- admin timesheets on a phone ---------- */
+const TSM = { fl: {}, pend: {}, mf: false };
+const tsmPhone = () => window.innerWidth < 700;
+const tsmRoute = () => route()[0];
+function tsmOffice(ws) { const O = TS.off, F = O.f, all = tsOffRows();
+  const rows = all.filter(r => (F.st === 'all' || r.w.status === F.st || (F.st === 'flag' && r.fl.length)) && (!F.p || r.p.id === F.p) && (!F.j || r.jobs.includes(F.j)));
+  const cnt = s => all.filter(r => r.w.status === s).length, jobs = [...new Set(all.flatMap(r => r.jobs))];
+  const appr = all.filter(r => r.w.status === 'submitted' && !r.w.locked && !r.fl.some(f => f.r) && !TSM.pend[r.w.id]);
+  const gross = all.reduce((a, r) => a + (r.rate ? r.t.gross || 0 : 0), 0), nfl = all.filter(r => r.fl.length).length;
+  const chip = (k, t) => `<button class="chip ${F.st === k ? 'on' : ''}" data-act="tso-f" data-k="st" data-v="${k}">${t}</button>`;
+  const card = r => { const w = r.w, id = w.id, can = w.status === 'submitted' && !w.locked, pend = id && TSM.pend[id];
+    if (pend) return `<div class="tsm-card tsm-pend" data-id="${esc(id)}"><span>✓ Approving ${esc(r.p.full_name || '')}…</span><button class="btn" data-act="tsm-undo" data-id="${esc(id)}">Undo</button></div>`;
+    const red = r.fl.filter(f => f.r).length, op = TSM.fl[r.p.id];
+    return `<div class="tsm-sw${can ? ' can' : ''}"><div class="tsm-bgA" aria-hidden="true">✓ Approve</div><div class="tsm-bgQ" aria-hidden="true">Query ?</div>
+      <div class="tsm-card${r.fl.length ? ' flag' : ''}" data-uid="${esc(r.p.id)}" ${id ? `data-id="${esc(id)}"` : ''} ${can ? 'data-sw="1"' : ''}>
+      <div class="tsm-top">${id ? `<a class="tsm-nm" href="#/tsweek/${esc(id)}">${esc(r.p.full_name || '')}</a>` : `<b class="tsm-nm">${esc(r.p.full_name || '')}</b>`}<span style="flex:1"></span>${r.rate ? `<span class="small">${esc(r.rate.pay_type)}</span> ` : ''}${tsTag(w.status)}${w.locked ? ' 🔒' : ''}</div>
+      ${id ? `<div class="tsm-stat"><div><b>${tsH(r.t.dayEq || 0)}</b>days${r.t.dayEq ? ` <span class="small">${r.t.full}F ${r.t.half}H</span>` : ''}</div><div><b>${tsH(r.t.total || 0)}</b>hours</div><div><b>${tsH(r.t.ot || 0)}</b>OT h</div><div><b>${r.rate && r.t.gross ? fmtGBP(r.t.gross).replace(/\.00$/, '') : '-'}</b>gross</div></div>` : ''}
+      ${r.fl.length ? `<button type="button" class="tsm-flb${red ? ' r' : ''}" data-act="tsm-fl" data-uid="${esc(r.p.id)}" aria-expanded="${!!op}">⚑ ${r.fl.length} flag${r.fl.length > 1 ? 's' : ''}${red ? ` (${red} red)` : ''} ${op ? '▴' : '▾'}</button>${op ? `<div class="tsm-fls">${r.fl.map(f => `<span class="ts-fl ${f.r ? 'r' : ''}">⚑ ${esc(f.t)}</span>`).join('')}</div>` : ''}` : (id ? '<span class="tag green">No flags</span>' : '')}
+      ${id ? `<div class="tsm-acts">${can ? `<button class="btn primary" data-act="tso-approve" data-id="${esc(id)}">✓ Approve</button>` : ''}${['submitted', 'approved', 'draft'].includes(w.status) && !w.locked ? `<button class="btn" data-act="tso-query" data-id="${esc(id)}">Query</button>` : ''}<a class="btn" href="#/tsweek/${esc(id)}" style="text-decoration:none">Open</a></div>` : ''}
+      </div></div>`; };
+  return `<div class="tsm-wk"><a class="btn" href="#/tsoffice/${TSC.addDays(ws, -7)}" aria-label="Previous week" style="text-decoration:none">‹</a><b>${esc(tsWc(ws))}</b><a class="btn" href="#/tsoffice/${TSC.addDays(ws, 7)}" aria-label="Next week" style="text-decoration:none">›</a></div>
+  <div class="tsm-sum" id="tsm-sum"><div><b class="big">${cnt('submitted')}</b> to approve · <b>${cnt('approved')}</b> approved · <b>${cnt('none')}</b> no time</div>
+    <div class="small">Week gross ${fmtGBP(gross)} · ${nfl} flagged · ${all.length} people</div>
+    ${appr.length ? `<button class="btn primary block" data-act="tso-apprall" style="margin-top:10px">✓ Approve ${appr.length} with no red flags</button>` : ''}</div>
+  <div class="tsm-chips">${chip('submitted', `To approve ${cnt('submitted')}`)}${chip('flag', `⚑ Flagged ${nfl}`)}${chip('none', `No time ${cnt('none')}`)}${chip('approved', `Approved ${cnt('approved')}`)}${chip('queried', `Queried ${cnt('queried')}`)}${chip('draft', `Draft ${cnt('draft')}`)}${chip('sent', `Sent ${cnt('sent')}`)}${chip('all', `All ${all.length}`)}</div>
+  <details class="tsm-mf" ${F.p || F.j || TSM.mf ? 'open' : ''}><summary>Filter by person or job${F.p || F.j ? ' (on)' : ''}</summary><div class="row2"><div class="f"><label>Person</label><select data-act="tso-sel" data-k="p"><option value="">Everyone</option>${all.map(r => `<option value="${esc(r.p.id)}" ${F.p === r.p.id ? 'selected' : ''}>${esc(r.p.full_name || '')}</option>`).join('')}</select></div>
+    <div class="f"><label>Job</label><select data-act="tso-sel" data-k="j"><option value="">All jobs</option>${jobs.map(j => `<option value="${esc(j)}" ${F.j === j ? 'selected' : ''}>${esc(tsJobName(j))}</option>`).join('')}</select></div></div></details>
+  <p class="small tsm-tip">Tap ✓ Approve, or swipe a card right to approve (left to query). Tap a name for the full week.</p>
+  <div id="tsm-list">${rows.map(card).join('') || '<p class="hint">No timesheets match.</p>'}</div>
+  <p class="small" style="margin-top:8px">Half day = up to ${tsH(tsCfgV().halfMax)} h worked; full day = more. Short days (under ${tsH(tsCfgV().shortFlag)} h) are flagged. Pay rates and £ are only visible to managers and admin.</p>`; }
+{ const _ov = tsOfficeView; tsOfficeView = function (ws) { const O = TS.off; if (!tsmPhone() || O.week !== ws || !O.rows || O.err) return _ov(ws); try { return tsmOffice(ws); } catch (e) { console.warn('tsm', e); return _ov(ws); } }; }
+Object.assign(ACTIONS, {
+  'tsm-fl'(a) { TSM.fl[a.dataset.uid] = !TSM.fl[a.dataset.uid]; rerender(true); },
+  'tsm-undo'(a) { const p = TSM.pend[a.dataset.id]; if (p) { clearTimeout(p); delete TSM.pend[a.dataset.id]; toast('Not approved'); rerender(true); } },
+});
+function tsmApprove(id) { if (TSM.pend[id]) return; TSM.pend[id] = setTimeout(async () => { delete TSM.pend[id];
+  try { await tsRpc('ts_review', { p_id: id, p_action: 'approve' }); toast('Approved ✓'); } catch (e) { toast(tsErr(e), 4500); } tsOffLoad(TS.off.week, true); }, 4000); rerender(true); }
+// swipe: right = approve (4 s undo), left = query
+{ let sw = null;
+  document.addEventListener('touchstart', e => { const c = e.target.closest && e.target.closest('.tsm-card[data-sw]'); if (!c || e.target.closest('button, a, select')) { sw = null; return; } const t = e.touches[0]; sw = { c, x: t.clientX, y: t.clientY, dx: 0, on: false }; }, { passive: true });
+  document.addEventListener('touchmove', e => { if (!sw) return; const t = e.touches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y;
+    if (!sw.on) { if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { sw = null; return; } if (Math.abs(dx) > 12) { sw.on = true; sw.c.classList.add('drag'); } }
+    if (sw.on) { sw.dx = dx; sw.c.style.transform = `translateX(${dx}px)`; sw.c.parentNode.classList.toggle('l', dx < 0); } }, { passive: true });
+  const end = () => { if (!sw) return; const { c, dx, on } = sw; sw = null; if (!on) return; c.classList.remove('drag'); c.style.transform = '';
+    if (dx > 100) tsmApprove(c.dataset.id); else if (dx < -100) ACTIONS['tso-query']({ dataset: { id: c.dataset.id } }); };
+  document.addEventListener('touchend', end); document.addEventListener('touchcancel', end); }
+// the other office screens: tables become stacked cards; day grids stay compact; budget shows projects with labour first
+function tsmFix() { const k = tsmRoute(), m = document.querySelector('main'); if (!m) return;
+  const on = tsmPhone() && /^ts(office|subs|budget|send|week)$/.test(k) && typeof tsAdm === 'function' && tsAdm(); document.body.classList.toggle('tsm-on', on);
+  let nav = document.getElementById('tsm-nav'); const tabs = on && /^ts(office|subs|budget|send)$/.test(k);
+  if (!tabs) { if (nav) nav.remove(); } else { const ws = /^\d{4}-\d{2}-\d{2}$/.test(route()[1] || '') ? TSC.monday(route()[1]) : (TS.off.week || TSC.monday(todayISO()));
+    const h = `<nav class="tsm-nav" id="tsm-nav" data-k="${k}|${ws}">${[['tsoffice', '#/tsoffice/' + ws, '👤', 'People'], ['tssubs', '#/tssubs/' + ws, '👷', 'Subs'], ['tsbudget', '#/tsbudget', '📊', 'Budget'], ['tssend', '#/tssend/' + ws, '📤', 'Accounts']].map(([r, h2, i, l]) => `<a href="${h2}" class="${r === k ? 'on' : ''}"><span aria-hidden="true">${i}</span>${l}</a>`).join('')}</nav>`;
+    if (!nav || nav.dataset.k !== `${k}|${ws}`) { if (nav) nav.remove(); document.body.insertAdjacentHTML('beforeend', h); } }
+  if (!on) return;
+  m.querySelectorAll('table.ts-tbl:not([data-tsm])').forEach(t => { t.dataset.tsm = '1'; const th = [...t.querySelectorAll('thead th')].map(x => hmTxt(x));
+    if (t.classList.contains('tss-grid') || th.filter(x => /^(MON|TUE|WED|THU|FRI|SAT|SUN)/i.test(x)).length >= 5) { t.classList.add('tsm-grid'); const pa = t.parentElement; if (pa && !pa.classList.contains('tsm-gwrap') && !/auto|scroll/.test(getComputedStyle(pa).overflowX)) { const w = document.createElement('div'); w.className = 'tsm-gwrap'; pa.insertBefore(w, t); w.appendChild(t); } return; }
+    if (!th.length) { t.classList.add('tsm-kv'); return; }
+    t.classList.add('tsm-cards'); t.querySelectorAll('tbody tr, tfoot tr').forEach(tr => { let i = 0; [...tr.children].forEach(td => { if (!td.dataset.l && tr.parentNode.tagName === 'TBODY') td.dataset.l = th[i] || ''; i += +(td.getAttribute('colspan') || 1); }); });
+    if (k === 'tsbudget') { const tb = t.querySelector('tbody'); if (!tb) return; const rs = [...tb.children]; const pc = tr => { const m2 = hmTxt(tr).match(/(\d+(?:\.\d+)?)\s*%/); return m2 ? +m2[1] : 0; };
+      const used = tr => { const m2 = hmTxt(tr).match(/(\d+(?:\.\d+)?)\s*\/\s*\d/); return m2 ? +m2[1] : 0; };
+      rs.sort((a, b) => pc(b) - pc(a) || used(b) - used(a)).forEach(tr => { tr.classList.toggle('tsm-zero', !used(tr) && !pc(tr)); tb.appendChild(tr); });
+      const nz = rs.filter(tr => !tr.classList.contains('tsm-zero')).length; t.classList.toggle('tsm-all', !!TSM.all);
+      t.insertAdjacentHTML('beforebegin', `<div class="tsm-chips" id="tsm-bchips"><button class="chip ${TSM.all ? '' : 'on'}" data-act="tsm-ball" data-v="">With labour (${nz})</button><button class="chip ${TSM.all ? 'on' : ''}" data-act="tsm-ball" data-v="1">All ${rs.length}</button></div><p class="small">Sorted by % of budget used.</p>`); } });
+  if (k === 'tsweek') { const b = m.querySelector('[data-act="tsa-approve"], [data-act="tsa-pdf"]'); if (b && b.parentNode && !b.parentNode.classList.contains('tsm-stick')) b.parentNode.classList.add('tsm-stick'); } }
+ACTIONS['tsm-ball'] = function (a) { TSM.all = !!a.dataset.v; const t = document.querySelector('table.tsm-cards'); if (t) t.classList.toggle('tsm-all', TSM.all); document.querySelectorAll('#tsm-bchips .chip').forEach(c => c.classList.toggle('on', !!c.dataset.v === TSM.all)); };
+{ let q = 0; new MutationObserver(() => { if (q) return; q = requestAnimationFrame(() => { q = 0; try { tsmFix(); } catch (e) { } }); }).observe(document.getElementById('app') || document.body, { childList: true, subtree: true });
+  let wasP = tsmPhone(); window.addEventListener('resize', () => { const p = tsmPhone(); if (p !== wasP) { wasP = p; if (/^ts/.test(tsmRoute())) rerender(true); else tsmFix(); } });
+  window.addEventListener('hashchange', () => setTimeout(() => { try { tsmFix(); } catch (e) { } }, 0)); }
+
+{ const st = document.createElement('style'); st.textContent = `
+.hm-h{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:6px 2px 8px}
+.hm-banner,.hm-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:#fff4e3;border:1px solid #f6d7a8;border-left:5px solid var(--orange);border-radius:12px;padding:10px 12px;margin:0 0 12px;color:var(--text);text-decoration:none;font:inherit;font-size:15px;min-height:48px;cursor:pointer}
+.hm-banner.wait{background:#eef4fb;border-color:var(--line2);border-left-color:var(--navy3)}
+.hm-row{background:#fff;border:1px solid var(--line2);border-left:1px solid var(--line2)}
+.hm-bt{flex:1;min-width:0}.hm-bgo{font-weight:800;color:var(--orange-d);white-space:nowrap}
+.hm-attn{display:flex;gap:8px;overflow-x:auto;margin:0 -12px 12px;padding:2px 12px 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hm-attn::-webkit-scrollbar{display:none}
+.hm-at{flex:none;display:flex;flex-direction:column;align-items:flex-start;gap:0;min-width:112px;max-width:150px;min-height:64px;text-align:left;background:#fff;border:1px solid var(--line2);border-left:5px solid var(--crit);border-radius:12px;padding:8px 10px;font:inherit;font-size:13px;line-height:1.25;color:var(--text);text-decoration:none;cursor:pointer;box-shadow:0 1px 2px rgba(15,37,66,.08)}
+.hm-at b{font-size:20px;line-height:1.1}
+.hm-ok{background:#eaf7ef;color:var(--good);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-weight:700}
+.hm-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 14px}
+.hm-tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:92px;background:#fff;border:1px solid var(--line2);border-radius:14px;padding:12px;text-align:left;font:inherit;color:var(--text);text-decoration:none;box-shadow:0 1px 2px rgba(15,37,66,.08);cursor:pointer}
+.hm-tile.wide{grid-column:1/-1;min-height:64px}.hm-grid.odd>.hm-tile:not(.wide):last-child{grid-column:1/-1;min-height:64px}
+.hm-ti{font-size:24px;line-height:1}.hm-tn{font-size:16px;font-weight:800;margin-top:4px}.hm-ts{font-size:13px;color:var(--muted);line-height:1.3}
+.hm-bdg,.hm-tile .msg-badge{position:absolute;top:10px;right:10px;margin:0;background:#dc2626;color:#fff;font-size:13px;font-weight:800;border-radius:12px;min-width:24px;height:24px;padding:0 7px;display:inline-flex;align-items:center;justify-content:center}
+.hm-tile .msg-badge[hidden]{display:none}
+.hm-sec{display:flex;align-items:center;gap:10px;margin:6px 2px 8px}.hm-new{min-height:44px;padding:0 16px;font-weight:800}.hm-new svg,.hm-newbig svg{width:22px;height:22px}
+.hm-newbig{min-height:56px;font-size:18px;font-weight:800;margin:0 0 12px}
+.hm-fscroll{display:flex;gap:0;overflow-x:auto;margin:0 -12px 10px;padding:0 12px;scrollbar-width:none}.hm-fscroll::-webkit-scrollbar{display:none}
+.hm-fscroll .filters{flex:none;flex-wrap:nowrap;margin:0 8px 0 0}.hm-fscroll .filters button{white-space:nowrap}
+.card.hm-today{border-top:5px solid var(--orange)}.hm-jt{font-size:20px;font-weight:800;line-height:1.25}.hm-big{min-height:60px;font-size:18px;font-weight:800;margin-top:12px}
+.hm-morebox{margin:-4px 0 12px;padding:10px 0 0}.hm-morebox .qa-oprow{justify-content:stretch}.hm-morebox .qa-op{width:100%}
+body.hm-on .fab.qa-fab{display:none}
+@media (min-width:700px){.hm-grid{grid-template-columns:repeat(3,1fr)}.hm-grid.hm-opg{grid-template-columns:repeat(2,1fr)}.hm-grid.odd>.hm-tile:not(.wide):last-child{grid-column:auto;min-height:92px}.hm-attn{flex-wrap:wrap;overflow:visible;margin:0 0 12px;padding:0}}
+/* admin timesheets on a phone */
+.tsm-wk{display:flex;align-items:center;gap:8px;margin:0 0 10px}.tsm-wk b{flex:1;text-align:center;font-size:17px}.tsm-wk .btn{min-width:48px;min-height:44px}
+.tsm-sum{background:var(--navy);color:#fff;border-radius:14px;padding:14px;margin:0 0 12px;font-size:15px}.tsm-sum .big{font-size:24px}.tsm-sum .small{color:#c9d3e3;margin-top:2px}
+.tsm-chips{display:flex;gap:8px;overflow-x:auto;margin:0 -12px 10px;padding:0 12px 2px;scrollbar-width:none}.tsm-chips::-webkit-scrollbar{display:none}.tsm-chips .chip{flex:none;white-space:nowrap;min-height:40px}
+.tsm-mf{margin:0 0 10px}.tsm-mf summary{font-weight:700;color:var(--navy3);padding:8px 2px;min-height:40px;cursor:pointer}
+.tsm-tip{margin:0 2px 8px}
+.tsm-sw{position:relative;margin:0 0 10px;border-radius:14px}
+.tsm-bgA,.tsm-bgQ{position:absolute;inset:0;border-radius:14px;display:none;align-items:center;padding:0 20px;font-weight:800;font-size:17px;color:#fff}
+.tsm-bgA{background:var(--good)}.tsm-bgQ{background:#b45309;justify-content:flex-end}
+.tsm-sw.can:has(.drag) .tsm-bgA{display:flex}.tsm-sw.can.l:has(.drag) .tsm-bgA{display:none}.tsm-sw.can.l:has(.drag) .tsm-bgQ{display:flex}
+.tsm-card{position:relative;background:#fff;border:1px solid var(--line2);border-radius:14px;padding:12px 14px;box-shadow:0 1px 2px rgba(15,37,66,.08);touch-action:pan-y;transition:transform .2s}
+.tsm-card.drag{transition:none}.tsm-card.flag{border-left:5px solid #d97706}
+.tsm-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.tsm-nm{font-size:17px;font-weight:800;color:var(--text);text-decoration:none}
+.tsm-stat{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}.tsm-stat>div{background:#f3f6fa;border-radius:10px;padding:6px 4px;text-align:center;font-size:12px;color:var(--muted);line-height:1.2}.tsm-stat b{display:block;font-size:16px;color:var(--text)}
+.tsm-flb{margin-top:10px;background:#fff4e3;color:#8a5300;border:1px solid #f6d7a8;border-radius:16px;padding:6px 12px;font:inherit;font-size:13px;font-weight:700;min-height:36px;cursor:pointer}.tsm-flb.r{background:#fdecec;color:#991b1b;border-color:#f5c2c2}
+.tsm-fls{margin-top:6px}
+.tsm-acts{display:flex;gap:8px;margin-top:10px}.tsm-acts .btn{flex:1;min-height:46px}
+.tsm-pend{display:flex;align-items:center;gap:10px;background:#14532d;color:#fff;margin:0 0 10px;font-weight:700}.tsm-pend span{flex:1}.tsm-pend .btn{min-height:44px}
+.tsm-nav{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;background:#fff;border-top:1px solid var(--line);padding-bottom:var(--safe-b)}
+.tsm-nav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;min-height:58px;font-size:12px;font-weight:700;color:var(--muted);text-decoration:none}.tsm-nav a span{font-size:20px}.tsm-nav a.on{color:var(--orange-d)}
+body.tsm-on main{padding-bottom:calc(130px + var(--safe-b))}
+body.tsm-on .ts-wrap{overflow:visible}
+body.tsm-on table.tsm-cards,body.tsm-on table.tsm-cards tbody,body.tsm-on table.tsm-cards tfoot{display:block;width:100%}
+body.tsm-on table.tsm-cards thead{display:none}
+body.tsm-on table.tsm-cards tr{display:block;background:#fff;border:1px solid var(--line2);border-radius:12px;padding:8px 12px;margin:0 0 8px}
+body.tsm-on table.tsm-cards td{display:flex;justify-content:space-between;gap:12px;border:0;padding:4px 0;text-align:right;white-space:normal}
+body.tsm-on table.tsm-cards td:first-child{font-size:16px;text-align:left;display:block;border-bottom:1px solid var(--line2);padding-bottom:6px;margin-bottom:4px}
+body.tsm-on table.tsm-cards td[data-l]:not(:first-child)::before{content:attr(data-l);font-weight:700;color:var(--muted);text-align:left;flex:none;max-width:45%}
+body.tsm-on table.tsm-cards td:empty{display:none}
+body.tsm-on table.tsm-kv,body.tsm-on table.tsm-kv tbody{display:block;width:100%}body.tsm-on table.tsm-kv tr{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px}body.tsm-on table.tsm-kv td{display:block;border:0;border-bottom:1px solid var(--line2);padding:6px 2px}body.tsm-on table.tsm-kv td.n{text-align:right}
+body.tsm-on table.tsm-cards tfoot tr{background:#f3f6fa}body.tsm-on table.tsm-cards tfoot td{display:block;text-align:left}
+body.tsm-on table.tsm-cards td .btn{min-height:44px}
+body.tsm-on table.tsm-cards tr.tsm-zero{display:none}body.tsm-on table.tsm-cards.tsm-all tr.tsm-zero{display:block}
+body.tsm-on table.tsm-grid{font-size:13px}body.tsm-on table.tsm-grid th,body.tsm-on table.tsm-grid td{padding:6px 4px}
+body.tsm-on table.tsm-grid td:first-child,body.tsm-on table.tsm-grid th:first-child{position:sticky;left:0;background:#fff;z-index:1;min-width:84px}
+body.tsm-on .ts-wrap:has(.tsm-grid),.tsm-gwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+body.tsm-on .tsm-stick{position:sticky;bottom:0;z-index:20;background:#fff;margin:10px -16px -16px!important;padding:10px 16px calc(10px + var(--safe-b));border-top:1px solid var(--line);border-radius:0 0 var(--radius) var(--radius)}
+body.tsm-on .tsm-stick .btn{min-height:48px;flex:1}
+`; document.head.appendChild(st); }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
