@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.13">
+<meta name="app-version" content="1.11.13a">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.13';
+const APP_VERSION = '1.11.13a';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"prod","allowLocal":false,"beta":false,"db":"ars-roof-audit","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -9582,7 +9582,10 @@ async function recUpload(owner, kind, id, k, dataUrlOrBlob) { const blob = typeo
   const path = `${owner}/${kind}/${id}-${safeName(k)}-${Date.now().toString(36)}.${ext}`; await sbFetch(`/storage/v1/object/${REC_BUCKET}/${encPath(path)}`, { method: 'POST', body: blob, headers: { 'Content-Type': blob.type || 'application/octet-stream', 'x-upsert': 'true' } }); return path; }
 async function recPush(r) { for (const [k, v] of Object.entries(r._files || {})) { r.data[k] = await recUpload(r.owner || me(), r.kind, r.id, k, v); delete r._files[k]; recSaveLocal(); }
   const ver = r.updated_at, row = { id: r.id, kind: r.kind, subject: r.subject || null, owner: r.owner || me(), status: r.status || null, data: JSON.parse(JSON.stringify(r.data)), deleted: !!r.deleted };
-  await sbFetch('/rest/v1/records?on_conflict=id', { method: 'POST', body: [row], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } });
+  // v1.11.13a fix: an admin/manager approving/rejecting someone else's expense was sent as an upsert, which the records INSERT policy
+  // (owner = auth.uid()) refuses -> 403 and the change stayed stuck on the device. Update the existing row instead (UPDATE policy allows is_admin()).
+  let patched = false; if (r.kind === 'expense' && isAdm() && r.owner && r.owner !== me()) { const res = await sbFetch(`/rest/v1/records?id=eq.${encodeURIComponent(r.id)}`, { method: 'PATCH', body: { status: row.status, data: row.data, deleted: row.deleted }, headers: { Prefer: 'return=representation' } }); patched = !(Array.isArray(res) && !res.length); }
+  if (!patched) await sbFetch('/rest/v1/records?on_conflict=id', { method: 'POST', body: [row], headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } });
   if (r.updated_at === ver) { delete r._q; delete r._err; } else Rec.again = true; }   // v1.11.9: changed while uploading -> keep it queued and push again
 // images / files: local data URL first, else authenticated download (cached as object URL; KV cache for offline)
 const recSrc = (r, k) => (r._files && r._files[k]) || '';
