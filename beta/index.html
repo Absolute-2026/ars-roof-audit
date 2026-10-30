@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.25">
+<meta name="app-version" content="1.11.26">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.25';
+const APP_VERSION = '1.11.26';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -15454,8 +15454,8 @@ const tsH = h => (Math.round((+h || 0) * 100) / 100).toString();
 const tsDay = iso => `${TSC.dayName(iso)} ${+iso.slice(8, 10)} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+iso.slice(5, 7) - 1]}`;
 const tsWc = ws => 'w/c ' + tsDay(ws).slice(4) + ' ' + ws.slice(0, 4);
 const tsErr = e => { const m = String((e && e.message) || e || ''); return /ARS_TS_LOCKED/.test(m) ? 'This week is already submitted or locked' : /ARS_TS_NOT_FOREMAN/.test(m) ? 'Only the foreman on this job can do that' : /ARS_TS_NEED_SIGNATURE/.test(m) ? 'Please sign first' : /ARS_TS_NEED_(NOTE|REASON)/.test(m) ? 'A reason is required' : /ARS_TS_HAS_PHONE/.test(m) ? 'This person signs on their own phone' : /ARS_TS_BAD_STATUS/.test(m) ? 'The status has changed - refresh' : e && e.offline ? 'Needs signal' : m || 'Something went wrong'; };
-const tsStTag = st => ({ draft: ['grey', 'Draft'], submitted: ['blue', 'Submitted'], queried: ['amber', 'Queried'], approved: ['green', 'Approved'], sent: ['navy', 'Sent to accounts'], none: ['grey', 'Nothing yet'] })[st] || ['grey', st];
-const tsTag = st => { const [c, t] = tsStTag(st); return `<span class="tag ${c}">${esc(t)}</span>`; };
+const tsStTag = st => ({ draft: ['grey', 'Draft'], submitted: ['blue', 'Submitted'], cm_ok: ['green', 'CM approved'], queried: ['amber', 'Queried'], approved: ['green', 'Approved'], sent: ['navy', 'Sent to accounts'], none: ['grey', 'Nothing yet'] })[st] || ['grey', st];
+const tsTag = (st, w) => { const [c, t] = tsStTag(st); return `<span class="tag ${c}">${esc(t)}</span>` + (w && typeof tsCmTag === 'function' ? tsCmTag(st, w) : ''); };
 (() => { const st = document.createElement('style'); st.textContent = `
 .ts-day{border:1px solid #e2e8f0;border-radius:14px;padding:10px 12px;margin:0 0 10px;background:#fff}.ts-day.today{border:2px solid #f59e0b}
 .ts-dh{display:flex;align-items:center;gap:8px;cursor:pointer}.ts-dh b{font-size:17px}.ts-dh .tot{margin-left:auto;font-weight:800;color:#1e3a5f}
@@ -15573,7 +15573,7 @@ function tsViewOp(w) {
     const a = adjs.filter(x => x.day === date).pop();
     return `<div class="ts-day ${date === today ? 'today' : ''}" id="tsd-${date}"><div class="ts-dh" data-act="ts-open" data-d="${date}"><b>${tsDay(date)}${date === today ? ' · today' : ''}</b>${done ? '<span class="tag green">Done</span>' : fut ? '<span class="tag grey">Not yet</span>' : ed ? '<span class="tag amber">To fill in</span>' : ''}${d && d.by && d.by.uid !== me() ? `<span class="tag navy">Booked by ${esc((d.by.name || 'foreman').split(' ')[0])}</span>` : ''}<span class="tot">${done ? tsH(h) + ' h' : ''}</span></div>
       ${isOpen ? tsDayEdit(w, date) : `${done ? `<div class="ts-sum">${tsDaySummary(d)}</div>${tsDayTags(d, true)}` : ''}`}
-      ${a ? `<div class="lg-msg" style="background:#eef1f5;margin:8px 0 0">The office changed this day: <b>${esc(TSC.dvTxt(a.after.dv))}${TSC.otH(TSC.otl(a.after)) ? ' + ' + tsH(TSC.otH(TSC.otl(a.after))) + ' h overtime' : ''}</b> · "${esc(a.reason)}"</div>` : ''}</div>`; }).join('');
+      ${a ? `<div class="lg-msg" style="background:#eef1f5;margin:8px 0 0">The office changed this day: <b>${esc(TSC.dvTxt(a.after.dv))}${TSC.otH(TSC.otl(a.after)) ? ' + ' + tsH(TSC.otH(TSC.otl(a.after))) + ' h overtime' : ''}</b> ${String(a.reason || '').trim() ? ` · "${esc(a.reason)}"` : ''}</div>` : ''}</div>`; }).join('');
   const fri = TSC.addDays(w.week, 4), canSubmit = ed && today >= fri;
   const banner = w.status === 'queried' && w.query ? `<div class="lg-msg warn" style="margin:0 0 12px"><b>The office has a question:</b> "${esc(w.query.note)}"${w.query.name ? ' - ' + esc(w.query.name) : ''}<br>Change your hours if needed, then sign and submit again.</div>`
     : w.status === 'submitted' ? `<div class="lg-msg" style="margin:0 0 12px;background:#e0f2fe">✓ Submitted${w.sign && w.sign.at ? ' ' + esc(new Date(w.sign.at).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' })) : ''}${w.sign && w.sign.on_device_name ? ' on ' + esc(w.sign.on_device_name) + "'s phone" : ''}. The office will check it.</div>`
@@ -15694,13 +15694,14 @@ Object.assign(ACTIONS, {
 });
 
 /* ---------- office: shared data (managers + admin only; RLS returns nothing to anyone else) ---------- */
-async function tsRatesLoad(force) { if (!tsAdm() || (!force && TS.rates)) return;
+async function tsRatesLoad(force) { if (!(tsAdm() || tsIsCm()) || (!force && TS.rates)) return;
   try { const [r, l, p] = await Promise.all([sbFetch('/rest/v1/pay_rates?select=*'), sbFetch('/rest/v1/pay_rates_log?select=*&order=at.desc&limit=500'), sbFetch('/rest/v1/ts_people?select=*')]);
     TS.rates = {}; (r || []).forEach(x => { TS.rates[x.uid] = x; }); TS.rlog = l || []; TS.people = {}; (p || []).forEach(x => { TS.people[x.uid] = x; }); }
   catch (e) { TS.rates = TS.rates || {}; TS.rlog = TS.rlog || []; TS.people = TS.people || {}; } }
 // v1.11.25 custom £ adjustments (ts_extra - managers / admin only; RLS hides the table from everyone else)
 async function tsExtLoad(ids) { ids = (ids || []).filter(Boolean); if (!ids.length) return; try { const l = await sbFetch(`/rest/v1/ts_extra?week_id=in.(${ids.join(',')})&select=*&order=at.asc`) || []; ids.forEach(i => { TS.ext[i] = []; }); l.forEach(x => (TS.ext[x.week_id] = TS.ext[x.week_id] || []).push(x)); } catch (e) { } }
 const tsExt = id => (id && TS.ext[id]) || [];
+const tsExtLbl = x => String((x && x.reason) || '').trim() || (x && x.kind === 'inc' ? 'Increase' : 'Deduction');   // v1.11.26: reason optional
 const tsExtTxt = x => `${x.kind === 'inc' ? '+' : '−'}${fmtGBP(x.amount)}`;
 const tsRate = (uid, week) => TSC.rateFor(TS.rates && TS.rates[uid], TS.rlog, week);
 const tsName = uid => { const p = (Cloud.profiles || []).find(x => x.id === uid); return p ? p.full_name || p.email : 'Unknown'; };
@@ -15708,8 +15709,8 @@ function tsAdjMap(list) { const by = {}; (list || []).slice().sort((a, b) => Str
 async function tsOffLoad(ws, force) {
   const O = TS.off; if (!force && O.week === ws && O.rows) return; O.week = ws; O.rows = null; O.err = null;
   try { const end = TSC.addDays(ws, 6);
-    const [rows, adj, chk, sds] = await Promise.all([sbFetch(`/rest/v1/ts_weeks?week=eq.${ws}&select=*&order=name.asc`), sbFetch(`/rest/v1/ts_adjust?day=gte.${ws}&day=lte.${end}&select=*&order=at.asc`), tsRpc('ts_check_days', { p_week: ws }), tsRpc('ts_standdowns', { p_week: ws }), tsRatesLoad(), tsCfgLoad(), Ops.jobsTbl && Ops.jobsTbl.length ? null : loadJobsTbl()]);
-    O.rows = rows || []; await tsExtLoad(O.rows.map(w => w.id)); O.adjList = adj || []; O.adj = tsAdjMap(adj); O.chk = new Set((chk || []).map(x => x.job + '|' + x.day)); O.sds = sds || [];
+    const [rows, adj, chk, sds] = await Promise.all([sbFetch(`/rest/v1/ts_weeks?week=eq.${ws}&select=*&order=name.asc`), sbFetch(`/rest/v1/ts_adjust?day=gte.${ws}&day=lte.${end}&select=*&order=at.asc`), null, tsRpc('ts_standdowns', { p_week: ws }), tsRatesLoad(), tsCfgLoad(), Ops.jobsTbl && Ops.jobsTbl.length ? null : loadJobsTbl()]);
+    O.rows = (rows || []).map(tsCmView); await tsExtLoad(O.rows.map(w => w.id)); O.adjList = adj || []; O.adj = tsAdjMap(adj); O.chk = null; O.sds = sds || [];
     try { if (typeof indLoadAll === 'function') indLoadAll(true); } catch (e) { } }
   catch (e) { O.err = tsErr(e); O.rows = []; }
   if (/^ts(office|week|send|budget)$/.test(route()[0])) rerender();
@@ -15717,7 +15718,7 @@ async function tsOffLoad(ws, force) {
 function tsFlags(w, t) { const f = [], O = TS.off, cfg = tsCfgV();
   t.short.forEach(d => f.push({ k: 'short', t: `Short day ${TSC.dayName(d)} (${tsH(t.days.find(x => x.date === d).h)} h)` }));
   t.days.forEach(x => { const jobs = [...new Set((x.d.e || []).filter(e => TSC.entH(e) > 0 && e.job).map(e => e.job))];
-    jobs.forEach(j => { if (O.chk && !O.chk.has(j + '|' + x.date)) f.push({ k: 'chk', t: `No daily check ${TSC.dayName(x.date)} · ${tsJobRef(j)}` });
+    jobs.forEach(j => { /* v1.11.26 (Matt, ac543d4f): no daily check flags on timesheets - they live in Daily checks */
       const c = TSC.clash(x.d, (O.sds || []).filter(s => s.job === j && s.day === x.date), j); if (c) f.push({ k: 'clash', r: 1, t: `Stand-down clash ${TSC.dayName(x.date)}: site sheet ${c.kind === 'wx' ? 'weather' : 'stand-down'}${c.from ? ' from ' + c.from : ''}, worked to ${(x.d.e || []).filter(e => e.job === j).map(e => e.f).pop()}` }); });
     if ((x.d.e || []).some(e => TSC.entH(e) > 0 && !e.job && e.jt)) f.push({ k: 'txt', t: `Job typed in ${TSC.dayName(x.date)}: "${(x.d.e.find(e => !e.job && e.jt) || {}).jt}"` }); });
   const ind = typeof recAll === 'function' ? recAll('induction', r => r.subject === w.uid && ['submitted', 'complete'].includes(r.status)) : [1]; if (!ind.length) f.push({ k: 'ind', r: 1, t: 'No induction on record' });
@@ -15726,7 +15727,7 @@ function tsFlags(w, t) { const f = [], O = TS.off, cfg = tsCfgV();
 const tsJobRef = id => { const j = (Ops.jobsTbl || []).find(x => x.id === id); return j ? j.ref || j.site_name : 'job'; };
 const tsJobName = id => { const j = (Ops.jobsTbl || []).find(x => x.id === id); return j ? [j.ref, j.site_name].filter(Boolean).join(' · ') : id; };
 function tsOffRows() { const O = TS.off, ws = O.week, cfg = tsCfgV(); const by = {}; (O.rows || []).forEach(w => { by[w.uid] = w; });
-  const ppl = operatives().filter(p => p.active !== false && !/^E2E Temp/.test(p.full_name || '') || by[p.id]);
+  let ppl = operatives().filter(p => p.active !== false && !/^E2E Temp/.test(p.full_name || '') || by[p.id]); if (tsIsCm()) ppl = ppl.filter(p => tsCmOf(p.id) === tsMeId());
   Object.keys(by).forEach(uid => { if (!ppl.find(p => p.id === uid)) ppl.push({ id: uid, full_name: by[uid].name }); });
   return ppl.map(p => { const w = by[p.id] || { uid: p.id, week: ws, days: {}, status: 'none', name: p.full_name }; const rate = tsRate(p.id, ws); const t = TSC.week(w, O.adj && O.adj[w.id], rate, cfg, tsExt(w.id)); return { p, w, t, rate, fl: w.id ? tsFlags(w, t) : [], jobs: [...new Set(t.days.flatMap(x => (x.d.e || []).map(e => e.job).filter(Boolean)))] }; })
     .map(r => { if (tsNoTime(r, ws)) r.fl.unshift({ k: 'notime', r: 1, t: 'No time submitted' }); const nn = r.w ? Object.values(r.w.days || {}).filter(d => d && d.note && String(d.note).trim()).length : 0; if (nn) r.fl.push({ k: 'note', r: 0, t: `📝 ${nn} note${nn > 1 ? 's' : ''}` }); return r; })
@@ -15736,19 +15737,19 @@ function tsOfficeView(ws) {
   const all = tsOffRows(), F = O.f; const rows = all.filter(r => (F.st === 'all' || r.w.status === F.st || (F.st === 'flag' && r.fl.length)) && (!F.p || r.p.id === F.p) && (!F.j || r.jobs.includes(F.j)));
   const cnt = s => all.filter(r => r.w.status === s).length; const jobs = [...new Set(all.flatMap(r => r.jobs))];
   const tot = rows.reduce((o, r) => { o.h += r.t.total; o.d += r.t.dayEq; o.g += r.t.gross; return o; }, { h: 0, d: 0, g: 0 });
-  const appr = rows.filter(r => r.w.status === 'submitted' && !r.w.locked && !r.fl.some(f => f.r));
+  const appr = rows.filter(r => r.w.status === 'submitted' && !r.w.locked && !r.fl.some(f => f.r) && tsCmReady(r.w));
   return `<div class="card"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><a class="btn" href="#/tsoffice/${TSC.addDays(ws, -7)}" style="text-decoration:none">‹</a><b style="font-size:18px">${esc(tsWc(ws))}</b><a class="btn" href="#/tsoffice/${TSC.addDays(ws, 7)}" style="text-decoration:none">›</a>
-      <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#/tsbudget" style="text-decoration:none">📊 Labour vs budget</a><a class="btn primary" href="#/tssend/${ws}" style="text-decoration:none">📤 Send to accounts</a></span></div>
-    <div class="chips" style="margin-top:10px">${[['all', `All (${all.length})`], ['submitted', `Submitted (${cnt('submitted')})`], ['queried', `Queried (${cnt('queried')})`], ['approved', `Approved (${cnt('approved')})`], ['sent', `Sent (${cnt('sent')})`], ['draft', `Draft (${cnt('draft')})`], ['none', `${todayISO() >= TSC.addDays(ws, 4) ? 'No time submitted' : 'Nothing yet'} (${cnt('none')})`], ['flag', `⚑ Flagged (${all.filter(r => r.fl.length).length})`]].map(([k, t]) => `<button class="chip ${F.st === k ? 'on' : ''}" data-act="tso-f" data-k="st" data-v="${k}">${t}</button>`).join('')}</div>
+      <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#/tsbudget" style="text-decoration:none">📊 Labour vs budget</a>${tsIsCm() ? '' : `<a class="btn primary" href="#/tssend/${ws}" style="text-decoration:none">📤 Send to accounts</a>`}</span></div>
+    <div class="chips" style="margin-top:10px">${[['all', `All (${all.length})`], ['submitted', `Submitted (${cnt('submitted')})`], ...(tsIsCm() ? [['cm_ok', `CM approved (${cnt('cm_ok')})`]] : []), ['queried', `Queried (${cnt('queried')})`], ['approved', `Approved (${cnt('approved')})`], ['sent', `Sent (${cnt('sent')})`], ['draft', `Draft (${cnt('draft')})`], ['none', `${todayISO() >= TSC.addDays(ws, 4) ? 'No time submitted' : 'Nothing yet'} (${cnt('none')})`], ['flag', `⚑ Flagged (${all.filter(r => r.fl.length).length})`]].map(([k, t]) => `<button class="chip ${F.st === k ? 'on' : ''}" data-act="tso-f" data-k="st" data-v="${k}">${t}</button>`).join('')}</div>
     <div class="row2" style="margin-top:8px"><div class="f"><label>Person</label><select data-act="tso-sel" data-k="p"><option value="">Everyone</option>${all.map(r => `<option value="${esc(r.p.id)}" ${F.p === r.p.id ? 'selected' : ''}>${esc(r.p.full_name || '')}</option>`).join('')}</select></div>
       <div class="f"><label>Job</label><select data-act="tso-sel" data-k="j"><option value="">All jobs</option>${jobs.map(j => `<option value="${esc(j)}" ${F.j === j ? 'selected' : ''}>${esc(tsJobName(j))}</option>`).join('')}</select></div></div></div>
   <div class="card"><div class="ts-wrap"><table class="ts-tbl"><thead><tr><th>Operative</th><th>Status</th><th class="n">Days</th><th class="n">Hours</th><th class="n">OT</th><th class="n">Gross £</th><th></th></tr></thead><tbody>
-  ${rows.map(r => `<tr class="${r.fl.length ? 'flag' : ''}"><td><b>${esc(r.p.full_name || '')}</b>${r.rate ? `<span class="small"> · ${esc(r.rate.pay_type)}</span>` : ''}${r.fl.map(f => `<span class="ts-fl ${f.r ? 'r' : ''}">⚑ ${esc(f.t)}</span>`).join('')}</td><td>${tsTag(r.w.status)}${r.w.locked ? ' 🔒' : ''}</td>
+  ${rows.map(r => `<tr class="${r.fl.length ? 'flag' : ''}"><td><b>${esc(r.p.full_name || '')}</b>${r.rate ? `<span class="small"> · ${esc(r.rate.pay_type)}</span>` : ''}${r.fl.map(f => `<span class="ts-fl ${f.r ? 'r' : ''}">⚑ ${esc(f.t)}</span>`).join('')}</td><td>${tsTag(r.w.status, r.w)}${r.w.locked ? ' 🔒' : ''}</td>
     <td class="n">${r.t.dayEq ? `${tsH(r.t.dayEq)}<span class="small"> (${r.t.full}F ${r.t.half}H)</span>` : ''}</td><td class="n">${r.t.total ? tsH(r.t.total) : ''}</td><td class="n">${r.t.ot ? tsH(r.t.ot) : ''}</td><td class="n">${r.rate && r.t.gross ? fmtGBP(r.t.gross) : ''}${tsExtNote(r.t)}</td>
-    <td class="ts-acts">${r.w.id ? `<a class="btn" href="#/tsweek/${esc(r.w.id)}" style="text-decoration:none">Open</a>` : ''}${r.w.status === 'submitted' && !r.w.locked ? `<button class="btn primary" data-act="tso-approve" data-id="${esc(r.w.id)}">Approve</button>` : ''}${r.w.id && ['submitted', 'approved', 'draft'].includes(r.w.status) && !r.w.locked ? `<button class="btn" data-act="tso-query" data-id="${esc(r.w.id)}">Query</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="hint">No timesheets match.</td></tr>'}
+    <td class="ts-acts">${r.w.id ? `<a class="btn" href="#/tsweek/${esc(r.w.id)}" style="text-decoration:none">Open</a>` : ''}${r.w.status === 'submitted' && !r.w.locked ? `<button class="btn primary" data-act="tso-approve" data-id="${esc(r.w.id)}">${tsIsCm() ? 'CM approve' : 'Approve'}</button>` : ''}${r.w.id && (tsIsCm() ? ['submitted'] : ['submitted', 'approved', 'draft']).includes(r.w.status) && !r.w.locked ? `<button class="btn" data-act="tso-query" data-id="${esc(r.w.id)}">Query</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="hint">No timesheets match.</td></tr>'}
   </tbody><tfoot><tr><td colspan="2"><b>${rows.length} shown</b></td><td class="n"><b>${tsH(tot.d)}</b></td><td class="n"><b>${tsH(tot.h)}</b></td><td></td><td class="n"><b>${tot.g ? fmtGBP(tot.g) : ''}</b></td><td></td></tr></tfoot></table></div>
-  ${appr.length ? `<button class="btn primary block" style="margin-top:10px" data-act="tso-apprall">✓ Approve ${appr.length} submitted without red flags</button>` : ''}
-  <p class="small" style="margin-top:8px">Half day = more than 0 and up to ${tsH(tsCfgV().halfMax)} h worked; full day = more than ${tsH(tsCfgV().halfMax)} h. Short days (under ${tsH(tsCfgV().shortFlag)} h) are flagged. Pay rates and £ are only visible to managers and admin.</p></div>`;
+  ${appr.length ? `<button class="btn primary block" style="margin-top:10px" data-act="tso-apprall">✓ Approve ${appr.length} submitted without red flags${tsAdm() && rows.some(r => r.w.status === 'submitted' && !tsCmReady(r.w)) ? ' (not those waiting for their CM)' : ''}</button>` : ''}
+  <p class="small" style="margin-top:8px">Half day = more than 0 and up to ${tsH(tsCfgV().halfMax)} h worked; full day = more than ${tsH(tsCfgV().halfMax)} h. Short days (under ${tsH(tsCfgV().shortFlag)} h) are flagged. Pay rates and £ are only visible to managers, admin and the person's contracts manager.</p></div>`;
 }
 async function tsQueryWeek(w) {
   const note = await modal(`<h3>Query ${esc(w.name || tsName(w.uid))}'s week</h3><p class="small">They see this on their timesheet and it goes to them in Messages.</p><div class="f"><textarea id="tsq-n" rows="3" placeholder="e.g. Tuesday shows 07:00–19:00 - was that right?"></textarea></div><button class="btn primary" id="tsq-ok">Send query</button><button class="btn" data-r="">Cancel</button>`,
@@ -15761,8 +15762,8 @@ async function tsQueryWeek(w) {
 }
 Object.assign(ACTIONS, {
   'tso-f'(a) { TS.off.f[a.dataset.k] = a.dataset.v; rerender(); },
-  async 'tso-approve'(a) { try { await tsRpc('ts_review', { p_id: a.dataset.id, p_action: 'approve' }); toast('Approved ✓'); tsOffLoad(TS.off.week, true); } catch (e) { toast(tsErr(e), 4500); } },
-  async 'tso-apprall'() { const rows = tsOffRows().filter(r => r.w.status === 'submitted' && !r.w.locked && !r.fl.some(f => f.r)); if (!await confirmBox('Approve timesheets?', `${rows.length} submitted timesheets with no red flags will be approved.`, 'Approve all', false)) return;
+  async 'tso-approve'(a) { try { await tsRpc('ts_review', { p_id: a.dataset.id, p_action: 'approve' }); toast(tsIsCm() ? 'CM approved ✓ - now with the office for the final check' : 'Approved ✓'); tsOffLoad(TS.off.week, true); } catch (e) { toast(tsErr(e), 4500); } },
+  async 'tso-apprall'() { const rows = tsOffRows().filter(r => r.w.status === 'submitted' && !r.w.locked && !r.fl.some(f => f.r) && tsCmReady(r.w)); if (!await confirmBox('Approve timesheets?', `${rows.length} submitted timesheets with no red flags will be approved.`, 'Approve all', false)) return;
     let n = 0; for (const r of rows) { try { await tsRpc('ts_review', { p_id: r.w.id, p_action: 'approve' }); n++; } catch (e) { } } toast(`Approved ${n}`); tsOffLoad(TS.off.week, true); },
   async 'tso-query'(a) { const w = (TS.off.rows || []).find(x => x.id === a.dataset.id) || (TS.adj.w && TS.adj.w.id === a.dataset.id && TS.adj.w); if (!w) return; if (await tsQueryWeek(w)) { TS.adj = {}; tsOffLoad(TS.off.week, true); } },
 });
@@ -15771,7 +15772,7 @@ document.addEventListener('change', e => { const s = e.target; if (s && s.datase
 /* ---------- manager adjust (#/tsweek/<id>): auto vs adjusted, reason mandatory, both kept, history ---------- */
 async function tsAdjLoad(id, force) { const A = TS.adj; if (!force && A.id === id && A.w) return; TS.adj = { id };
   try { const [w, adj, log] = await Promise.all([sbFetch(`/rest/v1/ts_weeks?id=eq.${id}&select=*`), sbFetch(`/rest/v1/ts_adjust?week_id=eq.${id}&select=*&order=at.asc`), sbFetch(`/rest/v1/ts_log?week_id=eq.${id}&select=*&order=at.asc`), tsRatesLoad(), tsCfgLoad(), Ops.jobsTbl && Ops.jobsTbl.length ? null : loadJobsTbl()]);
-    await tsExtLoad([id]); TS.adj = { id, w: w && w[0], list: adj || [], log: log || [] }; if (!TS.adj.w) TS.adj.err = 'Timesheet not found';
+    await tsExtLoad([id]); TS.adj = { id, w: w && w[0] && tsCmView(w[0]), list: adj || [], log: log || [] }; if (!TS.adj.w) TS.adj.err = 'Timesheet not found';
     if (TS.adj.w && (TS.off.week !== TS.adj.w.week || !TS.off.rows)) tsOffLoad(TS.adj.w.week); }
   catch (e) { TS.adj = { id, err: tsErr(e) }; }
   if (route()[0] === 'tsweek') rerender(); }
@@ -15780,9 +15781,9 @@ function tsAdjView() {
   const A = TS.adj; if (!A.w) return A.err ? `<div class="lg-msg err">${esc(A.err)}</div>` : '<p class="hint">Loading…</p>';
   const w = A.w, { t, rate } = tsWeekCalc(w, A.list), cfg = tsCfgV(), ro = w.locked || w.status === 'sent'; const fl = TS.off.rows && TS.off.week === w.week ? tsFlags(w, t) : [];
   const otTxt = l => l.length ? l.map(o => `${tsH(o.h)} h × ${o.x}`).join(' + ') : '-';
-  return `<div class="card"><h2>${esc(w.name || tsName(w.uid))} · ${esc(tsWc(w.week))} ${tsTag(w.status)}${w.locked ? ' 🔒' : ''}</h2>
+  return `<div class="card"><h2>${esc(w.name || tsName(w.uid))} · ${esc(tsWc(w.week))} ${tsTag(w.status, w)}${w.locked ? ' 🔒' : ''}</h2>
     <p class="small">${rate ? `${esc(rate.pay_type)} · ${fmtGBP(rate.day_rate)}/day${rate.ot_rate ? ` · OT ${fmtGBP(rate.ot_rate)}/h` : ` · OT = day rate ÷ ${tsH(cfg.stdHours)} h × 1.5 / 2`} · retention ${tsH(TSC.retPct(rate, cfg))}%` : '<b style="color:#b91c1c">No pay rate set</b> - add one on the person\'s page'}
-    ${w.sign && w.sign.at ? ` · signed ${esc(fmtDate(w.sign.at.slice(0, 10)))}${w.sign.on_device_name ? ' on ' + esc(w.sign.on_device_name) + "'s phone" : ''}` : ''}${w.approved_name ? ` · approved by ${esc(w.approved_name)}` : ''}</p>
+    ${w.sign && w.sign.at ? ` · signed ${esc(fmtDate(w.sign.at.slice(0, 10)))}${w.sign.on_device_name ? ' on ' + esc(w.sign.on_device_name) + "'s phone" : ''}` : ''}${w.approved_at && /^(approved|sent)$/.test(w.status) ? ` · approved by ${esc(tsWho(w.approved_by, w.approved_name))}` : ''}${tsCmLine(w)}</p>
     ${w.query && w.status === 'queried' ? `<div class="lg-msg warn">Queried by ${esc(w.query.name || '')}: "${esc(w.query.note)}"</div>` : ''}
     ${fl.map(f => `<span class="ts-fl ${f.r ? 'r' : ''}">⚑ ${esc(f.t)}</span>`).join('')}
     <div class="ts-wrap" style="margin-top:8px"><table class="ts-tbl"><thead><tr><th>Day</th><th>Times · job</th><th class="n">Worked</th><th>Day value</th><th>Overtime</th><th class="n">£</th>${ro ? '' : '<th></th>'}</tr></thead><tbody>
@@ -15793,10 +15794,10 @@ function tsAdjView() {
       <td class="n">${x.pay ? (ch && x.autoPay.gross !== x.pay.gross ? `<s class="small">${fmtGBP(x.autoPay.gross)}</s><br><b>${fmtGBP(x.pay.gross)}</b>` : fmtGBP(x.pay.gross)) : ''}</td>${ro ? '' : `<td><button class="btn" data-act="tsa-chg" data-d="${x.date}">Change</button></td>`}</tr>`; }).join('') || '<tr><td colspan="7" class="hint">No hours this week.</td></tr>'}
     </tbody><tfoot><tr><td colspan="2"><b>Week</b> · ${t.full} full · ${t.half} half · OT ${tsH(t.ot15)} h ×1.5 + ${tsH(t.ot2)} h ×2</td><td class="n"><b>${tsH(t.worked)}</b></td><td><b>${tsH(t.dayEq)} days</b></td><td></td><td class="n">${rate ? `<b>${fmtGBP(t.dayGross)}</b>${t.autoGross !== t.dayGross ? `<br><span class="small">was ${fmtGBP(t.autoGross)}</span>` : ''}` : ''}</td>${ro ? '' : '<td></td>'}</tr>
     ${tsExtFoot(w, t, rate, ro)}</tfoot></table></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${w.status === 'submitted' && !w.locked ? `<button class="btn primary" data-act="tsa-approve">✓ Approve</button>` : ''}${['submitted', 'approved', 'draft'].includes(w.status) && !w.locked ? `<button class="btn" data-act="tso-query" data-id="${esc(w.id)}">Query</button>` : ''}
-      ${w.locked ? `<button class="btn" data-act="tsa-unlock">🔓 Unlock (reason needed)</button>` : ''}<button class="btn" data-act="tsa-pdf">PDF</button><a class="btn" href="#/tsoffice/${esc(w.week)}" style="text-decoration:none">Back to list</a></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${w.status === 'submitted' && !w.locked ? `<button class="btn primary" data-act="tsa-approve">${tsIsCm() ? '✓ CM approve' : '✓ Approve'}</button>` : ''}${(tsIsCm() ? ['submitted'] : ['submitted', 'approved', 'draft']).includes(w.status) && !w.locked ? `<button class="btn" data-act="tso-query" data-id="${esc(w.id)}">Query</button>` : ''}
+      ${w.locked && tsAdm() ? `<button class="btn" data-act="tsa-unlock">🔓 Unlock (reason needed)</button>` : ''}<button class="btn" data-act="tsa-pdf">PDF</button><a class="btn" href="#/tsoffice/${esc(w.week)}" style="text-decoration:none">Back to list</a></div></div>
   ${tsExtCard(w, ro)}
-  <div class="card"><h2>History</h2>${A.list.length ? A.list.slice().reverse().map(a => `<div class="ts-hist"><b>${esc(tsDay(a.day))}</b>: ${esc(TSC.dvTxt((a.before || {}).dv))}${(a.before || {}).otl ? ' / OT ' + esc(otTxt(TSC.otl(a.before))) : ''} → <b>${esc(TSC.dvTxt(a.after.dv))} / OT ${esc(otTxt(TSC.otl(a.after)))}</b> · "${esc(a.reason)}" · ${esc(a.by_name || '')} ${esc(new Date(a.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}${a.notify ? ' · operative notified' : ''}</div>`).join('') : '<p class="hint">No changes - pay follows the hours.</p>'}
+  <div class="card"><h2>History</h2>${A.list.length ? A.list.slice().reverse().map(a => `<div class="ts-hist"><b>${esc(tsDay(a.day))}</b>: ${esc(TSC.dvTxt((a.before || {}).dv))}${(a.before || {}).otl ? ' / OT ' + esc(otTxt(TSC.otl(a.before))) : ''} → <b>${esc(TSC.dvTxt(a.after.dv))} / OT ${esc(otTxt(TSC.otl(a.after)))}</b> ${String(a.reason || '').trim() ? ` · "${esc(a.reason)}"` : ''} · ${esc(a.by_name || '')} ${esc(new Date(a.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}${a.notify ? ' · operative notified' : ''}</div>`).join('') : '<p class="hint">No changes - pay follows the hours.</p>'}
     ${(A.log || []).filter(l => l.action !== 'adjusted').map(l => `<div class="ts-hist">${esc(new Date(l.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))} · ${esc(String(l.action).replace(/_/g, ' '))}${l.by_name ? ' · ' + esc(l.by_name) : ''}${l.detail && l.detail.note ? ' · "' + esc(l.detail.note) + '"' : ''}</div>`).join('')}</div>`;
 }
 // v1.11.25 custom £ lines on the adjust screen (manager / admin only)
@@ -15812,16 +15813,16 @@ function tsExtFoot(w, t, rate, ro) { const L = tsExt(w.id), td = ro ? '' : '<td>
 function tsExtCard(w, ro) { const L = tsExt(w.id);
   return `<div class="card" id="ts-extcard"><h2 style="display:flex;align-items:center;gap:8px">± Own increase / deduction${ro ? '' : `<button class="btn sm" data-act="tsx-add" style="margin-left:auto">+ Add</button>`}</h2>
     <p class="small" style="margin:0 0 6px">Managers / admin only. Any £ amount with a reason. Increases are added to the gross (retention and CIS then apply); deductions come off the final net. The operative never sees these.</p>
-    ${L.map(x => `<div class="ts-hist ts-extl" data-id="${esc(x.id)}"><b style="color:${x.kind === 'inc' ? '#15803d' : '#b91c1c'}">${x.kind === 'inc' ? 'Increase' : 'Deduction'} ${tsExtTxt(x)}</b> · "${esc(x.reason)}" · ${esc(x.by_name || '')} ${esc(new Date(x.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}${ro ? '' : ` <button class="ts-linkb" data-act="tsx-del" data-id="${esc(x.id)}" style="color:#b91c1c">Remove</button>`}</div>`).join('') || '<p class="hint">None.</p>'}</div>`; }
+    ${L.map(x => `<div class="ts-hist ts-extl" data-id="${esc(x.id)}"><b style="color:${x.kind === 'inc' ? '#15803d' : '#b91c1c'}">${x.kind === 'inc' ? 'Increase' : 'Deduction'} ${tsExtTxt(x)}</b> ${String(x.reason || '').trim() ? ` · "${esc(x.reason)}"` : ''} · ${esc(x.by_name || '')} ${esc(new Date(x.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}${ro ? '' : ` <button class="ts-linkb" data-act="tsx-del" data-id="${esc(x.id)}" style="color:#b91c1c">Remove</button>`}</div>`).join('') || '<p class="hint">None.</p>'}</div>`; }
 async function tsExtAdd(w) { let kind = 'inc';
   const r = await modal(`<h3>Own increase or deduction</h3><p class="small">${esc(w.name || tsName(w.uid))} · ${esc(tsWc(w.week))}</p>
     <div class="f"><label>Type</label><div class="seg" id="tsx-k"><button type="button" data-v="inc" class="on">+ Increase</button><button type="button" data-v="ded">− Deduction</button></div></div>
     <div class="f"><label>Amount £</label><input id="tsx-a" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="e.g. 50.00"></div>
-    <div class="f"><label>Reason (required)</label><input id="tsx-r" maxlength="200" placeholder="e.g. Bonus for finishing the ridge / Van damage excess"></div>
+    <div class="f"><label>Reason (optional)</label><input id="tsx-r" maxlength="200" placeholder="e.g. Bonus for finishing the ridge / Van damage excess"></div>
     <p class="small" id="tsx-h">Added to the gross - retention and CIS then apply.</p>
     <button class="btn primary" id="tsx-ok">Save</button><button class="btn" data-r="">Cancel</button>`,
     (bg, close) => { bg.querySelectorAll('#tsx-k button').forEach(b => b.addEventListener('click', () => { kind = b.dataset.v; bg.querySelectorAll('#tsx-k button').forEach(x => x.classList.toggle('on', x === b)); bg.querySelector('#tsx-h').textContent = kind === 'inc' ? 'Added to the gross - retention and CIS then apply.' : 'Taken off the final net (after retention and CIS).'; }));
-      bg.querySelector('#tsx-ok').addEventListener('click', () => { const a = TSC.r2(TSC.num(bg.querySelector('#tsx-a').value)), rs = bg.querySelector('#tsx-r').value.trim(); if (!(a > 0)) return toast('Enter the amount'); if (rs.length < 3) return toast('Write the reason'); close({ kind, a, rs }); }); });
+      bg.querySelector('#tsx-ok').addEventListener('click', () => { const a = TSC.r2(TSC.num(bg.querySelector('#tsx-a').value)), rs = bg.querySelector('#tsx-r').value.trim(); if (!(a > 0)) return toast('Enter the amount');  close({ kind, a, rs }); }); });
   if (!r) return false; try { await tsRpc('ts_extra_add', { p_week: w.id, p_kind: r.kind, p_amount: r.a, p_reason: r.rs }); toast(`${r.kind === 'inc' ? 'Increase' : 'Deduction'} ${fmtGBP(r.a)} saved ✓`); await tsExtLoad([w.id]); return true; } catch (e) { toast(tsErr(e), 4500); return false; } }
 Object.assign(ACTIONS, {
   async 'tsx-add'(a) { const w = (TS.adj.w && (!a.dataset.id || TS.adj.w.id === a.dataset.id)) ? TS.adj.w : (TS.off.rows || []).find(x => x.id === a.dataset.id); if (!w) return; if (await tsExtAdd(w)) { if (route()[0] === 'tsweek') tsAdjLoad(TS.adj.id, true); else rerender(true); } },
@@ -15832,7 +15833,7 @@ Object.assign(ACTIONS, {
     const r = await modal(`<h3>Change ${esc(tsDay(date))}</h3><p class="small">Worked ${tsH(x.h)} h → automatically <b>${TSC.dvTxt(x.auto.dv)}</b>. The original stays on record.</p>
       <div class="f"><label>Day value</label><div class="seg" id="tsa-dv">${['full', 'half', 'none'].map(k => `<button type="button" data-v="${k}" class="${dv === k ? 'on' : ''}">${TSC.dvTxt(k)}</button>`).join('')}</div></div>
       <div class="f"><label>Overtime</label><div id="tsa-ot"></div><button type="button" class="ts-linkb" id="tsa-addot">+ Overtime entry</button></div>
-      <div class="f"><label>Reason (required)</label><textarea id="tsa-r" rows="2" placeholder="e.g. Left at 10am - rain; agreed half day"></textarea></div>
+      <div class="f"><label>Reason (optional)</label><textarea id="tsa-r" rows="2" placeholder="e.g. Left at 10am - rain; agreed half day"></textarea></div>
       <label class="ckl"><input type="checkbox" id="tsa-n"> Tell the operative (they see the change, never the £)</label>
       <button class="btn primary" id="tsa-ok" style="margin-top:8px">Save change</button><button class="btn" data-r="">Cancel</button>`,
       (bg, close) => { const box = bg.querySelector('#tsa-ot');
@@ -15842,12 +15843,12 @@ Object.assign(ACTIONS, {
         box.addEventListener('click', e => { const d = e.target.dataset.del; if (d != null) { otl.splice(+d, 1); paint(); } });
         bg.querySelector('#tsa-addot').addEventListener('click', () => { otl.push({ h: 1, x: 1.5 }); paint(); });
         bg.querySelectorAll('#tsa-dv button').forEach(b => b.addEventListener('click', () => { dv = b.dataset.v; bg.querySelectorAll('#tsa-dv button').forEach(y => y.classList.toggle('on', y === b)); }));
-        bg.querySelector('#tsa-ok').addEventListener('click', () => { const rs = bg.querySelector('#tsa-r').value.trim(); if (rs.length < 3) return toast('A reason is required'); close({ rs, n: bg.querySelector('#tsa-n').checked }); }); });
+        bg.querySelector('#tsa-ok').addEventListener('click', () => { const rs = bg.querySelector('#tsa-r').value.trim();  close({ rs, n: bg.querySelector('#tsa-n').checked }); }); });
     if (!r) return; const after = { dv, otl: otl.filter(o => TSC.num(o.h) > 0).map(o => ({ h: TSC.q4(o.h), x: o.x })) };
     try { await tsRpc('ts_adjust_day', { p_id: w.id, p_day: date, p_before: { dv: x.auto.dv, otl: x.auto.otl }, p_after: after, p_reason: r.rs, p_notify: r.n });
-      if (r.n) { try { const th = await msgRpc('msg_thread_for', { p_to: w.uid }); const id = msgUuid(); await msgRpc('msg_send', { p_id: id, p_thread: th, p_body: `Timesheet ${tsDay(date)}: changed to ${TSC.dvTxt(after.dv)}${after.otl.length ? ' + ' + tsH(TSC.otH(after.otl)) + ' h overtime' : ''}. Reason: ${r.rs}`, p_photo: null, p_job: null }); fnCall('msg-notify', { id }).catch(() => { }); } catch (e) { } }
+      if (r.n) { try { const th = await msgRpc('msg_thread_for', { p_to: w.uid }); const id = msgUuid(); await msgRpc('msg_send', { p_id: id, p_thread: th, p_body: `Timesheet ${tsDay(date)}: changed to ${TSC.dvTxt(after.dv)}${after.otl.length ? ' + ' + tsH(TSC.otH(after.otl)) + ' h overtime' : ''}${r.rs ? '. Reason: ' + r.rs : ''}`, p_photo: null, p_job: null }); fnCall('msg-notify', { id }).catch(() => { }); } catch (e) { } }
       toast('Change saved ✓'); TS.off.rows = null; tsAdjLoad(w.id, true); } catch (e) { toast(tsErr(e), 4500); } },
-  async 'tsa-approve'() { try { await tsRpc('ts_review', { p_id: TS.adj.w.id, p_action: 'approve' }); toast('Approved ✓'); TS.off.rows = null; tsAdjLoad(TS.adj.w.id, true); } catch (e) { toast(tsErr(e), 4500); } },
+  async 'tsa-approve'() { try { await tsRpc('ts_review', { p_id: TS.adj.w.id, p_action: 'approve' }); toast(tsIsCm() ? 'CM approved ✓ - now with the office for the final check' : 'Approved ✓'); TS.off.rows = null; tsAdjLoad(TS.adj.w.id, true); } catch (e) { toast(tsErr(e), 4500); } },
   async 'tsa-unlock'() { const n = await modal(`<h3>Unlock a sent week?</h3><p class="small">It was already sent to accounts. Say why it needs changing - accounts must be told separately.</p><div class="f"><textarea id="tsu-n" rows="2"></textarea></div><button class="btn danger" id="tsu-ok">Unlock</button><button class="btn" data-r="">Cancel</button>`,
       (bg, close) => bg.querySelector('#tsu-ok').addEventListener('click', () => { const v = bg.querySelector('#tsu-n').value.trim(); if (v.length < 3) return toast('A reason is required'); close(v); }));
     if (!n) return; try { await tsRpc('ts_review', { p_id: TS.adj.w.id, p_action: 'unlock', p_note: n }); toast('Unlocked'); TS.off.rows = null; tsAdjLoad(TS.adj.w.id, true); } catch (e) { toast(tsErr(e), 4500); } },
@@ -15868,7 +15869,7 @@ function tsPdfNotes(w, t, rate, list) { const N = [], by = {}; (list || []).forE
     x.v.otl.filter(o => o.h > 0).forEach(o => N.push(`${dn} - overtime ${tsH(o.h)} h at ${o.x === 2 ? 'double time' : 'time and a half'}`));
     if (TSC.sd(x.d)) N.push(`${dn} - stand-down ${tsH(TSC.sd(x.d))} h`);
     if ((x.d.e || []).some(e => TSC.entH(e) > 0 && !e.job && e.jt)) N.push(`${dn} - job typed in by the operative`);
-    if (by[x.date]) N.push(`${dn} - changed by the office: ${by[x.date].reason || ''}`); });
+    if (by[x.date]) N.push(`${dn} - changed by the office${by[x.date].reason ? ': ' + by[x.date].reason : ''}`); });
   return N; }
 // v1.11.25 (Matt: "less going on ... fitting this onto one page of the PDF maybe adding notes to the day"): ONE A4 page per person, laid out like
 // the Absolute system sheet (Employee's Name, Week Commencing, Date / Project / Start / End rows, Total) with each day's notes on that day's row
@@ -15904,15 +15905,15 @@ function tsPdfDraw(w, list, L) { const { t, rate } = tsWeekCalc(w, list); const 
   const ex = tsExt(w.id), rows = [];
   if (!t.days.length) rows.push(['No time submitted', fmtGBP(0)]);
   else if (!rate) rows.push(['Pay rate', 'not set']);
-  else { if (ex.some(x => x.kind === 'inc')) { rows.push(['Day pay' + (t.otPay ? ' incl. OT' : ''), fmtGBP(t.dayGross)]); ex.filter(x => x.kind === 'inc').forEach(x => rows.push(['+ ' + tsCut(x.reason, 38), '+' + fmtGBP(x.amount)])); }
+  else { if (ex.some(x => x.kind === 'inc')) { rows.push(['Day pay' + (t.otPay ? ' incl. OT' : ''), fmtGBP(t.dayGross)]); ex.filter(x => x.kind === 'inc').forEach(x => rows.push(['+ ' + tsCut(tsExtLbl(x), 38), '+' + fmtGBP(x.amount)])); }
     rows.push([`Gross (${rate.pay_type}, ${fmtGBP(rate.day_rate)}/day)`, fmtGBP(t.gross)], [`Retention ${tsH(t.retPct)}%`, '-' + fmtGBP(t.retention)]);
     if (rate.pay_type === 'CIS') rows.push([`CIS ${tsH(t.cisPct)}%`, '-' + fmtGBP(t.cis)]);
-    ex.filter(x => x.kind === 'ded').forEach(x => rows.push(['- ' + tsCut(x.reason, 38), '-' + fmtGBP(x.amount)]));
+    ex.filter(x => x.kind === 'ded').forEach(x => rows.push(['- ' + tsCut(tsExtLbl(x), 38), '-' + fmtGBP(x.amount)]));
     rows.push([`Net payable${rate.pay_type === 'PAYE' ? ' (before tax / NI)' : ''}`, fmtGBP(t.payable)]); }
   doc.autoTable({ startY: y, margin: { left: M, right: W / 2 + 2, bottom: 14 }, theme: 'grid', body: rows.map(r => r.map(tx)), styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.3, lineColor: [210, 210, 210], lineWidth: 0.2, textColor: [30, 30, 30] },
     columnStyles: { 1: { halign: 'right', cellWidth: 26 } }, didParseCell: c => { if (c.row.index === rows.length - 1 || /^Gross/.test(rows[c.row.index][0])) c.cell.styles.fontStyle = 'bold'; } });
   const yL = doc.lastAutoTable.finalY; let yr = y + 3; const xr = W / 2 + 6;
-  k.font(8, 'bold', BLK); doc.text('Approved', xr, yr); k.font(8, 'normal', BLK); doc.text(tx(w.approved_name ? `${w.approved_name}${w.approved_at ? ' - ' + fmtDate(w.approved_at.slice(0, 10)) : ''}` : 'Not approved yet'), xr + 22, yr); yr += 5;
+  { const A = tsApprLines(w); k.font(8, 'bold', BLK); doc.text('Approved', xr, yr); A.forEach((t, i) => { k.font(i === 0 ? 8 : 7.5, i === 0 && A.ok ? 'bold' : 'normal', BLK); doc.text(tx(tsCut(t, 56)), xr + 22, yr); yr += 4; }); yr += 1; }
   if (w.sign && (w.sign.sig || w.sign.at)) { k.font(8, 'bold', BLK); doc.text('Signed', xr, yr); k.font(8, 'normal', BLK);
     doc.text(tx(tsCut(`${w.sign.name || ''}${w.sign.at ? ' - ' + new Date(w.sign.at).toLocaleDateString('en-GB') : ''}${w.sign.on_device_name ? ' (on ' + w.sign.on_device_name + "'s phone)" : ''}`, 52)), xr + 22, yr);
     if (w.sign.sig) { try { doc.addImage(w.sign.sig, 'PNG', xr + 22, yr + 1.5, 36, 12); } catch (e) { } } }
@@ -16061,7 +16062,7 @@ ACTIONS['tsc-save'] = async () => { const g = id => $('#' + id).value, n = id =>
   return h.includes('<a class="item" href="#/settings/library">') ? h.replace('<a class="item" href="#/settings/library">', link + '<a class="item" href="#/settings/library">') : h + `<div class="card list">${link}</div>`; }; }
 
 /* ---------- labour budget on the project (job_commercial: managers + admin only) + labour vs budget ---------- */
-async function tsJcLoad(force) { if (!tsAdm() || (!force && TS.jc)) return; try { const r = await sbFetch('/rest/v1/job_commercial?select=*'); TS.jc = {}; (r || []).forEach(x => { TS.jc[x.job_id] = x; }); } catch (e) { TS.jc = TS.jc || {}; } }
+async function tsJcLoad(force) { if (!(tsAdm() || tsIsCm()) || (!force && TS.jc)) return; try { const r = await sbFetch('/rest/v1/job_commercial?select=*'); TS.jc = {}; (r || []).forEach(x => { TS.jc[x.job_id] = x; }); } catch (e) { TS.jc = TS.jc || {}; } }
 /* v1.11.21 (Matt: "can it be changed manually if wrong?"): the budget is shown read-only; "Set manually" (with an optional note) is a
    manual override (who / when / note) that the live-jobs sync never overwrites - it still records "from pricing files: £X" next to it.
    "Revert to pricing files" goes back to the calculated figure. Both are database RPCs (jc_set_manual / jc_revert_budget, is_admin()). */
@@ -16100,7 +16101,7 @@ ACTIONS['tsb-revert'] = async function (a, job) { if (!tsAdm() || !job || !job.p
   if (!(await confirmBox('Revert to pricing files?', `The labour budget goes back to ${c.calc_labour_budget != null ? fmtGBP(c.calc_labour_budget) : 'blank (needs budget)'} from the pricing files and the sync keeps it up to date again. The manual figure ${c.labour_budget != null ? fmtGBP(c.labour_budget) : ''} and its note are kept in the budget log.`, 'Revert', false))) return;
   try { await sbFetch('/rest/v1/rpc/jc_revert_budget', { method: 'POST', body: { p_job: job.projectId } }); await tsJcLoad(true); tsBudgetRepaint(job); toast('Back to the pricing-file budget'); } catch (e) { toast('Not reverted: ' + tsErr(e), 5000); } };
 async function tsBudLoad() { TS.bud = { loading: true }; try { const since = TSC.addDays(TSC.monday(todayISO()), -7 * 104);
-    const [w, adj] = await Promise.all([sbFetch(`/rest/v1/ts_weeks?status=in.(approved,sent)&week=gte.${since}&select=id,uid,name,week,days,status&limit=5000`), sbFetch(`/rest/v1/ts_adjust?day=gte.${since}&select=week_id,day,after,at&order=at.asc&limit=10000`), tsJcLoad(true), tsRatesLoad(), tsCfgLoad(), Ops.jobsTbl && Ops.jobsTbl.length ? null : loadJobsTbl()]);
+    const [w, adj] = await Promise.all([sbFetch(`/rest/v1/ts_weeks?or=(status.in.(approved,sent),and(status.eq.submitted,cm_approved_at.not.is.null))&week=gte.${since}&select=id,uid,name,week,days,status&limit=5000`), sbFetch(`/rest/v1/ts_adjust?day=gte.${since}&select=week_id,day,after,at&order=at.asc&limit=10000`), tsJcLoad(true), tsRatesLoad(), tsCfgLoad(), Ops.jobsTbl && Ops.jobsTbl.length ? null : loadJobsTbl()]);
     const A = tsAdjMap(adj), by = {}; const add = (j, k, n) => { const o = by[j] = by[j] || { days: 0, gbp: 0, h: 0, ppl: new Set(), pend: 0 }; o[k] += n; return o; };
     (w || []).forEach(x => { const t = TSC.week(x, A[x.id], tsRate(x.uid, x.week), tsCfgV()); t.days.forEach(day => { const s = TSC.jobSplit(day); Object.keys(s).forEach(j => { add(j, 'days', s[j].days); add(j, 'gbp', s[j].gbp); add(j, 'h', s[j].h).ppl.add(x.uid); }); }); });
     TS.bud = { by }; } catch (e) { TS.bud = { err: tsErr(e) }; } if (route()[0] === 'tsbudget') rerender(); }
@@ -16109,7 +16110,7 @@ function tsBudgetView() { const B = TS.bud; if (!B) { tsBudLoad(); return '<p cl
   const rows = ids.map(id => { const u = B.by[id] || { days: 0, gbp: 0, h: 0, ppl: new Set() }, c = jc[id] || {}; const bG = c.labour_budget != null ? +c.labour_budget : null; const bD = c.budget_days != null ? +c.budget_days : bG != null ? TSC.r2(bG / (cfg.budgetDayRate || 660)) : null;
     return { id, u, bG, bD, pD: bD ? u.days / bD : null, pG: bG ? u.gbp / bG : null }; }).sort((a, b) => (b.pD || 0) - (a.pD || 0));
   const bar = p => p == null ? '' : `<div class="ts-bar"><i class="${p > 1 ? 'r' : p > 0.85 ? 'w' : ''}" style="width:${Math.min(100, Math.round(p * 100))}%"></i></div>`;
-  return `<div class="card"><h2>📊 Labour vs budget</h2><p class="small">Approved and sent timesheets only. A day split across jobs is shared by hours. Budget days = labour cost before margin ÷ ${fmtGBP(cfg.budgetDayRate)} unless set on the project.</p>
+  return `<div class="card"><h2>📊 Labour vs budget</h2><p class="small">Approved, CM-approved and sent timesheets. A day split across jobs is shared by hours. Budget days = labour cost before margin ÷ ${fmtGBP(cfg.budgetDayRate)} unless set on the project.</p>
     <div class="ts-wrap"><table class="ts-tbl"><thead><tr><th>Project</th><th class="n">Days used / budget</th><th class="n">£ used / budget</th><th class="n">People</th></tr></thead><tbody>
     ${rows.map(r => `<tr class="${(r.pD || 0) > 1 || (r.pG || 0) > 1 ? 'flag' : ''}"><td><b>${esc(tsJobName(r.id))}</b>${r.bG == null && r.bD == null ? '<span class="ts-fl">No budget set</span>' : ''}${(jc[r.id] || {}).budget_manual ? '<span class="ts-fl">✎ Manual budget</span>' : ''}</td>
       <td class="n">${tsH(TSC.r2(r.u.days))} / ${r.bD != null ? tsH(r.bD) : '-'}${bar(r.pD)}${r.pD != null ? `<span class="small">${Math.round(r.pD * 100)}%</span>` : ''}</td>
@@ -16134,11 +16135,12 @@ function tsBudgetView() { const B = TS.bud; if (!B) { tsBudLoad(); return '<p cl
     if (!TS.w[ws]) paint('My timesheet', '', '#/', '<p class="hint">Loading…</p>'); return; }
   if (k === 'tsgang') { if (!isOp() || !opHas('lead')) { go('#/'); return; } const job = rt[1], date = /^\d{4}-\d{2}-\d{2}$/.test(rt[2] || '') ? rt[2] : todayISO();
     if (!TS.gang || TS.gang.job !== job || TS.gang.date !== date) tsGangLoad(job, date); paint('Gang timesheet', tsDay(date), '#/ts', tsGangView()); return; }
-  if (!isAdm()) { go('#/'); return; }
+  if (!isAdm()) { if (/^ts(office|week|budget)$/.test(k) && !isOp() && TS.cm === undefined) { tsCmLoad().then(() => rerender()); paint('Timesheets', '', '#/', '<p class="hint">Loading…</p>'); return; }
+    if (!(tsIsCm() && /^ts(office|week|budget)$/.test(k))) { go('#/'); return; } }
   if (k === 'tsoffice') { const ws = /^\d{4}-\d{2}-\d{2}$/.test(rt[1] || '') ? TSC.monday(rt[1]) : TSC.monday(todayISO()); paint('Timesheets', tsWc(ws), '#/', tsOfficeView(ws)); return; }
   if (k === 'tsweek') { if (TS.adj.id !== rt[1]) tsAdjLoad(rt[1]); paint('Timesheet', TS.adj.w ? tsWc(TS.adj.w.week) : '', TS.adj.w ? '#/tsoffice/' + TS.adj.w.week : '#/tsoffice', tsAdjView()); return; }
   if (k === 'tssend') { const ws = /^\d{4}-\d{2}-\d{2}$/.test(rt[1] || '') ? TSC.monday(rt[1]) : TSC.monday(todayISO()); paint('Send to accounts', tsWc(ws), '#/tsoffice/' + ws, tsSendView(ws)); return; }
-  if (k === 'tsbudget') { paint('Labour vs budget', 'Approved timesheets', '#/tsoffice', tsBudgetView()); return; }
+  if (k === 'tsbudget') { paint(tsIsCm() ? 'My jobs' : 'Labour vs budget', tsIsCm() ? 'Labour vs budget' : 'Approved timesheets', tsIsCm() ? '#/' : '#/tsoffice', tsBudgetView()); return; }
 }; }
 addEventListener('hashchange', () => { const k = route()[0]; if (k === 'tsbudget') TS.bud = null; if (k === 'tsoffice') { const ws = route()[1]; if (TS.off.week === ws) tsOffLoad(ws, true); } });
 
@@ -16173,7 +16175,7 @@ function tssSetupView() { if (!TSS.list) { tssLoad().then(() => { if (route()[0]
   return `<div class="card"><h2>👷 Subcontractor gangs</h2><p class="small">Rates and £ are only seen by managers and admin. The gang lead books his men's times on his phone (no £ shown). Men are names only - they don't need a login. No fuel or expenses are paid through this.</p>
     <button class="btn primary block" data-act="tsx-edit" data-id="" id="tsx-add">+ Add subcontractor</button></div>
     ${TSS.list.map(s => { const men = tssMen(s), ld = ops.find(o => o.id === s.lead_uid); return `<div class="card tss-sub${s.active ? '' : ' off'}" data-sub="${esc(s.id)}"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:17px">${esc(s.name)}</b>${s.active ? '' : '<span class="chip">Not active</span>'}<span style="margin-left:auto;display:flex;gap:6px"><button class="btn sm" data-act="tsx-rates" data-id="${esc(s.id)}">💷 Worker rates</button><button class="btn sm" data-act="tsx-edit" data-id="${esc(s.id)}">Edit</button></span></div>
-      <p class="small" style="margin:6px 0 2px">${esc(tssRates(s, cfg))}</p><p class="small" style="margin:0">Lead: ${esc(ld ? ld.full_name : 'none (office books)')} · ${men.length} men: ${esc(men.map(m => m.name + (m.rate != null ? ` (${fmtGBP(m.rate)} ${m.rate_basis === 'net' ? 'net → ' + fmtGBP(TSC.manRate(s, m, cfg)) + ' gross' : 'gross'})` : '')).join(', ') || '-')}</p></div>`; }).join('') || '<p class="hint">No subcontractors yet.</p>'}`; }
+      <p class="small" style="margin:6px 0 2px">${esc(tssRates(s, cfg))}</p><p class="small" style="margin:0">Lead: ${esc(ld ? ld.full_name : 'none (office books)')} · CM: ${esc(s.cm_uid ? tsCmName(s.cm_uid) : 'none')} · ${men.length} men: ${esc(men.map(m => m.name + (m.rate != null ? ` (${fmtGBP(m.rate)} ${m.rate_basis === 'net' ? 'net → ' + fmtGBP(TSC.manRate(s, m, cfg)) + ' gross' : 'gross'})` : '')).join(', ') || '-')}</p></div>`; }).join('') || '<p class="hint">No subcontractors yet.</p>'}`; }
 async function tssEdit(id) { await Promise.all([tssLoad(), tsCfgLoad()]); const s = TSS.list.find(x => x.id === id) || { active: true, rate_mode: 'man', cis_pct: 20, gang: {} }, g = s.gang || {}, cfg = tsCfgV();
   const ops = ((typeof operatives === 'function' ? operatives() : []) || []).filter(o => o.active !== false), men = id ? tssMen(s) : [];
   const n = (i, l, v, ph) => `<div class="f"><label>${l}</label><input id="${i}" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(v ?? '')}" placeholder="${esc(ph || '')}"></div>`;
@@ -16186,6 +16188,7 @@ async function tssEdit(id) { await Promise.all([tssLoad(), tsCfgLoad()]); const 
     ${n('tsx-ret', `Retention % (blank = company ${cfg.retentionPct}%)`, s.retention_pct, String(cfg.retentionPct))}</div>
     <div class="f"><label>Deduction order</label><select id="tsx-rac"><option value="" ${s.ret_after_cis == null ? 'selected' : ''}>Company default (${TS_ORD(cfg.retAfterCis)})</option><option value="0" ${s.ret_after_cis === false ? 'selected' : ''}>Retention then CIS - retention on the gross, CIS on what's left</option><option value="1" ${s.ret_after_cis === true ? 'selected' : ''}>CIS then retention - CIS on the gross, retention on what's left</option></select></div>
     <div class="f"><label>Gang lead (books the times on his phone)</label><select id="tsx-lead"><option value="">None - the office books</option>${ops.map(o => `<option value="${esc(o.id)}" ${o.id === s.lead_uid ? 'selected' : ''}>${esc(o.full_name || o.email || '')}</option>`).join('')}</select></div>
+    <div class="f"><label>Contracts manager (approves first, then the office does the final check)</label><select id="tsx-cm">${tsCmOpts(s.cm_uid)}</select></div>
     <div class="f"><label>Men (names only, one per line)</label><textarea id="tsx-men" rows="5" placeholder="One name per line">${esc(men.map(m => m.name).join('\n'))}</textarea><p class="small" style="margin:2px 0 0">Removing a name stops him being booked; his past days are kept.</p></div>
     <div class="f"><label>Note (optional)</label><input id="tsx-note" value="${esc(s.note || '')}" maxlength="200"></div>
     <label class="ckl"><input type="checkbox" id="tsx-act" ${s.active !== false ? 'checked' : ''}> Active</label>
@@ -16193,7 +16196,7 @@ async function tssEdit(id) { await Promise.all([tssLoad(), tsCfgLoad()]); const 
     const mode = () => { const gm = bg.querySelector('#tsx-mode').value === 'gang'; bg.querySelector('.tsx-man').hidden = gm; bg.querySelector('.tsx-gang').hidden = !gm; }; mode(); bg.querySelector('#tsx-mode').addEventListener('change', mode);
     bg.querySelector('#tsx-ok').addEventListener('click', () => { const v = i => bg.querySelector('#' + i).value, nu = i => v(i) === '' ? null : TSC.r2(TSC.num(v(i)));
       const row = { name: v('tsx-name').trim(), rate_mode: v('tsx-mode'), day_rate: nu('tsx-day'), gang: { 1: nu('tsx-g1'), 2: nu('tsx-g2'), 3: nu('tsx-g3'), extra: nu('tsx-gx') }, cis_pct: +v('tsx-cis'), retention_pct: nu('tsx-ret'),
-        ret_after_cis: v('tsx-rac') === '1' ? true : v('tsx-rac') === '0' ? false : null, lead_uid: v('tsx-lead') || null, note: v('tsx-note').trim() || null, active: bg.querySelector('#tsx-act').checked };
+        ret_after_cis: v('tsx-rac') === '1' ? true : v('tsx-rac') === '0' ? false : null, lead_uid: v('tsx-lead') || null, cm_uid: v('tsx-cm') || null, note: v('tsx-note').trim() || null, active: bg.querySelector('#tsx-act').checked };
       Object.keys(row.gang).forEach(k => { if (row.gang[k] == null) delete row.gang[k]; });
       if (!row.name) return toast('Enter the name'); if (row.rate_mode === 'man' && !(row.day_rate > 0)) return toast('Enter the day rate per man'); if (row.rate_mode === 'gang' && !(row.gang[1] > 0)) return toast('Enter at least the 1 man rate');
       if (row.retention_pct != null && row.retention_pct > 100) return toast('Retention must be 0-100%');
@@ -16658,7 +16661,7 @@ const tsmRoute = () => route()[0];
 function tsmOffice(ws) { const O = TS.off, F = O.f, all = tsOffRows();
   const rows = all.filter(r => (F.st === 'all' || r.w.status === F.st || (F.st === 'flag' && r.fl.length)) && (!F.p || r.p.id === F.p) && (!F.j || r.jobs.includes(F.j)));
   const cnt = s => all.filter(r => r.w.status === s).length, jobs = [...new Set(all.flatMap(r => r.jobs))];
-  const appr = all.filter(r => r.w.status === 'submitted' && !r.w.locked && !r.fl.some(f => f.r) && !TSM.pend[r.w.id]);
+  const appr = all.filter(r => r.w.status === 'submitted' && !r.w.locked && !r.fl.some(f => f.r) && !TSM.pend[r.w.id] && tsCmReady(r.w));
   const gross = all.reduce((a, r) => a + (r.rate ? r.t.gross || 0 : 0), 0), nfl = all.filter(r => r.fl.length).length;
   const chip = (k, t) => `<button class="chip ${F.st === k ? 'on' : ''}" data-act="tso-f" data-k="st" data-v="${k}">${t}</button>`;
   const card = r => { const w = r.w, id = w.id, can = w.status === 'submitted' && !w.locked, pend = id && TSM.pend[id];
@@ -16666,7 +16669,7 @@ function tsmOffice(ws) { const O = TS.off, F = O.f, all = tsOffRows();
     const red = r.fl.filter(f => f.r).length, op = TSM.fl[r.p.id];
     return `<div class="tsm-sw${can ? ' can' : ''}"><div class="tsm-bgA" aria-hidden="true">✓ Approve</div><div class="tsm-bgQ" aria-hidden="true">Query ?</div>
       <div class="tsm-card${r.fl.length ? ' flag' : ''}" data-uid="${esc(r.p.id)}" ${id ? `data-id="${esc(id)}"` : ''} ${can ? 'data-sw="1"' : ''}>
-      <div class="tsm-top">${id ? `<a class="tsm-nm" href="#/tsweek/${esc(id)}">${esc(r.p.full_name || '')}</a>` : `<b class="tsm-nm">${esc(r.p.full_name || '')}</b>`}<span style="flex:1"></span>${r.rate ? `<span class="small">${esc(r.rate.pay_type)}</span> ` : ''}${tsTag(w.status)}${w.locked ? ' 🔒' : ''}</div>
+      <div class="tsm-top">${id ? `<a class="tsm-nm" href="#/tsweek/${esc(id)}">${esc(r.p.full_name || '')}</a>` : `<b class="tsm-nm">${esc(r.p.full_name || '')}</b>`}<span style="flex:1"></span>${r.rate ? `<span class="small">${esc(r.rate.pay_type)}</span> ` : ''}${tsTag(w.status, w)}${w.locked ? ' 🔒' : ''}</div>
       ${id ? `<div class="tsm-stat"><div><b>${tsH(r.t.dayEq || 0)}</b>days${r.t.dayEq ? ` <span class="small">${r.t.full}F ${r.t.half}H</span>` : ''}</div><div><b>${tsH(r.t.total || 0)}</b>hours</div><div><b>${tsH(r.t.ot || 0)}</b>OT h</div><div><b>${r.rate && r.t.gross ? fmtGBP(r.t.gross).replace(/\.00$/, '') : '-'}</b>gross</div></div>${tsExtNote(r.t)}` : ''}
       ${r.fl.length ? `<button type="button" class="tsm-flb${red ? ' r' : ''}" data-act="tsm-fl" data-uid="${esc(r.p.id)}" aria-expanded="${!!op}">⚑ ${r.fl.length} flag${r.fl.length > 1 ? 's' : ''}${red ? ` (${red} red)` : ''} ${op ? '▴' : '▾'}</button>${op ? `<div class="tsm-fls">${r.fl.map(f => `<span class="ts-fl ${f.r ? 'r' : ''}">⚑ ${esc(f.t)}</span>`).join('')}</div>` : ''}` : (id ? '<span class="tag green">No flags</span>' : '')}
       ${id ? `<div class="tsm-acts">${can ? `<button class="btn primary" data-act="tso-approve" data-id="${esc(id)}">✓ Approve</button>` : ''}${['submitted', 'approved', 'draft'].includes(w.status) && !w.locked ? `<button class="btn" data-act="tso-query" data-id="${esc(id)}">Query</button>` : ''}<a class="btn" href="#/tsweek/${esc(id)}" style="text-decoration:none">Open</a></div>` : ''}
@@ -16699,10 +16702,10 @@ function tsmApprove(id) { if (TSM.pend[id]) return; TSM.pend[id] = setTimeout(as
   document.addEventListener('touchend', end); document.addEventListener('touchcancel', end); }
 // the other office screens: tables become stacked cards; day grids stay compact; budget shows projects with labour first
 function tsmFix() { const k = tsmRoute(), m = document.querySelector('main'); if (!m) return;
-  const on = tsmPhone() && /^ts(office|subs|budget|send|week)$/.test(k) && typeof tsAdm === 'function' && tsAdm(); document.body.classList.toggle('tsm-on', on);
+  const on = tsmPhone() && /^ts(office|subs|budget|send|week)$/.test(k) && typeof tsAdm === 'function' && (tsAdm() || tsIsCm()); document.body.classList.toggle('tsm-on', on);
   let nav = document.getElementById('tsm-nav'); const tabs = on && /^ts(office|subs|budget|send)$/.test(k);
   if (!tabs) { if (nav) nav.remove(); } else { const ws = /^\d{4}-\d{2}-\d{2}$/.test(route()[1] || '') ? TSC.monday(route()[1]) : (TS.off.week || TSC.monday(todayISO()));
-    const h = `<nav class="tsm-nav" id="tsm-nav" data-k="${k}|${ws}">${[['tsoffice', '#/tsoffice/' + ws, '👤', 'People'], ['tssubs', '#/tssubs/' + ws, '👷', 'Subs'], ['tsbudget', '#/tsbudget', '📊', 'Budget'], ['tssend', '#/tssend/' + ws, '📤', 'Accounts']].map(([r, h2, i, l]) => `<a href="${h2}" class="${r === k ? 'on' : ''}"><span aria-hidden="true">${i}</span>${l}</a>`).join('')}</nav>`;
+    const h = `<nav class="tsm-nav" id="tsm-nav" data-k="${k}|${ws}">${[['tsoffice', '#/tsoffice/' + ws, '👤', 'People'], ['tssubs', '#/tssubs/' + ws, '👷', 'Subs'], ['tsbudget', '#/tsbudget', '📊', 'Budget'], ['tssend', '#/tssend/' + ws, '📤', 'Accounts']].filter(x => !tsIsCm() || /^ts(office|budget)$/.test(x[0])).map(([r, h2, i, l]) => `<a href="${h2}" class="${r === k ? 'on' : ''}"><span aria-hidden="true">${i}</span>${l}</a>`).join('')}</nav>`;
     if (!nav || nav.dataset.k !== `${k}|${ws}`) { if (nav) nav.remove(); document.body.insertAdjacentHTML('beforeend', h); } }
   if (!on) return;
   m.querySelectorAll('table.ts-tbl:not([data-tsm])').forEach(t => { t.dataset.tsm = '1'; const th = [...t.querySelectorAll('thead th')].map(x => hmTxt(x));
@@ -16868,26 +16871,26 @@ function tsrFlags(fl) { const out = [], g = {}; fl.forEach(f => { const m = f.k 
 function tsrMoney(r) { const t = r.t, q = r.rate, L = tsExt(r.w.id); if (!q) return '<div class="lg-msg err" style="margin:8px 0 0">No pay rate set - add one on the person\'s page</div>';
   const ln = (a, b, c) => `<div class="tsr-m${c ? ' ' + c : ''}"><span>${a}</span><b>${b}</b></div>`;
   return `<div class="tsr-money">${ln(`${t.full} full · ${t.half} half = ${tsH(t.dayEq)} days`, fmtGBP(t.dayGross))}
-    ${L.filter(x => x.kind === 'inc').map(x => ln(`+ Increase · ${esc(x.reason)}`, '+' + fmtGBP(x.amount), 'inc')).join('')}
+    ${L.filter(x => x.kind === 'inc').map(x => ln(`+ Increase${String(x.reason || '').trim() ? ' · ' + esc(x.reason) : ''}`, '+' + fmtGBP(x.amount), 'inc')).join('')}
     ${ln('Gross', fmtGBP(t.gross), 'tot')}${ln(`Retention ${tsH(t.retPct)}%`, '−' + fmtGBP(t.retention))}${t.cisPct ? ln(`CIS ${tsH(t.cisPct)}% · ${esc(TS_ORD(t.after))}`, '−' + fmtGBP(t.cis)) : ''}
-    ${L.filter(x => x.kind === 'ded').map(x => ln(`− Deduction · ${esc(x.reason)}`, '−' + fmtGBP(x.amount), 'ded')).join('')}
+    ${L.filter(x => x.kind === 'ded').map(x => ln(`− Deduction${String(x.reason || '').trim() ? ' · ' + esc(x.reason) : ''}`, '−' + fmtGBP(x.amount), 'ded')).join('')}
     ${ln(`Net payable${q.pay_type === 'PAYE' ? ' (before tax / NI)' : ''}`, fmtGBP(t.payable), 'tot')}</div>`; }
 function tsrCard(r) { const w = r.w, id = w.id, cfg = tsCfgV();
   if (TSR.done[id]) { const p = TSR.pend[id]; return `<div class="tsr-done" id="tsr-${esc(id)}" data-id="${esc(id)}">✓ <b>${esc(r.p.full_name || w.name || '')}</b> · ${p ? 'Approved' : TSR.done[id] === 'err' ? 'Not approved - try again' : 'Approved ✓'}${p ? ` <button class="btn sm" data-act="tsr-undo" data-id="${esc(id)}">Undo</button>` : ''}</div>`; }
   const red = r.fl.filter(f => f.r).length;
   return `<div class="card tsr-card${r.fl.length ? ' flag' : ''}" id="tsr-${esc(id)}" data-id="${esc(id)}" data-uid="${esc(r.p.id)}">
-    <div class="tsr-top"><b class="tsr-nm">${esc(r.p.full_name || w.name || '')}</b>${r.rate ? `<span class="small">${esc(r.rate.pay_type)} · ${fmtGBP(r.rate.day_rate)}/day</span>` : ''}<span style="flex:1"></span>${tsTag(w.status)}</div>
+    <div class="tsr-top"><b class="tsr-nm">${esc(r.p.full_name || w.name || '')}</b>${r.rate ? `<span class="small">${esc(r.rate.pay_type)} · ${fmtGBP(r.rate.day_rate)}/day</span>` : ''}<span style="flex:1"></span>${tsTag(w.status, w)}</div>${tsCmLine(w) ? `<div class="small tsr-cm">${tsCmLine(w).replace(/^ · /, '')}</div>` : ''}
     <div class="small">${w.sign && w.sign.at ? `Signed ${esc(new Date(w.sign.at).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' }))}${w.sign.on_device_name ? ' on ' + esc(w.sign.on_device_name) + "'s phone" : ''} · ` : ''}${tsH(r.t.worked)} h worked${r.t.ot ? ` · OT ${tsH(r.t.ot)} h` : ''}${r.t.sdH ? ` · stand-down ${tsH(r.t.sdH)} h` : ''}</div>
     ${r.fl.length ? `<div class="tsr-fl">${tsrFlags(r.fl).map(f => `<span class="ts-fl ${f.r ? 'r' : ''}">⚑ ${esc(f.t)}</span>`).join('')}</div>` : '<span class="tag green">No flags</span>'}
     <div class="tsr-days">${r.t.days.map(x => tsrDayRow(Object.assign({ uid: w.uid }, x), cfg)).join('') || '<p class="hint">No hours this week.</p>'}</div>
     ${tsrMoney(r)}
-    <div class="tsr-acts"><button class="btn primary" data-act="tsr-ok" data-id="${esc(id)}">✓ Approve${red ? ' anyway' : ''}</button><button class="btn" data-act="tso-query" data-id="${esc(id)}">Query</button><button class="btn" data-act="tsx-add" data-id="${esc(id)}">± £</button><a class="btn" href="#/tsweek/${esc(id)}" style="text-decoration:none">Change days</a></div></div>`; }
+    <div class="tsr-acts"><button class="btn primary" data-act="tsr-ok" data-id="${esc(id)}">✓ ${tsIsCm() ? 'CM approve' : tsAdm() && !tsCmReady(w) ? 'Approve directly' : 'Approve'}${red ? ' anyway' : ''}</button><button class="btn" data-act="tso-query" data-id="${esc(id)}">Query</button><button class="btn" data-act="tsx-add" data-id="${esc(id)}">± £</button><a class="btn" href="#/tsweek/${esc(id)}" style="text-decoration:none">Change days</a></div></div>`; }
 function tsrView(ws) { const O = TS.off, F = O.f, all = tsOffRows();
-  const rows = all.filter(r => r.w.id && ((r.w.status === 'submitted' && !r.w.locked) || TSR.done[r.w.id]) && (!F.p || r.p.id === F.p) && (!F.j || r.jobs.includes(F.j)));
-  const left = rows.filter(r => !TSR.done[r.w.id]), appr = left.filter(r => !r.fl.some(f => f.r));
+  const rows = all.filter(r => r.w.id && ((r.w.status === 'submitted' && !r.w.locked) || TSR.done[r.w.id]) && (!F.p || r.p.id === F.p) && (!F.j || r.jobs.includes(F.j))).sort((a, b) => (tsCmReady(b.w) ? 1 : 0) - (tsCmReady(a.w) ? 1 : 0));
+  const left = rows.filter(r => !TSR.done[r.w.id]), appr = left.filter(r => !r.fl.some(f => f.r) && tsCmReady(r.w));
   return `<div class="card tsr-head"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><a class="btn" href="#/tsoffice/${TSC.addDays(ws, -7)}/review" aria-label="Previous week" style="text-decoration:none">‹</a><b style="font-size:18px">${esc(tsWc(ws))}</b><a class="btn" href="#/tsoffice/${TSC.addDays(ws, 7)}/review" aria-label="Next week" style="text-decoration:none">›</a>
       <span style="margin-left:auto"><button class="btn" data-act="tsr-list" id="tsr-list">☰ List view</button></span></div>
-    <p style="margin:10px 0 0" id="tsr-sum"><b class="big">${left.length}</b> to approve${rows.length - left.length ? ` · ${rows.length - left.length} approved just now` : ''}</p>
+    <p style="margin:10px 0 0" id="tsr-sum"><b class="big">${left.length}</b> to approve${rows.length - left.length ? ` · ${rows.length - left.length} approved just now` : ''}${tsAdm() && left.some(r => !tsCmReady(r.w)) ? ` · <span class="small">${left.filter(r => !tsCmReady(r.w)).length} still waiting for their contracts manager (at the bottom - you can approve them directly if the CM is away)</span>` : ''}${tsIsCm() ? ' <span class="small">· your people only - after you approve, the office does the final check</span>' : ''}</p>
     ${appr.length ? `<button class="btn primary block" data-act="tso-apprall" id="tsr-all" style="margin-top:10px">✓ Approve ${appr.length} with no red flags</button>` : ''}
     <p class="small" style="margin-top:8px">Scroll through - ✓ Approve moves you to the next one (5 s to undo). Approving does not send anything to accounts; that stays a separate step in Accounts.</p></div>
   <div id="tsr-list-cards">${rows.map(tsrCard).join('') || `<div class="card"><p class="hint">Nothing waiting for approval this week. ${all.some(r => r.w.status === 'approved') ? `<a href="#/tssend/${ws}">Accounts ›</a>` : ''}</p></div>`}</div>
@@ -16897,8 +16900,8 @@ function tsrNext(id) { const ids = [...document.querySelectorAll('.tsr-card')].m
   const i = all.indexOf(id), nx = all.slice(i + 1).find(x => ids.includes(x)) || ids[0]; const el = nx ? document.getElementById('tsr-' + nx) : document.querySelector('.tsr-end, .tsr-head');
   if (el) { const top = el.getBoundingClientRect().top + window.scrollY - (document.querySelector('header, .topbar') ? 64 : 12); window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }); } }
 async function tsrCommit(id) { delete TSR.pend[id]; const row = (TS.off.rows || []).find(x => x.id === id);
-  try { await tsRpc('ts_review', { p_id: id, p_action: 'approve' }); TSR.done[id] = 'ok'; if (row) row.status = 'approved'; }
-  catch (e) { if (/BAD_STATUS/.test(e.message || '') && row && row.status === 'approved') TSR.done[id] = 'ok'; else { delete TSR.done[id]; toast(tsErr(e), 4500); } }
+  try { await tsRpc('ts_review', { p_id: id, p_action: 'approve' }); TSR.done[id] = 'ok'; if (row) { if (tsIsCm()) { row.status = 'cm_ok'; row.cm_approved_at = new Date().toISOString(); row.cm_approved_name = (Cloud.profile && Cloud.profile.full_name) || ''; } else row.status = 'approved'; } }
+  catch (e) { if (/BAD_STATUS/.test(e.message || '') && row && /^(approved|cm_ok)$/.test(row.status)) TSR.done[id] = 'ok'; else { delete TSR.done[id]; toast(tsErr(e), 4500); } }
   tsrPaint(id); }
 function tsrPaint(id) { const el = document.getElementById('tsr-' + id), r = tsOffRows().find(x => x.w.id === id); if (el && r && route()[0] === 'tsoffice') { el.outerHTML = tsrCard(r); const s = document.getElementById('tsr-sum'); if (s) { const n = document.querySelectorAll('.tsr-card').length; s.innerHTML = `<b class="big">${n}</b> to approve`; } } else if (route()[0] === 'tsoffice') rerender(); }
 Object.assign(ACTIONS, {
@@ -16929,6 +16932,106 @@ addEventListener('hashchange', tsrRoute); tsrRoute();
 .ts-tbl .tag{white-space:normal !important;display:inline-block;max-width:100%;overflow-wrap:anywhere}
 @media (max-width:699px){.tsr-dh b{min-width:0;width:100%}.tsr-acts .btn:not(.primary){flex:1 1 30%}}
 `; document.head.appendChild(st); }
+
+/* ===== v1.11.26 (BETA): CONTRACTS MANAGERS (Matt, 30 Oct 2026: "can an option be added to add their contracts manager and it goes to them
+   for approval?" -> "Contracts manager approves first, then I do a final check before sending to accounts"; "the contracts managers can
+   then see labour to budget for each of their jobs"; CMs are Tom Harvey, Lenny Wilson, Matthew Ross, Ant Mcmanus)
+   - Each operative / foreman (person page) and subcontractor gang (gang setup) can have a contracts manager (ts_people.cm_uid / ts_subs.cm_uid).
+   - Submitted -> CM approved (week stays 'submitted' with cm_approved_* set) -> final approved by a manager/admin -> Accounts.
+     People with no CM go straight to the office as before; the office can still approve any week directly (CM away).
+   - A CM (surveyor login, not a manager) sees ONLY their own people's weeks, pay and adjustments (database RLS), can approve, query,
+     change days and add ± £ for them, and gets "My jobs: labour vs budget" for projects where they are the contracts manager.
+   - Nothing is emailed: the CM sees "N waiting for you" on their home screen. ===== */
+const TS_CMS = ['Tom Harvey', 'Lenny Wilson', 'Matthew Ross', 'Ant Mcmanus'];
+const tsMeId = () => (Cloud.profile && Cloud.profile.id) || null;
+const TS_NICK = { tom: 'thomas', tommy: 'thomas', ant: 'anthony', tony: 'anthony', matt: 'matthew', lenny: 'leonard', len: 'leonard' };
+const tsNmParts = s => String(s || '').toLowerCase().replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+function tsCmMatch(name, p) { const a = tsNmParts(name), b = tsNmParts(p && p.full_name), n = x => TS_NICK[x] || x;
+  return a.length > 1 && b.length > 1 && a[a.length - 1] === b[b.length - 1] && n(a[0]) === n(b[0]); }
+// the CM picker: Matt's named list matched (read-only) to staff logins. Matt's own manager login has no name on it, so "Matthew Ross"
+// falls back to the manager / admin login whose email starts "matt".
+function tsCmList() { const cfg = tsCfgV(), names = Array.isArray(cfg.cmNames) && cfg.cmNames.length ? cfg.cmNames : TS_CMS, ps = (Cloud.profiles || []).filter(p => p.active !== false);
+  return names.map(n => { let p = ps.find(x => x.role !== 'operative' && tsCmMatch(n, x));
+    if (!p && /^matt/i.test(n)) p = ps.find(x => isAdmRole(x.role) && !String(x.full_name || '').trim() && /^matt/i.test(x.email || ''));
+    return { name: n, uid: p ? p.id : null, role: p ? p.role : null }; }); }
+const tsCmOf = uid => (TS.people && TS.people[uid] && TS.people[uid].cm_uid) || null;
+function tsCmName(uid) { if (!uid) return ''; const c = tsCmList().find(x => x.uid === uid); if (c) return c.name; const p = (Cloud.profiles || []).find(x => x.id === uid); return (p && (p.full_name || p.email)) || 'Contracts manager'; }
+function tsCmOpts(sel) { const L = tsCmList();
+  return `<option value="">None - goes straight to the office</option>` + L.map(c => c.uid ? `<option value="${esc(c.uid)}" ${c.uid === sel ? 'selected' : ''}>${esc(c.name)}${c.role === 'manager' || c.role === 'admin' ? ' (manager)' : ''}</option>` : `<option value="" disabled>${esc(c.name)} - no office login yet</option>`).join('')
+    + (sel && !L.some(c => c.uid === sel) ? `<option value="${esc(sel)}" selected>${esc(tsCmName(sel))}</option>` : ''); }
+// a CM working in the app = a staff login (not manager/admin) with people or projects assigned to them
+const tsIsCm = () => tsOn() && !isOp() && !isAdm() && !!(TS.cm && (TS.cm.ppl.length || TS.cm.jobs.length));
+const tsCmReady = w => tsIsCm() || !tsCmOf(w.uid) || !!w.cm_approved_at;
+const tsCmView = w => { if (w && tsIsCm() && w.status === 'submitted' && w.cm_approved_at) w.status = 'cm_ok'; return w; };
+const tsCmWhen = at => new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+function tsCmTag(st, w) { if (!w || !tsAdm() || st !== 'submitted') return '';
+  if (w.cm_approved_at) return ` <span class="tag green">CM ✓ ${esc(String(w.cm_approved_name || '').split(' ')[0] || 'approved')}</span>`;
+  return tsCmOf(w.uid) ? ' <span class="tag grey">Waiting for CM</span>' : ''; }
+function tsCmLine(w) { if (!w) return ''; if (w.cm_approved_at) return ` · <span class="ts-cmok">✓ CM approved by ${esc(tsWho(w.cm_approved_by, w.cm_approved_name))} · ${esc(tsCmWhen(w.cm_approved_at))}</span>`;
+  const cm = tsCmOf(w.uid); return cm && !tsIsCm() && w.status === 'submitted' ? ` · <span class="ts-cmwait">Waiting for CM ${esc(tsCmName(cm))}</span>` : ''; }
+async function tsCmLoad(force) { if (!tsOn() || isOp() || !Cloud.profile || isAdm() && !force && TS.cm) return TS.cm;
+  if (!force && TS.cm && Date.now() - TS.cm.at < 120000) return TS.cm; const me = tsMeId();
+  try { const [p, j, wt] = await Promise.all([sbFetch(`/rest/v1/ts_people?cm_uid=eq.${me}&select=uid`), sbFetch(`/rest/v1/jobs?contracts_manager=eq.${me}&select=id`),
+      isAdm() ? null : sbFetch('/rest/v1/ts_weeks?status=eq.submitted&locked=eq.false&cm_approved_at=is.null&select=id,uid,week&order=week.asc')]);
+    TS.cm = { ppl: (p || []).map(x => x.uid), jobs: (j || []).map(x => x.id), wait: (wt || []).filter(x => (p || []).some(y => y.uid === x.uid)), at: Date.now() }; }
+  catch (e) { TS.cm = TS.cm || { ppl: [], jobs: [], wait: [], at: Date.now() }; } return TS.cm; }
+
+/* home: CM card ("N waiting for you") + My jobs. In-app only - no email. */
+{ const _vl = viewList; viewList = function () { const v = _vl(); if (!tsOn() || isOp() || !Cloud.profile || isAdm()) return v;
+  if (!TS.cm || Date.now() - TS.cm.at > 120000) { const was = JSON.stringify(TS.cm && [TS.cm.ppl, TS.cm.jobs, TS.cm.wait]); tsCmLoad(true).then(c => { if (!route()[0] && JSON.stringify(c && [c.ppl, c.jobs, c.wait]) !== was) rerender(); }); }
+  if (!tsIsCm()) return v; const C = TS.cm, n = C.wait.length, ws = TSC.monday(todayISO()), wk = n ? C.wait[0].week : todayISO() < TSC.addDays(ws, 4) ? TSC.addDays(ws, -7) : ws;
+  v.body = `<a class="card ts-home" href="#/tsoffice/${wk}${n ? '/review' : ''}" id="ts-cmbtn"><span class="ic">⏱</span><span class="bd"><span class="t1">Timesheets to approve</span><br><span class="t2">${n ? `<b>${n}</b> waiting for you · ` : 'Nothing waiting · '}your ${C.ppl.length} ${C.ppl.length === 1 ? 'person' : 'people'} · then the office does the final check</span></span>${I.chev}</a>
+    <a class="card ts-home" href="#/tsbudget" id="ts-cmbud"><span class="ic">📊</span><span class="bd"><span class="t1">My jobs: labour vs budget</span><br><span class="t2">${C.jobs.length} ${C.jobs.length === 1 ? 'project' : 'projects'} where you are the contracts manager</span></span>${I.chev}</a>` + v.body; return v; }; }
+
+/* person page (managers / admin): pick their contracts manager */
+{ const _vp = viewPerson; viewPerson = function (uid) { const h = _vp(uid); if (!tsAdm() || !uid) return h; const p = (Cloud.profiles || []).find(x => x.id === uid); if (!p || p.role !== 'operative') return h;
+  const cm = tsCmOf(uid), P = TS.people && TS.people[uid];
+  return `<div class="card ts-cm" id="ts-cmcard"><h2>🧑‍💼 Contracts manager</h2><p class="small">Their submitted timesheets go to this person to approve first, then to you for the final check before Accounts. None = straight to the office, as now.</p>
+    <select id="ts-cmsel" data-id="${esc(uid)}" ${TS.rates ? '' : 'disabled'}>${tsCmOpts(cm)}</select>${P && P.cm_set_at ? `<p class="small" style="margin:6px 0 0">Set ${esc(tsCmWhen(P.cm_set_at))}</p>` : ''}</div>` + h; }; }
+document.addEventListener('change', async e => { const s = e.target; if (!s || s.id !== 'ts-cmsel' || !tsAdm()) return; const uid = s.dataset.id, v = s.value || null; s.disabled = true;
+  try { const r = await tsRpc('ts_set_cm', { p_uid: uid, p_cm: v }); TS.people = TS.people || {}; TS.people[uid] = Object.assign(TS.people[uid] || {}, Array.isArray(r) ? r[0] : r); toast(v ? `Contracts manager set: ${tsCmName(v)} ✓` : 'Contracts manager removed ✓'); }
+  catch (err) { toast('Not saved: ' + tsErr(err), 5000); } rerender(); });
+
+/* labour vs budget: a CM sees only their projects (jobs.contracts_manager), with everyone's approved + CM-approved + sent time on them */
+{ const _bl = tsBudLoad; tsBudLoad = async function () { if (!tsIsCm()) { if (tsAdm() && !TS.cm) tsCmLoad(true).then(() => { if (route()[0] === 'tsbudget') rerender(); }); return _bl(); } TS.bud = { loading: true };
+  try { const [d] = await Promise.all([tsRpc('ts_cm_budget'), tsJcLoad(true), tsCfgLoad(), Ops.jobsTbl && Ops.jobsTbl.length ? null : loadJobsTbl()]);
+    const A = tsAdjMap(d.adj || []), R = {}, by = {}, mine = new Set(d.jobs || []); (d.rates || []).forEach(r => { R[r.uid] = r; });
+    (d.weeks || []).forEach(x => { const t = TSC.week(x, A[x.id], TSC.rateFor(R[x.uid] || null, [], x.week), tsCfgV()); t.days.forEach(day => { const s = TSC.jobSplit(day);
+      Object.keys(s).forEach(j => { if (!mine.has(j)) return; const o = by[j] = by[j] || { days: 0, gbp: 0, h: 0, ppl: new Set() }; o.days += s[j].days; o.gbp += s[j].gbp; o.h += s[j].h; o.ppl.add(x.uid); }); }); });
+    TS.bud = { by, mine: [...mine] }; } catch (e) { TS.bud = { err: tsErr(e) }; } if (route()[0] === 'tsbudget') rerender(); }; }
+function tsCmBudTable(ids) { const B = TS.bud, jc = TS.jc || {}, have = new Set((Ops.jobsTbl || []).map(j => j.id));
+  const rows = ids.filter(id => have.has(id)).map(id => { const u = B.by[id] || { gbp: 0, days: 0, ppl: new Set() }, c = jc[id] || {}, bG = c.labour_budget != null ? +c.labour_budget : null;
+    return { id, u, bG, rem: bG != null ? TSC.r2(bG - u.gbp) : null, p: bG ? u.gbp / bG : null }; }).sort((a, b) => (b.p == null ? -1 : b.p) - (a.p == null ? -1 : a.p));
+  const cl = p => p == null ? '' : p > 1 ? 'r' : p > 0.85 ? 'w' : 'g';
+  return `<div class="card"><h2>📊 My jobs: labour vs budget</h2><p class="small">Projects where you are the contracts manager. Spent to date = everyone's approved, CM-approved and sent timesheets on the job (a day split across jobs is shared by hours). Highest % used first.</p>
+    <div class="ts-wrap"><table class="ts-tbl ts-cmbud"><thead><tr><th>Project</th><th class="n">Labour budget</th><th class="n">Spent to date</th><th class="n">Remaining</th><th class="n">% used</th></tr></thead><tbody>
+    ${rows.map(r => `<tr class="${(r.p || 0) > 1 ? 'flag' : ''}"><td><b>${esc(tsJobName(r.id))}</b>${r.bG == null ? '<span class="ts-fl">No budget set</span>' : ''}<span class="small"> · ${r.u.ppl.size} ${r.u.ppl.size === 1 ? 'person' : 'people'}</span></td>
+      <td class="n">${r.bG != null ? fmtGBP(r.bG) : '-'}</td><td class="n">${fmtGBP(r.u.gbp)}</td><td class="n ${r.rem != null && r.rem < 0 ? 'ts-neg' : ''}">${r.rem != null ? fmtGBP(r.rem) : '-'}</td>
+      <td class="n">${r.p != null ? `<span class="ts-pct ${cl(r.p)}">${Math.round(r.p * 100)}%</span><div class="ts-bar"><i class="${r.p > 1 ? 'r' : r.p > 0.85 ? 'w' : ''}" style="width:${Math.min(100, Math.round(r.p * 100))}%"></i></div>` : '-'}</td></tr>`).join('')
+      || '<tr><td colspan="5" class="hint">No projects have you as their contracts manager yet - the office sets this on the project.</td></tr>'}
+    </tbody></table></div></div>`; }
+{ const _bv = tsBudgetView; tsBudgetView = function () { const B = TS.bud, mineN = TS.cm && TS.cm.jobs.length;
+  const tog = tsAdm() && mineN ? `<div class="chips" style="margin:0 0 10px"><button class="chip ${TS.budMine ? '' : 'on'}" data-act="tsb-mine" data-v="">All jobs</button><button class="chip ${TS.budMine ? 'on' : ''}" data-act="tsb-mine" data-v="1">My jobs (${mineN})</button></div>` : '';
+  if (!B || B.loading || B.err || !(tsIsCm() || (tsAdm() && TS.budMine && mineN))) return tog + _bv();
+  return tog + tsCmBudTable(tsIsCm() ? B.mine : TS.cm.jobs); }; }
+ACTIONS['tsb-mine'] = a => { TS.budMine = !!a.dataset.v; rerender(); };
+
+{ const st = document.createElement('style'); st.textContent = `
+.ts-cmok{color:#15803d;font-weight:600}.ts-cmwait{color:#92400e}.tsr-cm{margin:0 0 4px}
+.ts-cm select{width:100%;min-height:44px}.ts-pct{font-weight:800}.ts-pct.r{color:#b91c1c}.ts-pct.w{color:#b45309}.ts-pct.g{color:#15803d}.ts-neg{color:#b91c1c;font-weight:700}
+@media (max-width:699px){.ts-cmbud th,.ts-cmbud td{padding:6px 4px;font-size:13px}}
+`; document.head.appendChild(st); }
+// a CM's office page: their people only - no Subs / Accounts links
+{ const _ov = tsOfficeView; tsOfficeView = function (ws) { const h = _ov(ws); return tsIsCm() ? h.replace(/<a class="btn" href="#\/tssubs\/[^"]*"[^>]*>[\s\S]*?<\/a>/g, '').replace('>📊 Labour vs budget<', '>📊 My jobs<') : h; }; }
+/* v1.11.26 fix (Matt's feedback d2c89cce): the PDF said "Not approved yet" on approved weeks because his office login has no name on it
+   (approved_name is saved blank). Approval now keys off the status/time, and the name falls back to the login's profile / CM list / email. */
+function tsWho(uid, nm) { if (nm && String(nm).trim()) return String(nm).trim(); if (!uid) return 'the office'; const p = (Cloud.profiles || []).find(x => x.id === uid) || (Cloud.profile && Cloud.profile.id === uid ? Cloud.profile : null);
+  if (p && String(p.full_name || '').trim()) return p.full_name.trim(); const c = tsCmList().find(x => x.uid === uid); if (c) return c.name; return p && p.email ? p.email.split('@')[0] : 'the office'; }
+function tsApprLines(w) { const d = at => fmtDate(String(at).slice(0, 10)), out = [], fin = w.approved_at && /^(approved|sent)$/.test(w.status);
+  if (fin) out.push(`${w.cm_approved_at ? 'Final check' : 'Approved'} by ${tsWho(w.approved_by, w.approved_name)} on ${d(w.approved_at)}`);
+  else out.push(w.cm_approved_at ? 'Final check not done yet' : 'Not approved yet');
+  if (w.cm_approved_at) out.push(`CM approved by ${tsWho(w.cm_approved_by, w.cm_approved_name)} on ${d(w.cm_approved_at)}`);
+  const cm = tsCmOf(w.uid); out.push(`Contracts manager: ${cm ? tsCmName(cm) : 'none set'}`); out.ok = !!fin; return out; }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
