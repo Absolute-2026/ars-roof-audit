@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="1.11.26">
+<meta name="app-version" content="1.11.27">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f2542">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -881,7 +881,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 'use strict';
 /* ===== Absolute Roofing Solutions - Site Audit App ===== */
-const APP_VERSION = '1.11.26';
+const APP_VERSION = '1.11.27';
 /* Build variant, injected by build.js (prod / beta / test) */
 const BUILD = {"variant":"beta","allowLocal":false,"beta":true,"db":"ars-roof-audit-beta","siteUrl":"https://absolute-2026.github.io/ars-roof-audit/beta/"};
 const BETA_TAG = BUILD.beta ? ' <span class="beta-tag">BETA</span>' : '';
@@ -15453,7 +15453,7 @@ const tsRpc = (fn, body) => sbFetch('/rest/v1/rpc/' + fn, { method: 'POST', body
 const tsH = h => (Math.round((+h || 0) * 100) / 100).toString();
 const tsDay = iso => `${TSC.dayName(iso)} ${+iso.slice(8, 10)} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+iso.slice(5, 7) - 1]}`;
 const tsWc = ws => 'w/c ' + tsDay(ws).slice(4) + ' ' + ws.slice(0, 4);
-const tsErr = e => { const m = String((e && e.message) || e || ''); return /ARS_TS_LOCKED/.test(m) ? 'This week is already submitted or locked' : /ARS_TS_NOT_FOREMAN/.test(m) ? 'Only the foreman on this job can do that' : /ARS_TS_NEED_SIGNATURE/.test(m) ? 'Please sign first' : /ARS_TS_NEED_(NOTE|REASON)/.test(m) ? 'A reason is required' : /ARS_TS_HAS_PHONE/.test(m) ? 'This person signs on their own phone' : /ARS_TS_BAD_STATUS/.test(m) ? 'The status has changed - refresh' : e && e.offline ? 'Needs signal' : m || 'Something went wrong'; };
+const tsErr = e => { const m = String((e && e.message) || e || ''); return /ARS_TS_APPROVED/.test(m) ? 'Already approved - ask the office to change this' : /ARS_TS_BAD_CM/.test(m) ? 'That contracts manager is not available' : /ARS_TS_LOCKED/.test(m) ? 'This week is already submitted or locked' : /ARS_TS_NOT_FOREMAN/.test(m) ? 'Only the foreman on this job can do that' : /ARS_TS_NEED_SIGNATURE/.test(m) ? 'Please sign first' : /ARS_TS_NEED_(NOTE|REASON)/.test(m) ? 'A reason is required' : /ARS_TS_HAS_PHONE/.test(m) ? 'This person signs on their own phone' : /ARS_TS_BAD_STATUS/.test(m) ? 'The status has changed - refresh' : e && e.offline ? 'Needs signal' : m || 'Something went wrong'; };
 const tsStTag = st => ({ draft: ['grey', 'Draft'], submitted: ['blue', 'Submitted'], cm_ok: ['green', 'CM approved'], queried: ['amber', 'Queried'], approved: ['green', 'Approved'], sent: ['navy', 'Sent to accounts'], none: ['grey', 'Nothing yet'] })[st] || ['grey', st];
 const tsTag = (st, w) => { const [c, t] = tsStTag(st); return `<span class="tag ${c}">${esc(t)}</span>` + (w && typeof tsCmTag === 'function' ? tsCmTag(st, w) : ''); };
 (() => { const st = document.createElement('style'); st.textContent = `
@@ -15576,11 +15576,11 @@ function tsViewOp(w) {
       ${a ? `<div class="lg-msg" style="background:#eef1f5;margin:8px 0 0">The office changed this day: <b>${esc(TSC.dvTxt(a.after.dv))}${TSC.otH(TSC.otl(a.after)) ? ' + ' + tsH(TSC.otH(TSC.otl(a.after))) + ' h overtime' : ''}</b> ${String(a.reason || '').trim() ? ` · "${esc(a.reason)}"` : ''}</div>` : ''}</div>`; }).join('');
   const fri = TSC.addDays(w.week, 4), canSubmit = ed && today >= fri;
   const banner = w.status === 'queried' && w.query ? `<div class="lg-msg warn" style="margin:0 0 12px"><b>The office has a question:</b> "${esc(w.query.note)}"${w.query.name ? ' - ' + esc(w.query.name) : ''}<br>Change your hours if needed, then sign and submit again.</div>`
-    : w.status === 'submitted' ? `<div class="lg-msg" style="margin:0 0 12px;background:#e0f2fe">✓ Submitted${w.sign && w.sign.at ? ' ' + esc(new Date(w.sign.at).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' })) : ''}${w.sign && w.sign.on_device_name ? ' on ' + esc(w.sign.on_device_name) + "'s phone" : ''}. The office will check it.</div>`
-    : w.status === 'approved' || w.status === 'sent' ? `<div class="lg-msg" style="margin:0 0 12px;background:#dcfce7">✓ Approved by the office.</div>` : '';
+    : w.status === 'submitted' ? `<div class="lg-msg" style="margin:0 0 12px;background:#e0f2fe">✓ Submitted${w.sign && w.sign.at ? ' ' + esc(new Date(w.sign.at).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' })) : ''}${w.sign && w.sign.on_device_name ? ' on ' + esc(w.sign.on_device_name) + "'s phone" : ''}. ${w.cm_approved_at ? 'Approved by your contracts manager - the office does the final check.' : 'The office will check it.'}${tsOpEditHTML(w)}</div>`
+    : w.status === 'approved' || w.status === 'sent' ? `<div class="lg-msg" style="margin:0 0 12px;background:#dcfce7">✓ Approved by the office.${tsOpEditHTML(w)}</div>` : '';
   return `${seg}${banner}<div class="card"><h2>⏱ Timesheet · ${esc(tsWc(w.week))} <span class="small" id="ts-saved" style="margin-left:auto;font-weight:600"></span></h2>
     <div style="display:flex;gap:8px;margin:0 0 10px"><a class="btn" style="flex:1;min-height:44px;text-decoration:none" href="#/ts/${TSC.addDays(w.week, -7)}">‹ Previous week</a>${w.week < TSC.monday(today) ? `<a class="btn" style="flex:1;min-height:44px;text-decoration:none" href="#/ts/${TSC.addDays(w.week, 7)}">Next week ›</a>` : ''}</div>
-    ${days}${tsTotalsHTML(w)}
+    ${tsOpCmHTML(w, ed)}${days}${tsTotalsHTML(w)}
     ${ed ? (canSubmit ? `<button class="btn primary block" style="margin-top:12px;min-height:58px;font-size:19px" data-act="ts-submit">✍ Sign &amp; submit week</button>` : `<p class="hint" style="margin-top:10px">You sign and submit the week on Friday.</p>`) : ''}
     <p class="small" style="margin-top:8px">Saved on this phone as you go - it sends when you have signal.</p></div>
     ${tsOpOn() && typeof opHas === 'function' && opHas('lead') && (Ops.jobs || []).length ? `<div class="card"><h2>👷 Gang timesheet (foreman)</h2><p class="hint" style="margin-bottom:8px">Book times for everyone on site in one go.</p>${(Ops.jobs || []).map(j => `<a class="btn block" style="margin-bottom:8px;text-decoration:none" href="#/tsgang/${esc(j.id)}/${today}">${esc([j.ref, j.site_name].filter(Boolean).join(' · '))}</a>`).join('')}</div>` : ''}`;
@@ -15727,8 +15727,9 @@ function tsFlags(w, t) { const f = [], O = TS.off, cfg = tsCfgV();
 const tsJobRef = id => { const j = (Ops.jobsTbl || []).find(x => x.id === id); return j ? j.ref || j.site_name : 'job'; };
 const tsJobName = id => { const j = (Ops.jobsTbl || []).find(x => x.id === id); return j ? [j.ref, j.site_name].filter(Boolean).join(' · ') : id; };
 function tsOffRows() { const O = TS.off, ws = O.week, cfg = tsCfgV(); const by = {}; (O.rows || []).forEach(w => { by[w.uid] = w; });
-  let ppl = operatives().filter(p => p.active !== false && !/^E2E Temp/.test(p.full_name || '') || by[p.id]); if (tsIsCm()) ppl = ppl.filter(p => tsCmOf(p.id) === tsMeId());
-  Object.keys(by).forEach(uid => { if (!ppl.find(p => p.id === uid)) ppl.push({ id: uid, full_name: by[uid].name }); });
+  let ppl = operatives().filter(p => p.active !== false && !/^E2E Temp/.test(p.full_name || '') || by[p.id]); const cmMine = uid => by[uid] ? tsWkCm(by[uid]) === tsMeId() : tsCmOf(uid) === tsMeId();   // v1.11.27: a week's own CM pick wins
+  if (tsIsCm()) ppl = ppl.filter(p => cmMine(p.id));
+  Object.keys(by).forEach(uid => { if (!ppl.find(p => p.id === uid) && (!tsIsCm() || cmMine(uid))) ppl.push({ id: uid, full_name: by[uid].name }); });
   return ppl.map(p => { const w = by[p.id] || { uid: p.id, week: ws, days: {}, status: 'none', name: p.full_name }; const rate = tsRate(p.id, ws); const t = TSC.week(w, O.adj && O.adj[w.id], rate, cfg, tsExt(w.id)); return { p, w, t, rate, fl: w.id ? tsFlags(w, t) : [], jobs: [...new Set(t.days.flatMap(x => (x.d.e || []).map(e => e.job).filter(Boolean)))] }; })
     .map(r => { if (tsNoTime(r, ws)) r.fl.unshift({ k: 'notime', r: 1, t: 'No time submitted' }); const nn = r.w ? Object.values(r.w.days || {}).filter(d => d && d.note && String(d.note).trim()).length : 0; if (nn) r.fl.push({ k: 'note', r: 0, t: `📝 ${nn} note${nn > 1 ? 's' : ''}` }); return r; })
     .sort((a, b) => (a.p.full_name || '').localeCompare(b.p.full_name || '')); }
@@ -16955,25 +16956,28 @@ function tsCmList() { const cfg = tsCfgV(), names = Array.isArray(cfg.cmNames) &
     if (!p && /^matt/i.test(n)) p = ps.find(x => isAdmRole(x.role) && !String(x.full_name || '').trim() && /^matt/i.test(x.email || ''));
     return { name: n, uid: p ? p.id : null, role: p ? p.role : null }; }); }
 const tsCmOf = uid => (TS.people && TS.people[uid] && TS.people[uid].cm_uid) || null;
+// v1.11.27: the operative can pick the CM on a week (cm_pick; cm_uid null = Office) - that wins over their profile CM for that week only
+const tsWkCm = w => !w ? null : w.cm_pick ? (w.cm_uid || null) : tsCmOf(w.uid);
 function tsCmName(uid) { if (!uid) return ''; const c = tsCmList().find(x => x.uid === uid); if (c) return c.name; const p = (Cloud.profiles || []).find(x => x.id === uid); return (p && (p.full_name || p.email)) || 'Contracts manager'; }
 function tsCmOpts(sel) { const L = tsCmList();
   return `<option value="">None - goes straight to the office</option>` + L.map(c => c.uid ? `<option value="${esc(c.uid)}" ${c.uid === sel ? 'selected' : ''}>${esc(c.name)}${c.role === 'manager' || c.role === 'admin' ? ' (manager)' : ''}</option>` : `<option value="" disabled>${esc(c.name)} - no office login yet</option>`).join('')
     + (sel && !L.some(c => c.uid === sel) ? `<option value="${esc(sel)}" selected>${esc(tsCmName(sel))}</option>` : ''); }
 // a CM working in the app = a staff login (not manager/admin) with people or projects assigned to them
-const tsIsCm = () => tsOn() && !isOp() && !isAdm() && !!(TS.cm && (TS.cm.ppl.length || TS.cm.jobs.length));
-const tsCmReady = w => tsIsCm() || !tsCmOf(w.uid) || !!w.cm_approved_at;
+const tsIsCm = () => tsOn() && !isOp() && !isAdm() && !!(TS.cm && (TS.cm.ppl.length || TS.cm.jobs.length || (TS.cm.pick || []).length));
+const tsCmReady = w => tsIsCm() || !tsWkCm(w) || !!w.cm_approved_at;
 const tsCmView = w => { if (w && tsIsCm() && w.status === 'submitted' && w.cm_approved_at) w.status = 'cm_ok'; return w; };
 const tsCmWhen = at => new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 function tsCmTag(st, w) { if (!w || !tsAdm() || st !== 'submitted') return '';
   if (w.cm_approved_at) return ` <span class="tag green">CM ✓ ${esc(String(w.cm_approved_name || '').split(' ')[0] || 'approved')}</span>`;
-  return tsCmOf(w.uid) ? ' <span class="tag grey">Waiting for CM</span>' : ''; }
+  return tsWkCm(w) ? ' <span class="tag grey">Waiting for CM</span>' : ''; }
 function tsCmLine(w) { if (!w) return ''; if (w.cm_approved_at) return ` · <span class="ts-cmok">✓ CM approved by ${esc(tsWho(w.cm_approved_by, w.cm_approved_name))} · ${esc(tsCmWhen(w.cm_approved_at))}</span>`;
-  const cm = tsCmOf(w.uid); return cm && !tsIsCm() && w.status === 'submitted' ? ` · <span class="ts-cmwait">Waiting for CM ${esc(tsCmName(cm))}</span>` : ''; }
+  const cm = tsWkCm(w); return cm && !tsIsCm() && w.status === 'submitted' ? ` · <span class="ts-cmwait">Waiting for CM ${esc(tsCmName(cm))}</span>` : ''; }
 async function tsCmLoad(force) { if (!tsOn() || isOp() || !Cloud.profile || isAdm() && !force && TS.cm) return TS.cm;
   if (!force && TS.cm && Date.now() - TS.cm.at < 120000) return TS.cm; const me = tsMeId();
-  try { const [p, j, wt] = await Promise.all([sbFetch(`/rest/v1/ts_people?cm_uid=eq.${me}&select=uid`), sbFetch(`/rest/v1/jobs?contracts_manager=eq.${me}&select=id`),
-      isAdm() ? null : sbFetch('/rest/v1/ts_weeks?status=eq.submitted&locked=eq.false&cm_approved_at=is.null&select=id,uid,week&order=week.asc')]);
-    TS.cm = { ppl: (p || []).map(x => x.uid), jobs: (j || []).map(x => x.id), wait: (wt || []).filter(x => (p || []).some(y => y.uid === x.uid)), at: Date.now() }; }
+  try { const [p, j, wt, pk] = await Promise.all([sbFetch(`/rest/v1/ts_people?cm_uid=eq.${me}&select=uid`), sbFetch(`/rest/v1/jobs?contracts_manager=eq.${me}&select=id`),
+      isAdm() ? null : sbFetch('/rest/v1/ts_weeks?status=eq.submitted&locked=eq.false&cm_approved_at=is.null&select=id,uid,week,cm_pick,cm_uid&order=week.asc'),
+      isAdm() ? null : sbFetch(`/rest/v1/ts_weeks?cm_pick=eq.true&cm_uid=eq.${me}&select=id,uid,week`)]);
+    TS.cm = { ppl: (p || []).map(x => x.uid), jobs: (j || []).map(x => x.id), pick: (pk || []), wait: (wt || []).filter(x => x.cm_pick ? x.cm_uid === me : (p || []).some(y => y.uid === x.uid)), at: Date.now() }; }
   catch (e) { TS.cm = TS.cm || { ppl: [], jobs: [], wait: [], at: Date.now() }; } return TS.cm; }
 
 /* home: CM card ("N waiting for you") + My jobs. In-app only - no email. */
@@ -17031,7 +17035,56 @@ function tsApprLines(w) { const d = at => fmtDate(String(at).slice(0, 10)), out 
   if (fin) out.push(`${w.cm_approved_at ? 'Final check' : 'Approved'} by ${tsWho(w.approved_by, w.approved_name)} on ${d(w.approved_at)}`);
   else out.push(w.cm_approved_at ? 'Final check not done yet' : 'Not approved yet');
   if (w.cm_approved_at) out.push(`CM approved by ${tsWho(w.cm_approved_by, w.cm_approved_name)} on ${d(w.cm_approved_at)}`);
-  const cm = tsCmOf(w.uid); out.push(`Contracts manager: ${cm ? tsCmName(cm) : 'none set'}`); out.ok = !!fin; return out; }
+  const cm = tsWkCm(w); out.push(`Contracts manager: ${cm ? tsCmName(cm) : 'none set'}`); out.ok = !!fin; return out; }
+
+/* ===== v1.11.27 (BETA): operatives pick the contracts manager per week + Edit a submitted week (Matt, 30 Oct 2026:
+   "When the operatives are doing timesheet can they allocate a contracts manager?" -> "Yeah. Also is there an option to edit the
+   timesheet if they make a mistake?")
+   - Small "Contracts manager" picker on the operative / foreman / gang lead weekly timesheet. Pre-filled with their profile CM
+     (none = "Office"). Choices = Matt's CM list matched to office logins (anyone without an office login is hidden). The pick is saved
+     on that week only (ts_weeks.cm_pick / cm_uid via ts_week_set_cm) and routes that week to that CM. No money shown.
+   - Before v1.11.27 a submitted week was read-only for the operative (only the office could query it back). Now "Edit week" reopens a
+     submitted week to draft (ts_unsubmit, logged) until a CM or the office approves it; after that: "Ask the office to change this".
+     Every day of a draft week (up to today) was already tappable/editable before submit (unchanged). ===== */
+TS.opCm = TS.opCm || { list: null, mine: undefined, at: 0 };
+async function tsOpCmLoad(force) { const C = TS.opCm; if (!tsOpOn() || (!force && C.list && Date.now() - C.at < 600000)) return C;
+  if (!C.list) { try { const k = await DB.getKV('ts.opcm.' + me()); if (k) Object.assign(C, k, { at: 0 }); } catch (e) { } }
+  if (!online()) return C;
+  try { const [o, p] = await Promise.all([tsRpc('ts_cm_options'), sbFetch(`/rest/v1/ts_people?uid=eq.${me()}&select=cm_uid`)]);
+    C.list = Array.isArray(o) ? o : []; C.mine = (p && p[0] && p[0].cm_uid) || null; C.at = Date.now(); DB.setKV('ts.opcm.' + me(), { list: C.list, mine: C.mine }); } catch (e) { }
+  return C; }
+// Matt's named CMs matched to office logins; anyone without an office login is left out (e.g. Ant until he has one)
+function tsOpCmChoices() { const cfg = tsCfgV(), names = Array.isArray(cfg.cmNames) && cfg.cmNames.length ? cfg.cmNames : TS_CMS, ps = TS.opCm.list || [];
+  return names.map(n => { let p = ps.find(x => x.role !== 'operative' && tsCmMatch(n, x)); if (!p && /^matt/i.test(n)) p = ps.find(x => isAdmRole(x.role) && !String(x.full_name || '').trim() && x.matt);
+    return p ? { name: n, uid: p.id } : null; }).filter(Boolean); }
+const tsOpCmSel = w => w.cm_pick ? (w.cm_uid || '') : (TS.opCm.mine || '');
+function tsOpCmName(uid) { if (!uid) return 'Office'; const c = tsOpCmChoices().find(x => x.uid === uid); if (c) return c.name; const p = (TS.opCm.list || []).find(x => x.id === uid); return (p && p.full_name) || 'Contracts manager'; }
+function tsOpCmHTML(w, ed) { if (!tsOpOn()) return ''; const C = TS.opCm; if (!C.list && !C.loading) { C.loading = true; tsOpCmLoad().then(() => { C.loading = false; if (route()[0] === 'ts') rerender(); }); }
+  const sel = tsOpCmSel(w);
+  if (!ed) return `<div class="ts-cmpick ro" id="ts-cmpick-ro"><span>Contracts manager</span><b>${esc(tsOpCmName(sel))}</b></div>`;
+  const L = tsOpCmChoices(); const opts = `<option value="">Office</option>${L.map(c => `<option value="${esc(c.uid)}" ${c.uid === sel ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}${sel && !L.some(c => c.uid === sel) ? `<option value="${esc(sel)}" selected>${esc(tsOpCmName(sel))}</option>` : ''}`;
+  return `<div class="ts-cmpick" id="ts-cmpick-row"><label for="ts-cmpick">Contracts manager</label><select id="ts-cmpick" ${C.list ? '' : 'disabled'}>${opts}</select></div>`; }
+// Edit (reopen) a submitted week until someone approves it
+function tsOpEditHTML(w) { if (!tsOpOn()) return '';
+  if (w.status === 'submitted' && !w.locked && !w.cm_approved_at) return `<button class="btn block" style="margin-top:10px;min-height:48px;background:#fff" data-act="ts-unsubmit">✏️ Edit week</button><span class="small" style="display:block;margin-top:4px">Made a mistake? Reopen it, fix it, then sign and submit again.</span>`;
+  return `<span class="small ts-asko" id="ts-askoffice" style="display:block;margin-top:6px">🔒 Already approved. Need a change? Ask the office to change this.</span>`; }
+document.addEventListener('change', async e => { const s = e.target; if (!s || s.id !== 'ts-cmpick' || !tsOpOn()) return; const w = TS.w[TS.cur]; if (!w || !tsEditable(w)) return;
+  const v = s.value || null, was = tsOpCmSel(w); if (!online()) { s.value = was; return toast('Needs signal to change the contracts manager', 4000); } s.disabled = true;
+  try { const row = await tsRpc('ts_week_set_cm', { p_week: w.week, p_cm: v }); const r = Array.isArray(row) ? row[0] : row;
+    if (r) { const keep = {}; (w.dirty || []).forEach(k => { keep[k] = w.days[k]; }); Object.assign(w, r, { days: Object.assign({}, r.days || {}, keep), dirty: w.dirty || [] }); }
+    await DB.setKV(tsKey(w.week), w); toast(`This week goes to: ${tsOpCmName(v)} ✓`); }
+  catch (err) { s.value = was; toast('Not saved: ' + tsErr(err), 5000); } rerender(); });
+Object.assign(ACTIONS, {
+  async 'ts-unsubmit'() { const w = TS.w[TS.cur]; if (!w || w.status !== 'submitted' || w.cm_approved_at || w.locked) return;
+    if (!online()) return toast('Needs signal to reopen the week', 4000);
+    if (!await confirmBox('Edit this week?', `${tsWc(w.week)} goes back to you to change. You'll need to sign and submit it again.`, 'Edit week', false)) return;
+    try { const r0 = await tsRpc('ts_unsubmit', { p_week: w.week }); const r = Array.isArray(r0) ? r0[0] : r0; Object.assign(w, r, { dirty: [] }); await DB.setKV(tsKey(w.week), w); toast('Week reopened - change it, then sign and submit again', 4000); }
+    catch (e) { toast(tsErr(e), 5000); await tsPull(w.week); } rerender(); },
+});
+{ const st = document.createElement('style'); st.textContent = `
+.ts-cmpick{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc}
+.ts-cmpick label,.ts-cmpick>span{font-size:14px;font-weight:600;color:#475569;white-space:nowrap}
+.ts-cmpick select{flex:1;min-width:0;min-height:44px;font-size:16px}.ts-cmpick.ro b{margin-left:auto}`; document.head.appendChild(st); }
 
 /* ===== v1.6.4: Contracts handover - contracts copies (Rev A, B...) of a pre-works survey =====
    Stored inside the audit data (no DB change): the copy is a normal audit record with job.contracts = { root, origId, origRef, rev, by, date, at, base, signoff, notes };
